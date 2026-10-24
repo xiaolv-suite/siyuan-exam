@@ -6290,9 +6290,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     {#if sessionDone}
       <div class="lv-pad lv-center">
         <div class="lv-card lv-guard" style="border-top:3.5px solid var(--lv-brand);box-shadow:var(--lv-sh-pop)">
-          <div class="lv-guard-title" style="color:var(--lv-brand);display:flex;align-items:center;justify-content:center;gap:8px">
+          <div class="lv-guard-title" style="color:var(--lv-brand);display:flex;align-items:center;justify-content:center;gap:6px">
             <Icon name="trophy" size={20} />
-            <span>{sessionDone.wrong === 0 ? "🎉 满分通关 · 太棒了！" : sessionDone.correct >= sessionDone.wrong ? "🎉 备考达标 · 战绩优异！" : "💪 坚持不懈 · 查漏补缺！"}</span>
+            <span>{t("session.done")}</span>
+            <span style="font-size:13px;opacity:0.85">· {sessionDone.wrong === 0 ? "满分通关！" : sessionDone.correct >= sessionDone.wrong ? "战绩优异！" : "查漏补缺！"}</span>
           </div>
           <!-- 战报成就胶囊矩阵（9999px） -->
           <div class="lv-row" style="justify-content:center;gap:6px;margin:8px 0 14px;flex-wrap:wrap">

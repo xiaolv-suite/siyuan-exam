@@ -183,7 +183,7 @@ let seq = 0;
 const mkEvent = (daysAgo, qid, kind, mode, verdict, extra = {}) => ({
   v: 2,
   eid: `seed-${++seq}`,
-  ts: now - daysAgo * DAY + seq * 60_000,
+  ts: now - daysAgo * DAY - (60 - seq) * 60_000,
   qid,
   kind,
   mode,

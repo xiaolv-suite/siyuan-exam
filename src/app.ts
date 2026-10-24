@@ -1191,7 +1191,7 @@ export class ExamApp {
       const v = await this.loadAux<Record<string, { status: string; at: number; wrongCount: number; until?: number }>>(key);
       const previous = this.wrongOverlay;
       const map = { ...(v ?? {}) };
-      const at = this.deps.now?.() ?? Date.now();
+      const at = Math.max(this.deps.now?.() ?? Date.now(), current?.lastWrongAt ?? 0);
       map[qid] = { status: "archived", at, wrongCount: current?.wrongCount ?? 0 };
       try {
         await this.saves.runLatest(key, () => this.deps.storage.save(key, map));
@@ -1220,7 +1220,10 @@ export class ExamApp {
       const previous = this.wrongOverlay;
       const map = { ...(v ?? {}) };
       if (status === "active") delete map[qid];
-      else map[qid] = { status, at: this.deps.now?.() ?? Date.now(), wrongCount: current?.wrongCount ?? 0 };
+      else {
+        const at = Math.max(this.deps.now?.() ?? Date.now(), current?.lastWrongAt ?? 0);
+        map[qid] = { status, at, wrongCount: current?.wrongCount ?? 0 };
+      }
       try {
         await this.saves.runLatest(key, () => this.deps.storage.save(key, map));
         this.wrongOverlay = new Map(Object.entries(map));
@@ -1243,7 +1246,7 @@ export class ExamApp {
       const v = await this.loadAux<Record<string, { status: string; at: number; wrongCount: number; until?: number }>>(key);
       const previous = this.wrongOverlay;
       const map = { ...(v ?? {}) };
-      const at = this.deps.now?.() ?? Date.now();
+      const at = Math.max(this.deps.now?.() ?? Date.now(), current?.lastWrongAt ?? 0);
       map[qid] = { status: "snoozed", at, wrongCount: current?.wrongCount ?? 0, until: at + days * 86_400_000 };
       try {
         await this.saves.runLatest(key, () => this.deps.storage.save(key, map));

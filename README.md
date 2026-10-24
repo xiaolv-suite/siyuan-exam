@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1362%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1365%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.25（2026-10-24）
+## 最新版本：v0.11.26（2026-10-25）
+
+本版本为全量真实浏览器 Playwright 端到端（E2E）验收、老用户时钟漂移保号修复与断点对齐升级版本。全面通过 5 组跨模块真实浏览器自动化端到端测试（`smoke-workflows-ux.mjs`、`smoke-ui.mjs`、`smoke-sample-ui.mjs`、`smoke-recite-responsive.mjs`、`smoke-report-actions.mjs`）；在错题处置中将覆盖时间戳升级为 `Math.max(Date.now(), current.lastWrongAt)`，彻底解决老用户本地时钟存在轻微漂移时点击“已掌握”被误判导致错题无法消除的幽灵缺陷；在 `lv-base.scss` 中将紧凑侧栏列宽精确校准为 R54 规范的 74px；战报标题精确对齐老用户完成文案。全套单测 177 个测试文件、1365 项单测 100% 全部通过。
+
+## 上一版本：v0.11.25（2026-10-24）
 
 本版本为干扰项误概念诊断与勘误 CSV 回导空值防御及深层健壮性升级版本。在 `misconception.ts` 中对作答事件列表与误概念字典全面引入数组安全规整，彻底杜绝在空流水或未配置误概念选项的题目调用认知诊断时抛出未捕获 TypeError；在 `errata.ts` 中对传入的勘误 CSV 文本进行空串与未定义前置拦截，安全返回文件为空错误，彻底消除崩溃。全套单测 177 个测试文件、1362 项单测 100% 全部通过。
 

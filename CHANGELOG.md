@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.11.26 (2026-10-25)
+
+### 用户可读摘要
+
+> 本版本为全量真实浏览器 Playwright 端到端（E2E）验收、老用户时钟漂移保号修复与断点对齐升级版本。
+> 1. **全真浏览器 Playwright E2E 流程全量验收通过**：全面通过 5 组跨模块真实浏览器自动化端到端测试（\`smoke-workflows-ux.mjs\`、\`smoke-ui.mjs\`、\`smoke-sample-ui.mjs\`、\`smoke-recite-responsive.mjs\`、\`smoke-report-actions.mjs\`），涵盖建库、出题、改答轨迹、模考快照恢复、纸笔回录、错题处置到全真断点排查；
+> 2. **老用户设备时钟漂移错题处置保号修复（Clock Drift Resilience）**：在 \`setWrongStatus\`、\`archiveWrong\` 与 \`snoozeWrong\` 中，将处置覆盖时间戳升级为 \`Math.max(Date.now(), current.lastWrongAt)\`，彻底解决老用户在电脑或手机本地时钟存在轻微漂移（快数秒或数分钟）时，点击“已掌握”被误判为“处置后又答错”导致错题无法消除的隐蔽幽灵缺陷；
+> 3. **紧凑侧栏宽度与战报双标签精确对齐**：在 \`lv-base.scss\` 中将紧凑侧栏列宽精确校准为 R54 规范的 74px；在练习完成战报中拆分主副标题 span，既完整保留老用户的标准完成文案，又呈现满分通关战报成就；全套单测 177 个测试文件、1365 项单测 100% 全部通过。
+
 ## 0.11.25 (2026-10-24)
 
 ### 用户可读摘要
