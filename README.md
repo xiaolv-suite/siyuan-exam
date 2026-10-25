@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.36（2026-10-25）
+## 最新版本：v0.11.37（2026-10-25）
+
+本版本为面包屑分隔符视觉比例校准、侧栏分组标签字距微调与整体 UI 质感打磨版本。顶栏面包屑分隔符字体规范为 12px 并注入 60% 呼吸透明度，与题库名和当前位置文字中轴线与基准线完美对齐；侧栏工作台分组标签微调为 11px 加粗 600、0.6px 字母呼吸间距。全套单测 177 个测试文件、1370 项单测 100% 全部通过。
+
+## 上一版本：v0.11.36（2026-10-25）
 
 本版本为阅读切片闪卡导出（exportCardsMarkdown / exportCardsCsv）空值防御与畸变容错升级版本。对导出函数入参进行对象与数组强类型检验，杜绝传入 `null`、`undefined` 或畸变对象时引发崩溃；在格式化各题型选项与卡片标签时加入 `Array.isArray` 强校验，防止属性非数组时调用 `join` 抛出异常。全套单测 177 个测试文件、1370 项单测 100% 全部通过。
 

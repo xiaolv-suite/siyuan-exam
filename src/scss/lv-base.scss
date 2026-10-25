@@ -487,8 +487,10 @@ button.lv-chip {
   white-space: nowrap;
 }
 .lv-crumb-sep {
-  color: var(--lv-ctl-border);
-  font-size: var(--lv-font-size-h3);
+  color: var(--lv-text-3);
+  font-size: var(--lv-font-size-sm);
+  opacity: 0.6;
+  user-select: none;
 }
 .lv-crumb-current {
   color: var(--lv-text);

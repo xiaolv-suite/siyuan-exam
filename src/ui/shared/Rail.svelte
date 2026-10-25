@@ -790,11 +790,12 @@
   }
   /* 原型 .nav-label：10px 字距分组标签 */
   .lv-nav-label {
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.6px;
+    font-weight: 600;
     color: var(--lv-text-3);
     padding: 0 13px;
-    margin: 2px 0 10px;
+    margin: 6px 0 8px;
   }
   .lv-rail-btn {
     position: relative;
