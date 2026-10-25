@@ -60,8 +60,8 @@ const BASELINE_SECONDS_PER_TYPE: Record<QuestionType, number> = {
  * 计算考场配时策略与各分段科学时间预算
  */
 export function calculateExamPacingStrategy(blueprint: Blueprint): ExamPacingStrategy {
-  const totalDurationS = Math.max(60, blueprint.durationS || 3600);
-  const sections = blueprint.sections || [];
+  const totalDurationS = Math.max(60, blueprint?.durationS || 3600);
+  const sections = Array.isArray(blueprint?.sections) ? blueprint.sections : [];
 
   let rawTotalBudget = 0;
   const rawSections: Array<{
@@ -124,23 +124,25 @@ export function calculateExamPacingStrategy(blueprint: Blueprint): ExamPacingStr
  */
 export function auditPacingPostMortem(
   strategy: ExamPacingStrategy,
-  actualSectionSeconds: Record<string, number>,
+  actualSectionSeconds: Record<string, number> = {},
 ): PacingPostMortemResult {
   const sections: SectionPacingAudit[] = [];
   const timeSinkSections: string[] = [];
   const efficientSections: string[] = [];
+  const safeActual = actualSectionSeconds ?? {};
+  const safeSections = Array.isArray(strategy?.sections) ? strategy.sections : [];
 
   let totalActualSeconds = 0;
   let totalBudgetSeconds = 0;
 
-  for (const b of strategy.sections) {
-    const actual = Math.max(0, actualSectionSeconds[b.sectionName] ?? b.budgetSeconds);
+  for (const b of safeSections) {
+    const actual = Math.max(0, safeActual[b.sectionName] ?? b.budgetSeconds);
     totalActualSeconds += actual;
     totalBudgetSeconds += b.budgetSeconds;
   }
 
-  for (const b of strategy.sections) {
-    const actual = Math.max(0, actualSectionSeconds[b.sectionName] ?? 0);
+  for (const b of safeSections) {
+    const actual = Math.max(0, safeActual[b.sectionName] ?? 0);
     const diff = actual - b.budgetSeconds;
     const timeSharePct = totalActualSeconds > 0 ? Math.round((actual / totalActualSeconds) * 100) : 0;
 
@@ -204,7 +206,9 @@ export function exportPacingReportMarkdown(postMortem: PacingPostMortemResult): 
 
   for (const s of postMortem.sections) {
     const tag = s.status === "efficient" ? "⚡ 快速提分" : s.status === "time_sink" ? "🔴 耗时陷阱" : "🟢 节奏稳健";
-    lines.push(`| ${s.sectionName} | ${(s.budgetSeconds / 60).toFixed(1)}m | ${(s.actualSeconds / 60).toFixed(1)}m | ${s.timeSharePct}% | ${tag} | ${s.advice} |`);
+    const cleanName = String(s.sectionName ?? "").replace(/\|/g, "&#124;").replace(/\r?\n/g, " ");
+    const cleanAdvice = String(s.advice ?? "").replace(/\|/g, "&#124;").replace(/\r?\n/g, " ");
+    lines.push(`| ${cleanName} | ${(s.budgetSeconds / 60).toFixed(1)}m | ${(s.actualSeconds / 60).toFixed(1)}m | ${s.timeSharePct}% | ${tag} | ${cleanAdvice} |`);
   }
 
   return lines.join("\n");

@@ -65,4 +65,32 @@ describe("考场配时策略与分段节奏沙盘引擎 (pacingStrategy)", () =>
     expect(md).toContain("耗时陷阱");
     expect(md).toContain("快速提分");
   });
+
+  it("当 blueprint 或 actual 为空、分段名含竖线换行时，安全容错且 Markdown 表格结构不被撕裂", () => {
+    expect(() => calculateExamPacingStrategy(undefined as unknown as Blueprint)).not.toThrow();
+    const fallbackStrategy = calculateExamPacingStrategy(undefined as unknown as Blueprint);
+    expect(fallbackStrategy.totalQuestions).toBe(0);
+
+    expect(() => auditPacingPostMortem(fallbackStrategy, undefined)).not.toThrow();
+
+    const dirtyStrategy: ExamPacingStrategy = {
+      totalDurationS: 3600,
+      totalQuestions: 10,
+      overallAdvice: "建议",
+      sections: [
+        {
+          sectionName: "分段|包含\n换行",
+          questionCount: 10,
+          scoreTotal: 10,
+          budgetSeconds: 1800,
+          targetPerQuestionS: 180,
+          alertThresholdS: 300,
+        },
+      ],
+    };
+
+    const audit = auditPacingPostMortem(dirtyStrategy, {});
+    const md = exportPacingReportMarkdown(audit);
+    expect(md).toContain("分段&#124;包含 换行");
+  });
 });

@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1367%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1368%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.31（2026-10-25）
+## 最新版本：v0.11.32（2026-10-25）
+
+本版本为考场配时策略沙盘空值防御与复盘 Markdown 表格转义安全升级版本。在 `pacingStrategy.ts` 中对蓝图配置、分段数组与实际用时字典全面引入空值安全规整，彻底消除未定义入参导致的崩溃隐患；在导出考场配时沙盘报告时对分段大题名称与复盘建议中的竖线（`|`）和换行进行 HTML 实体转义，防止报告表格结构被意外破坏。全套单测 177 个测试文件、1368 项单测 100% 全部通过。
+
+## 上一版本：v0.11.31（2026-10-25）
 
 本版本为左上角去除“驴”字更换插件官方矢量Logo、吸收小驴生态微质感规范与首页Bento全景升级版本。侧栏顶部彻底移除生硬文字，升级为学院蓝渐变微光底衬与官方满分通关双层题卷矢量徽标（`#iconExam`）；深度吸收小驴打卡与小驴人脉微质感规范（Micro-surface Elevation），重塑卡片微阴影系统与 18px Bento 大圆角；优化今日任务 Hero 卡片为双色柔光线性渐变，节奏周卡片升级为内敛圆角微阴影。全套单测 177 个测试文件、1367 项单测 100% 全部通过。
 
