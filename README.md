@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.30（2026-10-25）
+## 最新版本：v0.11.31（2026-10-25）
+
+本版本为左上角去除“驴”字更换插件官方矢量Logo、吸收小驴生态微质感规范与首页Bento全景升级版本。侧栏顶部彻底移除生硬文字，升级为学院蓝渐变微光底衬与官方满分通关双层题卷矢量徽标（`#iconExam`）；深度吸收小驴打卡与小驴人脉微质感规范（Micro-surface Elevation），重塑卡片微阴影系统与 18px Bento 大圆角；优化今日任务 Hero 卡片为双色柔光线性渐变，节奏周卡片升级为内敛圆角微阴影。全套单测 177 个测试文件、1367 项单测 100% 全部通过。
+
+## 上一版本：v0.11.30（2026-10-25）
 
 本版本为左侧栏图标系统全面重绘去重、Logo 质感重塑与首页 Bento 美学升级版本。重绘今日日程板（`home`）、题库展开卷册（`book`）、出题写作工坊（`create`）、考场精准秒表（`clock`）、复盘增长折线（`chart`）、题卡画廊群（`grid`）、错题靶心攻坚（`target`）、手持录题板（`clipboard`）与书签文献手册（`material`），彻底消灭“出题/录题皆为铅笔”、“题库/资料皆为书籍”的重复缺陷；重构品牌 Logo 为学院蓝质感渐变勋章；优化首页空状态卡片留白排版。全套单测 177 个测试文件、1367 项单测 100% 全部通过。
 

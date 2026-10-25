@@ -319,7 +319,11 @@
 <aside class="lv-rail" class:open={drawerOpen} bind:this={asideEl} role={drawerOpen ? "dialog" : undefined} aria-modal={drawerOpen ? "true" : undefined} aria-label="小驴考试（内测版）">
   <div class="lv-rail-scroll">
   <div class="lv-brand">
-    <span class="lv-brand-mark" aria-hidden="true">驴</span>
+    <div class="lv-brand-logo-wrap" aria-hidden="true">
+      <svg class="lv-brand-logo-svg" viewBox="0 0 32 32" width="22" height="22">
+        <use href="#iconExam"></use>
+      </svg>
+    </div>
     <span class="lv-brand-name">小驴考试（内测版）<span class="lv-brand-sub">LV EXAM</span></span>
     <button class="lv-drawer-close" bind:this={closeBtn} aria-label={t("menu.close", "关闭")} onclick={() => onclose?.()}>
       <Icon name="close" size={15} />
@@ -460,19 +464,21 @@
     gap: 9px;
     padding: 0 10px;
   }
-  .lv-brand-mark {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--lv-r-2);
+  .lv-brand-logo-wrap {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, var(--lv-brand) 0%, color-mix(in srgb, var(--lv-brand) 85%, var(--lv-brand-deep, #000)) 100%);
+    background: linear-gradient(135deg, var(--lv-brand) 0%, color-mix(in srgb, var(--lv-brand) 82%, var(--lv-brand-deep, #000)) 100%);
     color: var(--b3-theme-on-primary, #fff);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 16px;
-    font-weight: 800;
-    box-shadow: 0 3px 8px color-mix(in srgb, var(--lv-brand) 32%, transparent);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--lv-brand) 36%, transparent);
     flex-shrink: 0;
+  }
+  .lv-brand-logo-svg {
+    display: block;
+    width: 22px;
+    height: 22px;
   }
   .lv-brand-name {
     font-size: var(--lv-font-size-h3);

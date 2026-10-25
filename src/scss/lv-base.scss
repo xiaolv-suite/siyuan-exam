@@ -1405,14 +1405,19 @@ input[type="range"] {
   display: flex;
   gap: var(--lv-space-4);
   align-items: center;
-  padding: var(--lv-space-4) var(--lv-space-panel);
+  padding: 18px 22px;
+  border-radius: var(--lv-r-3);
+  background: var(--lv-surface);
+  border: 1px solid var(--lv-border);
+  box-shadow: var(--lv-sh-card);
+  transition: transform var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease;
 }
 .lv-widget--click {
   cursor: pointer;
 
   &:hover {
-    border-color: var(--lv-accent);
-    box-shadow: var(--lv-sh-2);
+    border-color: var(--lv-brand);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--lv-brand) 15%, transparent);
     transform: translateY(-1px);
   }
 }

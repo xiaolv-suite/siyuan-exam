@@ -9348,7 +9348,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   @container lv-exam (max-width: 960px) { .lv-session-grid { grid-template-columns: minmax(0, 1fr); } .lv-session-side { order: 2; } }
   /* —— 入口 hero 卡（对齐原型 home 首屏；600px 下折叠单列） —— */
   .lv-entry-overview { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: var(--lv-space-loose); align-items: stretch; margin-bottom: 18px; }
-  .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 26px 28px; position: relative; overflow: hidden; background: linear-gradient(135deg, var(--lv-accent-soft) 0%, color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)) 100%); border-color: color-mix(in srgb, var(--lv-accent) 22%, var(--lv-border)); }
+  .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 26px 28px; position: relative; overflow: hidden; background: linear-gradient(135deg, color-mix(in srgb, var(--lv-brand-soft) 35%, var(--lv-surface)) 0%, var(--lv-surface) 100%); border-color: color-mix(in srgb, var(--lv-brand) 20%, var(--lv-border)); border-radius: var(--lv-r-3); box-shadow: var(--lv-sh-card); }
   .lv-entry-hero::after { content: ''; position: absolute; right: -80px; top: -80px; width: 260px; height: 260px; border-radius: var(--lv-radius-round); background: radial-gradient(closest-side, color-mix(in srgb, var(--lv-accent) 12%, transparent), transparent); pointer-events: none; }
   .lv-entry-main { min-width: 0; }
   .lv-entry-reason { font-size: 22px; font-weight: var(--lv-font-weight-semibold); letter-spacing: -.4px; line-height: 1.5; margin: 10px 0; overflow-wrap: anywhere; }
@@ -9357,7 +9357,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-entry-count { font-size: var(--lv-font-size-display); font-weight: var(--lv-font-weight-semibold); letter-spacing: -2px; line-height: 1.05; font-variant-numeric: tabular-nums; }
   .lv-entry-unit { font-size: var(--lv-font-size-sm); color: var(--lv-text-3); }
   .lv-entry-label { font-size: var(--lv-font-size-label); letter-spacing: 0.6px; color: var(--lv-text-3); }
-  .lv-entry-week { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 18px 16px; }
+  .lv-entry-week { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 20px 18px; border-radius: var(--lv-r-3); background: var(--lv-surface); border: 1px solid var(--lv-border); box-shadow: var(--lv-sh-card); }
   .lv-entry-week-head { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); font-size: var(--lv-font-size-body-compact); }
   .lv-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--lv-space-1); margin: 16px 0 12px; }
   .lv-week-day { min-width: 0; display: grid; justify-items: center; gap: 5px; color: var(--lv-text-3); font-size: 10px; }
