@@ -771,6 +771,69 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
     }
 
+    let teacherPrintBusy = $state(false);
+    async function printBankDoubleColumnPaper() {
+      if (teacherPrintBusy || !practiceQuestions.length) return;
+      teacherPrintBusy = true;
+      try {
+        const { buildCompactQuestionSheetPro } = await import("@/core/printPro");
+        const html = buildCompactQuestionSheetPro(`${bankName || "题库"} · 教学测试卷`, practiceQuestions, {
+          headerTitle: `${bankName || "题库"} · 标准试卷`,
+          paperSize: "A4",
+          columns: "double",
+        });
+        const win = window.open("", "_blank");
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+        } else {
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `${bankName || "题库"}-标准双栏试卷.html`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          showMessage("已生成标准双栏试卷文件", 3000, "info");
+        }
+      } catch (e) {
+        showMessage(`打印双栏试卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        teacherPrintBusy = false;
+      }
+    }
+
+    async function exportBankTeacherPaper() {
+      if (teacherPrintBusy || !practiceQuestions.length) return;
+      teacherPrintBusy = true;
+      try {
+        const { buildTeacherLectureSheetPro } = await import("@/core/printPro");
+        const html = buildTeacherLectureSheetPro(`${bankName || "题库"}`, practiceQuestions, {
+          paperSize: "A4",
+          columns: "double",
+          groupByKp: true,
+        });
+        const win = window.open("", "_blank");
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+        } else {
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `${bankName || "题库"}-教师讲义教案卷.html`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          showMessage("已生成教师讲义教案卷文件", 3000, "info");
+        }
+      } catch (e) {
+        showMessage(`导出教师讲义失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        teacherPrintBusy = false;
+      }
+    }
+
     async function printSelectedQuestions() {
       if (!selectedCount) return;
       const ids = new Set(Object.keys(selectedIds));
@@ -6135,6 +6198,34 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <button class="lv-btn sm" onclick={() => { view = "manual"; }}>
                 <Icon name="clipboard" size={14} /> {t("entry.manual")}
               </button>
+            </div>
+          </div>
+        {/if}
+        {#if userRole === "teacher"}
+          <div class="lv-card" style="margin-bottom:14px;padding:14px 18px;border-left:4px solid var(--lv-teacher-primary);background:var(--lv-surface);box-shadow:var(--lv-sh-1)">
+            <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="lv-achievement-pill" style="color:var(--lv-teacher-primary);background:var(--lv-teacher-soft);border-color:var(--lv-teacher-border)">
+                  <Icon name="teacher" size={13} /> 教师教研工具箱
+                </span>
+                <span style="font-size:var(--lv-font-size-body-compact);font-weight:600;color:var(--lv-text)">
+                  当前题库共 {questions.length} 题 · 备课讲义与分层试卷已就绪
+                </span>
+              </div>
+              <div class="lv-row" style="margin:0;gap:8px">
+                <button class="lv-btn sm" onclick={() => { view = "manual"; }} title="一道一道，精准录入新试题">
+                  <Icon name="clipboard" size={13} /> 手工录题
+                </button>
+                <button class="lv-btn sm" onclick={() => void exportBankTeacherPaper()} disabled={!practiceQuestions.length || teacherPrintBusy} title="导出包含题目、解析、知识点与评分标准的 A4 教师讲义">
+                  <Icon name="book" size={13} /> 导出教师讲义
+                </button>
+                <button class="lv-btn sm lv-btn--primary" onclick={() => void printBankDoubleColumnPaper()} disabled={!practiceQuestions.length || teacherPrintBusy} title="将当前题库排版生成出版级 A4 双栏试卷直接印刷">
+                  <Icon name="printer" size={13} /> 打印 A4 双栏卷
+                </button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => plugin.openReport?.()} title="查看全库区分度、难度与死干扰项诊断">
+                  <Icon name="chart" size={13} /> 试题质量诊断
+                </button>
+              </div>
             </div>
           </div>
         {/if}

@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.47（2026-10-25）
+## 最新版本：v0.11.48（2026-10-25）
+
+本版本为教师教研模式专属工作台卡片、讲义教案与双栏测试卷一键导出落地版本。当顶部角色切换至【教师教研模式】时，练习台首页自动呼出专属“教师教研工具箱”，提供录题、导出讲义、打印双栏卷与试题质量诊断四大核心教学通道；一键调用 `buildTeacherLectureSheetPro` 与 `buildCompactQuestionSheetPro` 生成带解析与评分标准的教案讲义卷。全套单测 178 个测试文件、1382 项单测 100% 全部通过。
+
+## 上一版本：v0.11.47（2026-10-25）
 
 本版本为粤语研学题库一键创建落地、题库中心直达入口与示范题库构建管道解耦升级版本。在 `app.ts` 中将 `createSampleBank` 升级为解耦路由，支持一键创建“【示例】粤语日常实用研学题库”独立笔记本文档，涵盖问候、茶楼、语法、粤拼与俚语全套研学卡；在空状态卡片与题库管理中心（Bank Hub）弹窗中增设【粤语研学示例】一键开练入口。全套单测 178 个测试文件、1382 项单测 100% 全部通过。
 
