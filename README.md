@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.56（2026-10-26）
+## 最新版本：v0.11.57（2026-10-26）
+
+本版本为做题操作坞（Session Toolbar Dock）双组结构化重构与交互流连贯性优化版本。将以往挤压在单行的散乱按钮收敛为【核心学习操作坞（朗读/背题/收藏）】与【辅助工具坞（草稿/极速/盲听/音效/快捷键）】，在窄屏与平板分屏下极大消除拥挤与视觉噪音；统一操作坞胶囊按钮的微触感（hover 浮白底、激活微阴影），优化做题主卡片下边距与大题流转节奏。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.56（2026-10-26）
 
 本版本为全局对话框大圆角升级、弹窗毛玻璃背景模糊与错题列表 Bento 质感落地版本。全局模态对话框与题库管理弹窗统一升级至 22px 现代大圆角（`--lv-r-4`），背景蒙层模糊深度提升至 14px 毛玻璃，弹窗标题栏图标升级为 24px 高级微发光徽标；错题本列表行升级为 18px 现代圆角（`--lv-r-3`）并注入高光内阴影（`--lv-inset-card`），角色分段控件选中态完全与独立高阶调色盘对齐。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 

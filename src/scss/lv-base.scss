@@ -1482,6 +1482,38 @@ input[type="range"] {
   color: var(--lv-red);
 }
 
+/* —— 会话顶部结构化操作坞（Session Toolbar Dock） —— */
+.lv-session-dock {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px;
+  background: var(--lv-surface-2);
+  border: 1px solid var(--lv-border);
+  border-radius: var(--lv-r-2);
+}
+.lv-session-dock .lv-chip {
+  background: transparent;
+  border-radius: var(--lv-r-1);
+  padding: 3px 8px;
+  height: 28px;
+  min-height: 28px;
+  font-size: var(--lv-font-size-sm);
+  color: var(--lv-text-2);
+  cursor: pointer;
+  transition: all var(--lv-dur-micro) var(--lv-ease-out);
+
+  &:hover {
+    background: var(--lv-surface);
+    color: var(--lv-text);
+  }
+  &.acc {
+    background: var(--lv-surface);
+    color: var(--lv-accent);
+    box-shadow: var(--lv-sh-1);
+  }
+}
+
 /* —— 错题本部件（规范 v6 §6） —— */
 .lv-chart-row {
   display: grid;
