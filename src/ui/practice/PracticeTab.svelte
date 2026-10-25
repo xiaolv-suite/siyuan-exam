@@ -3768,6 +3768,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let mRubricRevision = $state(1);
     /** 43-01 题目作者生命周期状态 (draft/review/published) */
     let mStatus = $state<QuestionLifecycleStatus>("published");
+    let mStudyLang = $state<string>("zh-CN");
+    let mStudyPhonetic = $state("");
     let mSaving = $state(false);
     let mSaved = $state("");
     let manualErrorMsg = $state("");
@@ -4203,6 +4205,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           status: statusToSave,
           ...(mType === "fill" && mSpecOpen ? { answerSpec: buildAuthorSpec() } : {}),
           ...(authorRubric ? { rubric: authorRubric } : {}),
+          ...(mStudyPhonetic.trim() || mStudyLang !== "zh-CN"
+            ? { studyMeta: { lang: mStudyLang || "zh-CN", phonetic: mStudyPhonetic.trim() || undefined } }
+            : {}),
         });
         if (statusToSave === "published") {
           const guard = checkPublishGuard(q);
@@ -4220,6 +4225,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           mStem = ""; mOptions = ["", ""]; mAnswer = ""; mAnalysis = "";
           mSpecOpen = false; mSpecUnit = ""; mSpecAbsTol = ""; mSpecRelPct = ""; mSpecAltUnits = "";
           mRubricOpen = false; mRubricText = ""; mRubricRevision = 1;
+          mStudyLang = "zh-CN"; mStudyPhonetic = "";
           mStatus = "published";
           draftRestored = false;
           void app.saveAux(MANUAL_DRAFT_KEY, null).catch(() => undefined); // 45-06：提交成功清理草稿
@@ -4233,6 +4239,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     function blankManualDraft() {
       mStem = ""; mOptions = ["", ""]; mAnswer = ""; mAnalysis = "";
       mSpecOpen = false; mSpecUnit = ""; mSpecAbsTol = ""; mSpecRelPct = ""; mSpecAltUnits = "";
+      mStudyLang = "zh-CN"; mStudyPhonetic = "";
       mStatus = "published";
       draftRestored = false;
       clearManualValidation();
@@ -7533,6 +7540,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           <label class="lv-chip" for="lv-manual-source">{t("manual.source")}</label><input id="lv-manual-source" class="lv-input" style="max-width:160px" bind:value={mSource} placeholder={t("manual.sourceHint")} />
           <label class="lv-chip" for="lv-manual-group">{t("manual.group")}</label><input id="lv-manual-group" class="lv-input num" style="max-width:200px" bind:value={mGroup} placeholder="grp-…" />
         </div>
+        <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
+          <span class="lv-chip"><Icon name="volume" size={12} /> 朗读语言</span>
+          <select class="lv-select" bind:value={mStudyLang} style="max-width:140px;height:28px">
+            <option value="zh-CN">普通话 (zh-CN)</option>
+            <option value="zh-HK">粤语 (zh-HK)</option>
+            <option value="en-US">英语 (en-US)</option>
+            <option value="ja-JP">日语 (ja-JP)</option>
+          </select>
+          <label class="lv-chip" for="lv-manual-phonetic">注音 / 粤拼</label>
+          <input id="lv-manual-phonetic" class="lv-input" style="flex:1;min-width:160px;font-family:monospace" bind:value={mStudyPhonetic} placeholder="例如：m4 goi1 或拼音/音标（可选）" />
+        </div>
         <div class="lv-row">
           {#if manualErrorMsg}<p class="lv-error" id="manual-validation-error" role="alert">{manualErrorMsg}</p>{/if}
           <button class="lv-btn lv-btn--primary" onclick={() => saveManual("published")} disabled={mSaving || !mStem.trim() || (mStatus === "published" && !mAnswer.trim() && mType !== "short")}>
@@ -8530,6 +8548,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </header>
             <div class="lv-peek-body">
               <div class="lv-peek-stem">{q.stem}</div>
+              {#if q.studyMeta?.phonetic}
+                <div class="lv-phonetic-badge" style="margin:6px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
+                  <Icon name="volume" size={12} />
+                  <span>注音 / 粤拼：{q.studyMeta.phonetic}</span>
+                  <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 4px;font-size:11px" onclick={() => ttsSpeak([q.stem, ...q.options].join(" "), q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1)} title="听发音朗读">▶ 听发音</button>
+                </div>
+              {/if}
               <div class="lv-detail">
                 {#if editingId === q.id && editDraft}
                   <!-- 43-01 lite：题干/选项/答案/解析/考点/难度 内联编辑（updateBlock 整块重写 + exam-id 读回核验） -->

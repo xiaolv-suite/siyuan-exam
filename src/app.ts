@@ -922,6 +922,8 @@ export class ExamApp {
       answerSpec?: import("./core/structuredAnswer").NumericAnswerSpec | import("./core/structuredAnswer").MultiBlankSpec | null;
       /** 43-01 题目作者生命周期状态 (draft/review/published/deprecated) */
       status?: QuestionLifecycleStatus;
+      /** 泛学习与多语言研学元数据 */
+      studyMeta?: Question["studyMeta"];
     },
   ): Promise<Question> {
     if (!this.kernelOnline) throw new Error("离线：题目编辑需要内核可写");
@@ -956,6 +958,7 @@ export class ExamApp {
       kp: draft.kp || undefined,
       difficulty: draft.difficulty,
       status: draft.status !== undefined ? draft.status : q.status,
+      studyMeta: draft.studyMeta !== undefined ? draft.studyMeta : q.studyMeta,
       hash: questionHash(draft.stem, draft.options),
     };
     const oldMarkdown = questionToMarkdown(q);

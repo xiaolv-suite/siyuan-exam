@@ -50,6 +50,7 @@ export function ialOf(q: Question): string {
   if (q.userTags?.length) attrs["exam-tags"] = q.userTags.join(",");
   if (q.answerSpec) attrs["exam-answer-spec"] = JSON.stringify(q.answerSpec);
   if (q.rubric) attrs["exam-rubric"] = JSON.stringify(q.rubric);
+  if (q.studyMeta) attrs["exam-study-meta"] = JSON.stringify(q.studyMeta);
   if (typeof q.confidence === "number") attrs["exam-confidence"] = q.confidence.toFixed(2);
   return Object.entries(attrs)
     .map(([k, v]) => `custom-${k}="${escapeAttr(v)}"`)
@@ -180,6 +181,8 @@ export function questionFromBlock(input: FromBlockInput): Question | null {
     answerSpec: parseAnswerSpecAttr(attrs["exam-answer-spec"]),
     /** 55-05：主观采分点规格（custom-exam-rubric JSON）；损坏/版本不符忽略 = 无 rubric */
     rubric: parseRubricRef(attrs["exam-rubric"]),
+    /** 泛学习与多语言研学元数据（方言/发音注音/音频挂载） */
+    studyMeta: parseStudyMetaAttr(attrs["exam-study-meta"]),
     hash: questionHash(stem, denseOptions),
   };
 }
@@ -212,6 +215,21 @@ function parseAnswerSpecAttr(raw: string | undefined): Question["answerSpec"] {
 /** 55-05：块属性 JSON → rubric 规格（宽容解析；复用 rubric 模块的归一与过滤规则）。 */
 function parseRubricRef(raw: string | undefined): Question["rubric"] {
   return parseRubricAttr(raw) as Question["rubric"];
+}
+
+function parseStudyMetaAttr(raw: string | undefined): Question["studyMeta"] {
+  if (!raw) return undefined;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    if (!obj || typeof obj !== "object") return undefined;
+    return {
+      lang: typeof obj.lang === "string" ? obj.lang : undefined,
+      audioUrl: typeof obj.audioUrl === "string" ? obj.audioUrl : undefined,
+      phonetic: typeof obj.phonetic === "string" ? obj.phonetic : undefined,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 /** 57-04：块属性 JSON → dispute（宽容解析） */
