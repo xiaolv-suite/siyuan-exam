@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.32（2026-10-25）
+## 最新版本：v0.11.33（2026-10-25）
+
+本版本为做题卡片瓷砖微动效、模式卡片悬浮投影与全真交互细节升级版本。主页练习模式卡片在鼠标悬停时平滑抬升 2px，并触发深度扩散的普鲁士学院蓝柔光阴影（`0 6px 20px color-mix(...)`），图标容器采用规范的 12px 圆角与微高光，触感轻盈高级；指标统计小部件统一采用 18px Bento 柔和圆角与高反差 hover 学院蓝微边框反馈。全套单测 177 个测试文件、1368 项单测 100% 全部通过。
+
+## 上一版本：v0.11.32（2026-10-25）
 
 本版本为考场配时策略沙盘空值防御与复盘 Markdown 表格转义安全升级版本。在 `pacingStrategy.ts` 中对蓝图配置、分段数组与实际用时字典全面引入空值安全规整，彻底消除未定义入参导致的崩溃隐患；在导出考场配时沙盘报告时对分段大题名称与复盘建议中的竖线（`|`）和换行进行 HTML 实体转义，防止报告表格结构被意外破坏。全套单测 177 个测试文件、1368 项单测 100% 全部通过。
 
