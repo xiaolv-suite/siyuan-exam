@@ -1753,8 +1753,8 @@
   /* .lv-btn/.lv-select 外观基线上收 lv-base.scss（修复暗色露 UA 白底） */
   .lv-card-title { display: inline-flex; align-items: center; gap: var(--lv-space-compact); }
   .lv-inline-icon { display: inline-flex; margin-right: 5px; }
-  .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) 22px; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-highlight, inset 0 1px 0 transparent); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); margin-bottom: var(--lv-space-3); }
-  .lv-kpi { display: flex; flex-direction: column; justify-content: space-between; gap: var(--lv-space-2); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
+  .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) 22px; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-card); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); margin-bottom: var(--lv-space-3); }
+  .lv-kpi { display: flex; flex-direction: column; justify-content: space-between; gap: var(--lv-space-2); border-radius: var(--lv-r-3); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-kpi:hover { transform: translateY(-2px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-2); }
   .lv-kpi .v { font-size: 28px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.025em; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .lv-kpi .l { display: flex; align-items: center; justify-content: space-between; color: var(--lv-text-3); font-size: var(--lv-font-size-caption); font-weight: var(--lv-font-weight-medium); }
@@ -1765,7 +1765,7 @@
   .lv-chip.lv-chip--red { color: var(--lv-red); background: var(--lv-red-soft); }
   /* —— 63-01 四象限（现代微质感指标卡） —— */
   .lv-quad-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--lv-space-3); }
-  .lv-quad { border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-2); padding: 16px 18px; background: var(--lv-surface); box-shadow: var(--lv-sh-1), var(--lv-inset-subtle, inset 0 1px 0 transparent); display: flex; flex-direction: column; gap: var(--lv-space-2); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
+  .lv-quad { border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: 16px 18px; background: var(--lv-surface); box-shadow: var(--lv-sh-card), var(--lv-inset-card); display: flex; flex-direction: column; gap: var(--lv-space-2); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-quad:hover { transform: translateY(-2px); box-shadow: var(--lv-sh-2); }
   .lv-quad .v { font-size: 26px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .lv-quad .l { font-size: var(--lv-font-size-caption); color: var(--lv-text-3); font-weight: var(--lv-font-weight-medium); }
