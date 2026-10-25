@@ -181,21 +181,24 @@ export function extractCramCandidates(options: {
   filter?: CramFilterOptions;
   daysLeft?: number;
 }): ScoredCramCandidate[] {
-  const { allQuestions, wrongItems, wrongReasons, archivedQids, filter, daysLeft = 7 } = options;
+  const { allQuestions, wrongItems, wrongReasons, archivedQids, filter, daysLeft = 7 } = options ?? {};
+  const safeQuestions = Array.isArray(allQuestions) ? allQuestions : [];
+  const safeWrongItems = Array.isArray(wrongItems) ? wrongItems : [];
   const minWrongCount = filter?.minWrongCount ?? 1;
   const limit = filter?.limit ?? 30;
-  const allowedTypes = filter?.types && filter.types.length ? new Set(filter.types) : null;
+  const allowedTypes = filter?.types && Array.isArray(filter.types) && filter.types.length ? new Set(filter.types) : null;
   const kpPrefix = filter?.kpPrefix?.trim();
 
   // 1. 建立错题快照索引
   const wrongMap = new Map<string, WrongItem>();
-  for (const w of wrongItems) {
-    wrongMap.set(w.qid, w);
+  for (const w of safeWrongItems) {
+    if (w?.qid) wrongMap.set(w.qid, w);
   }
 
   const scoredList: ScoredCramCandidate[] = [];
 
-  for (const q of allQuestions) {
+  for (const q of safeQuestions) {
+    if (!q?.id) continue;
     // 排除安全守卫：已封存归档题、争议题不纳入急救冲刺
     if (archivedQids?.has(q.id)) continue;
     if (isQuestionDisputed(q)) continue;
@@ -345,7 +348,10 @@ export function extractVariantQuestions(
   n = 5,
   rnd: () => number = Math.random,
 ): { questions: Question[]; count: number; reason: string } {
-  const pool = allQuestions.filter((q) => q.id !== seed.id && q.status !== "deprecated");
+  if (!Array.isArray(allQuestions) || !seed?.id) {
+    return { questions: [], count: 0, reason: "暂无变式题推荐" };
+  }
+  const pool = allQuestions.filter((q) => q?.id && q.id !== seed.id && q.status !== "deprecated");
   // 1. 同族变式题
   const familyKey = seed.family?.parentId || (seed.group ? `grp:${seed.group}` : "");
   const familyVariants = familyKey

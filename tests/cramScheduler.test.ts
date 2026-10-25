@@ -10,6 +10,7 @@ import {
   createCramSessionSpec,
   findFoundationMotherQuestion,
   generateCramCheatSheetMarkdown,
+  extractVariantQuestions,
 } from "../src/core/cramScheduler";
 
 function createMockQuestion(id: string, overrides: Partial<Question> = {}): Question {
@@ -270,6 +271,17 @@ describe("CramScheduler 考前急救冲刺与动态间隔压缩引擎 (53-04 / 3
       expect(md).toContain("社会主义制度");
       expect(md).toContain("宪法学");
       expect(md).toContain("累计答错 3 次");
+    });
+
+    it("extractCramCandidates 与 extractVariantQuestions 空值防御不崩溃", () => {
+      expect(() => extractCramCandidates(undefined as unknown as { allQuestions: Question[]; wrongItems: WrongItem[] })).not.toThrow();
+      const candidates = extractCramCandidates(undefined as unknown as { allQuestions: Question[]; wrongItems: WrongItem[] });
+      expect(candidates).toEqual([]);
+
+      expect(() => extractVariantQuestions(undefined as unknown as Question[], undefined as unknown as Question)).not.toThrow();
+      const variants = extractVariantQuestions(undefined as unknown as Question[], undefined as unknown as Question);
+      expect(variants.questions).toEqual([]);
+      expect(variants.count).toBe(0);
     });
   });
 });

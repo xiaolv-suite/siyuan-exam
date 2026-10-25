@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1370%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1371%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.37（2026-10-25）
+## 最新版本：v0.11.38（2026-10-25）
+
+本版本为考前急救冲刺调度（extractCramCandidates / extractVariantQuestions）空值防御与健壮性加固发版。在 `cramScheduler.ts` 中对题目全量列表、错题快照列表全面引入数组安全规整，彻底杜绝在空题库或异常入参下遍历未定义对象崩溃；对变式题提取进行非空与有效 ID 前置守卫。全套单测 177 个测试文件、1371 项单测 100% 全部通过。
+
+## 上一版本：v0.11.37（2026-10-25）
 
 本版本为面包屑分隔符视觉比例校准、侧栏分组标签字距微调与整体 UI 质感打磨版本。顶栏面包屑分隔符字体规范为 12px 并注入 60% 呼吸透明度，与题库名和当前位置文字中轴线与基准线完美对齐；侧栏工作台分组标签微调为 11px 加粗 600、0.6px 字母呼吸间距。全套单测 177 个测试文件、1370 项单测 100% 全部通过。
 
