@@ -250,6 +250,8 @@ export function makeQuestion(p: {
   answerSpec?: Question["answerSpec"];
   /** 55-05：主观采分点规格（简答/论述题自评依据） */
   rubric?: Question["rubric"];
+  /** 泛学习与多语言研学元数据 */
+  studyMeta?: Question["studyMeta"];
 }): Question {
   const options = p.options ?? [];
   const answer = p.type === "material" ? "" : (normalizeAnswer(p.type, p.answer) ?? p.answer);
@@ -277,6 +279,7 @@ export function makeQuestion(p: {
     userTags: p.userTags,
     ...(answerSpec ? { answerSpec } : {}),
     ...(p.rubric ? { rubric: p.rubric } : {}),
+    ...(p.studyMeta ? { studyMeta: p.studyMeta } : {}),
     hash: questionHash(p.stem, options),
   };
 }

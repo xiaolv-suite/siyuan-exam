@@ -6478,7 +6478,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               {@const pos = sibs.findIndex((x) => x.id === q.id) + 1}
               <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")} {pos}/{sibs.length}</span>
             {/if}
-            <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak([q.stem, ...q.options].join(" "))}><Icon name="volume" size={13} /></button>
+            <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak([q.stem, ...q.options].join(" "), q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1)}><Icon name="volume" size={13} /></button>
             <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={toggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
             <button class="lv-chip" class:acc={speedDrillEnabled} title={t("session.speedDrillTip")} aria-pressed={speedDrillEnabled} onclick={() => { speedDrillEnabled = !speedDrillEnabled; writeLocal("lv-exam/speed-drill", speedDrillEnabled ? "1" : "0"); }}><Icon name="zap" size={13} /> {t("session.speedDrill")}</button>
             <button class="lv-chip" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-pressed={scratchpadOpen} onclick={() => scratchpadOpen = !scratchpadOpen}><Icon name="pencil" size={13} /> {t("scratchpad.title")}</button>
@@ -6595,6 +6595,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               </div>
             {/if}
             {#if stemHtml}<div class="lv-stem lv-rich b3-typography">{@html stemHtml}</div>{:else}<div class="lv-stem">{q.stem}</div>{/if}
+            {#if q.studyMeta?.phonetic}
+              <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
+                <Icon name="volume" size={12} />
+                <span>注音 / 粤拼：{q.studyMeta.phonetic}</span>
+              </div>
+            {/if}
             <p class="lv-muted" style="margin:8px 0 14px" role="note">{t("session.guide." + q.type)}</p>
             {#key session.id + ":" + curProgress.done}
             {#if isChoiceQuestion(q)}
@@ -6922,7 +6928,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
         {/if}
         {#if reciteQueue[reciteCursor]}
-          <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak(reciteQueue[reciteCursor].stem)}><Icon name="volume" size={13} /></button>
+          <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak(reciteQueue[reciteCursor].stem, reciteQueue[reciteCursor].studyMeta?.lang ? { lang: reciteQueue[reciteCursor].studyMeta.lang } : 1)}><Icon name="volume" size={13} /></button>
         {/if}
       </div>
       {#if reciteDone}
