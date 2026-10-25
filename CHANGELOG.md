@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.11.43 (2026-10-25)
+
+### 用户可读摘要
+
+> 本版本为全量数据自检与完整性审计（auditDataIntegrity / exportIntegrityCsv）空值防御升级版本。
+> 1. **数据自检审计（auditDataIntegrity）全入参安全守卫**：在 \`dataIntegrity.ts\` 中，对题库题目列表、作答流水列表与错题快照列表全面引入安全数组规整与有效 ID 过滤，杜绝 \`options.questions.map\` 未定义空指针引发的未捕获崩溃；
+> 2. **完整性报告 CSV 导出（exportIntegrityCsv）健壮性加固**：增加强对象空值拦截与 \`issues\` 安全数组规整，保障在空报告或异常对象输入下平滑回退；全套单测 177 个测试文件、1376 项单测 100% 全部通过。
+
 ## 0.11.42 (2026-10-25)
 
 ### 用户可读摘要

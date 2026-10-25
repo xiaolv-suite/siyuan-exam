@@ -66,9 +66,12 @@ export function auditDataIntegrity(options: {
   wrongItems: readonly WrongItem[];
   nowMs?: number;
 }): IntegrityReport {
-  const now = options.nowMs ?? Date.now();
+  const safeEvents = Array.isArray(options?.events) ? options.events : [];
+  const safeQuestions = Array.isArray(options?.questions) ? options.questions : [];
+  const safeWrongItems = Array.isArray(options?.wrongItems) ? options.wrongItems : [];
+  const now = options?.nowMs ?? Date.now();
   const futureLimit = now + 5 * 60_000; // 允许 5 分钟时钟偏差
-  const qidSet = new Set(options.questions.map((q) => q.id));
+  const qidSet = new Set(safeQuestions.map((q) => q?.id).filter(Boolean));
   const issues: IntegrityIssue[] = [];
 
   // ---------- 1. 作答流水 ----------
@@ -80,17 +83,18 @@ export function auditDataIntegrity(options: {
   const corruptedVerdict: string[] = [];
   const invalidVerdicts = new Set(["correct", "wrong", "not_attempted"]);
 
-  for (const e of options.events) {
+  for (const e of safeEvents) {
+    if (!e) continue;
     if (e.eid) {
       if (seenEids.has(e.eid)) duplicateEids.push(e.eid);
       else seenEids.add(e.eid);
     } else {
-      duplicateEids.push(`(missing eid) ${e.qid}`);
+      duplicateEids.push(`(missing eid) ${e.qid ?? ""}`);
     }
-    if (e.ts > futureLimit) futureEvents.push(`${e.qid} @${new Date(e.ts).toISOString()}`);
+    if (typeof e.ts === "number" && e.ts > futureLimit) futureEvents.push(`${e.qid} @${new Date(e.ts).toISOString()}`);
     if (!e.qid || !e.qid.trim()) missingQidEvents.push(e.eid || "(no eid)");
-    else if (qidSet.size && !qidSet.has(e.qid)) orphanEvents.push(`${e.qid} (${e.eid})`);
-    if (!invalidVerdicts.has(e.verdict)) corruptedVerdict.push(`${e.eid}: ${String(e.verdict)}`);
+    else if (qidSet.size && !qidSet.has(e.qid)) orphanEvents.push(`${e.qid} (${e.eid ?? ""})`);
+    if (!invalidVerdicts.has(e.verdict)) corruptedVerdict.push(`${e.eid ?? ""}: ${String(e.verdict)}`);
   }
 
   pushIssue(issues, "dup-eid", "error", "作答流水存在重复事件 ID（幂等键冲突）", duplicateEids, true,
@@ -106,8 +110,8 @@ export function auditDataIntegrity(options: {
 
   // 顺序性：同设备 seq 应严格递增（乱序回放风险）
   const seqByDevice = new Map<string, number[]>();
-  for (const e of options.events) {
-    if (!e.device) continue;
+  for (const e of safeEvents) {
+    if (!e?.device) continue;
     const arr = seqByDevice.get(e.device) ?? [];
     arr.push(e.seq);
     seqByDevice.set(e.device, arr);
@@ -129,7 +133,8 @@ export function auditDataIntegrity(options: {
   const wrongMissingQ: string[] = [];
   const wrongReasonRows: string[] = [];
   const validReasons = new Set(["careless", "unknown", "trap"]);
-  for (const w of options.wrongItems) {
+  for (const w of safeWrongItems) {
+    if (!w) continue;
     if (!qidSet.size || qidSet.has(w.qid)) {
       if (w.wrongCount < 1) wrongMismatch.push(`${w.qid}: 错次 ${w.wrongCount}`);
       if (w.streakCorrect < 0) wrongMismatch.push(`${w.qid}: 连对 ${w.streakCorrect}`);
@@ -153,17 +158,19 @@ export function auditDataIntegrity(options: {
   const dupQids: string[] = [];
   const seenQids = new Set<string>();
 
-  for (const q of options.questions) {
+  for (const q of safeQuestions) {
+    if (!q || !q.id) continue;
     if (seenQids.has(q.id)) dupQids.push(q.id);
     else seenQids.add(q.id);
 
+    const opts = Array.isArray(q.options) ? q.options : [];
     if (q.type !== "material" && !(q.answer ?? "").trim()) missingAnswer.push(q.id);
-    if ((q.type === "single" || q.type === "multiple") && q.options.length < 2) emptyOptions.push(q.id);
-    if (q.options.some((o) => !o.trim())) emptyOptions.push(`${q.id} (空选项)`);
+    if ((q.type === "single" || q.type === "multiple") && opts.length < 2) emptyOptions.push(q.id);
+    if (opts.some((o) => !String(o ?? "").trim())) emptyOptions.push(`${q.id} (空选项)`);
     if (q.type === "single" && q.answer) {
       const letter = q.answer.trim().toUpperCase();
-      if (/^[A-J]$/.test(letter) && letter.charCodeAt(0) - 65 >= q.options.length) {
-        answerOutOfRange.push(`${q.id}: ${letter} > ${q.options.length} 项`);
+      if (/^[A-J]$/.test(letter) && letter.charCodeAt(0) - 65 >= opts.length) {
+        answerOutOfRange.push(`${q.id}: ${letter} > ${opts.length} 项`);
       }
     }
   }
@@ -180,13 +187,13 @@ export function auditDataIntegrity(options: {
   const healthy = errorCount === 0;
 
   const receipt = healthy
-    ? `数据完整性自检通过：${options.events.length} 条作答流水、${options.questions.length} 道题目、${options.wrongItems.length} 条错题均无阻断性问题。`
+    ? `数据完整性自检通过：${safeEvents.length} 条作答流水、${safeQuestions.length} 道题目、${safeWrongItems.length} 条错题均无阻断性问题。`
     : `数据完整性自检发现 ${errorCount} 项阻断性问题，${issues.filter((i) => i.severity === "warning").length} 类告警。建议先导出诊断备份再修复。`;
 
   return {
     generatedAt: now,
-    totalEvents: options.events.length,
-    totalQuestions: options.questions.length,
+    totalEvents: safeEvents.length,
+    totalQuestions: safeQuestions.length,
     issues,
     errorCount,
     healthy,
@@ -196,15 +203,17 @@ export function auditDataIntegrity(options: {
 
 /** 导出完整性审计报告 CSV（UTF-8 BOM） */
 export function exportIntegrityCsv(report: IntegrityReport): string {
+  if (!report || typeof report !== "object") return "\uFEFF";
   const head = ["问题代码", "严重级别", "问题描述", "数量", "可自动修复", "修复建议", "样本"];
-  const rows = report.issues.map((i) => [
-    i.code,
-    i.severity,
-    `"${i.message.replace(/"/g, '""')}"`,
-    i.count,
+  const safeIssues = Array.isArray(report.issues) ? report.issues : [];
+  const rows = safeIssues.map((i) => [
+    i.code ?? "",
+    i.severity ?? "",
+    `"${String(i.message ?? "").replace(/"/g, '""')}"`,
+    i.count ?? 0,
     i.autoFixable ? "是" : "否",
-    `"${i.hint.replace(/"/g, '""')}"`,
-    `"${i.samples.join(" | ").replace(/"/g, '""')}"`,
+    `"${String(i.hint ?? "").replace(/"/g, '""')}"`,
+    `"${(Array.isArray(i.samples) ? i.samples : []).join(" | ").replace(/"/g, '""')}"`,
   ]);
   return "\uFEFF" + [head.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
 }

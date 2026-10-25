@@ -131,4 +131,14 @@ describe("DataIntegrity 数据自检与完整性审计引擎 (45-12 / 72-05)", (
     expect(csv).toContain("问题代码,严重级别");
     expect(csv).toContain("orphan-event");
   });
+
+  it("当输入 options 或 report 为 undefined 时安全防御，不抛异常", () => {
+    expect(() => auditDataIntegrity(undefined as unknown as any)).not.toThrow();
+    const r = auditDataIntegrity(undefined as unknown as any);
+    expect(r.healthy).toBe(true);
+    expect(r.totalEvents).toBe(0);
+
+    expect(() => exportIntegrityCsv(undefined as unknown as any)).not.toThrow();
+    expect(exportIntegrityCsv(undefined as unknown as any)).toBe("\uFEFF");
+  });
 });
