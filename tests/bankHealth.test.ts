@@ -3,6 +3,7 @@ import {
   duplicateClusters,
   missingFields,
   bankHealthReport,
+  coverageStats,
   jaccard,
   detectOrphans,
   exportHealthReportCsv,
@@ -146,5 +147,25 @@ describe("43-04 孤儿题目诊断队列与健康清单导出", () => {
     const optMiss = rows.find((r) => r.field === "options");
     expect(optMiss).toBeDefined();
     expect(optMiss?.count).toBe(1);
+  });
+
+  it("当输入为 null 或 undefined 时全面安全容错，不抛异常", () => {
+    expect(() => duplicateClusters(undefined as unknown as any)).not.toThrow();
+    expect(duplicateClusters(undefined as unknown as any)).toEqual([]);
+
+    expect(() => missingFields(undefined as unknown as any)).not.toThrow();
+    expect(missingFields(undefined as unknown as any)).toEqual([]);
+
+    expect(() => bankHealthReport(undefined as unknown as any)).not.toThrow();
+    expect(bankHealthReport(undefined as unknown as any).total).toBe(0);
+
+    expect(() => coverageStats(undefined as unknown as any)).not.toThrow();
+    expect(coverageStats(undefined as unknown as any).sources).toBe(0);
+
+    expect(() => detectOrphans(undefined as unknown as any)).not.toThrow();
+    expect(detectOrphans(undefined as unknown as any).total).toBe(0);
+
+    expect(() => exportHealthReportCsv(undefined as unknown as any)).not.toThrow();
+    expect(exportHealthReportCsv(undefined as unknown as any)).toBe("\uFEFF");
   });
 });

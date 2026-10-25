@@ -45,6 +45,7 @@ export function jaccard(a: string, b: string): number {
 }
 
 function stemFingerprint(q: Question): string {
+  if (!q) return "";
   const opts = Array.isArray(q.options) ? q.options.join("\u0001") : "";
   return (String(q.stem ?? "") + "\u0000" + opts).replace(/\s+/g, "");
 }
@@ -53,8 +54,9 @@ function stemFingerprint(q: Question): string {
 
 /** 精确重复（哈希一致）先归组；组内再与 2-gram 相似度合并为簇（阈值 FUZZY_THRESHOLD） */
 export function duplicateClusters(qs: Question[], threshold = FUZZY_THRESHOLD): DupCluster[] {
+  const safeQs = Array.isArray(qs) ? qs.filter(Boolean) : [];
   const exact = new Map<string, Question[]>();
-  for (const q of qs) {
+  for (const q of safeQs) {
     // 精确归组用空白归一指纹：仅排版差异（空格/换行）视为重复；q.hash 保留原导入语义不覆盖
     const key = stemFingerprint(q);
     const arr = exact.get(key) ?? [];
@@ -66,12 +68,12 @@ export function duplicateClusters(qs: Question[], threshold = FUZZY_THRESHOLD): 
   for (const group of exact.values()) {
     if (group.length > 1) {
       clusters.push(clusterOf(group, 1));
-      group.forEach((q) => consumed.add(q.id));
+      group.forEach((q) => q?.id && consumed.add(q.id));
     }
   }
   // 模糊簇：仅未进入精确组的题参与（避免簇重复计数）；超大库跳过
-  if (qs.length <= MAX_FUZZY_SCAN) {
-    const rest = qs.filter((q) => !consumed.has(q.id));
+  if (safeQs.length <= MAX_FUZZY_SCAN) {
+    const rest = safeQs.filter((q) => !consumed.has(q.id));
     const used = new Set<string>();
     for (let i = 0; i < rest.length; i++) {
       if (used.has(rest[i].id)) continue;
@@ -92,10 +94,11 @@ export function duplicateClusters(qs: Question[], threshold = FUZZY_THRESHOLD): 
 }
 
 function clusterOf(group: Question[], similarity: number): DupCluster {
+  const first = group[0];
   return {
-    ids: group.map((q) => q.id),
+    ids: group.map((q) => q?.id ?? "").filter(Boolean),
     similarity,
-    sampleStem: group[0].stem.slice(0, 60),
+    sampleStem: String(first?.stem ?? "").slice(0, 60),
   };
 }
 
@@ -105,6 +108,7 @@ const CHOICE_TYPES = new Set(["single", "multiple"]);
 
 /** 按题型体检：选择题必须有 ≥2 选项与答案；全部题型要求解析/考点/出处（缺计缺失） */
 export function missingFields(qs: Question[]): MissingFieldRow[] {
+  const safeQs = Array.isArray(qs) ? qs.filter(Boolean) : [];
   const miss = (field: string, ids: string[]): MissingFieldRow => ({
     field,
     count: ids.length,
@@ -115,7 +119,7 @@ export function missingFields(qs: Question[]): MissingFieldRow[] {
     noSource: string[] = [];
   const noOptions: string[] = [],
     noAnswer: string[] = [];
-  for (const q of qs) {
+  for (const q of safeQs) {
     if (!q.analysis?.trim()) noAnalysis.push(q.id);
     if (!q.kp?.trim()) noKp.push(q.id);
     if (!q.source?.trim()) noSource.push(q.id);
@@ -136,10 +140,11 @@ export function missingFields(qs: Question[]): MissingFieldRow[] {
 }
 
 export function bankHealthReport(qs: Question[]): BankHealthReport {
+  const safeQs = Array.isArray(qs) ? qs.filter(Boolean) : [];
   return {
-    total: qs.length,
-    clusters: duplicateClusters(qs),
-    missing: missingFields(qs),
+    total: safeQs.length,
+    clusters: duplicateClusters(safeQs),
+    missing: missingFields(safeQs),
   };
 }
 
@@ -161,6 +166,7 @@ export interface CoverageStats {
 }
 
 export function coverageStats(qs: Question[], attemptedQids?: Set<string>): CoverageStats {
+  const safeQs = Array.isArray(qs) ? qs.filter(Boolean) : [];
   const byType = new Map<string, number>();
   const sources = new Set<string>();
   let sourceMissing = 0;
@@ -168,7 +174,7 @@ export function coverageStats(qs: Question[], attemptedQids?: Set<string>): Cove
   const kpTopsAttempted = new Set<string>();
   let kpMissing = 0;
   let shortAnalysis = 0;
-  for (const q of qs) {
+  for (const q of safeQs) {
     byType.set(q.type, (byType.get(q.type) ?? 0) + 1);
     const src = (q.source ?? "").trim();
     if (src) sources.add(src);
@@ -293,6 +299,7 @@ export function detectOrphans(
     questionMaterialLinks?: ReadonlyMap<string, string>; // qid -> materialId
   },
 ): OrphanDiagnosis {
+  const safeQuestions = Array.isArray(questions) ? questions.filter(Boolean) : [];
   const byKind: Record<OrphanKind, OrphanQueueItem[]> = {
     orphan_group_sub: [],
     orphan_group_material: [],
@@ -305,7 +312,7 @@ export function detectOrphans(
   const materialGroups = new Set<string>();
   const subGroupCounts = new Map<string, number>();
 
-  for (const q of questions) {
+  for (const q of safeQuestions) {
     if (q.type === "material" && q.group) {
       materialGroups.add(q.group);
     } else if (q.group) {
@@ -314,13 +321,14 @@ export function detectOrphans(
   }
 
   // 2. 逐题排查
-  for (const q of questions) {
+  for (const q of safeQuestions) {
+    const stemSnippet = String(q.stem ?? "").slice(0, 60);
     // 孤儿子题：标了 group 但题库中无对应 material 母块
     if (q.type !== "material" && q.group && !materialGroups.has(q.group)) {
       const item: OrphanQueueItem = {
         kind: "orphan_group_sub",
         qid: q.id,
-        stem: q.stem.slice(0, 60),
+        stem: stemSnippet,
         detail: `材料组【${q.group}】缺失母块材料`,
       };
       byKind.orphan_group_sub.push(item);
@@ -331,7 +339,7 @@ export function detectOrphans(
       const item: OrphanQueueItem = {
         kind: "orphan_group_material",
         qid: q.id,
-        stem: q.stem.slice(0, 60),
+        stem: stemSnippet,
         detail: `材料母块【${q.group}】无任何子题关联`,
       };
       byKind.orphan_group_material.push(item);
@@ -344,7 +352,7 @@ export function detectOrphans(
         const item: OrphanQueueItem = {
           kind: "broken_material_ref",
           qid: q.id,
-          stem: q.stem.slice(0, 60),
+          stem: stemSnippet,
           detail: `关联的资料【${matId}】已从登记册删除或缺失`,
         };
         byKind.broken_material_ref.push(item);
@@ -352,23 +360,24 @@ export function detectOrphans(
     }
 
     // 严重内容缺陷：非材料题缺答案
-    if (q.type !== "material" && !q.answer.trim()) {
+    if (q.type !== "material" && !(q.answer ?? "").trim()) {
       const item: OrphanQueueItem = {
         kind: "defect_no_answer",
         qid: q.id,
-        stem: q.stem.slice(0, 60),
+        stem: stemSnippet,
         detail: "未设置有效答案",
       };
       byKind.defect_no_answer.push(item);
     }
 
     // 严重内容缺陷：选择题少于 2 项选项
-    if ((q.type === "single" || q.type === "multiple") && q.options.filter((o) => o.trim()).length < 2) {
+    const opts = Array.isArray(q.options) ? q.options : [];
+    if ((q.type === "single" || q.type === "multiple") && opts.filter((o) => (o ?? "").trim()).length < 2) {
       const item: OrphanQueueItem = {
         kind: "defect_no_options",
         qid: q.id,
-        stem: q.stem.slice(0, 60),
-        detail: `选项仅 ${q.options.filter((o) => o.trim()).length} 项，不足 2 项`,
+        stem: stemSnippet,
+        detail: `选项仅 ${opts.filter((o) => (o ?? "").trim()).length} 项，不足 2 项`,
       };
       byKind.defect_no_options.push(item);
     }
@@ -387,26 +396,35 @@ export function exportHealthReportCsv(
   report: BankHealthReport,
   orphans?: OrphanDiagnosis,
 ): string {
+  if (!report || typeof report !== "object") return "\uFEFF";
   const rows: string[] = ["类别,标识或字段,数量,明细与题干摘要"];
 
   // 1. 重复簇
-  for (const cl of report.clusters) {
+  const clusters = Array.isArray(report.clusters) ? report.clusters : [];
+  for (const cl of clusters) {
+    if (!cl) continue;
     const kind = cl.similarity === 1 ? "精确重复" : "疑似重复";
-    const escStem = `"${cl.sampleStem.replace(/"/g, '""')}"`;
-    rows.push(`${kind},${cl.ids.slice(0, 5).join(";")},${cl.ids.length},${escStem}`);
+    const ids = Array.isArray(cl.ids) ? cl.ids : [];
+    const escStem = `"${String(cl.sampleStem ?? "").replace(/"/g, '""')}"`;
+    rows.push(`${kind},${ids.slice(0, 5).join(";")},${ids.length},${escStem}`);
   }
 
   // 2. 字段缺失
-  for (const m of report.missing) {
-    rows.push(`字段缺失,${m.field},${m.count},"${m.qids.slice(0, 10).join(";")}"`);
+  const missing = Array.isArray(report.missing) ? report.missing : [];
+  for (const m of missing) {
+    if (!m) continue;
+    const qids = Array.isArray(m.qids) ? m.qids : [];
+    rows.push(`字段缺失,${m.field ?? ""},${m.count ?? 0},"${qids.slice(0, 10).join(";")}"`);
   }
 
   // 3. 孤儿与缺陷队列
-  if (orphans?.items.length) {
-    for (const item of orphans.items) {
-      const label = ORPHAN_KIND_LABELS[item.kind] ?? item.kind;
-      const escDetail = `"${item.detail.replace(/"/g, '""')} - ${item.stem.replace(/"/g, '""')}"`;
-      rows.push(`孤儿与缺陷,${label}:${item.qid},1,${escDetail}`);
+  const orphanItems = Array.isArray(orphans?.items) ? orphans!.items : [];
+  if (orphanItems.length) {
+    for (const item of orphanItems) {
+      if (!item) continue;
+      const label = ORPHAN_KIND_LABELS[item.kind] ?? item.kind ?? "";
+      const escDetail = `"${String(item.detail ?? "").replace(/"/g, '""')} - ${String(item.stem ?? "").replace(/"/g, '""')}"`;
+      rows.push(`孤儿与缺陷,${label}:${item.qid ?? ""},1,${escDetail}`);
     }
   }
 

@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1388%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1389%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.51（2026-10-25）
+## 最新版本：v0.11.52（2026-10-26）
+
+本版本为题库健康体检（bankHealth）全入口空值防御与畸变数据保护加固版本。在 `bankHealth.ts` 中对题库列表与题目对象全面引入安全数组规整与有效 ID 校验，杜绝 `qs` 或 `q.options` 未定义引发的空指针崩溃；在材料组关联排查与孤儿队列导出时增加强对象空值拦截与安全链访问，补齐 `bankHealth.test.ts` 自动化防御单测。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.51（2026-10-25）
 
 本版本为手工录题注音支持、思源块属性 studyMeta 双向无损编解码与抽屉发音联动版本。在手工录题表单中新增朗读语言（普通话/粤语/英语/日语）与注音/粤拼专属输入区域；在 `blockTemplate.ts` 中打通 `exam-study-meta` 的 IAL 属性持久化与读回还原，在题目编辑（`updateQuestionContent`）中支持保存研学元数据；在题目详情抽屉（Peek Drawer）中全面补齐注音徽章渲染与【▶ 听发音】快捷按钮。全套单测 179 个测试文件、1388 项单测 100% 全部通过。
 
