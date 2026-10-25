@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.33（2026-10-25）
+## 最新版本：v0.11.34（2026-10-25）
+
+本版本为顶栏角色切换图标矢量化升级、顶栏排版收敛与品牌视觉深化版本。备考学员与教师教研模式分段控件彻底告别生硬 Emoji，升级为高质感现代单色线性矢量图标——学士帽（`academic`）与讲台黑板（`teacher`）；收敛合并 SCSS 中重复的工具条规则，采用统一的 44px 紧凑舒适高度与 0 1px 3px 微扩散底阴影，优化眉题（Eyebrow）字重与字间距。全套单测 177 个测试文件、1368 项单测 100% 全部通过。
+
+## 上一版本：v0.11.33（2026-10-25）
 
 本版本为做题卡片瓷砖微动效、模式卡片悬浮投影与全真交互细节升级版本。主页练习模式卡片在鼠标悬停时平滑抬升 2px，并触发深度扩散的普鲁士学院蓝柔光阴影（`0 6px 20px color-mix(...)`），图标容器采用规范的 12px 圆角与微高光，触感轻盈高级；指标统计小部件统一采用 18px Bento 柔和圆角与高反差 hover 学院蓝微边框反馈。全套单测 177 个测试文件、1368 项单测 100% 全部通过。
 

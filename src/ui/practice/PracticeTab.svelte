@@ -5912,12 +5912,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             if (userRole !== "student") {
               userRole = "student";
               writeLocal("lv-exam/role", "student");
-              showMessage("已切换至【👨‍🎓 备考学员模式】：专注于每日计划、极速刷题与错题攻坚", 2500, "info");
+              showMessage("已切换至【备考学员模式】：专注于每日计划、极速刷题与错题攻坚", 2500, "info");
             }
           }}
           title={t("role.student")}
         >
-          <span>👨‍🎓</span> <b>{t("role.student")}</b>
+          <Icon name="academic" size={13} /> <b>{t("role.student")}</b>
         </button>
         <button
           type="button"
@@ -5930,12 +5930,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             if (userRole !== "teacher") {
               userRole = "teacher";
               writeLocal("lv-exam/role", "teacher");
-              showMessage("已切换至【👨‍🏫 教师教研模式】：出题工作台、质量审校与排版工具已就绪", 2500, "info");
+              showMessage("已切换至【教师教研模式】：出题工作台、质量审校与排版工具已就绪", 2500, "info");
             }
           }}
           title={t("role.teacher")}
         >
-          <span>👨‍🏫</span> <b>{t("role.teacher")}</b>
+          <Icon name="teacher" size={13} /> <b>{t("role.teacher")}</b>
         </button>
       </div>
   </div>
@@ -6221,7 +6221,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
           </div>
           <button class="lv-card lv-widget lv-widget--click" style="text-align:left;font:inherit;color:inherit" onclick={() => { view = "wrongbook"; void loadQuestions(); }}>
-            <span class="lv-streak-flame lv-streak-flame--wrong"><Icon name="xcircle" size={22} /></span>
+            <span class="lv-streak-flame lv-streak-flame--wrong"><Icon name="target" size={22} /></span>
             <div class="lv-widget-body">
               <div class="lv-widget-title">{t("widget.wrong")}</div>
               <strong class="num">{wrongList.length} {t("mode.wrong.unit")}</strong>

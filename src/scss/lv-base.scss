@@ -503,10 +503,10 @@ button.lv-chip {
   .eyebrow {
     display: block;
     font-size: var(--lv-font-size-xs);
-    letter-spacing: 2px;
-    font-weight: var(--lv-font-weight-semibold);
-    color: var(--lv-accent);
-    margin-bottom: var(--lv-space-3);
+    letter-spacing: 1.5px;
+    font-weight: var(--lv-font-weight-bold);
+    color: var(--lv-brand);
+    margin-bottom: var(--lv-space-2);
     text-transform: uppercase;
   }
 
@@ -880,21 +880,13 @@ input[type="range"] {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  gap: var(--lv-space-2);
   row-gap: var(--lv-space-compact);
-  gap: var(--lv-space-relaxed);
   border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border));
   background: var(--lv-surface);
-  box-shadow: var(--lv-sh-1);
-  padding: var(--lv-space-relaxed) var(--lv-space-4);
-  min-height: 48px;
-}
-.lv-exam-tab > .block__icons {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--lv-space-2);
-  min-height: 42px;
-  padding: 4px 14px;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--lv-text) 4%, transparent);
+  padding: 5px 14px;
+  min-height: 44px;
 }
 .lv-exam-tab > .block__icons .lv-crumbs {
   display: inline-flex;

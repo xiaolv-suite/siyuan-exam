@@ -1468,7 +1468,7 @@
         onclick={() => switchRole("student")}
         title={t("role.student")}
       >
-        <span>👨‍🎓</span> <b>{t("role.student")}</b>
+        <Icon name="academic" size={13} /> <b>{t("role.student")}</b>
       </button>
       <button
         type="button"
@@ -1480,7 +1480,7 @@
         onclick={() => switchRole("teacher")}
         title={t("role.teacher")}
       >
-        <span>👨‍🏫</span> <b>{t("role.teacher")}</b>
+        <Icon name="teacher" size={13} /> <b>{t("role.teacher")}</b>
       </button>
     </div>
     <span class="fn__flex-1"></span>
