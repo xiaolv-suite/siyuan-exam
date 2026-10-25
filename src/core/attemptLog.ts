@@ -131,7 +131,7 @@ export class AttemptLog {
       verdict: input.verdict,
       myAnswer: input.myAnswer,
       selfRating: input.selfRating,
-      timeMs: input.timeMs,
+      timeMs: input.timeMs != null && Number.isFinite(input.timeMs) ? Math.max(0, input.timeMs) : input.timeMs,
       sessionId: input.sessionId,
       examId: input.examId ?? null,
       queue: input.queue ?? "normal",

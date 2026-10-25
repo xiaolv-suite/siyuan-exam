@@ -43,4 +43,9 @@ describe("每日时间预算（53-01 lite，廿九批）", () => {
     expect(r.minutes).toBeGreaterThanOrEqual(1);
     expect(r.sourced).toBe(true);
   });
+
+  it("当 queue 或 events 为 undefined 时安全防御不抛异常", () => {
+    expect(() => estimatePlanMinutes(undefined as unknown as Question[])).not.toThrow();
+    expect(() => avgMsByType(undefined as unknown as AttemptEvent[], () => undefined)).not.toThrow();
+  });
 });

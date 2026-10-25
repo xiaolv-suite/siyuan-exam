@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1368%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1369%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.34（2026-10-25）
+## 最新版本：v0.11.35（2026-10-25）
+
+本版本为作答时间预算估算空值防御与流水用时非负规整升级版本。在 `timeBudget.ts` 中对传入的题目队列与作答流水全面引入数组安全规整与非有限数值过滤，杜绝异常外部数据传入时抛出未捕获异常；在 `attemptLog.ts` 中对入库事件的 `timeMs` 字段增加 `Number.isFinite` 与非负规整，彻底防止因本地设备时钟波动产生负用时或 NaN。全套单测 177 个测试文件、1369 项单测 100% 全部通过。
+
+## 上一版本：v0.11.34（2026-10-25）
 
 本版本为顶栏角色切换图标矢量化升级、顶栏排版收敛与品牌视觉深化版本。备考学员与教师教研模式分段控件彻底告别生硬 Emoji，升级为高质感现代单色线性矢量图标——学士帽（`academic`）与讲台黑板（`teacher`）；收敛合并 SCSS 中重复的工具条规则，采用统一的 44px 紧凑舒适高度与 0 1px 3px 微扩散底阴影，优化眉题（Eyebrow）字重与字间距。全套单测 177 个测试文件、1368 项单测 100% 全部通过。
 

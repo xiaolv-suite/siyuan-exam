@@ -23,10 +23,11 @@ export function avgMsByType(
   events: readonly AttemptEvent[],
   typeOf: (qid: string) => string | undefined,
 ): Record<string, number> {
+  const safeEvents = Array.isArray(events) ? events : [];
   const byType = new Map<string, number[]>();
-  for (const e of events) {
-    if (e.timeMs == null || e.timeMs <= 0) continue;
-    const t = typeOf(e.qid);
+  for (const e of safeEvents) {
+    if (e.timeMs == null || e.timeMs <= 0 || !Number.isFinite(e.timeMs)) continue;
+    const t = typeOf?.(e.qid);
     if (!t) continue;
     const arr = byType.get(t) ?? [];
     arr.push(Math.min(e.timeMs, MS_CAP));
@@ -53,15 +54,16 @@ export interface TimeEstimate {
 
 export function estimatePlanMinutes(
   queue: Question[],
-  avgByType: Record<string, number>,
+  avgByType: Record<string, number> = {},
   defaults: Record<string, number> = DEFAULT_TYPE_MS,
 ): TimeEstimate {
+  const safeQueue = Array.isArray(queue) ? queue : [];
   let mid = 0;
   let low = 0;
   let high = 0;
   let sourced = true;
-  for (const q of queue) {
-    const hist = avgByType[q.type];
+  for (const q of safeQueue) {
+    const hist = avgByType?.[q.type];
     const base = hist ?? defaults[q.type] ?? defaults.single;
     if (!hist) sourced = false;
     const factor = q.type === "material" || q.group ? MATERIAL_FACTOR : 1;
