@@ -11,7 +11,7 @@ import { auditForgettingRisks } from "@/core/forgettingRisk";
 import { sanitizeRichHtml } from "@/libs/sanitize";
     import { planToday, parseExamProfiles, nearestUpcoming, nextPlanTrace, remainingPlan } from "@/core/planner";
 import { ttsSpeak, ttsSupported } from "@/core/tts";
-    import type { ExamApp } from "../../app";
+    import type { ExamApp, BankInfo } from "../../app";
     import type { Question } from "../../core/types";
     import { parseText, parseExcelRows, autoMapExcel, errorsToCsv, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
     import { columnLabel, autoAssignment, assignmentFromMap, assignmentToMap, assignmentErrors, emptyAssignment, type MapAssignment } from "../../importer/mapping";
@@ -75,7 +75,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import SaveStatus from "../shared/SaveStatus.svelte";
     import { SAMPLE_BANK_NAME, SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
     import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_QUESTION_COUNT } from "@/core/cantoneseSample";
-    import { getBankCategoryMeta } from "@/core/bankCategory";
+    import { getBankCategoryMeta, type BankCategory } from "@/core/bankCategory";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
@@ -210,6 +210,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         showMessage("题库名称已更新 ✓", 2500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
+      }
+    }
+
+    async function cycleBankCategory(b: BankInfo) {
+      if (!app) return;
+      const order: BankCategory[] = ["exam", "language", "teaching", "general"];
+      const curIdx = order.indexOf(b.category ?? "general");
+      const nextCategory = order[(curIdx + 1) % order.length];
+      try {
+        await app.updateBankCategory(b.id, nextCategory);
+        banks = app.listBanks();
+        showMessage(`题库「${b.name}」场景分类已更新为：${getBankCategoryMeta(nextCategory).badge} ✓`, 2500, "info");
+      } catch (e) {
+        showMessage(`更新分类失败：${String(e instanceof Error ? e.message : e)}`, 3500, "error");
       }
     }
 
@@ -515,7 +529,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const a = document.createElement("a");
       const url = URL.createObjectURL(blob);
       a.href = url;
-      a.download = `小驴考试（内测版）-主观题自评-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `小驴学习-主观题自评-${new Date().toISOString().slice(0, 10)}.csv`;
       a.hidden = true;
       document.body.appendChild(a);
       a.click();
@@ -2755,7 +2769,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function copyTodayReportMarkdown() {
       const todayStr = localDate(Date.now());
       const lines = [
-        `### 📅 小驴考试 · 今日备考打卡`,
+        `### 📅 小驴学习 · 今日研学打卡`,
         `- **学习日期**：${todayStr}`,
         `- **当前题库**：${bankName || "默认题库"}`,
         `- **今日作答**：**${todayDone} 题**（今日目标：${dailyGoalN} 题 · 达成率 ${goalPct}%）`,
@@ -3624,19 +3638,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function syncWrongbookToCards() {
       if (!hasCardsPlugin) {
-        showMessage("[小驴考试] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
+        showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
         return;
       }
       const wrongQs = questions.filter((q) => filteredWrongQueue.some((w) => w.qid === q.id));
       if (!wrongQs.length) {
-        showMessage("[小驴考试] 当前筛选下没有可推送到闪卡的错题", 2500, "info");
+        showMessage("[小驴学习] 当前筛选下没有可推送到闪卡的错题", 2500, "info");
         return;
       }
       try {
         const n = await app.convertToCards(activeBankId, bankName, wrongQs);
-        showMessage(`[小驴考试] 已将 ${n} 道错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
+        showMessage(`[小驴学习] 已将 ${n} 道错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
       } catch (e) {
-        showMessage(`[小驴考试] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       }
     }
 
@@ -9345,7 +9359,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                       </div>
                     {:else}
                       <b style="font-size:var(--lv-font-size-body)">{b.name}</b>
-                      <span class="lv-chip sm" style="margin-left:6px">{getBankCategoryMeta(b.category).badge}</span>
+                      <button type="button" class="lv-chip sm" style="margin-left:6px;cursor:pointer" onclick={() => void cycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）">{getBankCategoryMeta(b.category).badge} ↻</button>
                       {#if b.id === activeBankId}<span class="lv-chip sm lv-chip--acc" style="margin-left:4px">当前激活</span>{/if}
                       <div class="lv-muted" style="font-size:11px;margin-top:2px">ID: {b.id} · 创建于 {new Date(b.createdAt || Date.now()).toLocaleDateString()}</div>
                     {/if}

@@ -1285,7 +1285,7 @@
       if (!score) return;
       const passText = score.pass ? "🎉 及格" : "⚠️ 未及格";
       const lines = [
-        `### 📝 小驴考试 · 全真模考战报`,
+        `### 📝 小驴学习 · 全真模考战报`,
         `- **考试科目**：${bp.name || "全真模拟卷"}`,
         `- **交卷时间**：${new Date().toLocaleString()}`,
         `- **最终成绩**：**${score.total} / ${score.full}**（得分率 ${score.percent}% · ${passText}）`,
@@ -1296,7 +1296,7 @@
       if (revisionDrift.length) {
         lines.push(`- **改动说明**：包含 ${revisionDrift.length} 道在考后已修订题`);
       }
-      lines.push(`\n> 来自小驴考试（内测版）`);
+      lines.push(`\n> 来自小驴学习（原小驴考试）`);
       const text = lines.join("\n");
       try {
         await navigator.clipboard.writeText(text);
@@ -1308,7 +1308,7 @@
 
     function downloadMockCsv(csv: string, name: string) {
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      downloadBlob(blob, `小驴考试（内测版）-模考-${name}-${new Date().toISOString().slice(0, 10)}.csv`);
+      downloadBlob(blob, `小驴学习-模考-${name}-${new Date().toISOString().slice(0, 10)}.csv`);
       showMessage(t("mock.exportReady", "已开始下载文件。"), 3000, "info");
     }
 

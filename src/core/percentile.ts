@@ -276,7 +276,7 @@ export function exportPercentileCsv(
   const model = v.model ?? buildPoolModel();
   const sourceLabel = model.source === "history" ? "个人历史模考" : "通用虚拟模型";
   const rows: string[] = [];
-  rows.push("小驴考试(内测版) 模考百分位模拟");
+  rows.push("小驴学习(原小驴考试) 模考百分位模拟");
   rows.push(`参考池来源,${sourceLabel}`);
   rows.push(`样本场次,${model.sampleSize ?? 0}`);
   rows.push(`池均值(得分率),${model.mean ?? 0}%`);

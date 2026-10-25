@@ -186,7 +186,7 @@ export function buildFullReportHtml(options: FullReportHtmlOptions): string {
           <span>${escapeHtml(options.bankName)}</span>
           <span class="report-seal">学情全景诊断</span>
         </div>
-        <div style="font-size: 9pt; color: #64748b; margin-top: 4px">小驴考试 · 刻意练习与备考工作台</div>
+        <div style="font-size: 9pt; color: #64748b; margin-top: 4px">小驴学习 · 刻意练习与备考工作台</div>
       </div>
       <div class="report-meta">
         <div>统计窗口：${escapeHtml(rangeLabel)}</div>
@@ -290,7 +290,7 @@ export function buildFullReportHtml(options: FullReportHtmlOptions): string {
     ` : ""}
 
     <footer class="report-footer">
-      <span>本报告由思源笔记插件【小驴考试】本地离线演算生成，不经过任何云端服务器，严格保护个人学习隐私。</span>
+      <span>本报告由思源笔记插件【小驴学习】本地离线演算生成，不经过任何云端服务器，严格保护个人学习隐私。</span>
       <span>Printed via Lv Exam · Local First</span>
     </footer>
   </div>

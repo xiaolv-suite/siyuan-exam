@@ -158,7 +158,7 @@ function renderHeader(title: string, subtitle: string, paperNo?: string): string
 }
 
 function renderFooter(note?: string, today: string = new Date().toLocaleDateString("zh-CN")): string {
-  return `<footer class="sheet-footer"><span>${escapeHtml(note || "小驴考试 · 本地离线生成")}</span><span>${escapeHtml(today)}</span></footer>`;
+  return `<footer class="sheet-footer"><span>${escapeHtml(note || "小驴学习 · 本地离线生成")}</span><span>${escapeHtml(today)}</span></footer>`;
 }
 
 /**
@@ -338,7 +338,7 @@ export function buildTeacherLectureSheetPro(
     parts.push(`</div>`); // end .q
   });
 
-  parts.push(`</section>`, renderFooter(options.footerNote || "小驴考试 · 教师备课授课讲义"), `</body></html>`);
+  parts.push(`</section>`, renderFooter(options.footerNote || "小驴学习 · 教师备课授课讲义"), `</body></html>`);
   return parts.join("\n");
 }
 

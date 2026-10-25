@@ -520,17 +520,17 @@ export class ExamApp {
 
   /** 新建题库一键流程（2.2 P0）：笔记本 + 首页 + 章节骨架 + 示例题文档（真实入库，建完即可练）。
    *  骨架失败不阻断建库：逐段 try，返回 info 时尽力而为（部分骨架缺失可后续手动补/重导）。 */
-  async createBank(name: string): Promise<BankInfo> {
+  async createBank(name: string, category: BankCategory = "general"): Promise<BankInfo> {
     this.assertStorageWritable();
     const clean = name.trim();
     if (!clean) throw new Error("题库名不能为空");
     const notebookId = await this.deps.client.createNotebook(`题库/${clean}`);
-    const info: BankInfo = { id: notebookId, name: clean, createdAt: Date.now() };
+    const info: BankInfo = { id: notebookId, name: clean, createdAt: Date.now(), category };
     try {
       await this.deps.client.createDocWithMd(
         notebookId,
         "/首页",
-        `# 题库：${clean}\n\n> 本笔记本由小驴考试（内测版）管理。章节文档存放题目块。\n> 可在练习台导入题目，或删除「示例题」文档后自建章节。\n`,
+        `# 题库：${clean}\n\n> 本笔记本由小驴学习（原小驴考试）管理。章节文档存放研学题目与卡片。\n> 可在练习台导入题目，或删除「示例题」文档后自建章节。\n`,
       );
     } catch { /* 首页失败不阻断 */ }
     // 章节骨架：按官方模板的考点分层示例（47-02 首五分钟任务的最短路径）
@@ -653,6 +653,23 @@ export class ExamApp {
     if (!target) throw new Error("未找到对应题库");
     const previous = [...this.banks];
     target.name = clean;
+    this.banks = [...this.banks];
+    try {
+      await this.saveBankRegistry();
+      this.invalidate();
+      return target;
+    } catch (e) {
+      this.banks = previous;
+      throw e;
+    }
+  }
+
+  async updateBankCategory(id: string, category: BankCategory): Promise<BankInfo> {
+    this.assertStorageWritable();
+    const target = this.banks.find((b) => b.id === id);
+    if (!target) throw new Error("未找到对应题库");
+    const previous = [...this.banks];
+    target.category = category;
     this.banks = [...this.banks];
     try {
       await this.saveBankRegistry();
@@ -2186,7 +2203,7 @@ export class ExamApp {
     const eliminated = [...bankState.wrongbook.values()].filter((w) => w.status === "eliminated" && before.wrongbook.get(w.qid)?.status !== "eliminated").length;
     const ymd = reportDateKey(now);
     const md = [
-      `# 📝 小驴考试（内测版）战报 · ${ymd}`,
+      `# 📝 小驴学习（原小驴考试）研学战报 · ${ymd}`,
       ``,
       `- 刷题：**${attempts}** 题 · 正确率 **${attempts ? Math.round((correct / attempts) * 100) : 0}%**`,
       `- 今日新消灭错题：**${eliminated}**`,
@@ -2531,7 +2548,7 @@ export class ExamApp {
           docId = await this.deps.client.createDocWithMd(
             bankId,
             hpath,
-            "# 学习闪卡册\n\n> 本卡册由小驴考试自动生成（单选/多选/判断/填空/简答）。正面思考，背面核对，已送入 FSRS 间隔重复卡包。\n",
+            "# 学习闪卡册\n\n> 本卡册由小驴学习自动生成（研学卡片与题目）。正面思考，背面核对，已送入 FSRS 间隔重复卡包。\n",
           );
         } catch {
           /* 创建文档失败将回退原块转卡 */

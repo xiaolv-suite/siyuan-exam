@@ -14,7 +14,7 @@ export function wrongbookToMarkdown(
   const head = [
     `# 错题册 · ${esc(opts.bankName)}`,
     ``,
-    `> 📅 归档于 ${ymd} · 共 ${items.length} 题 · 由小驴考试自动排版`,
+    `> 📅 归档于 ${ymd} · 共 ${items.length} 题 · 由小驴学习自动排版`,
     `> 💡 提示：本篇为思源笔记本地原生文档，即便卸载插件亦可永久查阅、全文搜索与复习。`,
     ``,
   ];
@@ -138,7 +138,7 @@ export function mockResultToDocMarkdown(
     `> 2. 将做错的试题移入错题本或转为闪卡，通过 FSRS 算法进行抗遗忘复习。`,
     ``,
     `---`,
-    `*由小驴考试（内测版）自动生成归档*`,
+    `*由小驴学习（原小驴考试）自动生成归档*`,
   );
 
   return lines.join("\n");

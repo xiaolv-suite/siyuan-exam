@@ -825,7 +825,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `小驴考试（内测版）-数据出库 ${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `小驴学习-数据出库 ${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         showMessage(t("data.exportDone"), 3200, "info");
@@ -911,7 +911,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `小驴考试（内测版）-报告-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `小驴学习-报告-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
