@@ -2091,12 +2091,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (next === "import") void checkImportCheckpoint();
     }
     const railItems = $derived([
-      { icon: "table", name: t("mode.browse"), on: at("browse"), onclick: () => { switchView("browse"); void loadQuestions(); } },
-      { icon: "xcircle", name: t("wrongbook.title"), on: at("wrongbook"), badge: wrongList.length ? String(wrongList.length) : undefined, onclick: () => { dataRev++; switchView("wrongbook"); void loadQuestions(); } },
+      { icon: "grid", name: t("mode.browse"), on: at("browse"), onclick: () => { switchView("browse"); void loadQuestions(); } },
+      { icon: "target", name: t("wrongbook.title"), on: at("wrongbook"), badge: wrongList.length ? String(wrongList.length) : undefined, onclick: () => { dataRev++; switchView("wrongbook"); void loadQuestions(); } },
       { icon: "import", name: t("import.title"), on: at("import"), onclick: () => switchView("import") },
-      { icon: "pencil", name: t("entry.manual"), on: at("manual"), onclick: () => switchView("manual") },
+      { icon: "clipboard", name: t("entry.manual"), on: at("manual"), onclick: () => switchView("manual") },
       { icon: "sparkles", name: t("ai.title"), on: at("ai"), onclick: () => switchView("ai") },
-      { icon: "book", name: t("materials.title"), on: at("materials"), onclick: () => { switchView("materials"); loadMaterials(); } },
+      { icon: "material", name: t("materials.title"), on: at("materials"), onclick: () => { switchView("materials"); loadMaterials(); } },
     ]);
 
     let paletteOpen = $state(false);
@@ -6112,21 +6112,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
           </div>
         {:else if questionsLoaded && !practiceQuestions.length}
-          <div class="lv-card lv-empty lv-entry-empty" style="border-top:3.5px solid var(--lv-brand);box-shadow:var(--lv-sh-pop);padding:32px 24px;border-radius:var(--lv-r-3)">
-            <div class="lv-empty-icon" style="width:52px;height:52px;border-radius:14px;background:var(--lv-brand-soft);color:var(--lv-brand);display:grid;place-items:center;margin:0 auto 12px">
+          <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:36px 24px;border-radius:var(--lv-r-3);background:var(--lv-surface);border:1px solid var(--lv-border)">
+            <div class="lv-empty-icon" style="width:52px;height:52px;border-radius:14px;background:var(--lv-brand-soft);color:var(--lv-brand);display:grid;place-items:center;margin:0 auto 14px">
               <Icon name="book" size={26} />
             </div>
-            <b style="font-size:16px;color:var(--lv-text);margin-bottom:4px">{t("entry.emptyTitle")}</b>
-            <p class="lv-muted" style="max-width:440px;margin:0 auto 18px;line-height:1.6">{t("entry.emptyDesc")}</p>
+            <b style="font-size:16px;color:var(--lv-text);margin-bottom:6px">{t("entry.emptyTitle")}</b>
+            <p class="lv-muted" style="max-width:460px;margin:0 auto 20px;line-height:1.6">{t("entry.emptyDesc")}</p>
             <div class="lv-row" style="justify-content:center;gap:12px;flex-wrap:wrap">
               <button class="lv-btn sm" onclick={createSampleBank} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}>
                 <Icon name="sparkles" size={14} /> {creatingSample ? t("guard.sampleCreating") : t("guard.sampleOpen")}
               </button>
-              <button class="lv-btn lv-btn--primary" onclick={() => { view = "import"; }}>
+              <button class="lv-btn lv-btn--primary sm" onclick={() => { view = "import"; }}>
                 <Icon name="import" size={15} /> {t("import.title")}
               </button>
               <button class="lv-btn sm" onclick={() => { view = "manual"; }}>
-                <Icon name="pencil" size={14} /> {t("entry.manual")}
+                <Icon name="clipboard" size={14} /> {t("entry.manual")}
               </button>
             </div>
           </div>

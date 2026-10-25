@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.29（2026-10-25）
+## 最新版本：v0.11.30（2026-10-25）
+
+本版本为左侧栏图标系统全面重绘去重、Logo 质感重塑与首页 Bento 美学升级版本。重绘今日日程板（`home`）、题库展开卷册（`book`）、出题写作工坊（`create`）、考场精准秒表（`clock`）、复盘增长折线（`chart`）、题卡画廊群（`grid`）、错题靶心攻坚（`target`）、手持录题板（`clipboard`）与书签文献手册（`material`），彻底消灭“出题/录题皆为铅笔”、“题库/资料皆为书籍”的重复缺陷；重构品牌 Logo 为学院蓝质感渐变勋章；优化首页空状态卡片留白排版。全套单测 177 个测试文件、1367 项单测 100% 全部通过。
+
+## 上一版本：v0.11.29（2026-10-25）
 
 本版本为主观题采分点对齐防御、Markdown 诊断表格转义与计划欠账算法安全升级版本。在 `rubricEvaluator.ts` 中对作答文本与 `criteria` 采分点列表增加数组与字符串强类型防御，杜绝异常题型输入引发崩溃；并在导出诊断 Markdown 表格时对竖线（`|`）和换行进行实体转义，防止报告表格排版被撕裂；在 `dailyPlan.ts` 中对计划题数与昨日完成数引入 `Number.isFinite` 与非负规整。全套单测 177 个测试文件、1367 项单测 100% 全部通过。
 

@@ -305,7 +305,7 @@
   const globals = [
     { target: "today" as const, icon: "home", label: t("task.today", "今日") },
     { target: "bank" as const, icon: "book", label: t("task.bank", "题库") },
-    { target: "create" as const, icon: "pencil", label: t("task.create", "出题") },
+    { target: "create" as const, icon: "create", label: t("task.create", "出题") },
     { target: "mock" as const, icon: "clock", label: t("task.mock", "模考") },
     { target: "report" as const, icon: "chart", label: t("task.report", "复盘") },
   ];
@@ -466,12 +466,12 @@
     border-radius: var(--lv-r-2);
     display: grid;
     place-items: center;
-    background: var(--lv-brand);
+    background: linear-gradient(135deg, var(--lv-brand) 0%, color-mix(in srgb, var(--lv-brand) 85%, var(--lv-brand-deep, #000)) 100%);
     color: var(--b3-theme-on-primary, #fff);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 16px;
     font-weight: 800;
-    box-shadow: 0 2px 6px color-mix(in srgb, var(--lv-brand) 35%, transparent);
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--lv-brand) 32%, transparent);
     flex-shrink: 0;
   }
   .lv-brand-name {
@@ -596,11 +596,11 @@
     display: block;
     width: 100%;
     text-align: left;
-    padding: 12px 14px;
+    padding: 10px 12px;
     background: var(--lv-surface);
-    border: 1px solid var(--lv-border-subtle, var(--lv-border));
+    border: 1px solid var(--lv-border);
     border-radius: var(--lv-r-2);
-    box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-subtle, inset 0 1px 0 transparent);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--lv-text) 5%, transparent);
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
@@ -611,8 +611,8 @@
   }
   .lv-project:hover {
     transform: translateY(-1px);
-    border-color: var(--lv-border-hover, var(--lv-accent));
-    box-shadow: var(--lv-sh-2), var(--lv-inset-subtle, inset 0 1px 0 transparent);
+    border-color: var(--lv-brand);
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--lv-brand) 18%, transparent);
   }
   .lv-quick-launcher-wrap {
     position: relative;
