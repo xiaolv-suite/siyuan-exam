@@ -26,6 +26,7 @@ import { normalizeAnswer, questionHash, sha1like } from "./core/answer";
 import { questionToMarkdown } from "./core/blockTemplate";
 import { SAMPLE_BANK_NAME, SAMPLE_BANK_INTRO, sampleQuestions } from "./core/sampleBank";
 import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_BANK_INTRO, cantoneseSampleQuestions } from "./core/cantoneseSample";
+import type { BankCategory } from "./core/bankCategory";
 import { BATCH_FIELD_ATTR, type BatchField } from "./core/batchEdit";
 import { auditAttemptEvents, type DataAuditReport } from "./core/dataAudit";
 import { emitExamEvent } from "./core/bus";
@@ -203,6 +204,8 @@ export interface BankInfo {
   id: string;
   name: string;
   createdAt: number;
+  /** 研学场景分类：exam 备考 | language 语言 | teaching 教学 | general 通识 */
+  category?: BankCategory;
   /** 显式创建的演示库；pending 允许写入失败后继续，ready 时只打开已有题库。 */
   sampleState?: "pending" | "ready";
   /** 写入前持久化目标文档和题目身份，重试不依赖异步 SQL 索引。 */
@@ -575,7 +578,8 @@ export class ExamApp {
     if (info?.sampleState === "ready") return info;
     if (!info) {
       const notebookId = await this.deps.client.createNotebook(`题库/${bankName}`);
-      info = { id: notebookId, name: bankName, createdAt: Date.now(), sampleState: "pending" };
+      const category: BankCategory = kind === "cantonese" ? "language" : "general";
+      info = { id: notebookId, name: bankName, createdAt: Date.now(), category, sampleState: "pending" };
       // 先注册真实笔记本，后续失败可在同一库继续，不会再次新建笔记本。
       this.banks.push(info);
     }

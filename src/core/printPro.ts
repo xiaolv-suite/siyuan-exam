@@ -106,6 +106,16 @@ export function buildPrintProCss(options: PrintProOptions = {}): string {
       page-break-after: avoid;
       break-after: avoid;
     }
+    .homework-student-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4pt 8pt; margin: 0 0 8pt; border: 1px dashed #666; border-radius: 4px;
+      font-size: 9pt; color: #222; font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+    }
+    .homework-reflection-box {
+      column-span: all; margin-top: 10pt; padding: 6pt 8pt;
+      border: 1px solid #888; border-radius: 4px; background: #fafafa;
+      font-size: 8.5pt; color: #333; page-break-inside: avoid; break-inside: avoid;
+    }
     .q-group-head { page-break-after: avoid; break-after: avoid; }
     .q-head { font-weight: 700; margin-bottom: 2px; }
     .q-type { font-size: 8.5pt; color: #555; border: 1px solid #999; border-radius: 2px; padding: 0 3px; margin-right: 5px; }
@@ -329,6 +339,78 @@ export function buildTeacherLectureSheetPro(
   });
 
   parts.push(`</section>`, renderFooter(options.footerNote || "小驴考试 · 教师备课授课讲义"), `</body></html>`);
+  return parts.join("\n");
+}
+
+/**
+ * 生成 A4 双栏【学生课后作业与分层导学单】HTML（学校教师教学核心）。
+ * 特性：学生信息填写条 + 题干与选项 + 规范作答书写框 + 课后自我诊断反思栏。
+ */
+export function buildStudentHomeworkSheetPro(
+  title: string,
+  questions: readonly Question[],
+  options: PrintProOptions = {},
+): string {
+  const parts: string[] = [
+    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)} · 课后作业导学单</title><style>${buildPrintProCss(options)}</style></head><body>`,
+    renderHeader(`${title} · 课后作业导学单`, `共 ${questions.length} 题`, options.paperNo),
+    `<div class="homework-student-bar"><span>班级：___________</span><span>姓名：___________</span><span>学号：___________</span><span>日期：___________</span><span>得分：___________</span></div>`,
+    `<section class="questions">`,
+  ];
+
+  const printedGroups = new Set<string>();
+  const groupByKp = options.groupByKp !== false;
+  let lastKp = "";
+
+  questions.forEach((q, i) => {
+    const no = i + 1;
+    if (groupByKp && q.kp && q.kp !== lastKp) {
+      lastKp = q.kp;
+      parts.push(`<div class="section-divider">📌 练习考点：${escapeHtml(q.kp)}</div>`);
+    }
+    let materialHtml = "";
+    if (q.group && !printedGroups.has(q.group)) {
+      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && m.analysis);
+      if (carrier?.analysis) {
+        materialHtml = `<div class="material-block q-group-head">${renderMathInText(carrier.analysis)}</div>`;
+        printedGroups.add(q.group);
+      }
+    }
+
+    if (q.type === "material") {
+      if (q.group) {
+        if (materialHtml) parts.push(`<div class="q">${materialHtml}</div>`);
+        return;
+      }
+      if (q.analysis) {
+        parts.push(`<div class="q">${materialHtml}<div class="material-block">${renderMathInText(q.analysis)}</div></div>`);
+      }
+      return;
+    }
+
+    parts.push(`<div class="q">`);
+    if (materialHtml) parts.push(materialHtml);
+    const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
+    parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
+    parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
+    q.options.forEach((o, oi) => {
+      parts.push(`<div class="opt">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
+    });
+    if (q.type === "fill" || q.type === "short") {
+      parts.push(`<div class="answer-area" style="min-height:${q.type === 'short' ? '30mm' : '10mm'};border:1px dashed #aaa;margin-top:4pt"></div>`);
+    }
+    parts.push(`</div>`);
+  });
+
+  parts.push(
+    `</section>`,
+    `<div class="homework-reflection-box">`,
+    `<div><strong>【学生自我诊断与订正栏】</strong> 本次练习掌握感：[ ] 熟练掌握 · [ ] 稍有困难 · [ ] 需请教老师</div>`,
+    `<div style="margin-top:4pt;border-top:1px dashed #ccc;padding-top:4pt;color:#666">错因记录与疑问：__________________________________________________________________________</div>`,
+    `</div>`,
+    renderFooter(options.footerNote || "小驴学习 · 课后分层作业导学单"),
+    `</body></html>`,
+  );
   return parts.join("\n");
 }
 

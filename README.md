@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1382%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1383%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.48（2026-10-25）
+## 最新版本：v0.11.49（2026-10-25）
+
+本版本为【小驴学习】品牌升维更名、课后作业导学单打印与题库研学场景分类落地版本。正式更名升级为【小驴学习（原小驴考试） (Lv Study)】，从单纯刷题扩展为涵盖语言习得（粤语/英语/日语）、读书制卡、通识研学、学校教研与全真模考的终身研学中枢，原有题库、模考、答卷与作答流水 100% 完整继承；上线教师课后作业导学单打印引擎 `buildStudentHomeworkSheetPro`；建立四大研学场景分类定义。全套单测 178 个测试文件、1383 项单测 100% 全部通过。
+
+## 上一版本：v0.11.48（2026-10-25）
 
 本版本为教师教研模式专属工作台卡片、讲义教案与双栏测试卷一键导出落地版本。当顶部角色切换至【教师教研模式】时，练习台首页自动呼出专属“教师教研工具箱”，提供录题、导出讲义、打印双栏卷与试题质量诊断四大核心教学通道；一键调用 `buildTeacherLectureSheetPro` 与 `buildCompactQuestionSheetPro` 生成带解析与评分标准的教案讲义卷。全套单测 178 个测试文件、1382 项单测 100% 全部通过。
 

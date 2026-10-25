@@ -75,6 +75,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import SaveStatus from "../shared/SaveStatus.svelte";
     import { SAMPLE_BANK_NAME, SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
     import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_QUESTION_COUNT } from "@/core/cantoneseSample";
+    import { getBankCategoryMeta } from "@/core/bankCategory";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
@@ -829,6 +830,37 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         }
       } catch (e) {
         showMessage(`导出教师讲义失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        teacherPrintBusy = false;
+      }
+    }
+
+    async function printBankHomeworkSheet() {
+      if (teacherPrintBusy || !practiceQuestions.length) return;
+      teacherPrintBusy = true;
+      try {
+        const { buildStudentHomeworkSheetPro } = await import("@/core/printPro");
+        const html = buildStudentHomeworkSheetPro(`${bankName || "题库"}`, practiceQuestions, {
+          paperSize: "A4",
+          columns: "double",
+          groupByKp: true,
+        });
+        const win = window.open("", "_blank");
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+        } else {
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `${bankName || "题库"}-课后作业导学单.html`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          showMessage("已生成课后作业导学单文件", 3000, "info");
+        }
+      } catch (e) {
+        showMessage(`打印作业导学单失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
         teacherPrintBusy = false;
       }
@@ -6219,6 +6251,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                 <button class="lv-btn sm" onclick={() => void exportBankTeacherPaper()} disabled={!practiceQuestions.length || teacherPrintBusy} title="导出包含题目、解析、知识点与评分标准的 A4 教师讲义">
                   <Icon name="book" size={13} /> 导出教师讲义
                 </button>
+                <button class="lv-btn sm" onclick={() => void printBankHomeworkSheet()} disabled={!practiceQuestions.length || teacherPrintBusy} title="生成带学生班级姓名填写栏与订正反思框的课后分层作业单">
+                  <Icon name="file" size={13} /> 打印课后作业单
+                </button>
                 <button class="lv-btn sm lv-btn--primary" onclick={() => void printBankDoubleColumnPaper()} disabled={!practiceQuestions.length || teacherPrintBusy} title="将当前题库排版生成出版级 A4 双栏试卷直接印刷">
                   <Icon name="printer" size={13} /> 打印 A4 双栏卷
                 </button>
@@ -9310,7 +9345,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                       </div>
                     {:else}
                       <b style="font-size:var(--lv-font-size-body)">{b.name}</b>
-                      {#if b.id === activeBankId}<span class="lv-chip sm lv-chip--acc" style="margin-left:6px">当前激活</span>{/if}
+                      <span class="lv-chip sm" style="margin-left:6px">{getBankCategoryMeta(b.category).badge}</span>
+                      {#if b.id === activeBankId}<span class="lv-chip sm lv-chip--acc" style="margin-left:4px">当前激活</span>{/if}
                       <div class="lv-muted" style="font-size:11px;margin-top:2px">ID: {b.id} · 创建于 {new Date(b.createdAt || Date.now()).toLocaleDateString()}</div>
                     {/if}
                   </div>

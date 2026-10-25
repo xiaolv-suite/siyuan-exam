@@ -316,7 +316,7 @@
 {#if drawerOpen}
   <button class="lv-nav-backdrop" aria-label={t("menu.closeNav", "关闭导航")} onclick={() => onclose?.()}></button>
 {/if}
-<aside class="lv-rail" class:open={drawerOpen} bind:this={asideEl} role={drawerOpen ? "dialog" : undefined} aria-modal={drawerOpen ? "true" : undefined} aria-label="小驴考试（内测版）">
+<aside class="lv-rail" class:open={drawerOpen} bind:this={asideEl} role={drawerOpen ? "dialog" : undefined} aria-modal={drawerOpen ? "true" : undefined} aria-label="小驴学习（内测版）">
   <div class="lv-rail-scroll">
   <div class="lv-brand">
     <div class="lv-brand-logo-wrap" aria-hidden="true">
@@ -324,7 +324,7 @@
         <use href="#iconExam"></use>
       </svg>
     </div>
-    <span class="lv-brand-name">小驴考试（内测版）<span class="lv-brand-sub">LV EXAM</span></span>
+    <span class="lv-brand-name">小驴学习（内测版）<span class="lv-brand-sub">LV STUDY</span></span>
     <button class="lv-drawer-close" bind:this={closeBtn} aria-label={t("menu.close", "关闭")} onclick={() => onclose?.()}>
       <Icon name="close" size={15} />
     </button>

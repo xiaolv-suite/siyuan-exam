@@ -5,6 +5,7 @@ import {
   buildCompactQuestionSheetPro,
   buildCompactAnswerSheetPro,
   buildTeacherLectureSheetPro,
+  buildStudentHomeworkSheetPro,
   auditQuestionSheetSafety,
 } from "../src/core/printPro";
 
@@ -162,6 +163,19 @@ describe("PrintPro A4 双栏紧凑打印与分页防断引擎 (68-04 / 79-02)", 
       expect(html).toContain("section-divider");
       expect(html).toContain("📌 考点章节：常识/宪法");
       expect(html).toContain("📌 考点章节：常识/经济");
+    });
+  });
+
+  describe("buildStudentHomeworkSheetPro (学生课后作业与导学单)", () => {
+    it("输出包含班级姓名学生填写栏与课后自我反思订正栏", () => {
+      const q = mkQ("q-hw-1", { type: "short", stem: "简述光合作用的两个阶段及场所。" });
+      const html = buildStudentHomeworkSheetPro("生物每日分层作业", [q]);
+      expect(html).toContain("课后作业导学单");
+      expect(html).toContain("homework-student-bar");
+      expect(html).toContain("姓名：___________");
+      expect(html).toContain("班级：___________");
+      expect(html).toContain("homework-reflection-box");
+      expect(html).toContain("学生自我诊断与订正栏");
     });
   });
 });
