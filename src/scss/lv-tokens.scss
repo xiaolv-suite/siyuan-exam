@@ -180,11 +180,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-/* 视图入场（原型 .screen-enter appear .18s；reduced-motion 全局禁用） */
+/* 视图入场（自主现代阻尼曲线：微上浮 + 柔和显现；reduced-motion 全局禁用） */
 @keyframes lv-appear {
   from {
-    opacity: 0.75;
-    transform: translateY(3px);
+    opacity: 0.6;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;

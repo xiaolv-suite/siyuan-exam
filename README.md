@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.55（2026-10-26）
+## 最新版本：v0.11.56（2026-10-26）
+
+本版本为全局对话框大圆角升级、弹窗毛玻璃背景模糊与错题列表 Bento 质感落地版本。全局模态对话框与题库管理弹窗统一升级至 22px 现代大圆角（`--lv-r-4`），背景蒙层模糊深度提升至 14px 毛玻璃，弹窗标题栏图标升级为 24px 高级微发光徽标；错题本列表行升级为 18px 现代圆角（`--lv-r-3`）并注入高光内阴影（`--lv-inset-card`），角色分段控件选中态完全与独立高阶调色盘对齐。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.55（2026-10-26）
 
 本版本为模考场选项卡、答题卡网格与报告中心四象限指标卡 Bento 质感对齐升级版本。做题选项卡对齐 18px Bento 柔和圆角与高光内阴影（`--lv-inset-card`），题干增加抗锯齿字体平滑渲染，答题卡格子规范为 12px 现代圆角与微漫反射软阴影；复盘报告中心四象限指标卡（`.lv-quad`）升级为 18px Bento 圆角并注入高光内阴影。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 

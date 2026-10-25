@@ -9314,7 +9314,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     {#if sessionSheetOpen && session}
       <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭答题卡" onclick={() => (sessionSheetOpen = false)}></button>
       <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="练习答题卡" style="width:min(440px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:16px;border-radius:var(--lv-r-3);box-shadow:var(--lv-sh-pop)">
+        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="练习答题卡" style="width:min(440px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-4, 22px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border)">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px">
             <div class="lv-dialog-title-wrap">
               <span class="lv-dialog-title-icon"><Icon name="grid" size={13} /></span>
@@ -9356,7 +9356,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     {#if bankHubOpen}
       <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={() => bankHubOpen = false}></button>
       <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-3);box-shadow:var(--lv-sh-pop)">
+        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:24px;border-radius:var(--lv-r-4, 22px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border)">
           <div class="lv-row" style="justify-content:space-between;margin:0 0 12px">
             <div class="lv-dialog-title-wrap">
               <span class="lv-dialog-title-icon"><Icon name="folder" size={13} /></span>
@@ -9447,7 +9447,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-import-card.dragover { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); }
   .lv-hotkeys-backdrop { position: fixed; inset: 0; z-index: 124; background: var(--lv-overlay); border: 0; padding: 0; cursor: pointer; backdrop-filter: blur(10px); animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
   .lv-hotkeys-wrap { position: fixed; inset: 0; z-index: 125; display: grid; place-items: center; padding: 16px; pointer-events: none; animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
-  .lv-hotkeys-card { width: min(480px, 100%); pointer-events: auto; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-card, 16px); box-shadow: var(--lv-sh-pop); padding: 22px; max-height: 85vh; overflow-y: auto; }
+  .lv-hotkeys-card { width: min(480px, 100%); pointer-events: auto; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-4, 22px); box-shadow: var(--lv-sh-pop), var(--lv-inset-card); padding: 24px 26px; max-height: 85vh; overflow-y: auto; }
   .lv-hotkeys-grid { display: flex; flex-direction: column; gap: 8px; font-size: var(--lv-font-size-body-compact); }
   .lv-hotkeys-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--lv-border-subtle); }
   .lv-hotkeys-row:last-child { border-bottom: 0; }
