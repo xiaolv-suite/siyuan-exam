@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.11.41 (2026-10-25)
+
+### 用户可读摘要
+
+> 本版本为题目曝光去重（helpFromExposure / exposureNodeCounts / seenIndex）空值防御与健壮性升级版本。
+> 1. **受助节点派生（helpFromExposure）空值前置拦截**：在 \`exposure.ts\` 中，对传入的节点可迭代对象增加空值守卫，杜绝 \`undefined\` 传给 \`new Set\` 时抛出不可迭代异常；
+> 2. **曝光节点计数与跨模式索引（exposureNodeCounts / seenIndex）安全数组防御**：全面引入安全数组兜底与有效题目 ID 校验，杜绝畸变流水或缺失属性引发的异常；全套单测 177 个测试文件、1374 项单测 100% 全部通过。
+
 ## 0.11.40 (2026-10-25)
 
 ### 用户可读摘要

@@ -20,6 +20,7 @@ export type ExposureNode =
 /** 向后兼容的 help 字段派生：取最具揭示性的受助节点（explain > socratic > hint > reveal）；
  *  无受助节点 → undefined（独立作答判定不变）。 */
 export function helpFromExposure(nodes: Iterable<string>): "explain" | "socratic" | "hint" | "reveal" | undefined {
+  if (!nodes) return undefined;
   const set = new Set(nodes);
   if (set.has("explain")) return "explain";
   if (set.has("socratic")) return "socratic";
@@ -30,10 +31,13 @@ export function helpFromExposure(nodes: Iterable<string>): "explain" | "socratic
 
 /** 每节点全库聚合（报告用）：node 名 → 出现过的作答次数（去重按事件，非按题） */
 export function exposureNodeCounts(events: readonly { exposure?: string[] }[]): Record<string, number> {
+  const safeEvents = Array.isArray(events) ? events : [];
   const counts: Record<string, number> = {};
-  for (const e of events) {
-    if (!e.exposure) continue;
-    for (const node of e.exposure) counts[node] = (counts[node] ?? 0) + 1;
+  for (const e of safeEvents) {
+    if (!e?.exposure || !Array.isArray(e.exposure)) continue;
+    for (const node of e.exposure) {
+      if (node) counts[node] = (counts[node] ?? 0) + 1;
+    }
   }
   return counts;
 }
@@ -61,15 +65,19 @@ export function seenIndex(
   windowMs: number,
   now: number,
 ): Map<string, SeenEntry> {
+  const safeEvents = Array.isArray(events) ? events : [];
   const cutoff = windowMs > 0 ? now - windowMs : 0;
   const index = new Map<string, SeenEntry>();
-  for (const e of events) {
-    if (e.verdict === "not_attempted") continue;
+  for (const e of safeEvents) {
+    if (!e || e.verdict === "not_attempted" || !e.qid) continue;
     if (e.ts < cutoff) continue;
     const cur = index.get(e.qid) ?? { lastTs: 0, kinds: new Set<string>(), nodes: new Set<string>(), count: 0 };
     cur.lastTs = Math.max(cur.lastTs, e.ts);
-    cur.kinds.add(e.kind);
-    for (const n of e.exposure ?? []) cur.nodes.add(n);
+    if (e.kind) cur.kinds.add(e.kind);
+    const expNodes = Array.isArray(e.exposure) ? e.exposure : [];
+    for (const n of expNodes) {
+      if (n) cur.nodes.add(n);
+    }
     cur.count++;
     index.set(e.qid, cur);
   }
@@ -107,15 +115,16 @@ export function abandonedExposureInputs(
   exposures: ReadonlyMap<string, ReadonlySet<string>>,
   opts: { kind: AttemptEvent["kind"]; mode: string; sessionId: string },
 ): AbandonedExposureInput[] {
-  const answered = new Set(answeredQids);
+  const answered = new Set(Array.isArray(answeredQids) ? answeredQids : []);
   const out: AbandonedExposureInput[] = [];
+  if (!exposures || typeof exposures.entries !== "function") return out;
   for (const [qid, nodes] of exposures) {
-    if (answered.has(qid) || nodes.size === 0) continue;
+    if (!qid || answered.has(qid) || !nodes || nodes.size === 0) continue;
     out.push({
       qid,
-      kind: opts.kind,
-      mode: opts.mode,
-      sessionId: opts.sessionId,
+      kind: opts?.kind ?? "practice",
+      mode: opts?.mode ?? "normal",
+      sessionId: opts?.sessionId ?? "",
       verdict: "not_attempted",
       myAnswer: null,
       exposure: [...nodes],

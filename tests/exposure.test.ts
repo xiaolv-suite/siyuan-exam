@@ -1,6 +1,6 @@
 // 63-02：暴露记录测试（节点集合保全/向后兼容 help 派生/逐节点计数/布尔事实口径）
 import { describe, expect, it } from "vitest";
-import { abandonedExposureInputs, helpFromExposure, exposureNodeCounts } from "../src/core/exposure";
+import { abandonedExposureInputs, helpFromExposure, exposureNodeCounts, seenIndex, recentlySeen } from "../src/core/exposure";
 import { exposureStats } from "../src/core/report";
 import type { AttemptEvent } from "../src/core/types";
 
@@ -77,5 +77,14 @@ describe("abandonedExposureInputs（63-02 边界前推）", () => {
 
   it("全空 exposures → 零事件", () => {
     expect(abandonedExposureInputs([], new Map(), { kind: "practice", mode: "daily", sessionId: "s" })).toEqual([]);
+  });
+
+  it("当输入为 null 或 undefined 时安全防御，不抛异常", () => {
+    expect(helpFromExposure(undefined as unknown as Iterable<string>)).toBeUndefined();
+    expect(helpFromExposure(null as unknown as Iterable<string>)).toBeUndefined();
+    expect(exposureNodeCounts(undefined as unknown as any)).toEqual({});
+    expect(seenIndex(undefined as unknown as any, 1000, Date.now()).size).toBe(0);
+    expect(recentlySeen(undefined as unknown as any, 1000, Date.now()).size).toBe(0);
+    expect(abandonedExposureInputs(undefined as unknown as any, undefined as unknown as any, undefined as unknown as any)).toEqual([]);
   });
 });
