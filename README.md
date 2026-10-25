@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.52（2026-10-26）
+## 最新版本：v0.11.53（2026-10-26）
+
+本版本为小驴学习独立现代设计系统（Design System）全面实装与 Hero 微渐变质感落地版本。彻底解除对第三方思源主题配色的强制依赖，建立插件专属独立的 Slate 现代高对比度冷灰白底（`#f8fafc`）、Bento 纯白高光卡片、普鲁士学院蓝（`#0284c7`）与靛蓝紫（`#4f46e5`）核心调色盘，兼备 Apple 风格暗黑夜空深邃模式（`#090d16`）；首页 Hero 区域升级为现代微发光双层渐变，按压与悬停交互微抬升 1.5px 伴随轻柔漫反射光晕。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.52（2026-10-26）
 
 本版本为题库健康体检（bankHealth）全入口空值防御与畸变数据保护加固版本。在 `bankHealth.ts` 中对题库列表与题目对象全面引入安全数组规整与有效 ID 校验，杜绝 `qs` 或 `q.options` 未定义引发的空指针崩溃；在材料组关联排查与孤儿队列导出时增加强对象空值拦截与安全链访问，补齐 `bankHealth.test.ts` 自动化防御单测。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 

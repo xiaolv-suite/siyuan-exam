@@ -716,8 +716,9 @@ input[type="range"] {
 
 /* —— Hero 卡（原型 home 首屏：渐变纸面 + focus-label 引导 + 大数字预算位） —— */
 .lv-hero {
-  background: linear-gradient(115deg, var(--lv-surface), color-mix(in srgb, var(--lv-accent) 9%, var(--lv-surface)));
-  box-shadow: var(--lv-sh-2);
+  background: linear-gradient(135deg, var(--lv-surface), color-mix(in srgb, var(--lv-brand) 7%, var(--lv-surface)));
+  border: 1px solid var(--lv-border);
+  box-shadow: var(--lv-sh-card);
 }
 
 /* —— 背诵纸面（原型 .paper：serif 纸页、居中、纸阴影；背诵模式专属） —— */
