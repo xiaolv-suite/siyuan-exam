@@ -129,35 +129,50 @@ await shot("session-start", { steps: [{ click: "#app .lv-mode:has-text('快速�
 await shot("session-done", {
   steps: [
     { click: "#app .lv-mode:has-text('错题重练')", wait: 1100 },
-    // 队列 3 题（错题加权，题型混合）：每轮「能填就填 → 提交 → 下一题」，多余步骤自动容忍
-    { fill: ["#app .lv-answer-num", "999"], wait: 200 },
-    { fill: ["#app .lv-answer-blank >> nth=0", "甲"], wait: 200 },
-    { click: btn("提交"), wait: 900 },
-    { click: btn("下一题"), wait: 700 },
-    { fill: ["#app .lv-answer-num", "999"], wait: 200 },
-    { fill: ["#app .lv-answer-blank >> nth=1", "乙"], wait: 200 },
-    { click: btn("提交"), wait: 900 },
-    { click: btn("下一题"), wait: 700 },
-    { fill: ["#app .lv-answer-num", "999"], wait: 200 },
-    { fill: ["#app .lv-answer-blank >> nth=0", "甲"], wait: 200 },
-    { click: btn("提交"), wait: 900 },
-    { click: btn("下一题"), wait: 900 },
-    { fill: ["#app .lv-answer-num", "999"], t: 1200, wait: 200 },
-    { fill: ["#app .lv-answer-blank >> nth=0", "甲"], t: 1200, wait: 200 },
-    { click: btn("提交"), wait: 900 },
-    { click: btn("下一题"), wait: 900 },
-    { fill: ["#app .lv-answer-num", "999"], t: 1200, wait: 200 },
-    { fill: ["#app .lv-answer-blank >> nth=0", "甲"], t: 1200, wait: 200 },
-    { click: btn("提交"), wait: 900 },
-    { click: btn("下一题"), wait: 900 },
+    // 队列题做完即自动进入战报页，每步检测已完成则直接略过
+    ...Array.from({ length: 4 }, () => [
+      {
+        eval: `(() => {
+          if (document.querySelector(".lv-done-stats")) return;
+          const opt = document.querySelector('#app button.lv-opt');
+          if (opt) { opt.click(); return; }
+          const inp = document.querySelector('#app .lv-answer-num, #app .lv-answer-blank, #app textarea.lv-textarea');
+          if (inp) { inp.value = '100'; inp.dispatchEvent(new Event('input')); }
+        })()`,
+        wait: 300,
+      },
+      {
+        eval: `(() => {
+          if (document.querySelector(".lv-done-stats")) return;
+          const btn = [...document.querySelectorAll("#app button")].find((b) => b.textContent?.includes("确认作答"));
+          if (btn) btn.click();
+        })()`,
+        wait: 700,
+      },
+      {
+        eval: `(() => {
+          if (document.querySelector(".lv-done-stats")) return;
+          const btn = [...document.querySelectorAll("#app button")].find((b) => b.textContent?.includes("下一题"));
+          if (btn) btn.click();
+        })()`,
+        wait: 700,
+      },
+    ]).flat(),
   ],
 });
 await shot("session-feedback", {
   steps: [
     { click: "#app .lv-mode:has-text('快速刷题')", wait: 1100 },
-    { click: "#app button.lv-opt", wait: 300 },
-    { fill: ["#app .lv-answer-num, #app .lv-answer-blank", "350"], wait: 300 },
-    { click: btn("提交"), wait: 900 },
+    {
+      eval: `(() => {
+        const opt = document.querySelector('#app button.lv-opt');
+        if (opt) { opt.click(); return; }
+        const inp = document.querySelector('#app .lv-answer-num, #app .lv-answer-blank, #app textarea.lv-textarea');
+        if (inp) { inp.value = '100'; inp.dispatchEvent(new Event('input')); }
+      })()`,
+      wait: 300,
+    },
+    { click: btn("确认作答"), wait: 900 },
   ],
 });
 await shot("import-preview", {

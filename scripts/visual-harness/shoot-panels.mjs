@@ -74,8 +74,15 @@ const menuItem = (text) => `#app .lv-more-pop button:has-text("${text}")`;
 {
   const perQuestion = Array.from({ length: 8 }, (_, i) => [
     { click: `#app .lv-cell >> nth=${i}`, wait: 400 },
-    { click: "#app button.lv-opt >> nth=0", t: 1200, wait: 250 },
-    { fill: ["#app .lv-question textarea", "模拟作答"], t: 1200, wait: 250 },
+    {
+      eval: `(() => {
+        const opt = document.querySelector('#app button.lv-opt');
+        if (opt) { opt.click(); return; }
+        const txt = document.querySelector('#app textarea.lv-textarea, #app input.lv-input');
+        if (txt) { txt.value = '模拟作答'; txt.dispatchEvent(new Event('input')); }
+      })()`,
+      wait: 250,
+    },
   ]).flat();
   await shot("mock-score", {
     steps: [
@@ -92,7 +99,8 @@ const menuItem = (text) => `#app .lv-more-pop button:has-text("${text}")`;
 await shot("report-drill", {
   steps: [
     { eval: "window.__show('report')", wait: 1000 },
-    { click: "#app button:has-text('确定-错 题目下钻')", t: 5000, wait: 800 },
+    { click: "#app button:has-text('考点与错题')", wait: 500 },
+    { click: "#app button:has-text('确定-错')", t: 5000, wait: 800 },
   ],
 });
 
