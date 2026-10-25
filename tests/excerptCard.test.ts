@@ -5,6 +5,8 @@ import {
   generateAutoRubric,
   extractCardsFromExcerpt,
   extractCardsFromMaterialNotes,
+  exportCardsCsv,
+  exportCardsMarkdown,
   type ExcerptSource,
 } from "../src/core/excerptCard";
 import type { MaterialNote } from "../src/core/materialNotes";
@@ -322,6 +324,17 @@ describe("阅读笔记原文高亮与切片渐进式制卡出题引擎（excerpt
 
       // 材料不存在时报错防呆
       await expect(app.extractCardsFromNotes("non-existent-id")).rejects.toThrow(/未找到指定材料/);
+    });
+
+    it("exportCardsCsv 与 exportCardsMarkdown 空值防御与非对象容错", () => {
+      expect(() => exportCardsCsv(undefined as unknown as Question[])).not.toThrow();
+      expect(() => exportCardsMarkdown(undefined as unknown as Question[])).not.toThrow();
+
+      const csv = exportCardsCsv(null as unknown as Question[]);
+      expect(csv).toContain('"题型","题干","答案"');
+
+      const md = exportCardsMarkdown([]);
+      expect(md).toContain("题目总数: 0");
     });
   });
 });

@@ -641,8 +641,17 @@ export function exportCardsMarkdown(
   input: CardExtractionResult | readonly Question[],
   options?: { title?: string },
 ): string {
-  const questions: readonly Question[] = "questions" in input ? input.questions : input;
-  const firstSource = questions.length > 0 && questions[0].source ? questions[0].source : "";
+  const questions: readonly Question[] =
+    input && typeof input === "object"
+      ? "questions" in input
+        ? Array.isArray(input.questions)
+          ? input.questions
+          : []
+        : Array.isArray(input)
+        ? input
+        : []
+      : [];
+  const firstSource = questions.length > 0 && questions[0]?.source ? questions[0].source : "";
   const docTitle =
     options?.title ||
     (firstSource.startsWith("渐进式笔记制卡")
@@ -679,9 +688,10 @@ export function exportCardsMarkdown(
   };
 
   questions.forEach((q, idx) => {
-    const label = typeLabels[q.type] || q.type;
-    const cardKind = cardKindLabels[q.type] || "闪卡";
-    lines.push(`## ${idx + 1}. [${label}] ${q.stem}`);
+    if (!q) return;
+    const label = (q.type && typeLabels[q.type]) || q.type || "题目";
+    const cardKind = (q.type && cardKindLabels[q.type]) || "闪卡";
+    lines.push(`## ${idx + 1}. [${label}] ${q.stem ?? ""}`);
     lines.push("");
     lines.push(`- **卡片类型**：【${cardKind}】`);
     const kpOrTag = q.kp || "";
@@ -689,21 +699,21 @@ export function exportCardsMarkdown(
       lines.push(`- **考点**：${kpOrTag}`);
     }
     lines.push("");
-    if (q.options && q.options.length > 0) {
+    if (Array.isArray(q.options) && q.options.length > 0) {
       lines.push("**选项**：");
       q.options.forEach((opt, oi) => {
         lines.push(`- ${String.fromCharCode(65 + oi)}. ${opt}`);
       });
       lines.push("");
     }
-    const answerStr = Array.isArray(q.answer) ? q.answer.join("；") : String(q.answer);
+    const answerStr = Array.isArray(q.answer) ? q.answer.join("；") : String(q.answer ?? "");
     lines.push(`**答案**：${answerStr}`);
     lines.push("");
     if (q.analysis) {
       lines.push(`**解析与出处**：${q.analysis}`);
       lines.push("");
     }
-    const cardTags: string[] = q.tags || (q.kp ? [q.kp] : []);
+    const cardTags: string[] = Array.isArray(q.tags) ? q.tags : q.kp ? [q.kp] : [];
     if (cardTags.length > 0) {
       lines.push(`**标签**：${cardTags.map((t) => `#${t}`).join(" ")}`);
       lines.push("");
@@ -719,7 +729,16 @@ export function exportCardsMarkdown(
  * 将提取出来的制卡结果导出为带 UTF-8 BOM 的 CSV 格式（兼容 Excel/Anki）
  */
 export function exportCardsCsv(input: CardExtractionResult | readonly Question[]): string {
-  const questions: readonly Question[] = "questions" in input ? input.questions : input;
+  const questions: readonly Question[] =
+    input && typeof input === "object"
+      ? "questions" in input
+        ? Array.isArray(input.questions)
+          ? input.questions
+          : []
+        : Array.isArray(input)
+        ? input
+        : []
+      : [];
   const escapeCsv = (str: unknown): string => {
     if (str === null || str === undefined) return '""';
     const s = String(str).replace(/"/g, '""');
@@ -730,12 +749,13 @@ export function exportCardsCsv(input: CardExtractionResult | readonly Question[]
   const rows = [header.map(escapeCsv).join(",")];
 
   for (const q of questions) {
-    const ans = Array.isArray(q.answer) ? q.answer.join("；") : String(q.answer);
-    const opts = q.options ? q.options.join(" | ") : "";
-    const cardTags = q.tags ? q.tags.join(";") : (q.kp || "");
+    if (!q) continue;
+    const ans = Array.isArray(q.answer) ? q.answer.join("；") : String(q.answer ?? "");
+    const opts = Array.isArray(q.options) ? q.options.join(" | ") : "";
+    const cardTags = Array.isArray(q.tags) ? q.tags.join(";") : (q.kp || "");
     const row = [
-      q.type,
-      q.stem,
+      q.type ?? "",
+      q.stem ?? "",
       ans,
       opts,
       q.analysis || "",
