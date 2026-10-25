@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.26（2026-10-25）
+## 最新版本：v0.11.27（2026-10-25）
+
+本版本为错题本已消灭通关错题检阅与重测回册闭环升级版本。在错题本队列上方新增【已消灭通关 ({n})】独立选项卡，让老用户随时检阅连续做对 2 次成功消灭的错题战果；在已消灭列表中清晰展示消灭时间与历史做错次数，支持一键“重练此题”开启防遗忘单题复测，或一键“重新回册”重新收录入在册错题库。全套单测 177 个测试文件、1365 项单测 100% 全部通过。
+
+## 上一版本：v0.11.26（2026-10-25）
 
 本版本为全量真实浏览器 Playwright 端到端（E2E）验收、老用户时钟漂移保号修复与断点对齐升级版本。全面通过 5 组跨模块真实浏览器自动化端到端测试（`smoke-workflows-ux.mjs`、`smoke-ui.mjs`、`smoke-sample-ui.mjs`、`smoke-recite-responsive.mjs`、`smoke-report-actions.mjs`）；在错题处置中将覆盖时间戳升级为 `Math.max(Date.now(), current.lastWrongAt)`，彻底解决老用户本地时钟存在轻微漂移时点击“已掌握”被误判导致错题无法消除的幽灵缺陷；在 `lv-base.scss` 中将紧凑侧栏列宽精确校准为 R54 规范的 74px；战报标题精确对齐老用户完成文案。全套单测 177 个测试文件、1365 项单测 100% 全部通过。
 

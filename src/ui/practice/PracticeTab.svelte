@@ -1999,7 +1999,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       eliminatedCount + wrongList.length ? Math.round((eliminatedCount / (eliminatedCount + wrongList.length)) * 100) : 0,
     );
     /** 错题队列：错次降序 → 最近错误降序（紧迫度序） */
-    let wbTab = $state<"active" | "archived">("active");
+    let wbTab = $state<"active" | "archived" | "eliminated">("active");
     let wbReasonFilter = $state<"all" | "careless" | "unknown" | "trap">("all");
     let wbFilterStubborn = $state(false);
     let wbKpFilter = $state("");
@@ -2008,6 +2008,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!app) return [];
       const ids = new Set(questions.map((q) => q.id));
       return app.listArchivedWrongs().filter((w) => ids.has(w.qid));
+    });
+    const eliminatedWrongList = $derived.by(() => {
+      void dataRev;
+      if (!app) return [];
+      const ids = new Set(questions.map((q) => q.id));
+      try {
+        return [...app.derived().wrongbook.values()]
+          .filter((w) => ids.has(w.qid) && w.status === "eliminated")
+          .sort((a, b) => b.lastWrongAt - a.lastWrongAt);
+      } catch {
+        return [];
+      }
     });
     const wrongQueue = $derived(
       [...wrongList].sort((a, b) => b.wrongCount - a.wrongCount || b.lastWrongAt - a.lastWrongAt),
@@ -2057,6 +2069,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         await app.snoozeWrong(qid, days);
         dataRev++;
         showMessage(t("wrongbook.snoozeDone"), 2800, "info");
+      } catch (e) {
+        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+      }
+    }
+
+    async function restoreWrongToActive(qid: string) {
+      if (!app) return;
+      try {
+        await app.setWrongStatus(qid, "active");
+        dataRev++;
+        showMessage("已将该题重新收录入在册错题库", 2800, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
       }
@@ -7020,6 +7043,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                   <button type="button" class="lv-chip sm" class:acc={wbTab === "archived"} onclick={() => wbTab = "archived"}>
                     {t("wrongbook.tabArchived")} ({archivedWrongList.length})
                   </button>
+                  <button type="button" class="lv-chip sm" class:acc={wbTab === "eliminated"} onclick={() => wbTab = "eliminated"}>
+                    {t("wrongbook.tabEliminated")} ({eliminatedWrongList.length})
+                  </button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => void printWrongSheet("question")} disabled={printWrongBusy || !filteredWrongQueue.length} title="将当前筛选的错题导出或打印为 A4 双栏试卷（绝不泄题）"><Icon name="file" size={13} /> {t("mock.printCompact")}</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => void printWrongSheet("answer")} disabled={printWrongBusy || !filteredWrongQueue.length} title="导出或打印配套答案册"><Icon name="book" size={13} /> 答案册</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={exportCheatSheet} disabled={cheatSheetBusy || !filteredWrongQueue.length} title={t("cram.cheatSheetTip")}><Icon name="file-text" size={13} /> {t("cram.cheatSheet")}</button>
@@ -7107,6 +7133,33 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => void masterWrong(w.qid)}>{wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}</button>
                   </div>
                 {/each}
+              {:else if wbTab === "eliminated"}
+                <!-- 已消灭错题列表（支持重测复习与重新收录入在册） -->
+                <div class="stack-sm" style="margin-top:8px">
+                  {#each eliminatedWrongList as w, wi (w.qid)}
+                    {@const q = qOf(w.qid)}
+                    <div class="lv-wrong-row" style="border-left:3px solid var(--lv-green)">
+                      <span class="task-number num" style="background:var(--lv-green-soft);color:var(--lv-green)">{wi + 1}</span>
+                      <div class="lv-wrong-main">
+                        <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 80) ?? w.qid}</div>
+                        <div class="lv-wrong-meta">
+                          <span class="lv-chip sm lv-chip--grn">✓ {t("wrongbook.tabEliminated")}</span>
+                          <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
+                          <span>消灭于 {new Date(w.lastWrongAt).toLocaleDateString()}</span>
+                          {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                        </div>
+                      </div>
+                      <button class="lv-btn sm lv-btn--ghost" onclick={() => void startWrongFor(w.qid)}>
+                        <Icon name="play" size={13} /> {t("wrongbook.retry")}
+                      </button>
+                      <button class="lv-btn sm lv-btn--ghost" onclick={() => void restoreWrongToActive(w.qid)}>
+                        <Icon name="rotate" size={12} /> {t("wrongbook.restoreToActive")}
+                      </button>
+                    </div>
+                  {:else}
+                    <div class="lv-muted" style="padding:16px 0;text-align:center">暂无已消灭错题（连续做对 2 次的错题将自动归入此处）</div>
+                  {/each}
+                </div>
               {:else}
                 <!-- 52-06：已归档封存错题列表 -->
                 <div class="stack-sm" style="margin-top:8px">

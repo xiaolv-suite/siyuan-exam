@@ -1278,6 +1278,8 @@
     "wrongbook.filterStubbornTip": "累计做错 ≥3 次且未消灭，建议暂缓或封存",
     "wrongbook.tabActive": "在册错题",
     "wrongbook.tabArchived": "已封存归档",
+    "wrongbook.tabEliminated": "已消灭通关",
+    "wrongbook.restoreToActive": "重新回册",
     "wrongbook.archive": "封存归档",
     "wrongbook.archiveTip": "封存后移出日常错题重练与每日计划，但做题历史完好保留，可随时解封",
     "wrongbook.unarchive": "解封恢复",

@@ -1278,6 +1278,8 @@
     "wrongbook.filterStubbornTip": "Wrong ≥3 times without elimination; consider snoozing or archiving",
     "wrongbook.tabActive": "Active wrongs",
     "wrongbook.tabArchived": "Archived",
+    "wrongbook.tabEliminated": "Eliminated",
+    "wrongbook.restoreToActive": "Restore to active",
     "wrongbook.archive": "Archive",
     "wrongbook.archiveTip": "Archived questions are excluded from daily review sets, keeping history intact",
     "wrongbook.unarchive": "Unarchive",
