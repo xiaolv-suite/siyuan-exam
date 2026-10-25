@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1374%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1375%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.41（2026-10-25）
+## 最新版本：v0.11.42（2026-10-25）
+
+本版本为试题使用深度分析与干扰项效率评估（analyzeQuestionUsage / exportItemAnalysisCsv）全防御升级版本。在 `itemAnalysis.ts` 中对传入的题目对象、题目选项与作答流水全面引入安全数组兜底与有效题目 ID 守卫，杜绝 `q.id` 空指针或选项非数组引发的未捕获崩溃；在 CSV 导出与全库诊断中增加强对象空值拦截与选项安全规整。全套单测 177 个测试文件、1375 项单测 100% 全部通过。
+
+## 上一版本：v0.11.41（2026-10-25）
 
 本版本为题目曝光去重（helpFromExposure / exposureNodeCounts / seenIndex）空值防御与健壮性升级版本。对受助节点传入增加空值守卫，杜绝 `undefined` 传给 `new Set` 时抛出异常；在曝光节点计数与跨模式索引中全面引入安全数组兜底与有效题目 ID 校验。全套单测 177 个测试文件、1374 项单测 100% 全部通过。
 

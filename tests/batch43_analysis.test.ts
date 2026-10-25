@@ -214,5 +214,14 @@ describe("43-02 题目使用分析与干扰项效率（四三批分析深化）"
       expect(csv).toContain('A,正确答案,1,50%,"红绿蓝",有效');
       expect(csv).toContain('B,干扰项,1,50%,"红黄蓝",有效');
     });
+
+    it("空对象与未定义入参安全防御，不抛异常", () => {
+      expect(() => analyzeQuestionUsage(undefined as unknown as Question, undefined as unknown as AttemptEvent[])).not.toThrow();
+      const rep = analyzeQuestionUsage(undefined as unknown as Question, undefined as unknown as AttemptEvent[]);
+      expect(rep.totalAttempts).toBe(0);
+
+      expect(() => exportItemAnalysisCsv(undefined as unknown as any)).not.toThrow();
+      expect(exportItemAnalysisCsv(undefined as unknown as any)).toBe("\uFEFF");
+    });
   });
 });

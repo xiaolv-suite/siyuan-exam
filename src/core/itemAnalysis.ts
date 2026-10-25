@@ -48,8 +48,12 @@ export function analyzeQuestionUsage(
     wrongReasonMap?: ReadonlyMap<string, string>;
   },
 ): ItemAnalysisReport {
+  const safeEvents = Array.isArray(allEvents) ? allEvents : [];
   const minSample = opts?.minSample ?? MIN_ITEM_ANALYSIS_SAMPLE;
-  const qEvents = allEvents.filter((e) => e.qid === q.id);
+  const qId = q?.id ?? "";
+  const qType = q?.type ?? "single";
+  const qStem = q?.stem ?? "";
+  const qEvents = qId ? safeEvents.filter((e) => e?.qid === qId) : [];
 
   let correctCount = 0;
   let wrongCount = 0;
@@ -62,6 +66,7 @@ export function analyzeQuestionUsage(
   const reasonCounts: Record<string, number> = {};
 
   for (const e of qEvents) {
+    if (!e) continue;
     if (e.ts) {
       if (lastAttemptAt === null || e.ts > lastAttemptAt) lastAttemptAt = e.ts;
     }
@@ -77,20 +82,20 @@ export function analyzeQuestionUsage(
       wrongCount++;
     }
 
-    if (typeof e.timeMs === "number" && e.timeMs > 0) {
+    if (typeof e.timeMs === "number" && e.timeMs > 0 && Number.isFinite(e.timeMs)) {
       totalTimeMs += e.timeMs;
       timedCount++;
     }
 
     // 记录错因（若有）
-    const reason = opts?.wrongReasonMap?.get(q.id);
+    const reason = qId ? opts?.wrongReasonMap?.get(qId) : undefined;
     if (reason && e.verdict === "wrong") {
       reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1;
     }
 
     // 选项选择分布统计（针对选择题）
-    if ((q.type === "single" || q.type === "multiple") && e.myAnswer) {
-      const normalized = normalizeAnswer(q.type, e.myAnswer);
+    if ((qType === "single" || qType === "multiple") && e.myAnswer) {
+      const normalized = normalizeAnswer(qType, e.myAnswer);
       if (normalized) {
         for (const ch of normalized) {
           letterPicks[ch] = (letterPicks[ch] ?? 0) + 1;
@@ -111,9 +116,9 @@ export function analyzeQuestionUsage(
   let effectiveDistractors = 0;
   let deadDistractors = 0;
 
-  if (q.type === "single" || q.type === "multiple") {
-    const correctLetters = new Set(normalizeAnswer(q.type, q.answer)?.split("") ?? []);
-    const optsList = q.options ?? [];
+  if (qType === "single" || qType === "multiple") {
+    const correctLetters = new Set(normalizeAnswer(qType, q?.answer)?.split("") ?? []);
+    const optsList = Array.isArray(q?.options) ? q.options : [];
 
     for (let i = 0; i < optsList.length; i++) {
       const letter = String.fromCharCode(65 + i);
@@ -142,9 +147,9 @@ export function analyzeQuestionUsage(
   }
 
   return {
-    qid: q.id,
-    stem: q.stem,
-    type: q.type,
+    qid: qId,
+    stem: qStem,
+    type: qType,
     totalAttempts: validAttempts,
     correctCount,
     wrongCount,
@@ -163,24 +168,28 @@ export function analyzeQuestionUsage(
 
 /** 43-02 导出题目使用分析与选项选择率为结构化 CSV */
 export function exportItemAnalysisCsv(report: ItemAnalysisReport): string {
+  if (!report || typeof report !== "object") return "\uFEFF";
   const lines: string[] = [];
-  lines.push(`"题目ID","${report.qid}"`);
-  lines.push(`"题干","${report.stem.replace(/"/g, '""')}"`);
-  lines.push(`"总作答数",${report.totalAttempts}`);
-  lines.push(`"正确数",${report.correctCount}`);
-  lines.push(`"错误数",${report.wrongCount}`);
-  lines.push(`"正确率","${report.accuracy}%"`);
-  lines.push(`"平均用时(秒)",${(report.avgTimeMs / 1000).toFixed(1)}`);
-  lines.push(`"跳过率","${report.skipRate}%"`);
+  const stem = String(report.stem ?? "").replace(/"/g, '""');
+  lines.push(`"题目ID","${report.qid ?? ""}"`);
+  lines.push(`"题干","${stem}"`);
+  lines.push(`"总作答数",${report.totalAttempts ?? 0}`);
+  lines.push(`"正确数",${report.correctCount ?? 0}`);
+  lines.push(`"错误数",${report.wrongCount ?? 0}`);
+  lines.push(`"正确率","${report.accuracy ?? 0}%"`);
+  lines.push(`"平均用时(秒)",${((report.avgTimeMs ?? 0) / 1000).toFixed(1)}`);
+  lines.push(`"跳过率","${report.skipRate ?? 0}%"`);
   lines.push(`"样本置信","${report.isLowSample ? "低样本（不足5人次）" : "样本充足"}"`);
 
-  if (report.options.length > 0) {
+  const safeOptions = Array.isArray(report.options) ? report.options : [];
+  if (safeOptions.length > 0) {
     lines.push("");
     lines.push("选项,类型,选择次数,选择占比,选项内容,状态");
-    for (const opt of report.options) {
+    for (const opt of safeOptions) {
+      if (!opt) continue;
       const typeLabel = opt.isCorrect ? "正确答案" : "干扰项";
       const statusLabel = opt.isDeadDistractor ? "无效干扰项（0选择）" : opt.count > 0 ? "有效" : "未命中";
-      const escText = `"${opt.text.replace(/"/g, '""')}"`;
+      const escText = `"${String(opt.text ?? "").replace(/"/g, '""')}"`;
       lines.push(`${opt.letter},${typeLabel},${opt.count},${opt.pct}%,${escText},${statusLabel}`);
     }
   }
@@ -232,15 +241,17 @@ export function generateItemQualityAuditReport(
   questions: readonly Question[],
   attempts: readonly AttemptEvent[],
 ): ItemQualityAuditReport {
-  const cttAudit = auditBankDiscrimination(questions, attempts);
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  const safeAttempts = Array.isArray(attempts) ? attempts : [];
+  const cttAudit = auditBankDiscrimination(safeQuestions, safeAttempts);
   const items: ItemQualityAuditItem[] = [];
 
   let deadDistractorsTotal = 0;
   let flawedQuestionsCount = 0;
 
-  for (const q of questions) {
-    if (q.type === "material") continue;
-    const usage = analyzeQuestionUsage(q, attempts);
+  for (const q of safeQuestions) {
+    if (!q || q.type === "material") continue;
+    const usage = analyzeQuestionUsage(q, safeAttempts);
     const disc = cttAudit.items.find((it) => it.qid === q.id);
 
     const deadLetters = usage.options

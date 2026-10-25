@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.11.42 (2026-10-25)
+
+### 用户可读摘要
+
+> 本版本为试题使用深度分析与干扰项效率评估（analyzeQuestionUsage / exportItemAnalysisCsv）全防御升级版本。
+> 1. **题目使用与干扰项分析（analyzeQuestionUsage）全入参安全前置规整**：在 \`itemAnalysis.ts\` 中，对传入的题目对象、题目选项与作答流水全面引入安全数组兜底与有效题目 ID 守卫，杜绝 \`q.id\` 空指针或选项非数组引发的未捕获崩溃；
+> 2. **试题分析 CSV 导出（exportItemAnalysisCsv）与全库试卷质量诊断（generateItemQualityAuditReport）健壮性加固**：增加强对象空值拦截与选项安全规整，保障在空报告或异常题目输入下安全平滑回退；全套单测 177 个测试文件、1375 项单测 100% 全部通过。
+
 ## 0.11.41 (2026-10-25)
 
 ### 用户可读摘要
