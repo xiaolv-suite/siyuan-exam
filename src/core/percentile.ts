@@ -134,19 +134,22 @@ export interface PercentileVerdict {
  * 由得分率计算百分位排名。percent 为 0-100 得分率；越界值先夹取到区间内。
  * percentile=「低于该分的池内比例」，topPercent=「排名前 N%」。
  */
-export function computePercentile(percent: number, model: PercentilePoolModel): PercentileVerdict {
+export function computePercentile(percent: number, model?: PercentilePoolModel): PercentileVerdict {
+  const safeModel: PercentilePoolModel = model ?? buildPoolModel();
   const p = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
-  const cdf = normalCdf(p, model.mean, model.sd);
+  const mean = Number.isFinite(safeModel.mean) ? safeModel.mean : SYNTHETIC_POOL_MEAN;
+  const sd = Number.isFinite(safeModel.sd) && safeModel.sd > 0 ? safeModel.sd : SYNTHETIC_POOL_SD;
+  const cdf = normalCdf(p, mean, sd);
   const percentile = Math.round(cdf * 1000) / 10;
   const topPercent = Math.round((100 - cdf * 100) * 10) / 10;
-  const zScore = model.sd > 0 ? Math.round(((p - model.mean) / model.sd) * 100) / 100 : 0;
+  const zScore = sd > 0 ? Math.round(((p - mean) / sd) * 100) / 100 : 0;
   return {
     percentile,
     topPercent,
     zScore,
     percent: p,
-    model,
-    confidence: poolConfidence(model),
+    model: safeModel,
+    confidence: poolConfidence(safeModel),
   };
 }
 
@@ -177,23 +180,26 @@ export interface PercentileCurve {
  */
 export function buildPercentileCurve(
   percent: number,
-  model: PercentilePoolModel,
+  model?: PercentilePoolModel,
   samples = 41,
 ): PercentileCurve {
+  const safeModel: PercentilePoolModel = model ?? buildPoolModel();
+  const mean = Number.isFinite(safeModel.mean) ? safeModel.mean : SYNTHETIC_POOL_MEAN;
+  const sd = Number.isFinite(safeModel.sd) && safeModel.sd > 0 ? safeModel.sd : SYNTHETIC_POOL_SD;
   const n = Math.max(2, Math.floor(samples));
-  const span = Math.max(model.sd * 3, 10);
-  const xMin = Math.max(0, model.mean - span);
-  const xMax = Math.min(100, model.mean + span);
+  const span = Math.max(sd * 3, 10);
+  const xMin = Math.max(0, mean - span);
+  const xMax = Math.min(100, mean + span);
   const step = (xMax - xMin) / (n - 1);
-  const verdict = computePercentile(percent, model);
+  const verdict = computePercentile(percent, safeModel);
   const myX = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
 
   const points: PercentileCurvePoint[] = [];
   let pdfPeak = 0;
   for (let i = 0; i < n; i++) {
     const x = Math.round((xMin + step * i) * 100) / 100;
-    const cdf = Math.round(normalCdf(x, model.mean, model.sd) * 1000) / 10;
-    const pdf = normalPdf(x, model.mean, model.sd);
+    const cdf = Math.round(normalCdf(x, mean, sd) * 1000) / 10;
+    const pdf = normalPdf(x, mean, sd);
     if (pdf > pdfPeak) pdfPeak = pdf;
     points.push({ x, cdf, pdf, mine: false });
   }
@@ -229,14 +235,17 @@ export interface ScoreBand {
 /** 生成 10 分一档的分数段分布（0-9 段共 10 档；末段 90-100 含右端点）。
  *  首段下界取 -∞、末段上界取 +∞，使各段占比之和严格为 100%（模型尾部计入两端段，
  *  否则 0 分以下与 100 分以上的概率会凭空丢失，导致分布不足 100%）。 */
-export function buildScoreBands(percent: number, model: PercentilePoolModel): ScoreBand[] {
+export function buildScoreBands(percent: number, model?: PercentilePoolModel): ScoreBand[] {
+  const safeModel: PercentilePoolModel = model ?? buildPoolModel();
+  const mean = Number.isFinite(safeModel.mean) ? safeModel.mean : SYNTHETIC_POOL_MEAN;
+  const sd = Number.isFinite(safeModel.sd) && safeModel.sd > 0 ? safeModel.sd : SYNTHETIC_POOL_SD;
   const p = Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0;
   const bands: ScoreBand[] = [];
   for (let i = 0; i < 10; i++) {
     const from = i * 10;
     const to = i === 9 ? 100 : from + 10;
-    const lower = normalCdf(i === 0 ? -Infinity : from, model.mean, model.sd);
-    const upper = normalCdf(i === 9 ? Infinity : to, model.mean, model.sd);
+    const lower = normalCdf(i === 0 ? -Infinity : from, mean, sd);
+    const upper = normalCdf(i === 9 ? Infinity : to, mean, sd);
     const share = Math.round((upper - lower) * 1000) / 10;
     const mine = i === 9 ? p >= from : p >= from && p < to;
     bands.push({ from, to, label: i === 9 ? "≥90" : `${from}-${to}`, share, mine });
@@ -261,23 +270,25 @@ export function historyPercents(
 /** 45-08 文本等价物：导出百分位模型与分数段分布为 CSV（UTF-8 BOM，严格对齐界面数字）。 */
 export function exportPercentileCsv(
   verdict: PercentileVerdict,
-  bands: readonly ScoreBand[],
+  bands?: readonly ScoreBand[],
 ): string {
-  const model = verdict.model;
+  const v = verdict ?? computePercentile(0);
+  const model = v.model ?? buildPoolModel();
   const sourceLabel = model.source === "history" ? "个人历史模考" : "通用虚拟模型";
   const rows: string[] = [];
   rows.push("小驴考试(内测版) 模考百分位模拟");
   rows.push(`参考池来源,${sourceLabel}`);
-  rows.push(`样本场次,${model.sampleSize}`);
-  rows.push(`池均值(得分率),${model.mean}%`);
-  rows.push(`池标准差,${model.sd}`);
-  rows.push(`本次得分率,${verdict.percent}%`);
-  rows.push(`估算百分位,${verdict.percentile}%`);
-  rows.push(`估算排名(前),${verdict.topPercent}%`);
-  rows.push(`标准分 z,${verdict.zScore}`);
+  rows.push(`样本场次,${model.sampleSize ?? 0}`);
+  rows.push(`池均值(得分率),${model.mean ?? 0}%`);
+  rows.push(`池标准差,${model.sd ?? 0}`);
+  rows.push(`本次得分率,${v.percent ?? 0}%`);
+  rows.push(`估算百分位,${v.percentile ?? 0}%`);
+  rows.push(`估算排名(前),${v.topPercent ?? 0}%`);
+  rows.push(`标准分 z,${v.zScore ?? 0}`);
   rows.push("");
   rows.push("分数段,模型占比,本次所在");
-  for (const b of bands) {
+  const safeBands = Array.isArray(bands) ? bands : [];
+  for (const b of safeBands) {
     rows.push(`${b.label},${b.share}%,${b.mine ? "是" : ""}`);
   }
   rows.push("");

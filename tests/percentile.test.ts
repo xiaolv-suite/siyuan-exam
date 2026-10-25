@@ -282,5 +282,15 @@ describe("63-05 模考虚拟百分位排名（Mock Percentile Curve）", () => {
       expect(csv).toContain(`估算百分位,${verdict.percentile}%`);
       expect(csv).toContain(`估算排名(前),${verdict.topPercent}%`);
     });
+
+    it("model 与 bands 为 undefined 时安全回退，不崩溃", () => {
+      expect(() => computePercentile(85, undefined)).not.toThrow();
+      const verdict = computePercentile(85, undefined);
+      expect(verdict.model.source).toBe("synthetic");
+
+      expect(() => buildPercentileCurve(85, undefined)).not.toThrow();
+      expect(() => buildScoreBands(85, undefined)).not.toThrow();
+      expect(() => exportPercentileCsv(verdict, undefined)).not.toThrow();
+    });
   });
 });
