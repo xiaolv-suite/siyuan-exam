@@ -159,5 +159,14 @@ describe("39-06 遗忘曲线、未来到期负荷预测与建议每日量", () =
       expect(csv).toContain("今日积压,0,0,0");
       expect(csv).toContain("建议每日复习量");
     });
+
+    it("当输入 questions 或 forecast 为空/未定义时安全容错，不抛异常", () => {
+      expect(() => forecastFutureLoad(undefined as unknown as Question[], undefined as unknown as AttemptEvent[])).not.toThrow();
+      const r = forecastFutureLoad(undefined as unknown as Question[], undefined as unknown as AttemptEvent[]);
+      expect(r.calibers.totalQuestions).toBe(0);
+
+      expect(() => exportLoadForecastCsv(undefined as unknown as any)).not.toThrow();
+      expect(exportLoadForecastCsv(undefined as unknown as any)).toBe("\uFEFF");
+    });
   });
 });

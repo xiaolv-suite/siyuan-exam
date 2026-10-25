@@ -104,10 +104,12 @@ export function forecastFutureLoad(
   attempts: readonly AttemptEvent[],
   options: LoadForecastOptions = {},
 ): LoadForecastResult {
-  const now = options.now ?? Date.now();
-  const windowDays = Math.max(1, Math.min(90, options.windowDays ?? 14));
-  const maxDailyCap = options.maxDailyCap ?? 50;
-  const minDailyFloor = options.minDailyFloor ?? 5;
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  const safeAttempts = Array.isArray(attempts) ? attempts : [];
+  const now = options?.now ?? Date.now();
+  const windowDays = Math.max(1, Math.min(90, options?.windowDays ?? 14));
+  const maxDailyCap = options?.maxDailyCap ?? 50;
+  const minDailyFloor = options?.minDailyFloor ?? 5;
 
   // 今天 23:59:59.999 的本地时间戳
   const todayEnd = new Date(now);
@@ -116,8 +118,8 @@ export function forecastFutureLoad(
 
   // 1. 按题目聚合作答事件
   const eventsByQid = new Map<string, AttemptEvent[]>();
-  for (const e of attempts) {
-    if (e.verdict === "not_attempted") continue;
+  for (const e of safeAttempts) {
+    if (!e || e.verdict === "not_attempted" || !e.qid) continue;
     let list = eventsByQid.get(e.qid);
     if (!list) {
       list = [];
@@ -134,10 +136,11 @@ export function forecastFutureLoad(
 
   let cardDueUsed = 0;
 
-  for (const q of questions) {
+  for (const q of safeQuestions) {
+    if (!q || !q.id) continue;
     // 优先采用直接传入的卡片到期时间（如果匹配到）
     const blockId = (q as { blockId?: string }).blockId;
-    const directCardDue = options.cardDues?.get(q.id) ?? (blockId ? options.cardDues?.get(blockId) : undefined);
+    const directCardDue = options?.cardDues?.get(q.id) ?? (blockId ? options?.cardDues?.get(blockId) : undefined);
     let dueMs: number | null = null;
 
     if (directCardDue != null && Number.isFinite(directCardDue)) {
@@ -198,9 +201,9 @@ export function forecastFutureLoad(
     windowDays,
     backlogCount,
     calibers: {
-      totalQuestions: questions.length,
+      totalQuestions: safeQuestions.length,
       practicedQuestions: practicedCount,
-      unpracticedQuestions: Math.max(0, questions.length - practicedCount),
+      unpracticedQuestions: Math.max(0, safeQuestions.length - practicedCount),
       cardDueCount: cardDueUsed,
     },
     days,
@@ -214,19 +217,21 @@ export function forecastFutureLoad(
  * 45-08 文本等价物：导出未来负荷预测 CSV（UTF-8 BOM）。
  */
 export function exportLoadForecastCsv(forecast: LoadForecastResult): string {
+  if (!forecast || typeof forecast !== "object") return "\uFEFF";
   const rows: string[] = [];
   rows.push("小驴考试(内测版) 未来复习到期负荷预测与建议量");
-  rows.push(`预测窗口,近 ${forecast.windowDays} 天`);
-  rows.push(`题库总题数,${forecast.calibers.totalQuestions}`);
-  rows.push(`已练题数,${forecast.calibers.practicedQuestions}`);
-  rows.push(`未练题数,${forecast.calibers.unpracticedQuestions}`);
-  rows.push(`当前已到期积压,${forecast.backlogCount} 题`);
-  rows.push(`建议每日复习量,${forecast.recommendedDaily} 题/天`);
-  rows.push(`窗口内总到期负荷,${forecast.totalDueInWindow} 题`);
+  rows.push(`预测窗口,近 ${forecast.windowDays ?? 0} 天`);
+  rows.push(`题库总题数,${forecast.calibers?.totalQuestions ?? 0}`);
+  rows.push(`已练题数,${forecast.calibers?.practicedQuestions ?? 0}`);
+  rows.push(`未练题数,${forecast.calibers?.unpracticedQuestions ?? 0}`);
+  rows.push(`当前已到期积压,${forecast.backlogCount ?? 0} 题`);
+  rows.push(`建议每日复习量,${forecast.recommendedDaily ?? 0} 题/天`);
+  rows.push(`窗口内总到期负荷,${forecast.totalDueInWindow ?? 0} 题`);
   rows.push("");
   rows.push("日期,相对偏移,当天到期数,累计待复习数");
-  rows.push(`今日积压,0,${forecast.backlogCount},${forecast.backlogCount}`);
-  for (const d of forecast.days) {
+  rows.push(`今日积压,0,${forecast.backlogCount ?? 0},${forecast.backlogCount ?? 0}`);
+  const safeDays = Array.isArray(forecast.days) ? forecast.days : [];
+  for (const d of safeDays) {
     rows.push(`${d.dateKey},+${d.dayOffset}天,${d.dueCount},${d.cumulativeDue}`);
   }
   rows.push("");

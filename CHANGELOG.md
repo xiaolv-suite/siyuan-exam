@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.11.40 (2026-10-25)
+
+### 用户可读摘要
+
+> 本版本为艾宾浩斯复习负荷预测与导出（forecastFutureLoad / exportLoadForecastCsv）空值防御与健壮性升级版本。
+> 1. **未来复习负荷预测（forecastFutureLoad）空值安全防御**：在 \`loadForecast.ts\` 中，对题库列表与作答流水全面引入安全数组兜底与有效题目 ID 守卫，杜绝 \`questions.length\` 未定义空指针引发的未捕获崩溃；
+> 2. **负荷预测 CSV 导出（exportLoadForecastCsv）空对象容错**：在导出负荷预测 CSV 时增加强对象空值拦截与 \`days\` 安全数组规整，保障在空预测或异常对象输入下平滑回退；全套单测 177 个测试文件、1373 项单测 100% 全部通过。
+
 ## 0.11.39 (2026-10-25)
 
 ### 用户可读摘要

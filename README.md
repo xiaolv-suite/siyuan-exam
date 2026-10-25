@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1372%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1373%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.39（2026-10-25）
+## 最新版本：v0.11.40（2026-10-25）
+
+本版本为艾宾浩斯复习负荷预测与导出（forecastFutureLoad / exportLoadForecastCsv）空值防御与健壮性升级版本。在 `loadForecast.ts` 中对题库列表与作答流水全面引入安全数组兜底与有效题目 ID 守卫，杜绝 `questions.length` 未定义空指针引发的未捕获崩溃；在导出负荷预测 CSV 时增加强对象空值拦截与 `days` 安全数组规整。全套单测 177 个测试文件、1373 项单测 100% 全部通过。
+
+## 上一版本：v0.11.39（2026-10-25）
 
 本版本为模考百分位排名估算与正态分布曲线导出空值防御升级版本。对传入的模型对象与均值/标准差全面引入 `Number.isFinite` 与未定义前置守卫，模型缺失时自动回退至标准通用虚拟模型，彻底杜绝未定义对象访问崩溃；在百分位 CSV 导出中对分数段列表进行数组强校验。全套单测 177 个测试文件、1372 项单测 100% 全部通过。
 
