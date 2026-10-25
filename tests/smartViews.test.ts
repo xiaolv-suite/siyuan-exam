@@ -94,5 +94,16 @@ describe("命名智能视图（43-05 lite，廿六批）", () => {
 
     // 损坏数据容错
     expect(importSmartViewsJson("invalid-json").imported).toHaveLength(0);
+    expect(importSmartViewsJson(undefined as unknown as string).imported).toHaveLength(0);
+  });
+
+  it("当输入 view 或 questions 为 undefined/null 时安全容错不抛异常", () => {
+    expect(() => applyView(undefined as unknown as any, undefined as unknown as any)).not.toThrow();
+    expect(applyView(undefined as unknown as any, undefined as unknown as any)).toEqual([]);
+
+    expect(() => upsertView(undefined as unknown as any, undefined as unknown as any)).not.toThrow();
+    expect(upsertView(undefined as unknown as any, undefined as unknown as any)).toEqual([]);
+
+    expect(() => exportSmartViewsJson(undefined as unknown as any)).not.toThrow();
   });
 });

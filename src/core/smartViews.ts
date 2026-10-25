@@ -55,64 +55,66 @@ export function applyView(
   questions: ViewFilterInput[],
   options?: { wrongQids?: ReadonlySet<string> },
 ): ViewFilterInput[] {
-  let list = questions;
-  if (view.v !== 1) return list; // 未知版本：不过滤（宁多勿错杀）
+  const safeQuestions = Array.isArray(questions) ? questions : [];
+  if (!view || typeof view !== "object" || view.v !== 1) return safeQuestions;
+  let list = safeQuestions;
 
   // 1. 收藏过滤
-  if (view.favOnly) list = list.filter((q) => q.fav);
+  if (view.favOnly) list = list.filter((q) => q?.fav);
 
   // 2. 章节过滤
   if (view.section?.hpath) {
     const s = view.section;
-    list = list.filter((q) => (s.kind === "doc" ? q.rootId === s.id : !!q.hpath && q.hpath.startsWith(s.hpath)));
+    list = list.filter((q) => (s.kind === "doc" ? q?.rootId === s.id : !!q?.hpath && q.hpath.startsWith(s.hpath)));
   }
 
   // 3. 题型过滤
   if (view.types?.length) {
     const allowed = new Set(view.types);
-    list = list.filter((q) => q.type && allowed.has(q.type));
+    list = list.filter((q) => q?.type && allowed.has(q.type));
   }
 
   // 4. 考点前缀过滤
   if (view.kpPrefix && view.kpPrefix.trim()) {
     const prefix = view.kpPrefix.trim();
-    list = list.filter((q) => q.kp === prefix || (q.kp?.startsWith(prefix + "/") ?? false));
+    list = list.filter((q) => q?.kp === prefix || (q?.kp?.startsWith(prefix + "/") ?? false));
   }
 
   // 5. 试题来源过滤
   if (view.sourceKind) {
-    list = list.filter((q) => (q.sourceKind ?? "mock") === view.sourceKind);
+    list = list.filter((q) => (q?.sourceKind ?? "mock") === view.sourceKind);
   }
 
   // 6. 仅错题过滤
   if (view.onlyWrong) {
     const wrongSet = options?.wrongQids;
     if (wrongSet) {
-      list = list.filter((q) => wrongSet.has(q.id));
+      list = list.filter((q) => q?.id && wrongSet.has(q.id));
     }
   }
 
   // 7. 仅争议题过滤
   if (view.onlyDisputed) {
-    list = list.filter((q) => q.dispute && q.dispute.status !== "resolved");
+    list = list.filter((q) => q?.dispute && q.dispute.status !== "resolved");
   }
 
   // 8. 生命周期过滤
   if (view.lifecycle) {
-    list = list.filter((q) => (q.status ?? "published") === view.lifecycle);
+    list = list.filter((q) => (q?.status ?? "published") === view.lifecycle);
   }
 
   // 9. 全局关键词搜索
-  const kw = view.search.trim().toLowerCase();
+  const kw = String(view.search ?? "").trim().toLowerCase();
   if (kw) {
-    list = list.filter(
-      (q) =>
-        q.id.toLowerCase().includes(kw) ||
-        q.stem.toLowerCase().includes(kw) ||
-        q.options.some((o) => o.toLowerCase().includes(kw)) ||
-        (q.analysis ?? "").toLowerCase().includes(kw) ||
-        (q.kp ?? "").toLowerCase().includes(kw),
-    );
+    list = list.filter((q) => {
+      if (!q) return false;
+      const idMatch = String(q.id ?? "").toLowerCase().includes(kw);
+      const stemMatch = String(q.stem ?? "").toLowerCase().includes(kw);
+      const optMatch = Array.isArray(q.options) && q.options.some((o) => String(o ?? "").toLowerCase().includes(kw));
+      const anaMatch = (q.analysis ?? "").toLowerCase().includes(kw);
+      const kpMatch = (q.kp ?? "").toLowerCase().includes(kw);
+      return idMatch || stemMatch || optMatch || anaMatch || kpMatch;
+    });
   }
 
   return list;
@@ -120,19 +122,22 @@ export function applyView(
 
 /** 视图清单合并保存：同名覆盖、按创建时间倒序、上限 30（配额护栏） */
 export function upsertView(list: SmartView[], view: SmartView, limit = 30): SmartView[] {
-  const next = [...list.filter((v) => v.name !== view.name), view];
-  next.sort((a, b) => b.createdAt - a.createdAt);
-  return next.slice(0, limit);
+  if (!view || !view.name) return Array.isArray(list) ? list : [];
+  const safeList = Array.isArray(list) ? list : [];
+  const next = [...safeList.filter((v) => v?.name !== view.name), view];
+  next.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return next.slice(0, Math.max(1, limit));
 }
 
 /** 视图与当前题库身份不符 → UI 层应提示而非静默套用 */
 export function viewBankMismatch(view: SmartView, bankId: string): boolean {
-  return !!view.bankId && view.bankId !== bankId;
+  return !!view?.bankId && view.bankId !== bankId;
 }
 
 /** 导出智能视图为格式化 JSON 字符串（65-07 导出迁移契约） */
 export function exportSmartViewsJson(views: readonly SmartView[]): string {
-  return JSON.stringify({ v: 1, exportedAt: Date.now(), views }, null, 2);
+  const safeViews = Array.isArray(views) ? views : [];
+  return JSON.stringify({ v: 1, exportedAt: Date.now(), views: safeViews }, null, 2);
 }
 
 /** 导入外部智能视图 JSON 并校验格式 */
@@ -140,6 +145,9 @@ export function importSmartViewsJson(
   rawJson: string,
   targetBankId?: string,
 ): { imported: SmartView[]; skipped: number } {
+  if (!rawJson || typeof rawJson !== "string") {
+    return { imported: [], skipped: 0 };
+  }
   try {
     const parsed = JSON.parse(rawJson) as { v?: number; views?: unknown[] };
     if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.views)) {
