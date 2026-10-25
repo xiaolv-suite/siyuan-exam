@@ -74,6 +74,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { resolveAiKey } from "@/ai/secrets";
     import SaveStatus from "../shared/SaveStatus.svelte";
     import { SAMPLE_BANK_NAME, SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
+    import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_QUESTION_COUNT } from "@/core/cantoneseSample";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
@@ -1830,27 +1831,30 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       } finally { creating = false; }
     }
 
-    async function createSampleBank() {
+    async function createSampleBank(kind: "general" | "cantonese" | Event = "general") {
+      const actualKind = kind === "cantonese" ? "cantonese" : "general";
       if (creating) return;
       creating = true; creatingSample = true;
       errorMsg = ""; bankCreateError = ""; sampleNotice = "";
+      const targetCount = actualKind === "cantonese" ? CANTONESE_SAMPLE_QUESTION_COUNT : SAMPLE_QUESTION_COUNT;
+      const targetName = actualKind === "cantonese" ? CANTONESE_SAMPLE_BANK_NAME : SAMPLE_BANK_NAME;
       try {
-        const b = await app.createSampleBank();
+        const b = await app.createSampleBank(actualKind);
         banks = app.listBanks();
         activeBankId = b.id;
         rememberBank(b.id);
         questions = []; questionsLoaded = false; sectionSel = null; plan = null;
         view = "entry";
-        await refreshQuestionsAfterWrite(SAMPLE_QUESTION_COUNT);
+        await refreshQuestionsAfterWrite(targetCount);
         emitExamEvent("bank-changed", { bank: b.id });
-        sampleNotice = questions.length >= SAMPLE_QUESTION_COUNT && !questionsError
-          ? t("guard.sampleReady").replace("{n}", String(SAMPLE_QUESTION_COUNT))
-          : t("guard.samplePending").replace("{n}", String(questions.length)).replace("{total}", String(SAMPLE_QUESTION_COUNT));
+        sampleNotice = questions.length >= targetCount && !questionsError
+          ? t("guard.sampleReady").replace("{n}", String(targetCount))
+          : t("guard.samplePending").replace("{n}", String(questions.length)).replace("{total}", String(targetCount));
       } catch (e) {
         bankCreateError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
         banks = app.listBanks();
         // 写入失败后保留并选中已创建的题库，重试继续使用同一个笔记本。
-        const retained = banks.find((b) => b.name === SAMPLE_BANK_NAME && b.sampleState);
+        const retained = banks.find((b) => b.name === targetName && b.sampleState);
         if (retained) {
           activeBankId = retained.id;
           rememberBank(retained.id);
@@ -6119,8 +6123,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             <b style="font-size:16px;color:var(--lv-text);margin-bottom:6px">{t("entry.emptyTitle")}</b>
             <p class="lv-muted" style="max-width:460px;margin:0 auto 20px;line-height:1.6">{t("entry.emptyDesc")}</p>
             <div class="lv-row" style="justify-content:center;gap:12px;flex-wrap:wrap">
-              <button class="lv-btn sm" onclick={createSampleBank} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}>
+              <button class="lv-btn sm" onclick={() => void createSampleBank("general")} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}>
                 <Icon name="sparkles" size={14} /> {creatingSample ? t("guard.sampleCreating") : t("guard.sampleOpen")}
+              </button>
+              <button class="lv-btn sm" onclick={() => void createSampleBank("cantonese")} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
+                <Icon name="volume" size={14} /> 粤语研学示例
               </button>
               <button class="lv-btn lv-btn--primary sm" onclick={() => { view = "import"; }}>
                 <Icon name="import" size={15} /> {t("import.title")}
@@ -9193,8 +9200,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => bankHubOpen = false}>✕</button>
           </div>
-          <div class="lv-row" style="margin:0 0 12px">
+          <div class="lv-row" style="margin:0 0 12px;gap:8px">
             <input class="lv-input" style="flex:1" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("cantonese"); }} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
+              <Icon name="volume" size={12} /> 粤语示例
+            </button>
           </div>
           <div class="stack-sm" style="max-height:450px;overflow-y:auto">
             {#each filteredBanks as b (b.id)}

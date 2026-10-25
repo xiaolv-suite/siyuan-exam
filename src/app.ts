@@ -25,6 +25,7 @@ import { SaveGate } from "./core/saveGate";
 import { normalizeAnswer, questionHash, sha1like } from "./core/answer";
 import { questionToMarkdown } from "./core/blockTemplate";
 import { SAMPLE_BANK_NAME, SAMPLE_BANK_INTRO, sampleQuestions } from "./core/sampleBank";
+import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_BANK_INTRO, cantoneseSampleQuestions } from "./core/cantoneseSample";
 import { BATCH_FIELD_ATTR, type BatchField } from "./core/batchEdit";
 import { auditAttemptEvents, type DataAuditReport } from "./core/dataAudit";
 import { emitExamEvent } from "./core/bus";
@@ -555,38 +556,43 @@ export class ExamApp {
     return info;
   }
 
-  /** 用户主动创建示例题库；同一应用的并发点击共享任务，重复打开不补回已删除的示例。 */
-  createSampleBank(): Promise<BankInfo> {
+  /** 用户主动创建示例题库；支持通用演示题库与粤语等研学题库；并发点击共享任务。 */
+  createSampleBank(kind: "general" | "cantonese" = "general"): Promise<BankInfo> {
     if (this.sampleBankCreation) return this.sampleBankCreation;
-    this.sampleBankCreation = this.writeSampleBank().finally(() => { this.sampleBankCreation = null; });
+    this.sampleBankCreation = this.writeSampleBank(kind).finally(() => { this.sampleBankCreation = null; });
     return this.sampleBankCreation;
   }
 
-  private async writeSampleBank(): Promise<BankInfo> {
+  private async writeSampleBank(kind: "general" | "cantonese" = "general"): Promise<BankInfo> {
     this.assertStorageWritable();
     if (!this.kernelOnline) throw new Error("思源内核未连接，请恢复连接后再创建示例题库。");
-    let info = this.banks.find((bank) => bank.name === SAMPLE_BANK_NAME && bank.sampleState);
+    const bankName = kind === "cantonese" ? CANTONESE_SAMPLE_BANK_NAME : SAMPLE_BANK_NAME;
+    const bankIntro = kind === "cantonese" ? CANTONESE_SAMPLE_BANK_INTRO : SAMPLE_BANK_INTRO;
+    const getQuestions = kind === "cantonese" ? cantoneseSampleQuestions : sampleQuestions;
+    const docTitle = kind === "cantonese" ? "粤语口语研学" : "示例题";
+
+    let info = this.banks.find((bank) => bank.name === bankName && bank.sampleState);
     if (info?.sampleState === "ready") return info;
     if (!info) {
-      const notebookId = await this.deps.client.createNotebook(`题库/${SAMPLE_BANK_NAME}`);
-      info = { id: notebookId, name: SAMPLE_BANK_NAME, createdAt: Date.now(), sampleState: "pending" };
+      const notebookId = await this.deps.client.createNotebook(`题库/${bankName}`);
+      info = { id: notebookId, name: bankName, createdAt: Date.now(), sampleState: "pending" };
       // 先注册真实笔记本，后续失败可在同一库继续，不会再次新建笔记本。
       this.banks.push(info);
     }
     await this.saveBankRegistry();
     try {
       if (!info.sampleHomeDocId) {
-        info.sampleHomeDocId = await this.ensureDoc(info.id, "/首页", SAMPLE_BANK_INTRO);
+        info.sampleHomeDocId = await this.ensureDoc(info.id, "/首页", bankIntro);
         await this.saveBankRegistry();
       }
       if (!info.sampleDocId) {
-        info.sampleDocId = await this.ensureDoc(info.id, "/示例题", SAMPLE_BANK_INTRO.replace(/^# .*\n/, "# 示例题\n"));
+        info.sampleDocId = await this.ensureDoc(info.id, `/${docTitle}`, bankIntro.replace(/^# .*\n/, `# ${docTitle}\n`));
         await this.saveBankRegistry();
       }
       const docId = info.sampleDocId;
       if (!docId) throw new Error("未取得示例题文档 ID");
       const plannedIds = info.sampleQuestionIds ??= {};
-      const planned = sampleQuestions().map((q) => ({ ...q, id: plannedIds[q.hash] ??= q.id }));
+      const planned = getQuestions().map((q) => ({ ...q, id: plannedIds[q.hash] ??= q.id }));
       // 必须在插题前落盘：请求写入成功但回执丢失、或插件重启时仍可沿用同一身份。
       await this.saveBankRegistry();
       const kramdown = await this.deps.client.getBlockKramdown(docId);

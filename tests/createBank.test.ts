@@ -245,4 +245,12 @@ describe("显式示例题库", () => {
     expect(first.map((q) => q.hash)).toEqual(second.map((q) => q.hash));
     expect(first.every((q, i) => q.id !== second[i].id)).toBe(true);
   });
+
+  it("支持创建粤语日常实用研学示范题库", async () => {
+    const { client } = sampleClient();
+    const app = mkApp(client);
+    const bank = await app.createSampleBank("cantonese");
+    expect(bank.name).toContain("粤语");
+    expect(bank.sampleState).toBe("ready");
+  });
 });

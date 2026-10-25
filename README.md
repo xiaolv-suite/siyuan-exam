@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1381%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1382%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.46（2026-10-25）
+## 最新版本：v0.11.47（2026-10-25）
+
+本版本为粤语研学题库一键创建落地、题库中心直达入口与示范题库构建管道解耦升级版本。在 `app.ts` 中将 `createSampleBank` 升级为解耦路由，支持一键创建“【示例】粤语日常实用研学题库”独立笔记本文档，涵盖问候、茶楼、语法、粤拼与俚语全套研学卡；在空状态卡片与题库管理中心（Bank Hub）弹窗中增设【粤语研学示例】一键开练入口。全套单测 178 个测试文件、1382 项单测 100% 全部通过。
+
+## 上一版本：v0.11.46（2026-10-25）
 
 本版本为粤语实用口语示范题库内置上线、题干注音徽章渲染与粤语发音联动版本。原创内置涵盖日常问候（“唔该”）、茶楼文化（“埋单”）、倒装语法（“行先”）、标准粤拼（“dim2 gaai2”）与客套俚语（“得闲饮茶”）的五大典型粤语研学卡（`cantoneseSample`）；在做题与背诵界面自动渲染雅致注音徽章，点击发音按钮自动按 `studyMeta.lang`（如 `zh-HK`）调度正宗方言朗读。全套单测扩充至 178 个测试文件、1381 项单测 100% 全部通过。
 
