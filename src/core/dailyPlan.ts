@@ -53,8 +53,11 @@ export function accumulateDeficit(
   yesterdayPlanned: number,
   yesterdayDone: number,
 ): number {
-  if (yesterdayPlanned > 0 && yesterdayDone < yesterdayPlanned) {
-    return prevDeficit + (yesterdayPlanned - yesterdayDone);
+  const safePlanned = Number.isFinite(yesterdayPlanned) ? Math.max(0, yesterdayPlanned) : 0;
+  const safeDone = Number.isFinite(yesterdayDone) ? Math.max(0, yesterdayDone) : 0;
+  const safePrev = Number.isFinite(prevDeficit) ? Math.max(0, prevDeficit) : 0;
+  if (safePlanned > 0 && safeDone < safePlanned) {
+    return safePrev + (safePlanned - safeDone);
   }
   // 完成或超额时，欠账清零（不累积负值）
   return 0;

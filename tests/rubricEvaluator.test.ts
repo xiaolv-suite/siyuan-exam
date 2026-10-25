@@ -87,4 +87,29 @@ describe("主观题采分点智能对齐与诊断引擎 (rubricEvaluator)", () =
     expect(md).toContain("完全命中");
     expect(md).toContain("未命中");
   });
+
+  it("当 options 为空或 criteria 包含竖线/换行符时，安全容错且 Markdown 表格结构不被撕裂", () => {
+    expect(() => evaluateStudentAnswerAgainstRubric(undefined as unknown as { studentAnswer: string })).not.toThrow();
+
+    const dirtyRubric: RubricSpec = {
+      v: 1,
+      kind: "rubric",
+      fullScore: 5,
+      criteria: [
+        {
+          id: "c1",
+          label: "包含|竖线\n换行要点",
+          weight: 1,
+          levels: [],
+        },
+      ],
+    };
+
+    const res = evaluateStudentAnswerAgainstRubric({
+      studentAnswer: "任何作答",
+      rubric: dirtyRubric,
+    });
+    const md = exportRubricEvaluationMarkdown(res);
+    expect(md).toContain("包含&#124;竖线 换行要点");
+  });
 });

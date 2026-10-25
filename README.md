@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1365%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1367%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.28（2026-10-25）
+## 最新版本：v0.11.29（2026-10-25）
+
+本版本为主观题采分点对齐防御、Markdown 诊断表格转义与计划欠账算法安全升级版本。在 `rubricEvaluator.ts` 中对作答文本与 `criteria` 采分点列表增加数组与字符串强类型防御，杜绝异常题型输入引发崩溃；并在导出诊断 Markdown 表格时对竖线（`|`）和换行进行实体转义，防止报告表格排版被撕裂；在 `dailyPlan.ts` 中对计划题数与昨日完成数引入 `Number.isFinite` 与非负规整。全套单测 177 个测试文件、1367 项单测 100% 全部通过。
+
+## 上一版本：v0.11.28（2026-10-25）
 
 本版本为全量 Playwright 真实 UI 深度走查、无头渲染优化与 E2E 端口竞态加固发版。覆盖真实界面浏览、导入、录题、AI、资料、背诵、作答反馈到全量 11 组复杂维护面板（模考成绩单、报告考点下钻、批量编辑、题库健康、勘误回导、纸笔回录、考点管理、更多菜单、逐步提示、退出确认、背诵完成），实现真实无头浏览器端到端零警告零报错执行；在走查脚本中自适应感知题型与作答完成态。全套单测 177 个测试文件、1365 项单测 100% 全部通过。
 

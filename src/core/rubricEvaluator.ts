@@ -136,14 +136,14 @@ export function evaluateStudentAnswerAgainstRubric(options: {
   rubric?: RubricSpec | null;
   fallbackAnalysis?: string;
 }): RubricEvaluationResult {
-  const rawAns = options.studentAnswer?.trim() ?? "";
+  const rawAns = String(options?.studentAnswer ?? "").trim();
   const answerNormalized = rawAns.toLowerCase();
 
   // 若题目没有显式配置 rubric，则基于解析文本自动派生标准采分点
   const effectiveRubric: RubricSpec =
-    options.rubric && options.rubric.criteria?.length
+    options?.rubric && Array.isArray(options.rubric.criteria) && options.rubric.criteria.length > 0
       ? options.rubric
-      : generateAutoRubric(options.fallbackAnalysis || "参考要点与标准解析", 5);
+      : generateAutoRubric(options?.fallbackAnalysis || "参考要点与标准解析", 5);
 
   const fullScore = effectiveRubric.fullScore || 5;
   const criteriaResults: CriterionMatchResult[] = [];
@@ -151,7 +151,8 @@ export function evaluateStudentAnswerAgainstRubric(options: {
 
   let totalScore = 0;
 
-  for (const crit of effectiveRubric.criteria) {
+  const criteriaList = Array.isArray(effectiveRubric.criteria) ? effectiveRubric.criteria : [];
+  for (const crit of criteriaList) {
     const res = evaluateSingleCriterion(crit, answerNormalized, fullScore);
     criteriaResults.push(res);
     recommendedRatings[crit.id] = res.recommendedLevel;
@@ -193,7 +194,9 @@ export function exportRubricEvaluationMarkdown(result: RubricEvaluationResult): 
   for (const cr of result.criteriaResults) {
     const tag = cr.recommendedLevel === "full" ? "🟢 完全命中" : cr.recommendedLevel === "partial" ? "🟡 部分提及" : "🔴 未命中";
     const weightPct = `${Math.round(cr.weight * 100)}%`;
-    lines.push(`| ${cr.label} | ${weightPct} | ${tag} | +${cr.scoreContribution} | ${cr.diagnosticAdvice} |`);
+    const cleanLabel = String(cr.label ?? "").replace(/\|/g, "&#124;").replace(/\r?\n/g, " ");
+    const cleanAdvice = String(cr.diagnosticAdvice ?? "").replace(/\|/g, "&#124;").replace(/\r?\n/g, " ");
+    lines.push(`| ${cleanLabel} | ${weightPct} | ${tag} | +${cr.scoreContribution} | ${cleanAdvice} |`);
   }
 
   return lines.join("\n");

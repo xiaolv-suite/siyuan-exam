@@ -30,6 +30,11 @@ describe("44-05 每日计划欠账与超额处理", () => {
     it("已存在欠账时继续累加", () => {
       expect(accumulateDeficit(3, 20, 18)).toBe(5); // 3 + (20-18)
     });
+
+    it("传入 NaN 或非法非数值输入安全容错归零", () => {
+      expect(accumulateDeficit(NaN, 20, 15)).toBe(5);
+      expect(accumulateDeficit(0, NaN, 15)).toBe(0);
+    });
   });
 
   describe("computeAbsenceStats 欠账统计", () => {
