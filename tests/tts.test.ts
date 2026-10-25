@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ttsSupported, ttsSpeak, ttsStop } from "../src/core/tts";
+import { ttsSupported, ttsSpeak, ttsStop, STUDY_LANGUAGES } from "../src/core/tts";
 
 describe("TTS 语音朗读引擎 (tts)", () => {
   it("遇到空文本或空白文本安全返回 false 不调用语音合成", () => {
@@ -42,6 +42,14 @@ describe("TTS 语音朗读引擎 (tts)", () => {
     it("ttsStop 调用 cancel 停止播放", () => {
       ttsStop();
       expect(mockSynth.cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("ttsSpeak 支持多语言（如粤语 zh-HK、英语 en-US）与选项对象入参", () => {
+      expect(STUDY_LANGUAGES.some((l) => l.code === "zh-HK")).toBe(true);
+      const ok = ttsSpeak("唔该晒，借借", { lang: "zh-HK", rate: 1.1 });
+      expect(ok).toBe(true);
+      expect(mockSynth.cancel).toHaveBeenCalledTimes(1);
+      expect(mockSynth.speak).toHaveBeenCalledTimes(1);
     });
   });
 });

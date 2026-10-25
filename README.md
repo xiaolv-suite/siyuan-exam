@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1377%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1378%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.0-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.44（2026-10-25）
+## 最新版本：v0.11.45（2026-10-25）
+
+本版本为泛语言学习方言朗读（粤语 zh-HK / 英语 en-US 等）与研学元数据扩展升级版本。在 `tts.ts` 中升级 `ttsSpeak` 原生支持多语言与粤语等方言（`STUDY_LANGUAGES`），100% 保持向后兼容；在 `types.ts` 的 `Question` 领域模型中正式引入 `studyMeta` 语言与音频研学元数据。全套单测 177 个测试文件、1378 项单测 100% 全部通过。
+
+## 上一版本：v0.11.44（2026-10-25）
 
 本版本为智能筛选视图（applyView / upsertView / exportSmartViewsJson）空值防御与健壮性升级版本。在 `smartViews.ts` 中对传入的题目列表与视图规格全面引入对象与数组强防御，杜绝 `view.v` 或 `view.search` 未定义空指针引发的未捕获崩溃；在选项与题干关键词匹配时增加数组与非空规整。全套单测 177 个测试文件、1377 项单测 100% 全部通过。
 

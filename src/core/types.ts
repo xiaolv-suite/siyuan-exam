@@ -73,6 +73,12 @@ export interface Question {
   fav?: boolean; // 收藏（exam-fav="1"，docs/02 §2.4）
   /** 用户速记标签（如 star:好题, trap:陷阱, doubt:存疑, key:重点） */
   userTags?: string[];
+  /** 泛学习与多语言研学元数据（方言/发音注音/音频媒体挂载/学习交互类型） */
+  studyMeta?: {
+    lang?: string; // 语言/方言标识，如 "zh-HK"（粤语）、"en-US"、"ja-JP"
+    audioUrl?: string; // 本地音频文件路径或思源资产链接
+    phonetic?: string; // 拼音/粤拼/国际音标
+  };
   group?: string; // 共用题干组 ID（材料与子题共享，cbt 引擎）
   /** 题族与变式关联（52-07 / 65-03，原题/近远迁移/正反向兄弟题） */
   family?: QuestionFamilyRef;
