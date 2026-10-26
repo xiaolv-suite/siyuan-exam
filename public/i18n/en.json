@@ -597,6 +597,7 @@
     "report.sectionOverview": "Overview",
     "report.sectionKnowledge": "Topics & wrong answers",
     "report.sectionEvidence": "Records & evidence",
+    "report.sectionQuality": "Item Quality & Discrimination",
     "report.nextStep": "Suggested next step",
     "report.nextStepHint": "Redo the weakest topic; the new attempt will stay in the local report.",
     "report.noEvidenceTitle": "No learning records yet",

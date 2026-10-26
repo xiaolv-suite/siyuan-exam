@@ -624,6 +624,7 @@
     "report.sectionOverview": "概览",
     "report.sectionKnowledge": "考点与错题",
     "report.sectionEvidence": "记录与证据",
+    "report.sectionQuality": "试题区分度与质量",
     "report.nextStep": "建议下一步",
     "report.nextStepHint": "从当前薄弱考点开始重练，练习结果会继续记入本地报告。",
     "report.noEvidenceTitle": "还没有学习记录",

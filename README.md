@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.82（2026-10-26）
+## 最新版本：v0.11.83（2026-10-26）
+
+本版本为复盘学情报告（ReportTab）教师教研与备考学员角色专属工作台解耦与试题区分度质量诊断实装版本。教师模式新增【试题区分度与质量】第4专属分区，展示平均区分度D与通过率P、Ebel等级胶囊分布、负区分度题目排查与一键导出区分度CSV；顶栏工具按教师与学员角色分流（区分度/导学案 vs 勋章墙/完备度）。全套单测 180 个测试文件、1399 项单测 100% 全部通过。
+
+## 上一版本：v0.11.82（2026-10-26）
 
 本版本为学习资料库思源块链接智能解析、做题字号多档微调与抗遗忘背诵抢救通道实装版本。学习资料登记自动识别思源块链接并提取笔记标题；做题台与背诵台实装标准（16px）、大号（19px）与特大（22px）三档题干字号微调；艾宾浩斯记忆急救横幅新增【背诵抢救】通道。全套单测 180 个测试文件、1399 项单测 100% 全部通过。
 

@@ -143,6 +143,9 @@
           localStorage.setItem("lv-exam/role", role);
         }
       } catch { /* 容错 */ }
+      if (role === "teacher") {
+        void loadDiscriminationAudit();
+      }
       showMessage(
         role === "teacher"
           ? "已切换至【👨‍🏫 教师教研模式】：全库质量诊断、试题区分度与大纲缺口审计已就绪"
@@ -316,8 +319,42 @@
     /** 39-06 lite：统计日期范围（0=全部）。口径：作答量/正确率/时段/校准按范围过滤；
      *  消灭错题与连续天数为状态类指标保持全局；掌握度按题库范围（reloadBankScope） */
     let rangeDays = $state(0);
-    // R54：报告按「概览 / 考点与错题 / 记录与证据」分段，降低长页滚动成本。
-    let reportSection = $state<"overview" | "knowledge" | "evidence">("overview");
+    // R54：报告按「概览 / 考点与错题 / 记录与证据 / 试题质量」分段，降低长页滚动成本。
+    let reportSection = $state<"overview" | "knowledge" | "evidence" | "quality">("overview");
+
+    let discriminationAudit = $state<import("@/core/itemDiscrimination").BankDiscriminationAudit | null>(null);
+    let discriminationLoading = $state(false);
+    let discriminationExportBusy = $state(false);
+
+    async function loadDiscriminationAudit() {
+      if (!app || discriminationLoading) return;
+      discriminationLoading = true;
+      try {
+        discriminationAudit = await app.auditBankDiscrimination(bankId || undefined);
+      } catch { /* 容错 */ } finally {
+        discriminationLoading = false;
+      }
+    }
+
+    async function exportDiscriminationReport() {
+      if (!app || discriminationExportBusy) return;
+      discriminationExportBusy = true;
+      try {
+        const csv = await app.exportBankDiscriminationCsv(bankId || undefined);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${railBankName}-试题难度与区分度诊断-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showMessage("全库区分度诊断已导出为 CSV 文件 ✓", 3000, "info");
+      } catch (e) {
+        showMessage(`导出区分度诊断失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        discriminationExportBusy = false;
+      }
+    }
     /** 69-03：聚合结果 memo——追加式流水 → (rangeDays, 条数, 末位 eid) 命中即免重算。
      *  报告页每次挂载/切日期范围都调 computeReport；重开面板不再付全量聚合成本。 */
     const reportMemo = new SvelteMap<string, { kpi: typeof kpi; hours: number[]; calib: CalibrationReport | null; quad: QuadrantReport | null; quadSignals: string[]; trend30: { date: string; attempts: number }[] }>();
@@ -569,6 +606,9 @@
         }
         await reloadBankScope(d);
         computeReport();
+        if (userRole === "teacher" || reportSection === "quality") {
+          void loadDiscriminationAudit();
+        }
         if (showFeedback) showMessage(t("report.refreshDone"), 2600, "info");
       } catch (e) {
         errorMsg = String(e instanceof Error ? e.message : e);
@@ -636,6 +676,9 @@
       resetAiResults();
       writeLocal(BANK_PREF_KEY, bankId || null);
       await reloadBankScope();
+      if (userRole === "teacher" || reportSection === "quality") {
+        void loadDiscriminationAudit();
+      }
     }
 
     /** 薄弱考点下钻：打开对应题库并带入考点搜索，先核对题目再决定如何练习。 */
@@ -973,6 +1016,22 @@
       </button>
     </div>
     <span class="fn__flex-1"></span>
+    <!-- 角色专属快捷导出与体检工具 -->
+    {#if userRole === "teacher"}
+      <button class="lv-btn sm" onclick={exportDiscriminationReport} disabled={discriminationExportBusy} title="导出全库试题区分度与难度系数 CSV 清单">
+        <Icon name="export" size={13} /> {discriminationExportBusy ? "…" : "区分度CSV"}
+      </button>
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportClearanceGuide} disabled={graphGuideBusy} title="导出章节考点通关导学案 Markdown">
+        <Icon name="file" size={13} /> {t("report.graphGuide")}
+      </button>
+    {:else}
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
+        <Icon name="star" size={13} /> 勋章墙
+      </button>
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} title="导出备考完备度体检报告">
+        <Icon name="activity" size={13} /> {t("report.readinessReport")}
+      </button>
+    {/if}
     <!-- 117-01 T11 / 117-02：AI 解读与 AI 下一行动（按当前统计范围；只解释/建议，不重算不虚构） -->
     <button class="lv-btn sm" onclick={() => void runReportExplain()} disabled={!app || loading || reportRefreshing || scopeLoading || explainBusy} aria-busy={explainBusy}>
       <Icon name="sparkles" size={13} /> {explainBusy ? "…" : t("reportExplain.ask")}
@@ -1071,6 +1130,11 @@
       <button class="lv-report-tab" class:active={reportSection === "evidence"} aria-pressed={reportSection === "evidence"} onclick={() => reportSection = "evidence"}>
         <span class="lv-tab-inner"><Icon name="file-text" size={13} /> {t("report.sectionEvidence", "记录与证据")}</span>
       </button>
+      {#if userRole === "teacher"}
+        <button class="lv-report-tab" class:active={reportSection === "quality"} aria-pressed={reportSection === "quality"} onclick={() => { reportSection = "quality"; void loadDiscriminationAudit(); }}>
+          <span class="lv-tab-inner"><Icon name="layers" size={13} /> {t("report.sectionQuality", "试题区分度与质量")}</span>
+        </button>
+      {/if}
     </div>
     {#if reportSection === "evidence" && reportEvents.length === 0}
       <div class="lv-empty" style="padding:20px 18px;margin-bottom:12px" role="status">
@@ -1737,6 +1801,132 @@
         <div class="lv-muted" style="margin-top:4px;font-size:var(--lv-font-size-caption)">{t("data.purgeNote")}</div>
       {/if}
     </div>
+
+    {#if reportSection === "quality"}
+      <!-- 👨‍🏫 教师教研专属：试题质量与区分度控制台 -->
+      <div class="lv-card lv-section" style="margin-bottom:12px;padding:18px">
+        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 12px;flex-wrap:wrap;gap:8px">
+          <div>
+            <span class="lv-eyebrow">测验测量学理论 (CTT)</span>
+            <h2 style="font-size:16px;margin:2px 0 4px;color:var(--lv-text)">试题区分度与难度系数全库诊断</h2>
+            <p class="lv-muted" style="margin:0;font-size:12px">
+              基于极端组法（Kelley 27% 规则）计算区分度 D 与难度 P（通过率），自动检出负区分度警报与低效干扰项。
+            </p>
+          </div>
+          <div class="lv-row" style="margin:0;gap:8px">
+            <button class="lv-btn sm lv-btn--primary" onclick={exportDiscriminationReport} disabled={discriminationExportBusy}>
+              <Icon name="export" size={13} /> {discriminationExportBusy ? "…" : "导出区分度诊断 CSV"}
+            </button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => void loadDiscriminationAudit()} disabled={discriminationLoading}>
+              <Icon name="rotate" size={13} /> 刷新诊断
+            </button>
+          </div>
+        </div>
+
+        {#if discriminationLoading}
+          <div class="lv-pad" style="text-align:center"><p class="lv-muted">正在分析全库题目区分度与作答流水…</p></div>
+        {:else if discriminationAudit}
+          <!-- 4 核心统计卡片 -->
+          <div class="lv-kpis" style="margin-bottom:16px">
+            <div class="lv-card lv-kpi">
+              <div class="l"><span>平均区分度 D</span><Icon name="target" size={15} /></div>
+              <div class="v num" style="color:{discriminationAudit.averageD >= 0.3 ? 'var(--lv-green)' : discriminationAudit.averageD >= 0.2 ? 'var(--lv-amber)' : 'var(--lv-red)'}">
+                {discriminationAudit.averageD >= 0 ? `+${discriminationAudit.averageD.toFixed(2)}` : discriminationAudit.averageD.toFixed(2)}
+              </div>
+            </div>
+            <div class="lv-card lv-kpi">
+              <div class="l"><span>平均通过率 P</span><Icon name="check" size={15} /></div>
+              <div class="v num">{Math.round(discriminationAudit.averageP * 100)}%</div>
+            </div>
+            <div class="lv-card lv-kpi">
+              <div class="l"><span>高置信度题目</span><Icon name="activity" size={15} /></div>
+              <div class="v num">{discriminationAudit.confidentCount} / {discriminationAudit.totalQuestions}</div>
+            </div>
+            <div class="lv-card lv-kpi">
+              <div class="l"><span>异常题目预警</span><Icon name="alert-triangle" size={15} /></div>
+              <div class="v num" style="color:{discriminationAudit.anomalies.length ? 'var(--lv-red)' : 'var(--lv-green)'}">
+                {discriminationAudit.anomalies.length}
+              </div>
+            </div>
+          </div>
+
+          <!-- Ebel 等级胶囊分布 -->
+          <div class="lv-row" style="gap:8px;margin:0 0 16px;flex-wrap:wrap">
+            <span class="lv-chip lv-chip--grn num">优良 (D≥0.40): {discriminationAudit.gradeCounts.excellent}</span>
+            <span class="lv-chip lv-chip--grn num">良好 (0.30≤D&lt;0.40): {discriminationAudit.gradeCounts.good}</span>
+            <span class="lv-chip num">临界 (0.20≤D&lt;0.30): {discriminationAudit.gradeCounts.marginal}</span>
+            <span class="lv-chip lv-chip--amb num">偏低 (0≤D&lt;0.20): {discriminationAudit.gradeCounts.poor}</span>
+            <span class="lv-chip lv-chip--red num">负区分度异常: {discriminationAudit.gradeCounts.negative}</span>
+          </div>
+
+          <!-- 异常题目清单 -->
+          {#if discriminationAudit.anomalies.length > 0}
+            <div class="lv-card" style="border:1px solid var(--lv-red);padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);margin-bottom:14px">
+              <b style="color:var(--lv-red);font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <Icon name="alert-triangle" size={14} /> 发现 {discriminationAudit.anomalies.length} 道质量异常题目（高分组正确率反常或题目无效）
+              </b>
+              <div class="stack-sm">
+                {#each discriminationAudit.anomalies.slice(0, 10) as an (an.qid)}
+                  <div class="lv-row" style="justify-content:space-between;align-items:center;padding:6px 8px;background:var(--lv-surface);border-radius:6px;font-size:12px;gap:8px">
+                    <div style="flex:1;min-width:0">
+                      <b style="color:var(--lv-text)">{an.stemSnippet}</b>
+                      <div class="lv-muted" style="font-size:11px">{an.diagnosisNote}</div>
+                    </div>
+                    <div class="lv-row" style="margin:0;gap:6px">
+                      <span class="lv-chip num sm" class:lv-chip--red={an.discriminationD < 0}>D: {an.discriminationD.toFixed(2)}</span>
+                      <span class="lv-chip num sm">P: {Math.round(an.difficultyP * 100)}%</span>
+                      <button class="lv-btn sm lv-btn--ghost" onclick={() => openPracticeView(plugin, "browse", { bankId, search: an.stemSnippet.slice(0, 8) })}>排查题目</button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- 全量题目明细表格 -->
+          <div style="max-height:420px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2)">
+            <table class="lv-table" style="width:100%;font-size:12px;text-align:left;border-collapse:collapse">
+              <thead>
+                <tr style="background:var(--lv-surface-2);border-bottom:1px solid var(--lv-border)">
+                  <th style="padding:8px 10px">题干摘要</th>
+                  <th style="padding:8px">题型</th>
+                  <th style="padding:8px">有效作答</th>
+                  <th style="padding:8px">通过率 P</th>
+                  <th style="padding:8px">区分度 D</th>
+                  <th style="padding:8px">质量评级</th>
+                  <th style="padding:8px">高分组通过率</th>
+                  <th style="padding:8px">低分组通过率</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each discriminationAudit.items as it (it.qid)}
+                  <tr style="border-bottom:1px solid var(--lv-border-subtle)">
+                    <td style="padding:8px 10px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={it.stemSnippet}>
+                      {it.stemSnippet}
+                    </td>
+                    <td style="padding:8px"><span class="lv-chip sm">{it.type}</span></td>
+                    <td style="padding:8px" class="num">{it.validAttempts}</td>
+                    <td style="padding:8px" class="num">{Math.round(it.difficultyP * 100)}%</td>
+                    <td style="padding:8px;color:{it.discriminationD < 0 ? 'var(--lv-red)' : it.discriminationD >= 0.3 ? 'var(--lv-green)' : 'inherit'}" class="num">
+                      {it.discriminationD >= 0 ? `+${it.discriminationD.toFixed(2)}` : it.discriminationD.toFixed(2)}
+                    </td>
+                    <td style="padding:8px">
+                      <span class="lv-chip sm num" class:lv-chip--grn={it.grade === "excellent" || it.grade === "good"} class:lv-chip--red={it.grade === "negative"} class:lv-chip--amb={it.grade === "poor"}>
+                        {it.grade}
+                      </span>
+                    </td>
+                    <td style="padding:8px" class="num">{Math.round(it.highGroup.passRate * 100)}%</td>
+                    <td style="padding:8px" class="num">{Math.round(it.lowGroup.passRate * 100)}%</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else}
+          <div class="lv-muted" style="padding:20px;text-align:center">当前题库暂无题目或未生成区分度诊断数据。</div>
+        {/if}
+      </div>
+    {/if}
   {/if}
 </div>
   </div>
