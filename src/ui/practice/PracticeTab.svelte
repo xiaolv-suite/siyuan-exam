@@ -314,6 +314,56 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let reciteRatings = $state<number[]>([]);
     let reciteAutoTts = $state(readLocal("lv-exam/recite-auto-tts") === "1");
     let ttsSlowRate = $state(readLocal("lv-exam/tts-slow") === "1");
+    let speechRecording = $state(false);
+    let speechEvalResult = $state<import("@/core/speechEval").SpeechEvalResult | null>(null);
+    let speechRecognitionInstance: any = null;
+
+    function startSpeechRecognition(targetText: string, lang = "zh-CN") {
+      if (typeof window === "undefined") return;
+      const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!Recognition) {
+        showMessage("当前运行环境暂未开放语音识别接口，可使用伴学朗读听辨原声磨耳朵", 3500, "info");
+        return;
+      }
+      if (speechRecording && speechRecognitionInstance) {
+        try { speechRecognitionInstance.stop(); } catch { /* 静默 */ }
+        speechRecording = false;
+        return;
+      }
+      try {
+        speechEvalResult = null;
+        const rec = new Recognition();
+        speechRecognitionInstance = rec;
+        rec.lang = lang;
+        rec.continuous = false;
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+
+        speechRecording = true;
+        rec.onresult = async (event: any) => {
+          const transcript = event.results?.[0]?.[0]?.transcript ?? "";
+          speechRecording = false;
+          if (transcript) {
+            const { evaluateSpeechSimilarity } = await import("@/core/speechEval");
+            const res = evaluateSpeechSimilarity(transcript, targetText);
+            speechEvalResult = res;
+            if (res.score >= 80 && soundEnabled) {
+              playSuccessChime();
+            }
+          }
+        };
+        rec.onerror = () => {
+          speechRecording = false;
+        };
+        rec.onend = () => {
+          speechRecording = false;
+        };
+        rec.start();
+      } catch (e) {
+        speechRecording = false;
+        showMessage("无法启动麦克风录音识别，请检查设备麦克风权限", 3500, "error");
+      }
+    }
     /** 39-03：本次背诵评级的结果状态（未转卡/已写回/待确认/失败/离线未写回） */
     let reciteOutcome = $state<RatingOutcomeView | null>(null);
     /** 39-03：防双击与重复提交（同会话同题同评级只写一次；失败后放行重试） */
@@ -2804,7 +2854,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         reciteRatings.push(rating);
         reciteHint = 0;
         if (reciteCursor < reciteQueue.length - 1) {
-          reciteCursor++; reciteRevealed = false;
+          reciteCursor++; reciteRevealed = false; speechEvalResult = null; speechRecording = false;
           if (reciteAutoTts && reciteQueue[reciteCursor]) {
             ttsSpeak(reciteQueue[reciteCursor].stem, { lang: reciteQueue[reciteCursor].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
           }
@@ -3651,6 +3701,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       draftLive = q && !isChoiceQuestion(q) ? (saved?.myAnswer ?? session.getDraft(q.id)) : "";
       confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
       hideOptions = false; recallDraft = ""; leakPending = null;
+      speechEvalResult = null; speechRecording = false;
       resetRubricDraft(); // 55-05：切题/恢复不沿用上一题的自评选择
     }
     /** 55-05：重置当前题的自评 UI 草稿（选择与备注），不动已记录存档 */
@@ -7112,6 +7163,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <button type="button" class="lv-chip num sm" onclick={cycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
                 A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
               </button>
+              <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => startSpeechRecognition(q.answer || q.stem, q.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
+                <Icon name="mic" size={13} /> {speechRecording ? "跟读中…" : "跟读测评"}
+              </button>
               <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={toggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
               <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={() => toggleFavCurrent()}><Icon name="star" size={13} /></button>
             </div>
@@ -7233,6 +7287,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               </div>
             {/if}
             {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
+            {#if speechEvalResult}
+              <div class="lv-card" style="padding:8px 12px;background:var(--lv-surface-2);border-radius:6px;margin:6px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <div style="font-size:12px;flex:1">
+                  <span>🎙️ 识别到：“<b>{speechEvalResult.transcript}</b>”</span>
+                  <span class="lv-chip num sm" class:lv-chip--grn={speechEvalResult.grade === "excellent"} class:lv-chip--amb={speechEvalResult.grade === "good"} class:lv-chip--red={speechEvalResult.grade === "practice"}>
+                    匹配度 {speechEvalResult.score}%
+                  </span>
+                  <span class="lv-muted" style="margin-left:6px">{speechEvalResult.feedback}</span>
+                </div>
+                <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => speechEvalResult = null}>✕</button>
+              </div>
+            {/if}
             {#if q.studyMeta?.phonetic}
               <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
                 <Icon name="volume" size={12} />
@@ -7582,6 +7648,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           </button>
           <button type="button" class="lv-chip num sm" onclick={cycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
             A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
+          </button>
+          <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => startSpeechRecognition(reciteQueue[reciteCursor]?.answer || reciteQueue[reciteCursor]?.stem, reciteQueue[reciteCursor]?.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
+            <Icon name="mic" size={12} /> {speechRecording ? "跟读中…" : "跟读"}
           </button>
           {#if reciteQueue[reciteCursor]?.group}
             <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
