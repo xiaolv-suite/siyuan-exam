@@ -530,6 +530,7 @@
       writeLocal("lv-exam/font-scale", examFontSize);
     }
 
+    let shortLinedPaper = $state(readLocal("lv-exam/lined-paper") === "1");
     let stemHtml = $state("");
     let stemHtmlFor = $state("");
     $effect(() => {
@@ -1935,7 +1936,7 @@
               oninput={(e) => { const next = [...parts]; next[i] = (e.target as HTMLInputElement).value; setTextAnswer(joinBlanks(next)); }} />
           {/each}
         {:else}
-          <textarea class="lv-input lv-textarea" value={answeredMap[current] ?? ""} disabled={examLocked}
+          <textarea class="lv-input lv-textarea" class:lv-textarea--ruled={shortLinedPaper && currentQ.type === "short"} value={answeredMap[current] ?? ""} disabled={examLocked}
             placeholder={currentQ.type === "short" ? t("session.shortPlaceholder") : t("session.fillPlaceholder")}
             oninput={(e) => setTextAnswer((e.target as HTMLTextAreaElement).value)}></textarea>
           {#if currentQ.type === "short"}
@@ -1945,6 +1946,9 @@
                 字数统计：<strong class="num">{words.examWords}</strong> 字（中文 {words.chineseChars} · 英文 {words.englishWords} · {words.paragraphs} 段）
               </span>
               <div class="lv-row" style="margin:0;gap:6px">
+                <button type="button" class="lv-btn sm lv-btn--ghost" class:acc={shortLinedPaper} style="padding:1px 6px;font-size:11px" onclick={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }} title="切换稿纸横线背景模式（28px 行高对齐）">
+                  <Icon name="file-text" size={11} /> {shortLinedPaper ? "稿纸线开" : "稿纸线"}
+                </button>
                 <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" onclick={() => (mockPaperGridOpen = !mockPaperGridOpen)} title={t("session.gridPreview")}>
                   <Icon name="grid" size={11} /> {t("session.gridPreview")}
                 </button>
