@@ -267,5 +267,51 @@ ANSWER: A
       expect(report.ok[1].type).toBe("fill");
       expect(report.ok[1].answer).toBe("死刑");
     });
+
+    it("parseQuestionsFromSiyuanDoc 支持从 Markdown 表格自动提取选择题与生词填空题", async () => {
+      const tableNote = `
+# 经济法核心客观题汇总
+
+| 题目 | 选项A | 选项B | 选项C | 选项D | 答案 | 解析 |
+| 下列关于普通合伙企业的说法正确的是（ ）。 | 可以设立一人合伙 | 合伙人对债务承担无限连带责任 | 必须经全体合伙人决议解散 | 法人不得成为合伙人 | B | 依据合伙企业法第二条 |
+| 根据证券法规定，公开发行证券必须符合法律规定并经（ ）核准或注册。 | 证券交易所 | 国务院证券监督管理机构 | 商务部 | 财政部 | B | 证券法第九条 |
+      `;
+
+      const report = await parseQuestionsFromSiyuanDoc(tableNote, {
+        docId: "doc-econ-law",
+        title: "经济法客观题表格",
+      });
+
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].type).toBe("single");
+      expect(report.ok[0].options.length).toBe(4);
+      expect(report.ok[0].answer).toBe("B");
+      expect(report.ok[0].analysis).toContain("依据合伙企业法");
+      expect(report.ok[1].answer).toBe("B");
+    });
+
+    it("cleanSiyuanDocMarkdown 兼容折叠问答块与粗体概念定义卡", async () => {
+      const qaNote = `
+# 民商法术语速查
+
+<details>
+<summary>什么是动产质权？</summary>
+动产质权是指债务人或者第三人将其动产移交债权人占有，将该动产作为债权的担保。
+</details>
+
+**法定公积金**：公司分配当年税后利润时，应当提取利润的百分之十列入公司法定公积金。
+      `;
+
+      const report = await parseQuestionsFromSiyuanDoc(qaNote, {
+        docId: "doc-qa-note",
+        title: "民商法问答卡",
+      });
+
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].stem).toContain("什么是动产质权");
+      expect(report.ok[0].answer).toContain("动产质权是指债务人");
+      expect(report.ok[1].stem).toContain("法定公积金");
+      expect(report.ok[1].answer).toContain("公司分配当年税后利润时");
+    });
   });
 });

@@ -10,6 +10,8 @@
 import type { ImportOptions, ImportReport } from "../importer/pipeline";
 import { parseText } from "../importer/pipeline";
 import { newBatchId } from "./ids";
+import type { Question, QuestionType } from "./types";
+import { makeQuestion } from "./blockTemplate";
 
 export interface SiyuanDocMeta {
   docId: string;
@@ -51,6 +53,9 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   }
   s = s.replace(/^[-*]\s*\[[ xX]\]\s*/gm, "");
 
+  // 1.4 剥离无序列表选项前缀：如 "- A. 选项" 规范化为 "A. 选项"
+  s = s.replace(/^[-*+]\s+([A-Fa-f][.、\s])/gm, "$1");
+
   // 2. 剥离行首引用块标记（支持整道题写在引用块 > 里的场景）
   s = s.replace(/^>\s?/gm, "");
 
@@ -64,7 +69,13 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   s = s.replace(/<details>\s*<summary>([^<]*)<\/summary>([\s\S]*?)<\/details>/gi, (_m, summary: string, body: string) => {
     const sum = summary.trim();
     const isAns = /(?:答案|解析|详解)/.test(sum);
-    return `\n${isAns ? "【答案】" : sum}\n${body.trim()}\n`;
+    if (isAns) {
+      return `\n【答案】\n${body.trim()}\n`;
+    } else if (sum.length > 0 && body.trim().length > 0) {
+      // 折叠块 summary 是问题，body 是答案（思源自制问答折叠卡）
+      return `\n${sum}\n【答案】：${body.trim()}\n`;
+    }
+    return `\n${sum}\n${body.trim()}\n`;
   });
 
   // 5. 替换思源块引用：((id "锚文本")) 替换为 锚文本；纯 ((id)) 移除
@@ -79,7 +90,83 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   s = s.replace(/^\s*(?:Q\d*|【问\d*】)\s*[:：]\s*/gim, "");
   s = s.replace(/^\s*(?:A\d*|【答\d*】)\s*[:：]\s*/gim, "【答案】：");
 
+  // 7.1 概念与术语定义卡：**术语**：定义内容 ➔ 转换为问答结构
+  s = s.replace(/^\s*\*\*([^*\n\r]{2,40})\*\*\s*[:：]\s*([^\n\r]{4,})/gm, (_m, term: string, def: string) => {
+    return `\n1. 简述 ${term} 的概念与定义。\n【答案】：${def.trim()}\n`;
+  });
+
   return s.trim();
+}
+
+/**
+ * 8. 解析思源笔记中的 Markdown 表格试题（如三列问答表、多列题库表）
+ */
+export function parseMarkdownTableToQuestions(
+  tableText: string,
+  docMeta: SiyuanDocMeta,
+): Question[] {
+  const lines = tableText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("|") && l.endsWith("|"));
+  if (lines.length < 3) return [];
+
+  const headerCells = lines[0]
+    .slice(1, -1)
+    .split("|")
+    .map((c) => c.trim().toLowerCase());
+  const stemIdx = headerCells.findIndex((c) =>
+    /题干|题目|问题|问|question|front|stem|单词|词汇|term|概念/.test(c),
+  );
+  const ansIdx = headerCells.findIndex((c) =>
+    /答案|答|answer|back|释义|意思|定义|definition|meaning/.test(c),
+  );
+  const optAIdx = headerCells.findIndex((c) => /选项\s*a|^a$/i.test(c));
+  const optBIdx = headerCells.findIndex((c) => /选项\s*b|^b$/i.test(c));
+  const optCIdx = headerCells.findIndex((c) => /选项\s*c|^c$/i.test(c));
+  const optDIdx = headerCells.findIndex((c) => /选项\s*d|^d$/i.test(c));
+  const analysisIdx = headerCells.findIndex((c) =>
+    /解析|详解|出处|例句|analysis|note|example/.test(c),
+  );
+  const kpIdx = headerCells.findIndex((c) =>
+    /考点|知识点|章节|tag|kp|词性|科目/.test(c),
+  );
+
+  if (stemIdx < 0 || ansIdx < 0) return [];
+
+  const isSeparator = /^\|(?:\s*:?-+:?\s*\|)+$/.test(lines[1]) || /^-+$/.test(lines[1].replace(/\|/g, "").trim());
+  const startRow = isSeparator ? 2 : 1;
+
+  const questions: Question[] = [];
+  for (let i = startRow; i < lines.length; i++) {
+    const row = lines[i].slice(1, -1).split("|").map((c) => c.trim());
+    const stem = row[stemIdx];
+    const answer = row[ansIdx];
+    if (!stem || !answer || /^-+$/.test(stem)) continue;
+
+    const options: string[] = [];
+    if (optAIdx >= 0 && row[optAIdx]) options.push(row[optAIdx]);
+    if (optBIdx >= 0 && row[optBIdx]) options.push(row[optBIdx]);
+    if (optCIdx >= 0 && row[optCIdx]) options.push(row[optCIdx]);
+    if (optDIdx >= 0 && row[optDIdx]) options.push(row[optDIdx]);
+
+    const type: QuestionType = options.length >= 2
+      ? (answer.length > 1 ? "multiple" : "single")
+      : /^[对错正确错误]$/.test(answer) ? "judge" : "fill";
+
+    const q = makeQuestion({
+      type,
+      stem,
+      options,
+      answer,
+      analysis: analysisIdx >= 0 ? row[analysisIdx] || undefined : undefined,
+      kp: (kpIdx >= 0 && row[kpIdx]) ? row[kpIdx] : docMeta.title,
+      source: docMeta.title,
+      sourceKind: "real",
+    });
+    questions.push(q);
+  }
+  return questions;
 }
 
 /**
@@ -103,7 +190,20 @@ export async function parseQuestionsFromSiyuanDoc(
   // 统一通过导入分流引擎解析（支持 MarkdownExam / Aiken / TSV / GIFT / 挖空）
   let report = await parseText(cleanedText, options);
 
-  // 兜底高亮挖空（Cloze）：如果常规试题未提取出任何有效题目，但文档包含思源原生高亮标记 ==重点== 或 {{挖空}}，自动提取为填空题
+  // 兜底 1：Markdown 表格试题识别（用户用表格制作的生词表、概念表、问答表、选项表）
+  if (!report.ok.length && docMarkdown.includes("|")) {
+    const tableQuestions = parseMarkdownTableToQuestions(docMarkdown, docMeta);
+    if (tableQuestions.length > 0) {
+      report = {
+        batch: report.batch || newBatchId(),
+        ok: tableQuestions,
+        errors: [],
+        duplicates: 0,
+      };
+    }
+  }
+
+  // 兜底 2：高亮挖空（Cloze）：如果常规试题未提取出任何有效题目，但文档包含思源原生高亮标记 ==重点== 或 {{挖空}}，自动提取为填空题
   if (!report.ok.length && (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText))) {
     const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
     const clozeItems = parseClozeText(cleanedText, { modes: ["highlight", "curly"] });
