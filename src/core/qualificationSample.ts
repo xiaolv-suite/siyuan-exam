@@ -1,8 +1,8 @@
 import { makeQuestion } from "./blockTemplate";
 import type { Question } from "./types";
 
-export const QUALIFICATION_SAMPLE_BANK_NAME = "【示例】职业资格认证真题题库（教资与基金）";
-export const QUALIFICATION_SAMPLE_QUESTION_COUNT = 8;
+export const QUALIFICATION_SAMPLE_BANK_NAME = "【示例】职业资格与中级考证题库（教资/中级/基金）";
+export const QUALIFICATION_SAMPLE_QUESTION_COUNT = 10;
 
 /** 教师资格证与基金从业资格原创核心示范题库 */
 export function qualificationSampleQuestions(): Question[] {
@@ -79,6 +79,31 @@ export function qualificationSampleQuestions(): Question[] {
       analysis: "投资者适当性管理要求销售机构全面评估投资者的风险承受能力与产品的风险等级，严禁将高风险产品推荐给低风险偏好的普通投资者。",
     },
 
+    // ---------- 中级职称（中级会计 / 中级经济师）----------
+    {
+      type: "single",
+      stem: "【中级职称 · 中级会计实务】根据《企业会计准则第8号——资产减值》的规定，下列各项资产中，已计提的资产减值损失在以后会计期间不得转回的是？",
+      options: [
+        "固定资产减值准备",
+        "应收账款坏账准备",
+        "存货跌价准备",
+        "持有至到期投资减值准备",
+      ],
+      answer: "A",
+      kp: "中级职称/中级会计/资产减值",
+      analysis: "固定资产、无形资产、长期股权投资等非流动资产减值准备一经确认，在以后会计期间均不得转回，防范企业通过减值准备调节利润。",
+    },
+
+    // ---------- 大学与硕博高数进阶 ----------
+    {
+      type: "single",
+      stem: "【大学高数 & 考研】在极限计算中，当 x → 0 时，与 sin x 等价的无穷小量是？",
+      options: ["x", "x^2", "e^x", "ln(x)"],
+      answer: "A",
+      kp: "大学高等数学/微积分/等价无穷小",
+      analysis: "根据第一重要极限：lim (x→0) (sin x / x) = 1，故当 x→0 时，sin x 与 x 为等价无穷小量，常用于微积分极限定理快速替换。",
+    },
+
     // ---------- K12 与大学升学进阶 ----------
     {
       type: "single",
@@ -101,7 +126,7 @@ export function qualificationSampleQuestions(): Question[] {
   }));
 }
 
-export const QUALIFICATION_SAMPLE_BANK_INTRO = `# 【示例】职业资格认证真题题库（教资与基金）
+export const QUALIFICATION_SAMPLE_BANK_INTRO = `# 【示例】职业资格与中级考证题库（教资/中级/基金）
 
-> 本题库共 ${QUALIFICATION_SAMPLE_QUESTION_COUNT} 题，精选教师资格考试《综合素质》、基金从业人员资格考试《科目一：基金法律法规与职业道德》及 K12 物理高频真题，供考前限时演练与考点自测使用。
+> 本题库共 ${QUALIFICATION_SAMPLE_QUESTION_COUNT} 题，精选教师资格考试《综合素质》、中级会计职称《资产减值》、基金从业资格《法律法规与职业道德》、大学高数微积分及 K12 物理高频试题，供考前限时演练与考点自测使用。
 `;

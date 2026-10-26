@@ -41,16 +41,28 @@ describe("全场景多维研学体系升级 (多语言/资格证/K12升学)", ()
     expect(meticQ?.answer).toBe("precise");
   });
 
-  it("职业资格与K12升学题库 (qualificationSample) 包含教资、基金与物理考点", () => {
+  it("职业资格与K12升学题库 (qualificationSample) 包含教资、中级会计、高数与物理考点", () => {
     const questions = qualificationSampleQuestions();
     expect(questions.length).toBe(QUALIFICATION_SAMPLE_QUESTION_COUNT);
-    expect(QUALIFICATION_SAMPLE_BANK_NAME).toContain("职业资格认证");
+    expect(QUALIFICATION_SAMPLE_BANK_NAME).toContain("考证题库");
 
     // 教师资格证
     const teacherQ = questions.find((q) => q.stem.includes("素质教育"));
     expect(teacherQ).toBeDefined();
     expect(teacherQ?.kp).toContain("教师资格证");
     expect(teacherQ?.answer).toBe("A");
+
+    // 中级职称
+    const midQ = questions.find((q) => q.stem.includes("中级会计"));
+    expect(midQ).toBeDefined();
+    expect(midQ?.kp).toContain("中级职称");
+    expect(midQ?.answer).toBe("A");
+
+    // 大学高等数学
+    const mathQ = questions.find((q) => q.stem.includes("大学高数"));
+    expect(mathQ).toBeDefined();
+    expect(mathQ?.kp).toContain("高等数学");
+    expect(mathQ?.answer).toBe("A");
 
     // 基金从业资格
     const fundQ = questions.find((q) => q.stem.includes("信义义务"));

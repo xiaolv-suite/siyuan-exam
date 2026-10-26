@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.76（2026-10-26）
+## 最新版本：v0.11.77（2026-10-26）
+
+本版本为解决“页面混乱不知所措”系统性重塑主工作区、升维全学段研学启程中心版本。彻底解耦空题库与有题工作台状态，根治0题仪表盘堆叠乱象；主屏与题库画廊实装K12基础教育、大学考研硕博、职业考证与多语言研学四大支柱选择漏斗；顶栏与侧栏信息架构重构降噪。全套单测 180 个测试文件、1397 项单测 100% 全部通过。
+
+## 上一版本：v0.11.76（2026-10-26）
 
 本版本为 TTS 语音朗读 Markdown/LaTeX 杂音过滤与模态确认弹窗优雅换行修复版本。朗读引擎新增净化过滤，自动剥离题干解析中的 Markdown、HTML、思源 IAL 与 LaTeX 符号，彻底杜绝语音怪音杂音；模态确认弹窗内容容器补全 `white-space: pre-wrap` 样式，考场交卷与二次确认保持多段落优雅排版。全套单测 180 个测试文件、1397 项单测 100% 全部通过。
 

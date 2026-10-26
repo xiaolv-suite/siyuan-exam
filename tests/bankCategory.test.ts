@@ -15,9 +15,18 @@ function stubClient() {
 }
 
 describe("题库研学场景分类与元数据模型 (bankCategory)", () => {
-  it("定义四大完整场景：全真备考、多语言研学、教学教研与综合通识", () => {
+  it("定义完整全学段场景：大考、职业考证、K12基础教育、大学硕博、多语言、教学教研与综合通识", () => {
     expect(BANK_CATEGORIES.exam.code).toBe("exam");
-    expect(BANK_CATEGORIES.exam.label).toBe("全真备考");
+    expect(BANK_CATEGORIES.exam.label).toContain("考");
+
+    expect(BANK_CATEGORIES.certificate.code).toBe("certificate");
+    expect(BANK_CATEGORIES.certificate.label).toBe("职业资格考证");
+
+    expect(BANK_CATEGORIES.k12.code).toBe("k12");
+    expect(BANK_CATEGORIES.k12.label).toBe("K12基础教育");
+
+    expect(BANK_CATEGORIES.higher.code).toBe("higher");
+    expect(BANK_CATEGORIES.higher.label).toBe("大学与考研硕博");
 
     expect(BANK_CATEGORIES.language.code).toBe("language");
     expect(BANK_CATEGORIES.language.label).toBe("多语言研学");
@@ -26,7 +35,7 @@ describe("题库研学场景分类与元数据模型 (bankCategory)", () => {
     expect(BANK_CATEGORIES.teaching.label).toBe("教学教研");
 
     expect(BANK_CATEGORIES.general.code).toBe("general");
-    expect(BANK_CATEGORIES.general.label).toBe("综合研学");
+    expect(BANK_CATEGORIES.general.label).toBe("终身通识研学");
   });
 
   it("getBankCategoryMeta 安全容错，未知或空分类回退至综合研学", () => {

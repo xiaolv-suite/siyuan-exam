@@ -2043,8 +2043,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       plugin.settingUtils?.get?.("materialInterleave") === true || plugin.settingUtils?.get?.("materialInterleave") === "true",
     );
 
-    /** rail 上下文导航项（全局三项在 Rail 组件内） */
-    const at = (v: View) => view === v;
     let sessionSeed = $state(""); // 65-05 lite：本次会话种子（结算页展示，可复现标识）
     // 应用层派生缓存（app.derived()/wrongItems()）是普通对象，Svelte 无法追踪其变化；
     // 用总线事件（session-ended / wrongbook-changed）驱动修订号显式失效下方相关 $derived，
@@ -2230,12 +2228,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (next === "import") void checkImportCheckpoint();
     }
     const railItems = $derived([
-      { icon: "grid", name: t("mode.browse"), on: at("browse"), onclick: () => { switchView("browse"); void loadQuestions(); } },
-      { icon: "target", name: t("wrongbook.title"), on: at("wrongbook"), badge: wrongList.length ? String(wrongList.length) : undefined, onclick: () => { dataRev++; switchView("wrongbook"); void loadQuestions(); } },
-      { icon: "import", name: t("import.title"), on: at("import"), onclick: () => switchView("import") },
-      { icon: "clipboard", name: t("entry.manual"), on: at("manual"), onclick: () => switchView("manual") },
-      { icon: "sparkles", name: t("ai.title"), on: at("ai"), onclick: () => switchView("ai") },
-      { icon: "material", name: t("materials.title"), on: at("materials"), onclick: () => { switchView("materials"); loadMaterials(); } },
+      { icon: "grid", name: t("mode.browse"), on: (view as string) === "browse", onclick: () => { switchView("browse"); void loadQuestions(); } },
+      { icon: "target", name: t("wrongbook.title"), on: (view as string) === "wrongbook", badge: wrongList.length ? String(wrongList.length) : undefined, onclick: () => { dataRev++; switchView("wrongbook"); void loadQuestions(); } },
+      { icon: "import", name: t("import.title"), on: (view as string) === "import", onclick: () => switchView("import") },
+      { icon: "clipboard", name: t("entry.manual"), on: (view as string) === "manual", onclick: () => switchView("manual") },
+      { icon: "sparkles", name: t("ai.title"), on: (view as string) === "ai", onclick: () => switchView("ai") },
+      { icon: "material", name: t("materials.title"), on: (view as string) === "materials", onclick: () => { switchView("materials"); loadMaterials(); } },
     ]);
 
     let paletteOpen = $state(false);
@@ -6139,16 +6137,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         <!-- 48-04 lite：打卡→考试只读投影（连续数由打卡单一实现计算，考试侧不自算） -->
         <span class="lv-chip num lv-focus-context" title={t("entry.checkinStreakTip")}><Icon name="flame" size={12} /> {t("entry.checkinStreak").replace("{n}", String(checkinStreak))}</span>
       {/if}
-      {#if banks.length > 1}
-        <!-- 多库切换（真机走查补齐）：此前多库时无任何切换入口，重载还会静默回落第一库 -->
-        <select class="lv-select lv-focus-context" style="max-width:170px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")}>
-          {#each banks as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
-        </select>
-      {:else if hasBank}
-        <span class="lv-chip lv-focus-context">{t("bank.label")} {bankName}</span>
-      {/if}
-      {#if hasBank}<button class="lv-chip lv-focus-context" title={t("bank.removeTitle")} aria-label={t("bank.removeTitle")} onclick={removeActiveBank} disabled={importBusy || mSaving || aiMutationBusy}>✕</button>{/if}
-      <button class="lv-chip lv-focus-context" style="cursor:pointer" onclick={() => { bankHubOpen = true; }} title={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
+      <div class="lv-row lv-focus-context" style="margin:0;gap:6px;align-items:center">
+        {#if banks.length > 1}
+          <!-- 多库切换：紧凑圆角下拉框 -->
+          <select class="lv-select" style="max-width:160px;height:28px;font-size:12px;padding:2px 8px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")}>
+            {#each banks as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
+          </select>
+        {:else if hasBank}
+          <span class="lv-chip sm">{bankName}</span>
+        {/if}
+        {#if hasBank}<button class="lv-chip" title={t("bank.removeTitle")} aria-label={t("bank.removeTitle")} onclick={removeActiveBank} disabled={importBusy || mSaving || aiMutationBusy}>✕</button>{/if}
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} title={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
+      </div>
       <div class="lv-role-segmented lv-focus-context" role="radiogroup" aria-label="身份模式切换">
         <button
           type="button"
@@ -6361,34 +6361,97 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
           </div>
         {:else if questionsLoaded && !practiceQuestions.length}
-          <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:36px 24px;border-radius:var(--lv-r-3);background:var(--lv-surface);border:1px solid var(--lv-border)">
-            <div class="lv-empty-icon" style="width:52px;height:52px;border-radius:14px;background:var(--lv-brand-soft);color:var(--lv-brand);display:grid;place-items:center;margin:0 auto 14px">
-              <Icon name="book" size={26} />
+          <!-- 空库全学段研学导航中心（彻底避免 0 题仪表盘视觉混乱，提供宏观融合与具体分类选择） -->
+          <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:36px 28px;border-radius:var(--lv-r-4, 22px);background:var(--lv-surface);border:1px solid var(--lv-border);max-width:920px;margin:16px auto 36px">
+            <div style="text-align:center;margin-bottom:24px">
+              <div class="lv-empty-icon" style="width:54px;height:54px;border-radius:16px;background:var(--lv-brand-soft);color:var(--lv-brand);display:grid;place-items:center;margin:0 auto 12px;box-shadow:0 4px 14px color-mix(in srgb, var(--lv-brand) 18%, transparent)">
+                <Icon name="book" size={26} />
+              </div>
+              <h2 style="font-size:20px;font-weight:700;color:var(--lv-text);margin:0 0 6px">小驴学习 · 全场景自主研学启程</h2>
+              <p class="lv-muted" style="max-width:540px;margin:0 auto;line-height:1.6;font-size:13px">
+                考试是检验能力的手段，学习是终身成长的基石。当前题库暂无题目，请选择你的研学方向一键开练，或导入自己的笔记知识库。
+              </p>
             </div>
-            <b style="font-size:16px;color:var(--lv-text);margin-bottom:6px">{t("entry.emptyTitle")}</b>
-            <p class="lv-muted" style="max-width:460px;margin:0 auto 20px;line-height:1.6">{t("entry.emptyDesc")}</p>
-            <div class="lv-row" style="justify-content:center;gap:8px;flex-wrap:wrap">
-              <button class="lv-btn sm" onclick={() => void createSampleBank("qualification")} disabled={creating || offline} title="体验教师资格证与基金从业资格真题题库">
-                🎯 资格考证示例
+
+            <!-- 四大研学支柱选择漏斗（横向四列 Bento 矩阵） -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:12px;margin-bottom:20px">
+              <!-- 1. 职业与考证 -->
+              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+                <div>
+                  <b style="font-size:14px;color:var(--lv-brand);display:flex;align-items:center;gap:6px">
+                    <Icon name="badge" size={15} /> 职业考证
+                  </b>
+                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
+                    教师资格证(教资)、基金从业资格、中级会计职称等国家专业证书
+                  </p>
+                </div>
+                <button class="lv-btn sm lv-btn--primary" style="width:100%" onclick={() => void createSampleBank("qualification")} disabled={creating || offline} title="体验教资与基金从业资格真题">
+                  体验考证题库
+                </button>
+              </div>
+
+              <!-- 2. 大学与硕博 -->
+              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+                <div>
+                  <b style="font-size:14px;color:var(--lv-accent);display:flex;align-items:center;gap:6px">
+                    <Icon name="academic" size={15} /> 大学与硕博
+                  </b>
+                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
+                    高等数学微积分、线性代数、考研政治专业课、四六级长难句
+                  </p>
+                </div>
+                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("qualification")} disabled={creating || offline} title="体验大学高数与考研真题">
+                  体验高数题库
+                </button>
+              </div>
+
+              <!-- 3. 多语言研学 (英语+粤语) -->
+              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+                <div>
+                  <b style="font-size:14px;color:var(--lv-scene-language, var(--lv-accent));display:flex;align-items:center;gap:6px">
+                    <Icon name="volume" size={15} /> 多语言研学
+                  </b>
+                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
+                    雅思核心学术词(IPA音标/en-US发音)与地道粤语日常口语
+                  </p>
+                </div>
+                <div class="lv-row" style="margin:0;gap:4px">
+                  <button class="lv-btn sm" style="flex:1" onclick={() => void createSampleBank("english")} disabled={creating || offline}>
+                    英语
+                  </button>
+                  <button class="lv-btn sm" style="flex:1" onclick={() => void createSampleBank("cantonese")} disabled={creating || offline}>
+                    粤语
+                  </button>
+                </div>
+              </div>
+
+              <!-- 4. K12基础教育与通识 -->
+              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+                <div>
+                  <b style="font-size:14px;color:var(--lv-green);display:flex;align-items:center;gap:6px">
+                    <Icon name="book" size={15} /> K12基础通识
+                  </b>
+                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
+                    小学/初中/高中全科基础、中高考物理数学公式与古诗文
+                  </p>
+                </div>
+                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("general")} disabled={creating || offline} title="体验综合基础自测题库">
+                  体验基础题库
+                </button>
+              </div>
+            </div>
+
+            <!-- 下方：载入笔记与出题通道 -->
+            <div class="lv-row" style="justify-content:center;gap:12px;flex-wrap:wrap;margin:12px 0 0;padding-top:16px;border-top:1px solid var(--lv-border-subtle)">
+              <button class="lv-btn lv-btn--primary" onclick={() => { view = "import"; }}>
+                <Icon name="import" size={15} /> {t("import.title")} (思源笔记 / Excel / CSV)
               </button>
-              <button class="lv-btn sm" onclick={() => void createSampleBank("english")} disabled={creating || offline} title="体验大学英语与雅思核心词汇研学题库">
-                🗣️ 英语研学示例
-              </button>
-              <button class="lv-btn sm" onclick={() => void createSampleBank("cantonese")} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
-                🇭🇰 粤语研学示例
-              </button>
-              <button class="lv-btn sm" onclick={() => void createSampleBank("general")} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}>
-                🧠 综合通识示例
-              </button>
-              <button class="lv-btn lv-btn--primary sm" onclick={() => { view = "import"; }}>
-                <Icon name="import" size={15} /> {t("import.title")}
-              </button>
-              <button class="lv-btn sm" onclick={() => { view = "manual"; }}>
-                <Icon name="clipboard" size={14} /> {t("entry.manual")}
+              <button class="lv-btn" onclick={() => { view = "manual"; }}>
+                <Icon name="clipboard" size={15} /> {t("entry.manual")} (录入第一道题)
               </button>
             </div>
           </div>
-        {/if}
+        {:else}
         {#if userRole === "teacher"}
           <div class="lv-card" style="margin-bottom:14px;padding:14px 18px;border-left:4px solid var(--lv-teacher-primary);background:var(--lv-surface);box-shadow:var(--lv-sh-1)">
             <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -6601,6 +6664,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
           </details>
         </div>
+        {/if}
       </div>
     {/if}
   {:else if view === "session" && session}
@@ -9678,8 +9742,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>
               全部 ({banks.length})
             </button>
-            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "exam"} aria-selected={bankFilterCategory === "exam"} onclick={() => bankFilterCategory = "exam"}>
-              🎯 备考 ({banks.filter((b) => b.category === "exam").length})
+            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} aria-selected={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} onclick={() => bankFilterCategory = "exam"}>
+              🎯 资格考证 ({banks.filter((b) => b.category === "exam" || b.category === "certificate").length})
+            </button>
+            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "k12" || bankFilterCategory === "higher"} aria-selected={bankFilterCategory === "k12" || bankFilterCategory === "higher"} onclick={() => bankFilterCategory = "higher"}>
+              🎓 升学学术 ({banks.filter((b) => b.category === "k12" || b.category === "higher").length})
             </button>
             <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "language"} aria-selected={bankFilterCategory === "language"} onclick={() => bankFilterCategory = "language"}>
               🗣️ 语言 ({banks.filter((b) => b.category === "language").length})
@@ -9739,6 +9806,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     {/if}
                     <button class="lv-btn sm lv-btn--ghost" onclick={() => void syncBankToDoc(b.id)} title="将整套题库题册格式化同步为思源原生文档，折叠答案，卸载插件依然永久保留">
                       <Icon name="file" size={12} /> {t("bank.syncToDoc")}
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" onclick={() => { activeBankId = b.id; void removeActiveBank(); }} title={t("bank.removeTitle")}>
+                      <Icon name="trash" size={12} />
                     </button>
                   </div>
                 </div>
