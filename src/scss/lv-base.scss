@@ -1514,6 +1514,43 @@ input[type="range"] {
   }
 }
 
+/* —— 题库场景徽章与主题色彩映射 —— */
+.lv-scene-badge {
+  font-weight: 600;
+  border-radius: var(--lv-r-1);
+  padding: 2px 8px;
+  font-size: var(--lv-font-size-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all var(--lv-dur-micro) var(--lv-ease-out);
+
+  &:hover {
+    transform: translateY(-0.5px);
+    box-shadow: var(--lv-sh-1);
+  }
+  &--exam {
+    background: var(--lv-scene-exam-soft);
+    color: var(--lv-scene-exam);
+    border-color: color-mix(in srgb, var(--lv-scene-exam) 25%, transparent);
+  }
+  &--language {
+    background: var(--lv-scene-lang-soft);
+    color: var(--lv-scene-lang);
+    border-color: color-mix(in srgb, var(--lv-scene-lang) 25%, transparent);
+  }
+  &--teaching {
+    background: var(--lv-scene-teach-soft);
+    color: var(--lv-scene-teach);
+    border-color: color-mix(in srgb, var(--lv-scene-teach) 25%, transparent);
+  }
+  &--general {
+    background: var(--lv-scene-general-soft);
+    color: var(--lv-scene-general);
+    border-color: color-mix(in srgb, var(--lv-scene-general) 25%, transparent);
+  }
+}
+
 /* —— 错题本部件（规范 v6 §6） —— */
 .lv-chart-row {
   display: grid;

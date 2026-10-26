@@ -49,7 +49,15 @@
   --lv-teacher-primary: #7c3aed;
   --lv-teacher-soft: rgba(124, 58, 237, 0.1);
   --lv-teacher-border: rgba(124, 58, 237, 0.25);
-  /* —— 小驴生态品牌色（普鲁士学院蓝与朱砂红满分印） —— */
+  /* —— 研学场景四大主题色彩 Token —— */
+  --lv-scene-exam: #0284c7;
+  --lv-scene-exam-soft: rgba(2, 132, 199, 0.1);
+  --lv-scene-lang: #8b5cf6;
+  --lv-scene-lang-soft: rgba(139, 92, 246, 0.1);
+  --lv-scene-teach: #059669;
+  --lv-scene-teach-soft: rgba(5, 150, 105, 0.1);
+  --lv-scene-general: #d97706;
+  --lv-scene-general-soft: rgba(217, 119, 6, 0.1);
   --lv-brand: #0284c7; /* 普鲁士学院蓝 */
   --lv-brand-soft: rgba(2, 132, 199, 0.09);
   --lv-accent-seal: #e11d48; /* 朱砂红满分印 */
@@ -229,15 +237,23 @@ html[data-theme-mode="dark"] {
   --lv-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --lv-inset-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --lv-border-subtle: rgba(255, 255, 255, 0.08);
-  --lv-border-hover: color-mix(in srgb, var(--b3-theme-primary, #b5afff) 42%, var(--lv-border));
+  --lv-scene-exam: #38bdf8;
+  --lv-scene-exam-soft: rgba(56, 189, 248, 0.15);
+  --lv-scene-lang: #a78bfa;
+  --lv-scene-lang-soft: rgba(167, 139, 250, 0.15);
+  --lv-scene-teach: #34d399;
+  --lv-scene-teach-soft: rgba(52, 211, 153, 0.15);
+  --lv-scene-general: #fbbf24;
+  --lv-scene-general-soft: rgba(251, 191, 36, 0.15);
+
+  --lv-border-hover: color-mix(in srgb, var(--lv-accent) 42%, var(--lv-border));
   --lv-keycap-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --lv-sh-1: 0 1px 2px rgba(0, 0, 0, 0.35);
   --lv-sh-2: 0 2px 4px rgba(0, 0, 0, 0.3), 0 14px 36px -10px rgba(0, 0, 0, 0.55);
   --lv-sh-card: 0 2px 4px rgba(0, 0, 0, 0.25), 0 12px 30px -8px rgba(0, 0, 0, 0.45);
   --lv-sh-pop: 0 4px 8px rgba(0, 0, 0, 0.4), 0 24px 56px -18px rgba(0, 0, 0, 0.65);
-  /* 暗色主按钮对齐原型：flat 主色 + 去彩色投影；deep 变亮档做 hover 端 */
-  --lv-accent-deep: color-mix(in srgb, var(--b3-theme-primary) 84%, #fff);
-  --lv-btn-primary-bg: var(--b3-theme-primary);
+  --lv-accent-deep: color-mix(in srgb, var(--lv-accent) 84%, #fff);
+  --lv-btn-primary-bg: var(--lv-accent);
   --lv-btn-primary-shadow: none;
   --lv-btn-primary-shadow-hover: none;
 }

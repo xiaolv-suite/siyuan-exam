@@ -7701,26 +7701,32 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             {/if}
           {/if}
         </div>
-        <div class="lv-row">
-          <span class="lv-chip">{t("ai.count")}</span>
-          {#each [3, 5, 10, 20] as n, _i (_i)}
-            <button class="lv-chip" class:acc={aiCount === n} onclick={() => aiCount = n}>{n}</button>
-          {/each}
-          <span class="lv-chip">{t("ai.difficulty")}</span>
-          {#each (["easy", "medium", "hard", "mixed"] as const) as d, _i (_i)}
-            <button class="lv-chip" class:acc={aiDifficulty === d} onclick={() => aiDifficulty = d}>{t("ai.diff." + d)}</button>
-          {/each}
+        <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
+          <div class="lv-session-dock" role="group" aria-label={t("ai.count")}>
+            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.count")}</span>
+            {#each [3, 5, 10, 20] as n, _i (_i)}
+              <button type="button" class="lv-chip" class:acc={aiCount === n} onclick={() => aiCount = n}>{n}</button>
+            {/each}
+          </div>
+          <div class="lv-session-dock" role="group" aria-label={t("ai.difficulty")}>
+            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.difficulty")}</span>
+            {#each (["easy", "medium", "hard", "mixed"] as const) as d, _i (_i)}
+              <button type="button" class="lv-chip" class:acc={aiDifficulty === d} onclick={() => aiDifficulty = d}>{t("ai.diff." + d)}</button>
+            {/each}
+          </div>
         </div>
-        <div class="lv-row">
-          <span class="lv-chip">{t("ai.preset")}</span>
-          {#each ["default", "medical", "legal", "exam_cn"] as p, _i (_i)}
-            <button class="lv-chip" class:acc={aiPreset === p} onclick={() => aiPreset = p}>{t("ai.preset." + p)}</button>
-          {/each}
-        </div>
-        <div class="lv-row">
-          <span class="lv-chip">{t("ai.quality")}</span>
-          <button class="lv-chip" class:acc={aiQuality === "standard"} onclick={() => aiQuality = "standard"}>{t("ai.quality.standard")}</button>
-          <button class="lv-chip" class:acc={aiQuality === "economy"} onclick={() => aiQuality = "economy"}>{t("ai.quality.economy")}</button>
+        <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
+          <div class="lv-session-dock" role="group" aria-label={t("ai.preset")}>
+            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.preset")}</span>
+            {#each ["default", "medical", "legal", "exam_cn"] as p, _i (_i)}
+              <button type="button" class="lv-chip" class:acc={aiPreset === p} onclick={() => aiPreset = p}>{t("ai.preset." + p)}</button>
+            {/each}
+          </div>
+          <div class="lv-session-dock" role="group" aria-label={t("ai.quality")}>
+            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.quality")}</span>
+            <button type="button" class="lv-chip" class:acc={aiQuality === "standard"} onclick={() => aiQuality = "standard"}>{t("ai.quality.standard")}</button>
+            <button type="button" class="lv-chip" class:acc={aiQuality === "economy"} onclick={() => aiQuality = "economy"}>{t("ai.quality.economy")}</button>
+          </div>
         </div>
         <div class="lv-row">
           <span class="lv-chip">{t("manual.kp")}</span>
@@ -9010,14 +9016,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           ondrop={onImportFileDrop}
         >
           <!-- 52-09 导入方式子分面切换：批量文件导入 vs 思源笔记文档直接导入 vs 正文划重点挖空出题 -->
-          <div class="lv-row" style="margin-bottom:12px;gap:6px">
-            <button type="button" class="lv-chip" class:acc={importSubTab === "standard"} aria-pressed={importSubTab === "standard"} onclick={() => importSubTab = "standard"}>
+          <div class="lv-session-dock" role="tablist" aria-label="导入方式切换" style="margin-bottom:14px">
+            <button type="button" role="tab" class="lv-chip" class:acc={importSubTab === "standard"} aria-selected={importSubTab === "standard"} onclick={() => importSubTab = "standard"}>
               <Icon name="import" size={12} /> {t("import.title")}（Excel / CSV / Aiken）
             </button>
-            <button type="button" class="lv-chip" class:acc={importSubTab === "siyuan"} aria-pressed={importSubTab === "siyuan"} onclick={() => { importSubTab = "siyuan"; void doSearchDocs(""); }}>
+            <button type="button" role="tab" class="lv-chip" class:acc={importSubTab === "siyuan"} aria-selected={importSubTab === "siyuan"} onclick={() => { importSubTab = "siyuan"; void doSearchDocs(""); }}>
               <Icon name="book" size={12} /> {t("import.fromSiyuanDoc")}
             </button>
-            <button type="button" class="lv-chip" class:acc={importSubTab === "cloze"} aria-pressed={importSubTab === "cloze"} onclick={() => importSubTab = "cloze"}>
+            <button type="button" role="tab" class="lv-chip" class:acc={importSubTab === "cloze"} aria-selected={importSubTab === "cloze"} onclick={() => importSubTab = "cloze"}>
               <Icon name="edit" size={12} /> {t("cloze.tab")}
             </button>
           </div>
@@ -9396,7 +9402,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                       </div>
                     {:else}
                       <b style="font-size:var(--lv-font-size-body)">{b.name}</b>
-                      <button type="button" class="lv-chip sm" style="margin-left:6px;cursor:pointer" onclick={() => void cycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）">{getBankCategoryMeta(b.category).badge} ↻</button>
+                      <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="margin-left:6px" onclick={() => void cycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）">{getBankCategoryMeta(b.category).badge} ↻</button>
                       {#if b.id === activeBankId}<span class="lv-chip sm lv-chip--acc" style="margin-left:4px">当前激活</span>{/if}
                       <div class="lv-muted" style="font-size:11px;margin-top:2px">ID: {b.id} · 创建于 {new Date(b.createdAt || Date.now()).toLocaleDateString()}</div>
                     {/if}
