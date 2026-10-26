@@ -7,6 +7,50 @@ import { specOf, gradeWithSpec } from "./structuredAnswer";
 
 export const OPTION_LETTERS = "ABCDEFGHIJ";
 
+export const PINYIN_TONE_MAP: Record<string, { letter: string; tone: number }> = {
+  ā: { letter: "a", tone: 1 },
+  á: { letter: "a", tone: 2 },
+  ǎ: { letter: "a", tone: 3 },
+  à: { letter: "a", tone: 4 },
+  ō: { letter: "o", tone: 1 },
+  ó: { letter: "o", tone: 2 },
+  ǒ: { letter: "o", tone: 3 },
+  ò: { letter: "o", tone: 4 },
+  ē: { letter: "e", tone: 1 },
+  é: { letter: "e", tone: 2 },
+  ě: { letter: "e", tone: 3 },
+  è: { letter: "e", tone: 4 },
+  ī: { letter: "i", tone: 1 },
+  í: { letter: "i", tone: 2 },
+  ǐ: { letter: "i", tone: 3 },
+  ì: { letter: "i", tone: 4 },
+  ū: { letter: "u", tone: 1 },
+  ú: { letter: "u", tone: 2 },
+  ǔ: { letter: "u", tone: 3 },
+  ù: { letter: "u", tone: 4 },
+  ǖ: { letter: "v", tone: 1 },
+  ǘ: { letter: "v", tone: 2 },
+  ǚ: { letter: "v", tone: 3 },
+  ǜ: { letter: "v", tone: 4 },
+  ü: { letter: "v", tone: 0 },
+};
+
+/** 将带声调符号的拼音转换为数字声调（如 qiè -> qie4, chūn -> chun1）以兼容普通键盘输入 */
+export function pinyinToNumbered(text: string): string {
+  let tone = 0;
+  let out = "";
+  for (const ch of text) {
+    const entry = PINYIN_TONE_MAP[ch];
+    if (entry) {
+      out += entry.letter;
+      if (entry.tone > 0) tone = entry.tone;
+    } else {
+      out += ch;
+    }
+  }
+  return tone > 0 ? `${out}${tone}` : out;
+}
+
 /** 全角转半角 + 折叠空白 */
 export function foldText(s: string): string {
   return s
@@ -68,9 +112,13 @@ export function grade(q: Question, myAnswerRaw: string | null | undefined): Grad
   const want = normalizeAnswer(q.type, q.answer);
   if (!mine || !want) return { verdict: "wrong", myAnswer };
   if (q.type === "fill") {
-    // 大小写不敏感（含别名）
+    // 大小写不敏感（含别名与K12拼音声调数字兼容）
     const mineLc = mine.toLowerCase();
-    const ok = mineLc === want.toLowerCase() || (q.alt ?? []).some((a) => foldText(a).toLowerCase() === mineLc);
+    const wantLc = want.toLowerCase();
+    const ok =
+      mineLc === wantLc ||
+      (q.alt ?? []).some((a) => foldText(a).toLowerCase() === mineLc) ||
+      pinyinToNumbered(mineLc) === pinyinToNumbered(wantLc);
     return { verdict: ok ? "correct" : "wrong", myAnswer };
   }
   return { verdict: mine === want ? "correct" : "wrong", myAnswer };

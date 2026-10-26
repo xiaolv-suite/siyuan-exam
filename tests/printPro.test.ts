@@ -6,6 +6,7 @@ import {
   buildCompactAnswerSheetPro,
   buildTeacherLectureSheetPro,
   buildStudentHomeworkSheetPro,
+  buildWrongbookRetestSheetPro,
   auditQuestionSheetSafety,
 } from "../src/core/printPro";
 
@@ -176,6 +177,22 @@ describe("PrintPro A4 双栏紧凑打印与分页防断引擎 (68-04 / 79-02)", 
       expect(html).toContain("班级：___________");
       expect(html).toContain("homework-reflection-box");
       expect(html).toContain("学生自我诊断与订正栏");
+    });
+  });
+
+  describe("buildWrongbookRetestSheetPro (错题清零纯净重测卷)", () => {
+    it("输出包含错题清零目标条、错题重练徽章与二次订正反思框，且绝不泄露答案", () => {
+      const q = mkQ("q-retest-1", { type: "single", stem: "下列关于质能方程表述正确的是", answer: "C" });
+      const html = buildWrongbookRetestSheetPro("物理错题重做", [q]);
+      expect(html).toContain("错题清零重测卷");
+      expect(html).toContain("本次目标：错题清零");
+      expect(html).toContain("错题重练");
+      expect(html).toContain("homework-reflection-box");
+      expect(html).toContain("错题清零自我归因与二次反思");
+      expect(html).not.toContain("这是 q-retest-1 的详细解析");
+
+      const audit = auditQuestionSheetSafety(html, [q]);
+      expect(audit.safe).toBe(true);
     });
   });
 });

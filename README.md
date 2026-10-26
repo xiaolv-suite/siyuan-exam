@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.87（2026-10-27）
+## 最新版本：v0.11.88（2026-10-27）
+
+本版本为 K12 拼音声调智能转换判分与错题清零纯净重测卷实装版本。实装汉语拼音声调转换算法（pinyinToNumbered），数字声调（如 qie4）与声调符号（如 qiè）自动互通判分；错题本实装【错题清零纯净重测卷】A4 双栏打印通道，包含目标条与二次反思框。全套单测 180 个测试文件、1400 项单测 100% 全部通过。
+
+## 上一版本：v0.11.87（2026-10-27）
 
 本版本为复盘学情中心阶段通关学习地图（Roadmap）与核心阻断溯源关键链实装版本。考点掌握度面板新增【通关地图】呈现分面，自底向上划分自适应攻坚阶段；实装核心阻断溯源关键链直观预警与一键阶段攻坚。全套单测 180 个测试文件、1399 项单测 100% 全部通过。
 

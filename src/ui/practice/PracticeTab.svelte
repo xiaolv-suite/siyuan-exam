@@ -4225,7 +4225,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
     }
 
-    async function printWrongSheet(type: "question" | "answer") {
+    async function printWrongSheet(type: "question" | "answer" | "retest") {
       if (printWrongBusy || !activeBankId || !filteredWrongQueue.length) return;
       printWrongBusy = true;
       try {
@@ -4235,9 +4235,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           showMessage("当前筛选条件下无可用题目", 3000, "info");
           return;
         }
-        const title = `${bankName || "小驴考试"} · 错题攻坚特训卷（共${qs.length}题）`;
-        const { buildCompactQuestionSheetPro, buildCompactAnswerSheetPro } = await import("../../core/printPro");
-        const html = type === "question"
+        const title = `${bankName || "小驴学习"} · 错题攻坚特训卷（共${qs.length}题）`;
+        const { buildCompactQuestionSheetPro, buildCompactAnswerSheetPro, buildWrongbookRetestSheetPro } = await import("../../core/printPro");
+        const html = type === "retest"
+          ? buildWrongbookRetestSheetPro(title, qs, { headerTitle: "错题清零纯净重测卷 · A4双栏", columns: "double" })
+          : type === "question"
           ? buildCompactQuestionSheetPro(title, qs, { headerTitle: "错题攻坚特训卷 · A4双栏", columns: "double" })
           : buildCompactAnswerSheetPro(title, qs, { headerTitle: "错题攻坚详解答案册", columns: "double" });
         const win = window.open("", "_blank");
@@ -4250,7 +4252,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `${title}-${type === "question" ? "试卷" : "答案册"}.html`;
+          a.download = `${title}-${type === "retest" ? "错题重测卷" : type === "question" ? "试卷" : "答案册"}.html`;
           a.click();
           URL.revokeObjectURL(url);
           showMessage("已生成双栏排版文件", 3000, "info");
@@ -7743,6 +7745,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                   </button>
                 </div>
                 <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
+                  <button class="lv-btn sm lv-btn--ghost" onclick={() => void printWrongSheet("retest")} disabled={printWrongBusy || !filteredWrongQueue.length} title="导出纯净错题重测卷（含清零目标条与二次订正反思框，绝无答案泄露）"><Icon name="printer" size={13} /> 错题重测卷</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => void printWrongSheet("question")} disabled={printWrongBusy || !filteredWrongQueue.length} title="将当前筛选的错题导出或打印为 A4 双栏试卷（绝不泄题）"><Icon name="file" size={13} /> {t("mock.printCompact")}</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => void printWrongSheet("answer")} disabled={printWrongBusy || !filteredWrongQueue.length} title="导出或打印配套答案册"><Icon name="book" size={13} /> 答案册</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={exportCheatSheet} disabled={cheatSheetBusy || !filteredWrongQueue.length} title={t("cram.cheatSheetTip")}><Icon name="file-text" size={13} /> {t("cram.cheatSheet")}</button>

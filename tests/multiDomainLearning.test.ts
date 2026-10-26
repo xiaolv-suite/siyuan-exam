@@ -4,6 +4,7 @@ import { qualificationSampleQuestions, QUALIFICATION_SAMPLE_BANK_NAME, QUALIFICA
 import { k12SampleQuestions, K12_SAMPLE_BANK_NAME, K12_SAMPLE_QUESTION_COUNT } from "../src/core/k12Sample";
 import { higherSampleQuestions, HIGHER_SAMPLE_BANK_NAME, HIGHER_SAMPLE_QUESTION_COUNT } from "../src/core/higherSample";
 import { EXAM_BLUEPRINT_PRESETS, adaptPresetToBlueprint } from "../src/core/examPresets";
+import { grade, pinyinToNumbered } from "../src/core/answer";
 import { ExamApp } from "../src/app";
 import { MemoryStorage } from "../src/core/attemptLog";
 import type { KernelApiClient } from "../src/kernel/client";
@@ -151,6 +152,15 @@ describe("全场景多维研学体系升级 (多语言/资格证/K12升学)", ()
     expect(mathQ).toBeDefined();
     expect(mathQ?.kp).toContain("高中数学");
     expect(mathQ?.answer).toBe("A");
+
+    // 拼音填空与声调转换判分 (如 qie4 与 qiè 互通)
+    const pinyinQ = questions.find((q) => q.stem.includes("锲而不舍"));
+    expect(pinyinQ).toBeDefined();
+    expect(pinyinToNumbered("qiè")).toBe("qie4");
+    expect(pinyinToNumbered("chūn")).toBe("chun1");
+    // 学生输入带数字声调 qie4 或带调字母 qiè 均判对
+    expect(grade(pinyinQ!, "qie4").verdict).toBe("correct");
+    expect(grade(pinyinQ!, "qiè").verdict).toBe("correct");
   });
 
   it("大学与考研硕博题库 (higherSample) 覆盖微积分、线代、马哲与学术英语", () => {

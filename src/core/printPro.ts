@@ -414,6 +414,83 @@ export function buildStudentHomeworkSheetPro(
   return parts.join("\n");
 }
 
+/**
+ * 生成 A4 双栏【错题纯净重测卷】HTML（学生二次复习与家长/教师错题清零专用）。
+ * 特性：学生信息与错题清零目标条 + 题干与选项（绝无答案与解析）+ 答题留白区 + 二次订正反思与错因核查栏。
+ */
+export function buildWrongbookRetestSheetPro(
+  title: string,
+  questions: readonly Question[],
+  options: PrintProOptions = {},
+): string {
+  const parts: string[] = [
+    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)} · 错题清零重测卷</title><style>${buildPrintProCss(options)}</style></head><body>`,
+    renderHeader(`${title} · 错题清零重测卷`, `共 ${questions.length} 道错题待攻坚`, options.paperNo),
+    `<div class="homework-student-bar"><span>姓名：___________</span><span>班级：___________</span><span>日期：___________</span><span>原错题数：${questions.length}</span><span>本次目标：错题清零</span></div>`,
+    `<section class="questions">`,
+  ];
+
+  const printedGroups = new Set<string>();
+  const groupByKp = options.groupByKp !== false;
+  let lastKp = "";
+
+  questions.forEach((q, i) => {
+    const no = i + 1;
+    if (groupByKp && q.kp && q.kp !== lastKp) {
+      lastKp = q.kp;
+      parts.push(`<div class="section-divider">📌 攻坚考点：${escapeHtml(q.kp)}</div>`);
+    }
+    let materialHtml = "";
+    if (q.group && !printedGroups.has(q.group)) {
+      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && m.analysis);
+      if (carrier?.analysis) {
+        materialHtml = `<div class="material-block q-group-head">${renderMathInText(carrier.analysis)}</div>`;
+        printedGroups.add(q.group);
+      }
+    }
+
+    if (q.type === "material") {
+      if (q.group) {
+        if (materialHtml) parts.push(`<div class="q">${materialHtml}</div>`);
+        return;
+      }
+      if (q.analysis) {
+        parts.push(`<div class="q">${materialHtml}<div class="material-block">${renderMathInText(q.analysis)}</div></div>`);
+      }
+      return;
+    }
+
+    parts.push(`<div class="q">`);
+    if (materialHtml) parts.push(materialHtml);
+    parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}. <span class="lv-chip sm" style="font-size:8pt;color:#d97706;border:1px solid #fde68a;padding:0 3px">错题重练</span></div>`);
+    parts.push(`<div class="q-stem">${renderMathInText(q.stem)}</div>`);
+
+    if (q.type === "single" || q.type === "multiple") {
+      const letters = "ABCDEFGHIJ";
+      q.options.forEach((opt, oi) => {
+        parts.push(`<div class="opt"><b>${letters[oi]}.</b> ${renderMathInText(opt)}</div>`);
+      });
+      parts.push(`<div class="answer-area" style="height:1.8em;border-bottom:1px solid #888;margin-top:3pt">作答：______</div>`);
+    } else if (q.type === "judge") {
+      parts.push(`<div class="opt" style="margin-top:3pt">作答判断：[ ] 正确 (T)  /  [ ] 错误 (F)</div>`);
+    } else {
+      parts.push(`<div class="answer-area" style="min-height:${q.type === 'short' ? '28mm' : '9mm'};border:1px dashed #aaa;margin-top:4pt"></div>`);
+    }
+    parts.push(`</div>`);
+  });
+
+  parts.push(
+    `</section>`,
+    `<div class="homework-reflection-box">`,
+    `<div><strong>【错题清零自我归因与二次反思】</strong> 本次订正情况：[ ] 彻底弄懂 [ ] 仍有疑问 · 错因反思：[ ] 粗心失误 [ ] 概念盲区 [ ] 审题陷阱</div>`,
+    `<div style="margin-top:4pt;border-top:1px dashed #ccc;padding-top:4pt;color:#666">核心考点领悟与关键步骤：__________________________________________________________________________</div>`,
+    `</div>`,
+    renderFooter(options.footerNote || "小驴学习 · 错题清零纯净重测卷"),
+    `</body></html>`,
+  );
+  return parts.join("\n");
+}
+
 export interface PrintSafetyReport {
   safe: boolean;
   violations: string[];
