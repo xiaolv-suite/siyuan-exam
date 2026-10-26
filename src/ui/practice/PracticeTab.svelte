@@ -2122,6 +2122,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let wbReasonFilter = $state<"all" | "careless" | "unknown" | "trap">("all");
     let wbFilterStubborn = $state(false);
     let wbKpFilter = $state("");
+    let wbSortMode = $state<"default" | "wrongCount" | "kp">("default");
     const archivedWrongList = $derived.by(() => {
       void dataRev;
       if (!app) return [];
@@ -2157,6 +2158,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (wbReasonFilter !== "all") list = list.filter((w) => reasonOf(w.qid) === wbReasonFilter);
       if (wbFilterStubborn) list = list.filter((w) => isStubbornWrong(w));
       if (wbKpFilter) list = list.filter((w) => questionMap.get(w.qid)?.kp?.startsWith(wbKpFilter));
+      if (wbSortMode === "wrongCount") {
+        list = [...list].sort((a, b) => (b.wrongCount || 0) - (a.wrongCount || 0));
+      } else if (wbSortMode === "kp") {
+        list = [...list].sort((a, b) => String(questionMap.get(a.qid)?.kp || "").localeCompare(String(questionMap.get(b.qid)?.kp || "")));
+      }
       return list;
     });
 
@@ -6787,7 +6793,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     {/each}
                   </div>
                 {/if}
-                {@html materialLong && !materialExpanded ? escapeHtml(materialShown) : (materialHtml || escapeHtml(materialShown))}
+                <div style={materialExpanded ? "max-height:280px;overflow-y:auto;padding:2px 0" : ""}>
+                  {@html materialLong && !materialExpanded ? escapeHtml(materialShown) : (materialHtml || escapeHtml(materialShown))}
+                </div>
               </div>
             {/if}
             {#if stemHtml}<div class="lv-stem lv-rich b3-typography">{@html stemHtml}</div>{:else}<div class="lv-stem">{q.stem}</div>{/if}
@@ -7311,11 +7319,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                       {/each}
                     </select>
                   {/if}
-                  {#if filteredWrongQueue.length > 0}
-                    <button class="lv-btn sm lv-btn--primary" style="margin-left:auto" onclick={() => void startFilteredWrongDrill()} title={t("wrongbook.drillFiltered")}>
-                      <Icon name="play" size={13} /> {t("wrongbook.drillFiltered")} ({filteredWrongQueue.length})
-                    </button>
-                  {/if}
+                  <div class="lv-row" style="margin:0 0 0 auto;gap:6px;align-items:center">
+                    <span class="lv-muted" style="font-size:11px">排序:</span>
+                    <select class="lv-select" style="max-width:130px;height:28px;font-size:12px;padding:2px 8px" bind:value={wbSortMode} title="切换错题排序方式">
+                      <option value="default">最新错题优先</option>
+                      <option value="wrongCount">犯错频次降序</option>
+                      <option value="kp">按考点聚类</option>
+                    </select>
+                    {#if filteredWrongQueue.length > 0}
+                      <button class="lv-btn sm lv-btn--primary" onclick={() => void startFilteredWrongDrill()} title={t("wrongbook.drillFiltered")}>
+                        <Icon name="play" size={13} /> {t("wrongbook.drillFiltered")} ({filteredWrongQueue.length})
+                      </button>
+                    {/if}
+                  </div>
                 </div>
                 {#each filteredWrongQueue as w, wi (w.qid)}
                   {@const q = qOf(w.qid)}
