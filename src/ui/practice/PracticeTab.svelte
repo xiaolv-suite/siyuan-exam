@@ -122,6 +122,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let hotkeyCategory = $state<"all" | "session" | "recite" | "nav">("all");
     let paperGridModalOpen = $state(false);
     let shortLinedPaper = $state(readLocal("lv-exam/lined-paper") === "1");
+    let studyFontSize = $state<"normal" | "large" | "xlarge">((readLocal("lv-exam/font-scale") as any) || "normal");
+    function cycleStudyFontSize() {
+      studyFontSize = studyFontSize === "normal" ? "large" : studyFontSize === "large" ? "xlarge" : "normal";
+      writeLocal("lv-exam/font-scale", studyFontSize);
+    }
 
     let touchStartX = 0;
     let touchStartY = 0;
@@ -189,6 +194,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         restoreQuestionControls();
         showMessage(`⚡ 已开启艾宾浩斯临界考点急救特训（共 ${qs.length} 题）`, 3000, "info");
       });
+    }
+
+    function rescueEbbinghausRecite() {
+      if (!criticalForgettingKps.length) return;
+      const qids = criticalForgettingKps.flatMap((k) => k.candidateQids).slice(0, 10);
+      const qs = qids.map((id) => questionMap.get(id)).filter(Boolean) as Question[];
+      if (!qs.length) return;
+      reciteQueue = qs;
+      reciteCursor = 0; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
+      reciteSessionId = `s-recite-rescue-${Date.now().toString(36)}`;
+      view = "recite";
+      if (reciteAutoTts && reciteQueue[0]) {
+        ttsSpeak(reciteQueue[0].stem, { lang: reciteQueue[0].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
+      }
+      showMessage(`🚨 已开启艾宾浩斯临界考点背诵流（共 ${qs.length} 题）`, 3000, "info");
     }
 
     // 题库管理画廊 Hub 状态
@@ -4986,8 +5006,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!matLink.trim() || materialsBusy) return;
       materialsBusy = true; materialsNote = "";
       try {
-        const { material, deduped } = await app.registerMaterialFromLink(matLink, {
-          title: matLinkTitle, subject: matSubject, chapter: matChapter,
+        const rawLink = matLink.trim();
+        let titleToUse = matLinkTitle.trim();
+        const blockMatch = rawLink.match(/siyuan:\/\/blocks\/([0-9a-zA-Z-]+)/) || (rawLink.length === 22 && rawLink.match(/^([0-9]{14}-[0-9a-z]{7})$/));
+        if (blockMatch && !titleToUse && app?.kernelOnline) {
+          try {
+            const blockId = blockMatch[1];
+            const rows = await app.deps.client.sql<Record<string, string>>(`SELECT content, hpath FROM blocks WHERE id='${blockId.replace(/'/g, "''")}' LIMIT 1`);
+            if (rows[0]) {
+              titleToUse = String(rows[0].content || "").trim().slice(0, 40) || (rows[0].hpath ? String(rows[0].hpath).split("/").pop() || "" : "");
+            }
+          } catch { /* 容错 */ }
+        }
+        const { material, deduped } = await app.registerMaterialFromLink(rawLink, {
+          title: titleToUse, subject: matSubject, chapter: matChapter,
         });
         loadMaterials();
         matLink = ""; matLinkTitle = "";
@@ -5048,6 +5080,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         mStem = noteText;
       }
       view = "manual";
+      showMessage(`已将资料《${m.title}》带入手工录题！`, 2800, "info");
     }
 
     /** R54 原型高级交互：把资料/笔记一键带入 AI 材料 */
@@ -5059,6 +5092,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       ].filter(Boolean).join("\n\n");
       aiSource = content;
       view = "ai";
+      showMessage(`已将资料《${m.title}》带入 AI 出题工作台！`, 2800, "info");
     }
 
     async function removeMaterialEntry(m: import("../../core/materials").MaterialDoc) {
@@ -6674,9 +6708,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     检测到 {criticalForgettingKps.length} 个核心考点记忆留存已跌破 35% 临界线！
                   </span>
                 </div>
-                <button class="lv-btn sm lv-btn--primary" onclick={rescueEbbinghausNow}>
-                  <Icon name="play" size={13} /> 立即抢救（{criticalForgettingKps[0].kp} 等 5 题）
-                </button>
+                <div class="lv-row" style="margin:0;gap:6px">
+                  <button class="lv-btn sm lv-btn--primary" onclick={rescueEbbinghausNow}>
+                    <Icon name="play" size={13} /> 立即做题抢救（{criticalForgettingKps[0].kp} 等 5 题）
+                  </button>
+                  <button class="lv-btn sm lv-btn--ghost" onclick={rescueEbbinghausRecite} title="不看答案先回忆，以纸面背题模式进行记忆抢救">
+                    <Icon name="rotate" size={13} /> 背诵抢救
+                  </button>
+                </div>
               </div>
             </div>
           {/if}
@@ -7067,6 +7106,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
                 {ttsSlowRate ? "0.8x" : "1.0x"}
               </button>
+              <button type="button" class="lv-chip num sm" onclick={cycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
+                A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
+              </button>
               <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={toggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
               <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={() => toggleFavCurrent()}><Icon name="star" size={13} /></button>
             </div>
@@ -7187,7 +7229,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                 </div>
               </div>
             {/if}
-            {#if stemHtml}<div class="lv-stem lv-rich b3-typography">{@html stemHtml}</div>{:else}<div class="lv-stem">{q.stem}</div>{/if}
+            {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
             {#if q.studyMeta?.phonetic}
               <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
                 <Icon name="volume" size={12} />
@@ -7535,6 +7577,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
             {ttsSlowRate ? "0.8x" : "1.0x"}
           </button>
+          <button type="button" class="lv-chip num sm" onclick={cycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
+            A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
+          </button>
           {#if reciteQueue[reciteCursor]?.group}
             <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
           {/if}
@@ -7594,7 +7639,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           {#if reciteMaterial}
             <div class="lv-analysis" style="margin-bottom:12px"><b class="lv-mat-chip"><Icon name="paperclip" size={14} /> {t("material.shared")}</b>{reciteMaterial}</div>
           {/if}
-          {#if stemHtml}<div class="lv-stem lv-rich b3-typography">{@html stemHtml}</div>{:else}<div class="lv-stem">{q.stem}</div>{/if}
+          {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
           {#if !reciteRevealed}
             {#if q.kp || q.analysis}
               <div class="lv-row"><button class="lv-chip" onclick={() => reciteHint = reciteHint === 0 ? (q.kp ? 1 : 2) : reciteHint === 1 && q.analysis ? 2 : 1} title={q.analysis ? t("recite.hint2Key") : ""}><Icon name="bulb" size={12} /> {reciteHint >= 2 ? t("recite.hint2") : t("recite.hint1")}：{reciteHint >= 2 ? (q.analysis ?? "").slice(0, 24) : (q.kp ?? q.analysis ?? "").slice(0, 24)}</button></div>

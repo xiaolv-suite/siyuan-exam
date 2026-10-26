@@ -389,6 +389,16 @@ button.lv-chip {
   padding-top: 6px;
 }
 
+/* —— 题干多档字号微调（照顾幼小拼音识字、大屏与视力偏好） —— */
+.lv-stem--lg {
+  font-size: 19px !important;
+  line-height: 1.75 !important;
+}
+.lv-stem--xl {
+  font-size: 22px !important;
+  line-height: 1.85 !important;
+}
+
 /* —— 图标位（原型 .tile-icon：44px 圆角 soft 底 accent 图标容器） —— */
 .lv-tile-icon {
   display: grid;
