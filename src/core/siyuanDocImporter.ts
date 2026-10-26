@@ -162,8 +162,8 @@ export function parseMarkdownTableToQuestions(
       analysis: analysisIdx >= 0 ? row[analysisIdx] || undefined : undefined,
       kp: (kpIdx >= 0 && row[kpIdx]) ? row[kpIdx] : docMeta.title,
       source: docMeta.title,
-      sourceKind: "real",
     });
+    q.sourceKind = "real";
     questions.push(q);
   }
   return questions;
