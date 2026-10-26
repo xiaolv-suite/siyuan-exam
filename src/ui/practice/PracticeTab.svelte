@@ -288,6 +288,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let reciteSaving = $state(false);
     let reciteError = $state("");
     let reciteRatings = $state<number[]>([]);
+    let reciteAutoTts = $state(readLocal("lv-exam/recite-auto-tts") === "1");
     /** 39-03：本次背诵评级的结果状态（未转卡/已写回/待确认/失败/离线未写回） */
     let reciteOutcome = $state<RatingOutcomeView | null>(null);
     /** 39-03：防双击与重复提交（同会话同题同评级只写一次；失败后放行重试） */
@@ -2669,6 +2670,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       reciteCursor = 0; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
       reciteSessionId = `s-recite-${Date.now().toString(36)}`;
       view = "recite";
+      if (reciteAutoTts && reciteQueue[0]) {
+        ttsSpeak(reciteQueue[0].stem, reciteQueue[0].studyMeta?.lang ? { lang: reciteQueue[0].studyMeta.lang } : 1);
+      }
+    }
+
+    function revealRecite() {
+      reciteRevealed = true;
+      if (reciteAutoTts && reciteQueue[reciteCursor]) {
+        const q = reciteQueue[reciteCursor];
+        const ansText = String(q.answer ?? "");
+        if (ansText) ttsSpeak(ansText, q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1);
+      }
     }
 
     async function rateSelf(rating: 1 | 2 | 3 | 4) {
@@ -2689,6 +2702,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         reciteHint = 0;
         if (reciteCursor < reciteQueue.length - 1) {
           reciteCursor++; reciteRevealed = false;
+          if (reciteAutoTts && reciteQueue[reciteCursor]) {
+            ttsSpeak(reciteQueue[reciteCursor].stem, reciteQueue[reciteCursor].studyMeta?.lang ? { lang: reciteQueue[reciteCursor].studyMeta.lang } : 1);
+          }
         } else {
           reciteDone = true;
         }
@@ -2776,6 +2792,40 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       reciteDone = false;
       reciteHint = 0;
       reciteRatings = [];
+      if (reciteAutoTts && reciteQueue[0]) {
+        ttsSpeak(reciteQueue[0].stem, reciteQueue[0].studyMeta?.lang ? { lang: reciteQueue[0].studyMeta.lang } : 1);
+      }
+    }
+
+    async function reciteForgotToCard() {
+      if (!activeBankId || !app) return;
+      const forgotIndices = reciteRatings.map((r, i) => (r === 1 ? i : -1)).filter((i) => i >= 0);
+      const forgotQs = forgotIndices.map((i) => reciteQueue[i]).filter(Boolean);
+      if (!forgotQs.length) return;
+      try {
+        const n = await app.convertToCards(activeBankId, bankName, forgotQs);
+        showMessage(n ? `${t("memory.toCardDone")} (${n})` : t("memory.toCardMissing"), 3200, n ? "info" : "error");
+      } catch (e) {
+        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+      }
+    }
+
+    async function reciteForgotToActions() {
+      if (!app) return;
+      const forgotIndices = reciteRatings.map((r, i) => (r === 1 ? i : -1)).filter((i) => i >= 0);
+      const forgotQs = forgotIndices.map((i) => reciteQueue[i]).filter(Boolean);
+      if (!forgotQs.length) return;
+      try {
+        const r = await app.addActions(forgotQs.map((q) => ({
+          kind: "redo" as const,
+          qid: q.id,
+          sessionId: reciteSessionId,
+          detail: `背诵忘却重练：${(q.kp ?? q.stem ?? q.id).slice(0, 40)}`,
+        })));
+        showMessage(`已成功添加 ${r.added} 条背诵重练待办（跳过重复 ${r.skipped} 条）`, 3200, "info");
+      } catch (e) {
+        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+      }
     }
 
     async function copyTodayReportMarkdown() {
@@ -5574,7 +5624,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           ttsSpeak(reciteQueue[reciteCursor].stem);
           return;
         }
-        if (!reciteRevealed && e.key === " ") { e.preventDefault(); reciteRevealed = true; return; }
+        if (!reciteRevealed && e.key === " ") { e.preventDefault(); revealRecite(); return; }
         if (!reciteRevealed && reciteHint === 1 && e.key.toLowerCase() === "h" && reciteQueue[reciteCursor]?.analysis) { e.preventDefault(); reciteHint = 2; return; }
         if (reciteRevealed && /^[1-4]$/.test(e.key)) { e.preventDefault(); void rateSelf(Number(e.key) as 1 | 2 | 3 | 4); }
       }
@@ -7189,6 +7239,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           <span class="lv-chip num">{reciteCursor + 1}/{reciteQueue.length}</span>
         </div>
         <div class="lv-session-dock" role="group" aria-label="背诵辅助操作">
+          <button type="button" class="lv-chip" class:acc={reciteAutoTts} title="伴学自动朗读开关：开启后自动朗读题干与揭示答案" onclick={() => { reciteAutoTts = !reciteAutoTts; writeLocal("lv-exam/recite-auto-tts", reciteAutoTts ? "1" : "0"); }}>
+            <Icon name="volume" size={12} /> {reciteAutoTts ? "伴读开" : "伴读"}
+          </button>
           {#if reciteQueue[reciteCursor]?.group}
             <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
           {/if}
@@ -7212,11 +7265,35 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           </div>
           <p class="lv-muted" style="font-size:var(--lv-font-size-sm);margin-bottom:14px">{t("recite.doneHint")}</p>
           {#if forgotCount > 0}
-            <button class="lv-btn sm lv-btn--primary" style="width:100%;margin-bottom:8px" onclick={retryForgotRecite}>
-              <Icon name="rotate" size={15} /> {t("recite.retryForgot")}（{forgotCount}）
-            </button>
+            <div class="lv-card" style="margin:10px 0 12px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border)">
+              <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px">
+                <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
+                  <Icon name="rotate" size={14} /> 发现 {forgotCount} 道忘却内容 · 推荐即时重记
+                </b>
+              </div>
+              <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" onclick={retryForgotRecite}>
+                <Icon name="rotate" size={15} /> {t("recite.retryForgot")}（{forgotCount}）
+              </button>
+              <div class="lv-row" style="margin:0;gap:6px;justify-content:center;flex-wrap:wrap">
+                <button class="lv-btn sm lv-btn--ghost" onclick={reciteForgotToCard} title="将忘却题推送到思源闪卡"><Icon name="layers" size={13} /> 推送到闪卡</button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={reciteForgotToActions} title="加入待办列表"><Icon name="pin" size={13} /> 加待办重练</button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => plugin.openReport?.()} title="查看学情诊断报告"><Icon name="chart" size={13} /> 学情报告</button>
+              </div>
+            </div>
+          {:else}
+            <div class="lv-card" style="margin:10px 0 12px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);text-align:center">
+              <b style="color:var(--lv-green);font-size:14px;display:block;margin-bottom:8px">🎉 完美记忆，本轮全部熟练通关！</b>
+              <div class="lv-row" style="margin:0;gap:8px;justify-content:center">
+                <button class="lv-btn sm lv-btn--primary" onclick={() => startRecite()}>
+                  <Icon name="rotate" size={14} /> 开启下一轮背诵
+                </button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => plugin.openReport?.()}>
+                  <Icon name="chart" size={14} /> 查看学情报告
+                </button>
+              </div>
+            </div>
           {/if}
-          <button class="lv-btn lv-btn--primary" style="width:100%" onclick={exitRecite}>{t("session.back")}</button>
+          <button class="lv-btn" style="width:100%;margin-top:6px" onclick={exitRecite}>{t("session.back")}</button>
         </div>
       {:else if reciteQueue[reciteCursor]}
         {@const q = reciteQueue[reciteCursor]}
@@ -7230,7 +7307,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <div class="lv-row"><button class="lv-chip" onclick={() => reciteHint = reciteHint === 0 ? (q.kp ? 1 : 2) : reciteHint === 1 && q.analysis ? 2 : 1} title={q.analysis ? t("recite.hint2Key") : ""}><Icon name="bulb" size={12} /> {reciteHint >= 2 ? t("recite.hint2") : t("recite.hint1")}：{reciteHint >= 2 ? (q.analysis ?? "").slice(0, 24) : (q.kp ?? q.analysis ?? "").slice(0, 24)}</button></div>
             {/if}
             <div class="lv-row" style="justify-content:center">
-              <button class="lv-btn lv-btn--primary" onclick={() => reciteRevealed = true}><Icon name="eye" size={15} /> {t("recite.reveal")} <span style="font-size:11px;opacity:0.85;margin-left:4px">(空格 Space)</span></button>
+              <button class="lv-btn lv-btn--primary" onclick={revealRecite}><Icon name="eye" size={15} /> {t("recite.reveal")} <span style="font-size:11px;opacity:0.85;margin-left:4px">(空格 Space)</span></button>
             </div>
           {:else}
             <div class="lv-recite-revealed">
