@@ -1645,22 +1645,26 @@
       </div>
     {/if}
     {#if !bp.sections.length}<div class="lv-empty">{t("mock.needSec")}</div>{/if}
-    <div class="lv-row">
-      <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
-      <select class="lv-select" style="max-width:160px" onchange={(e) => void onPresetSelected((e.target as HTMLSelectElement).value)}>
-        <option value="">{t("mock.pickPreset")}</option>
-        {#each presetOptions as opt (opt.id)}
-          <option value={opt.id}>{opt.title}</option>
-        {/each}
-      </select>
-      <button class="lv-btn sm" onclick={saveBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy}><Icon name="save" size={14} /> {blueprintBusy ? "…" : t("mock.bpSave")}</button>
-      <button class="lv-btn sm" onclick={restoreBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy}><Icon name="folder" size={14} /> {blueprintBusy ? "…" : t("mock.bpRestore")}</button>
-      <button class="lv-btn sm" onclick={generateAdaptiveSprint} disabled={sprintBusy || !questions.length || starting} aria-busy={sprintBusy} title="基于考点盲区与高频错题自适应装配全真密卷"><Icon name="sparkles" size={14} /> {sprintBusy ? "…" : t("mock.sprintPaper")}</button>
-      <button class="lv-btn sm" onclick={printCompactPaper} disabled={printBusy || !questions.length} aria-busy={printBusy} title="导出标准 A4/A3 双栏试卷与答题卡"><Icon name="file" size={14} /> {printBusy ? "…" : t("mock.printCompact")}</button>
-      <button class="lv-btn sm" onclick={printTeacherLecturePaper} disabled={printBusy || !questions.length} aria-busy={printBusy} title="导出包含题目、答案、考点、难度、采分点与破题教学点拨的教师讲义卷"><Icon name="book" size={14} /> {printBusy ? "…" : t("mock.printTeacher")}</button>
-      <button class="lv-btn sm" onclick={generateABMockPapers} disabled={abBusy || !questions.length} aria-busy={abBusy} title="一键生成同考点但单选/多选选项智能洗牌防作弊的 A 卷与 B 卷"><Icon name="shuffle" size={14} /> {abBusy ? "…" : t("mock.generateAB")}</button>
-      <button class="lv-btn sm" onclick={exportPaperAuditReport} disabled={!questions.length} title="基于全题库实测P值预测整卷难度系数，检出大纲空白考点与偏科考点"><Icon name="chart" size={14} /> {t("mock.paperAudit")}</button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={saveMockExamAsDoc} disabled={!questions.length} title="将当前模考试卷整套排版存为思源笔记原生文档，折叠答案与解析，即使卸载插件考卷与作答永久保留"><Icon name="file" size={14} /> {t("mock.saveAsSiyuanDoc")}</button>
+    <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0 8px">
+      <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
+        <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
+        <select class="lv-select" style="max-width:170px" onchange={(e) => void onPresetSelected((e.target as HTMLSelectElement).value)}>
+          <option value="">{t("mock.pickPreset")}</option>
+          {#each presetOptions as opt (opt.id)}
+            <option value={opt.id}>{opt.title}</option>
+          {/each}
+        </select>
+        <button class="lv-btn sm" onclick={generateAdaptiveSprint} disabled={sprintBusy || !questions.length || starting} aria-busy={sprintBusy} title="基于考点盲区与高频错题自适应装配全真密卷"><Icon name="sparkles" size={14} /> {sprintBusy ? "…" : t("mock.sprintPaper")}</button>
+      </div>
+      <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
+        <button class="lv-btn sm lv-btn--ghost" onclick={printCompactPaper} disabled={printBusy || !questions.length} aria-busy={printBusy} title="导出标准 A4/A3 双栏试卷与答题卡"><Icon name="file" size={13} /> {printBusy ? "…" : t("mock.printCompact")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={printTeacherLecturePaper} disabled={printBusy || !questions.length} aria-busy={printBusy} title="导出包含题目、答案、考点、难度、采分点与破题教学点拨的教师讲义卷"><Icon name="book" size={13} /> {printBusy ? "…" : t("mock.printTeacher")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={saveMockExamAsDoc} disabled={!questions.length} title="将当前模考试卷整套排版存为思源笔记原生文档，折叠答案与解析，即使卸载插件考卷与作答永久保留"><Icon name="folder" size={13} /> {t("mock.saveAsSiyuanDoc")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={generateABMockPapers} disabled={abBusy || !questions.length} aria-busy={abBusy} title="一键生成同考点但单选/多选选项智能洗牌防作弊的 A 卷与 B 卷"><Icon name="shuffle" size={13} /> {abBusy ? "…" : t("mock.generateAB")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={exportPaperAuditReport} disabled={!questions.length} title="基于全题库实测P值预测整卷难度系数，检出大纲空白考点与偏科考点"><Icon name="chart" size={13} /> {t("mock.paperAudit")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={saveBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="保存当前组卷蓝图"><Icon name="save" size={13} /> {blueprintBusy ? "…" : t("mock.bpSave")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={restoreBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="恢复默认组卷蓝图"><Icon name="rotate" size={13} /> {blueprintBusy ? "…" : t("mock.bpRestore")}</button>
+      </div>
     </div>
     {#if !canStartExam && startDisabledReason}<p class="lv-muted" role="status" style="margin:4px 0">{startDisabledReason}</p>{/if}
     <!-- 考后估分 -->

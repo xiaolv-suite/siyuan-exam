@@ -1062,9 +1062,15 @@
       <div class="lv-muted" style="margin:0 0 10px" role="status">{t("report.scopeLoading")}</div>
     {/if}
     <div class="lv-report-tabs" role="group" aria-label={t("report.sectionsLabel", "报告分区")}>
-      <button class="lv-report-tab" class:active={reportSection === "overview"} aria-pressed={reportSection === "overview"} onclick={() => reportSection = "overview"}>{t("report.sectionOverview", "概览")}</button>
-      <button class="lv-report-tab" class:active={reportSection === "knowledge"} aria-pressed={reportSection === "knowledge"} onclick={() => reportSection = "knowledge"}>{t("report.sectionKnowledge", "考点与错题")}</button>
-      <button class="lv-report-tab" class:active={reportSection === "evidence"} aria-pressed={reportSection === "evidence"} onclick={() => reportSection = "evidence"}>{t("report.sectionEvidence", "记录与证据")}</button>
+      <button class="lv-report-tab" class:active={reportSection === "overview"} aria-pressed={reportSection === "overview"} onclick={() => reportSection = "overview"}>
+        <span class="lv-tab-inner"><Icon name="chart" size={13} /> {t("report.sectionOverview", "概览")}</span>
+      </button>
+      <button class="lv-report-tab" class:active={reportSection === "knowledge"} aria-pressed={reportSection === "knowledge"} onclick={() => reportSection = "knowledge"}>
+        <span class="lv-tab-inner"><Icon name="target" size={13} /> {t("report.sectionKnowledge", "考点与错题")}</span>
+      </button>
+      <button class="lv-report-tab" class:active={reportSection === "evidence"} aria-pressed={reportSection === "evidence"} onclick={() => reportSection = "evidence"}>
+        <span class="lv-tab-inner"><Icon name="file-text" size={13} /> {t("report.sectionEvidence", "记录与证据")}</span>
+      </button>
     </div>
     {#if reportSection === "evidence" && reportEvents.length === 0}
       <div class="lv-empty" style="padding:20px 18px;margin-bottom:12px" role="status">
@@ -1735,9 +1741,10 @@
 
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
-  .lv-report-tabs { display: flex; gap: var(--lv-space-2); margin: var(--lv-space-3) 0 var(--lv-space-3); padding: var(--lv-space-1); border: 1px solid var(--lv-border); border-radius: var(--lv-r-1); background: var(--lv-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; }
-  .lv-report-tab { min-height: var(--lv-control-height-sm); padding: 6px var(--lv-space-3); border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-meta); font-weight: 600; white-space: nowrap; cursor: pointer; transition: background-color var(--lv-duration-micro) var(--lv-ease-out), color var(--lv-duration-micro) var(--lv-ease-out); }
-  .lv-report-tab:hover { color: var(--lv-text); background: color-mix(in srgb, var(--lv-accent-soft) 60%, transparent); }
+  .lv-report-tabs { display: flex; gap: 3px; margin: 10px 0 14px; padding: 3px 4px; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; box-shadow: var(--lv-inset-subtle, inset 0 1px 0 transparent); }
+  .lv-report-tab { min-height: 32px; padding: 4px 14px; border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-body-compact); font-weight: 600; white-space: nowrap; cursor: pointer; transition: all var(--lv-duration-micro) var(--lv-ease-out); }
+  .lv-report-tab .lv-tab-inner { display: inline-flex; align-items: center; gap: 6px; }
+  .lv-report-tab:hover { color: var(--lv-text); background: var(--lv-surface); }
   .lv-report-tab.active { color: var(--lv-accent); background: var(--lv-surface); box-shadow: var(--lv-sh-1); }
   .lv-report-section--hidden { display: none !important; }
   .lv-report-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--lv-space-3); align-items: stretch; margin-bottom: 12px; }

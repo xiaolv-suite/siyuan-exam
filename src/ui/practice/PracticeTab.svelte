@@ -7081,26 +7081,37 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     <!-- ===== S4 背诵（lite）：盖答案 → 四级自评；纸面质感（原型 .paper） ===== -->
     <div class="lv-pad lv-pad--narrow">
       <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.recite.eyebrow")}</span><h1 class="lv-h1">{t("head.recite.title")}</h1><p>{t("head.recite.desc")}</p></div>
-      <div class="lv-row">
-        <button class="lv-btn lv-btn--ghost" onclick={exitRecite}>← {t("recite.exit")}</button>
-        <span class="lv-chip num">{reciteCursor + 1}/{reciteQueue.length}</span>
-        <span class="lv-chip">{t("recite.mode")}</span>
-        {#if reciteQueue[reciteCursor]?.blockId && reciteQueue[reciteCursor]?.rootId}
-          <button class="lv-chip" title={t("recite.jumpSource")} onclick={jumpToSource}><Icon name="pin" size={12} /> {t("recite.jumpSource")}</button>
-        {/if}
-        {#if reciteQueue[reciteCursor]?.group}
-          <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
-        {/if}
-        {#if reciteQueue[reciteCursor]}
-          <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak(reciteQueue[reciteCursor].stem, reciteQueue[reciteCursor].studyMeta?.lang ? { lang: reciteQueue[reciteCursor].studyMeta.lang } : 1)}><Icon name="volume" size={13} /></button>
-        {/if}
+      <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div class="lv-row" style="margin:0;gap:8px;flex:1;min-width:180px">
+          <button class="lv-btn lv-btn--ghost" onclick={exitRecite}>← {t("recite.exit")}</button>
+          <div class="lv-progress" style="flex:1;min-width:80px" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={reciteQueue.length} aria-valuenow={reciteCursor + 1}>
+            <i style="width:{Math.round(((reciteCursor + (reciteRevealed ? 1 : 0)) / Math.max(1, reciteQueue.length)) * 100)}%"></i>
+          </div>
+          <span class="lv-chip num">{reciteCursor + 1}/{reciteQueue.length}</span>
+        </div>
+        <div class="lv-session-dock" role="group" aria-label="背诵辅助操作">
+          {#if reciteQueue[reciteCursor]?.group}
+            <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
+          {/if}
+          {#if reciteQueue[reciteCursor]?.blockId && reciteQueue[reciteCursor]?.rootId}
+            <button class="lv-chip" title={t("recite.jumpSource")} onclick={jumpToSource}><Icon name="pin" size={12} /> {t("recite.jumpSource")}</button>
+          {/if}
+          {#if reciteQueue[reciteCursor]}
+            <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak(reciteQueue[reciteCursor].stem, reciteQueue[reciteCursor].studyMeta?.lang ? { lang: reciteQueue[reciteCursor].studyMeta.lang } : 1)}><Icon name="volume" size={13} /></button>
+          {/if}
+        </div>
       </div>
       {#if reciteDone}
         {@const forgotCount = reciteRatings.filter((x) => x === 1).length}
-        <div class="lv-card lv-guard">
-          <div class="lv-guard-title"><Icon name="trophy" size={17} /> {t("recite.done")}</div>
-          <p class="num lv-muted">{t("recite.dist")}：{t("rate.1")} {reciteRatings.filter((x) => x === 1).length} · {t("rate.2")} {reciteRatings.filter((x) => x === 2).length} · {t("rate.3")} {reciteRatings.filter((x) => x === 3).length} · {t("rate.4")} {reciteRatings.filter((x) => x === 4).length}</p>
-          <p class="lv-muted" style="font-size:var(--lv-font-size-sm)">{t("recite.doneHint")}</p>
+        <div class="lv-card lv-guard" style="border-radius:var(--lv-r-4, 22px);box-shadow:var(--lv-sh-card);padding:24px">
+          <div class="lv-guard-title"><Icon name="trophy" size={18} /> {t("recite.done")}</div>
+          <div class="lv-done-stats num" style="grid-template-columns:repeat(4, 1fr);margin:14px 0 10px">
+            <div class="bad"><strong>{reciteRatings.filter((x) => x === 1).length}</strong><span>{t("rate.1")}</span></div>
+            <div><strong style="color:var(--lv-amber)">{reciteRatings.filter((x) => x === 2).length}</strong><span>{t("rate.2")}</span></div>
+            <div class="good"><strong>{reciteRatings.filter((x) => x === 3).length}</strong><span>{t("rate.3")}</span></div>
+            <div><strong style="color:var(--lv-accent)">{reciteRatings.filter((x) => x === 4).length}</strong><span>{t("rate.4")}</span></div>
+          </div>
+          <p class="lv-muted" style="font-size:var(--lv-font-size-sm);margin-bottom:14px">{t("recite.doneHint")}</p>
           {#if forgotCount > 0}
             <button class="lv-btn sm lv-btn--primary" style="width:100%;margin-bottom:8px" onclick={retryForgotRecite}>
               <Icon name="rotate" size={15} /> {t("recite.retryForgot")}（{forgotCount}）
@@ -7120,7 +7131,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <div class="lv-row"><button class="lv-chip" onclick={() => reciteHint = reciteHint === 0 ? (q.kp ? 1 : 2) : reciteHint === 1 && q.analysis ? 2 : 1} title={q.analysis ? t("recite.hint2Key") : ""}><Icon name="bulb" size={12} /> {reciteHint >= 2 ? t("recite.hint2") : t("recite.hint1")}：{reciteHint >= 2 ? (q.analysis ?? "").slice(0, 24) : (q.kp ?? q.analysis ?? "").slice(0, 24)}</button></div>
             {/if}
             <div class="lv-row" style="justify-content:center">
-              <button class="lv-btn lv-btn--primary" onclick={() => reciteRevealed = true}>{t("recite.reveal")}</button>
+              <button class="lv-btn lv-btn--primary" onclick={() => reciteRevealed = true}><Icon name="eye" size={15} /> {t("recite.reveal")} <span style="font-size:11px;opacity:0.85;margin-left:4px">(空格 Space)</span></button>
             </div>
           {:else}
             <div class="lv-recite-revealed">
@@ -9511,7 +9522,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-material-list .lv-section-head { padding: 0 4px; margin-bottom: 10px; }
   .lv-material-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px 9px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--lv-text); text-align: left; font: inherit; cursor: pointer; transition: background-color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-material-item:hover { background: var(--lv-surface-2); border-color: var(--lv-border); }
-  .lv-material-item.selected { background: var(--lv-accent-soft); border-color: color-mix(in srgb, var(--lv-accent) 35%, var(--lv-border)); }
+  .lv-material-item.selected { background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); border-color: var(--lv-accent); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 4px 12px color-mix(in srgb, var(--lv-accent) 15%, transparent); }
   .lv-material-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; background: var(--lv-surface-2); color: var(--lv-accent); }
   .lv-material-item.selected .lv-material-icon { background: var(--lv-surface); }
   .lv-material-copy { min-width: 0; flex: 1; display: grid; gap: 3px; }
@@ -9750,9 +9761,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-studio-tab:hover { color: var(--lv-text); background: color-mix(in srgb, var(--lv-surface) 60%, transparent); }
   .lv-studio-tab.active { background: var(--lv-surface); color: var(--lv-accent); border-color: var(--lv-border); box-shadow: var(--lv-sh-1), var(--lv-inset-highlight, inset 0 1px 0 transparent); font-weight: var(--lv-font-weight-semibold, 600); }
   .lv-qrow.active-peek { border-color: var(--lv-accent); border-left: 3.5px solid var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); box-shadow: 0 4px 16px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
-  .lv-peek-backdrop { position: fixed; inset: 0; background: var(--lv-overlay); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); z-index: 120; animation: lv-fade-in var(--lv-dur-fast, 0.18s) ease-out; }
+  .lv-peek-backdrop { position: fixed; inset: 0; background: var(--lv-overlay); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 120; animation: lv-fade-in var(--lv-dur-fast, 0.18s) ease-out; }
   .lv-peek-sheet-handle { display: none; width: 36px; height: 4px; border-radius: 2px; background: var(--lv-border); margin: 8px auto 2px; }
-  .lv-peek-drawer { position: fixed; top: 12px; right: 14px; bottom: 14px; width: min(520px, calc(100vw - 28px)); max-width: 560px; z-index: 121; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-card, 16px); box-shadow: var(--lv-sh-pop), var(--lv-inset-highlight, inset 0 1px 0 transparent); display: flex; flex-direction: column; overflow: hidden; animation: lv-slide-left var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
+  .lv-peek-drawer { position: fixed; top: 14px; right: 16px; bottom: 14px; width: min(540px, calc(100vw - 32px)); max-width: 580px; z-index: 121; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-4, 22px); box-shadow: var(--lv-sh-pop), var(--lv-inset-card); display: flex; flex-direction: column; overflow: hidden; animation: lv-slide-left var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
   .lv-peek-head { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); padding: 14px 18px; border-bottom: 1px solid var(--lv-border); background: var(--lv-surface-2); flex-shrink: 0; }
   .lv-peek-src { font-size: var(--lv-font-size-caption); color: var(--lv-text-3); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lv-peek-head .lv-btn { min-width: 44px; min-height: 44px; }

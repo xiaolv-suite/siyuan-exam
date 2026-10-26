@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.63（2026-10-26）
+## 最新版本：v0.11.64（2026-10-26）
+
+本版本为全场景界面交互打磨版本，覆盖纸面背题模式、题目详情抽屉、全真模考控制台、复盘报告与学习资料库。背诵模式顶部增加动态自适应进度条与操作坞，答案揭晓按钮增加空格盲打提示，自评完成页升级为四档 Bento 成绩卡片；题目浏览抽屉背景模糊加深至 14px 毛玻璃，圆角升级至 22px Bento 大圆角；模考配置 10 按钮解耦为起考主操作区与文档导出/高级组卷两层结构；报告中心分区选项卡注入单色矢量微标与胶囊底托。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.63（2026-10-26）
 
 本版本为全系统颜色体系终极梳理与宿主主题依赖彻底肃清版本。正式补齐并全局消费 `--lv-on-accent`、`--lv-on-green`、`--lv-on-red`、`--lv-on-amber` 与 `--lv-brand-deep` 语义对比色 Token，杜绝依赖第三方不稳定的宿主配色；彻底替换数学坐标系、数轴区间高亮及统计饼图/柱状图中的残留色值，统一为小驴学习的高阶调色盘；首页倒计时图标升级为专属学院蓝微质感胶囊（`.lv-streak-flame--clock`），选区背景色（`::selection`）完全统一为专属靛蓝软高光。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 
