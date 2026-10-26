@@ -12,7 +12,7 @@ import type { Question, QuestionType, WrongItem } from "./types";
 export interface ExamBlueprintPreset {
   id: string;
   title: string;
-  category: "civil_service" | "postgraduate" | "law" | "academic" | "micro";
+  category: "civil_service" | "postgraduate" | "law" | "academic" | "qualification" | "language" | "k12" | "micro";
   description: string;
   durationMinutes: number;
   passLine: number;
@@ -63,6 +63,56 @@ export const EXAM_BLUEPRINT_PRESETS: ExamBlueprintPreset[] = [
     sections: [
       { name: "一、单项选择题", kpKeyword: "法", count: 50, scoreEach: 1, types: ["single"] },
       { name: "二、多项选择题", kpKeyword: "法", count: 50, scoreEach: 2, types: ["multiple"] },
+    ],
+  },
+  {
+    id: "teacher_qualification",
+    title: "中小学教师资格考试（NTCE）·《综合素质》全真模考卷",
+    category: "qualification",
+    description: "中小学教师资格国家统一考试标准题型（单选 29 题 + 简答论述 3 题），时限 120 分钟",
+    durationMinutes: 120,
+    passLine: 70,
+    sections: [
+      { name: "一、单项选择题", kpKeyword: "教师", count: 29, scoreEach: 2, types: ["single"] },
+      { name: "二、材料分析与简答论述题", kpKeyword: "教师", count: 3, scoreEach: 14, types: ["short"] },
+    ],
+  },
+  {
+    id: "fund_qualification",
+    title: "基金从业人员资格考试 ·《证券投资基金法律法规与职业道德》模拟卷",
+    category: "qualification",
+    description: "中国证券投资基金业协会统一标准机考（100 道单选题，满分 100 分，及格线 60 分），时限 120 分钟",
+    durationMinutes: 120,
+    passLine: 60,
+    sections: [
+      { name: "第一部分 基金法律法规与合规管理", kpKeyword: "法规", count: 50, scoreEach: 1, types: ["single"] },
+      { name: "第二部分 基金基础知识与职业道德", kpKeyword: "职业道德", count: 50, scoreEach: 1, types: ["single"] },
+    ],
+  },
+  {
+    id: "english_cet_sprint",
+    title: "多语言研学 · 大学英语与雅思核心突破模考卷",
+    category: "language",
+    description: "覆盖核心学术词汇辨析、日常口语交际、语法填空与短文判断，时限 45 分钟",
+    durationMinutes: 45,
+    passLine: 60,
+    sections: [
+      { name: "Part I. 词汇与短语单选题", kpKeyword: "词汇", count: 15, scoreEach: 2, types: ["single"] },
+      { name: "Part II. 完形填空与语法词形变换", kpKeyword: "语法", count: 10, scoreEach: 3, types: ["fill"] },
+      { name: "Part III. 阅读理解正误判断", count: 10, scoreEach: 2, types: ["judge"] },
+    ],
+  },
+  {
+    id: "k12_sprint",
+    title: "K12 初高中 · 重点学科期中期末复习冲刺综合卷",
+    category: "k12",
+    description: "聚焦语数英理化核心基础知识、公式应用与解题技巧，时限 60 分钟",
+    durationMinutes: 60,
+    passLine: 60,
+    sections: [
+      { name: "一、基础单项选择题", count: 15, scoreEach: 3, types: ["single"] },
+      { name: "二、核心知识填空题", count: 10, scoreEach: 3, types: ["fill"] },
+      { name: "三、判断是非题", count: 5, scoreEach: 2, types: ["judge"] },
     ],
   },
   {

@@ -26,6 +26,8 @@ import { normalizeAnswer, questionHash, sha1like } from "./core/answer";
 import { questionToMarkdown } from "./core/blockTemplate";
 import { SAMPLE_BANK_NAME, SAMPLE_BANK_INTRO, sampleQuestions } from "./core/sampleBank";
 import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_BANK_INTRO, cantoneseSampleQuestions } from "./core/cantoneseSample";
+import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_BANK_INTRO, englishSampleQuestions } from "./core/englishSample";
+import { QUALIFICATION_SAMPLE_BANK_NAME, QUALIFICATION_SAMPLE_BANK_INTRO, qualificationSampleQuestions } from "./core/qualificationSample";
 import type { BankCategory } from "./core/bankCategory";
 import { BATCH_FIELD_ATTR, type BatchField } from "./core/batchEdit";
 import { auditAttemptEvents, type DataAuditReport } from "./core/dataAudit";
@@ -559,26 +561,46 @@ export class ExamApp {
     return info;
   }
 
-  /** 用户主动创建示例题库；支持通用演示题库与粤语等研学题库；并发点击共享任务。 */
-  createSampleBank(kind: "general" | "cantonese" = "general"): Promise<BankInfo> {
+  /** 用户主动创建示例题库；支持通用演示题库、粤语/英语多语言研学及教师资格/基金从业资格题库；并发点击共享任务。 */
+  createSampleBank(kind: "general" | "cantonese" | "english" | "qualification" = "general"): Promise<BankInfo> {
     if (this.sampleBankCreation) return this.sampleBankCreation;
     this.sampleBankCreation = this.writeSampleBank(kind).finally(() => { this.sampleBankCreation = null; });
     return this.sampleBankCreation;
   }
 
-  private async writeSampleBank(kind: "general" | "cantonese" = "general"): Promise<BankInfo> {
+  private async writeSampleBank(kind: "general" | "cantonese" | "english" | "qualification" = "general"): Promise<BankInfo> {
     this.assertStorageWritable();
     if (!this.kernelOnline) throw new Error("思源内核未连接，请恢复连接后再创建示例题库。");
-    const bankName = kind === "cantonese" ? CANTONESE_SAMPLE_BANK_NAME : SAMPLE_BANK_NAME;
-    const bankIntro = kind === "cantonese" ? CANTONESE_SAMPLE_BANK_INTRO : SAMPLE_BANK_INTRO;
-    const getQuestions = kind === "cantonese" ? cantoneseSampleQuestions : sampleQuestions;
-    const docTitle = kind === "cantonese" ? "粤语口语研学" : "示例题";
+    let bankName = SAMPLE_BANK_NAME;
+    let bankIntro = SAMPLE_BANK_INTRO;
+    let getQuestions = sampleQuestions;
+    let docTitle = "示例题";
+    let category: BankCategory = "general";
+
+    if (kind === "cantonese") {
+      bankName = CANTONESE_SAMPLE_BANK_NAME;
+      bankIntro = CANTONESE_SAMPLE_BANK_INTRO;
+      getQuestions = cantoneseSampleQuestions;
+      docTitle = "粤语口语研学";
+      category = "language";
+    } else if (kind === "english") {
+      bankName = ENGLISH_SAMPLE_BANK_NAME;
+      bankIntro = ENGLISH_SAMPLE_BANK_INTRO;
+      getQuestions = englishSampleQuestions;
+      docTitle = "英语核心研学";
+      category = "language";
+    } else if (kind === "qualification") {
+      bankName = QUALIFICATION_SAMPLE_BANK_NAME;
+      bankIntro = QUALIFICATION_SAMPLE_BANK_INTRO;
+      getQuestions = qualificationSampleQuestions;
+      docTitle = "从业资格认证试题";
+      category = "exam";
+    }
 
     let info = this.banks.find((bank) => bank.name === bankName && bank.sampleState);
     if (info?.sampleState === "ready") return info;
     if (!info) {
       const notebookId = await this.deps.client.createNotebook(`题库/${bankName}`);
-      const category: BankCategory = kind === "cantonese" ? "language" : "general";
       info = { id: notebookId, name: bankName, createdAt: Date.now(), category, sampleState: "pending" };
       // 先注册真实笔记本，后续失败可在同一库继续，不会再次新建笔记本。
       this.banks.push(info);

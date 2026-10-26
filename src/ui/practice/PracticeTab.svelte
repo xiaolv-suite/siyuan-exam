@@ -75,6 +75,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import SaveStatus from "../shared/SaveStatus.svelte";
     import { SAMPLE_BANK_NAME, SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
     import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_QUESTION_COUNT } from "@/core/cantoneseSample";
+    import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_QUESTION_COUNT } from "@/core/englishSample";
+    import { QUALIFICATION_SAMPLE_BANK_NAME, QUALIFICATION_SAMPLE_QUESTION_COUNT } from "@/core/qualificationSample";
     import { getBankCategoryMeta, type BankCategory } from "@/core/bankCategory";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
@@ -1947,13 +1949,24 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       } finally { creating = false; }
     }
 
-    async function createSampleBank(kind: "general" | "cantonese" | Event = "general") {
-      const actualKind = kind === "cantonese" ? "cantonese" : "general";
+    type SampleBankKind = "general" | "cantonese" | "english" | "qualification";
+    async function createSampleBank(kind: SampleBankKind | Event = "general") {
+      const actualKind: SampleBankKind = (kind === "cantonese" || kind === "english" || kind === "qualification") ? kind : "general";
       if (creating) return;
       creating = true; creatingSample = true;
       errorMsg = ""; bankCreateError = ""; sampleNotice = "";
-      const targetCount = actualKind === "cantonese" ? CANTONESE_SAMPLE_QUESTION_COUNT : SAMPLE_QUESTION_COUNT;
-      const targetName = actualKind === "cantonese" ? CANTONESE_SAMPLE_BANK_NAME : SAMPLE_BANK_NAME;
+      let targetCount = SAMPLE_QUESTION_COUNT;
+      let targetName = SAMPLE_BANK_NAME;
+      if (actualKind === "cantonese") {
+        targetCount = CANTONESE_SAMPLE_QUESTION_COUNT;
+        targetName = CANTONESE_SAMPLE_BANK_NAME;
+      } else if (actualKind === "english") {
+        targetCount = ENGLISH_SAMPLE_QUESTION_COUNT;
+        targetName = ENGLISH_SAMPLE_BANK_NAME;
+      } else if (actualKind === "qualification") {
+        targetCount = QUALIFICATION_SAMPLE_QUESTION_COUNT;
+        targetName = QUALIFICATION_SAMPLE_BANK_NAME;
+      }
       try {
         const b = await app.createSampleBank(actualKind);
         banks = app.listBanks();
@@ -6354,12 +6367,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
             <b style="font-size:16px;color:var(--lv-text);margin-bottom:6px">{t("entry.emptyTitle")}</b>
             <p class="lv-muted" style="max-width:460px;margin:0 auto 20px;line-height:1.6">{t("entry.emptyDesc")}</p>
-            <div class="lv-row" style="justify-content:center;gap:12px;flex-wrap:wrap">
-              <button class="lv-btn sm" onclick={() => void createSampleBank("general")} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}>
-                <Icon name="sparkles" size={14} /> {creatingSample ? t("guard.sampleCreating") : t("guard.sampleOpen")}
+            <div class="lv-row" style="justify-content:center;gap:8px;flex-wrap:wrap">
+              <button class="lv-btn sm" onclick={() => void createSampleBank("qualification")} disabled={creating || offline} title="体验教师资格证与基金从业资格真题题库">
+                🎯 资格考证示例
+              </button>
+              <button class="lv-btn sm" onclick={() => void createSampleBank("english")} disabled={creating || offline} title="体验大学英语与雅思核心词汇研学题库">
+                🗣️ 英语研学示例
               </button>
               <button class="lv-btn sm" onclick={() => void createSampleBank("cantonese")} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
-                <Icon name="volume" size={14} /> 粤语研学示例
+                🇭🇰 粤语研学示例
+              </button>
+              <button class="lv-btn sm" onclick={() => void createSampleBank("general")} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}>
+                🧠 综合通识示例
               </button>
               <button class="lv-btn lv-btn--primary sm" onclick={() => { view = "import"; }}>
                 <Icon name="import" size={15} /> {t("import.title")}
@@ -9672,11 +9691,22 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               🧠 通识 ({banks.filter((b) => (b.category || "general") === "general").length})
             </button>
           </div>
-          <div class="lv-row" style="margin:0 0 12px;gap:8px">
-            <input class="lv-input" style="flex:1" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("cantonese"); }} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
-              <Icon name="volume" size={12} /> 粤语示例
-            </button>
+          <div class="lv-row" style="margin:0 0 12px;gap:8px;flex-wrap:wrap">
+            <input class="lv-input" style="flex:1;min-width:180px" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
+            <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("qualification"); }} disabled={creating || offline} title="一键体验教师资格证与基金从业资格真题题库">
+                🎯 资格示例
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("english"); }} disabled={creating || offline} title="体验大学英语雅思词汇与发音研学题库">
+                🗣️ 英语示例
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("cantonese"); }} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
+                🇭🇰 粤语示例
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("general"); }} disabled={creating || offline} title="体验综合基础演示题库">
+                🧠 通识示例
+              </button>
+            </div>
           </div>
           <div class="stack-sm" style="max-height:450px;overflow-y:auto">
             {#each filteredBanks as b (b.id)}
