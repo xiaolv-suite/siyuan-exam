@@ -3965,6 +3965,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         : L;
     }
 
+    let manualSymbolTab = $state<"math" | "pinyin" | "phonetic">("math");
     function insertMathSnippet(snippet: string) {
       mStem = (mStem ? mStem + " " : "") + snippet;
       clearManualValidation();
@@ -7991,22 +7992,69 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           </div>
         </div>
         <div class="lv-field">
-          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 4px;flex-wrap:wrap;gap:6px">
+          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px;flex-wrap:wrap;gap:6px">
             <label class="lv-muted" for="lv-manual-stem">{t("manual.stem")}</label>
-            <div class="lv-session-dock" role="toolbar" aria-label="公式与常用符号" style="overflow-x:auto;max-width:100%">
-              <button type="button" class="lv-chip sm" title="上标 x²" onclick={() => insertMathSnippet("x^2")}>x²</button>
-              <button type="button" class="lv-chip sm" title="根号 √x" onclick={() => insertMathSnippet("\\sqrt{x}")}>√x</button>
-              <button type="button" class="lv-chip sm" title="分式 a/b" onclick={() => insertMathSnippet("\\frac{a}{b}")}>a/b</button>
-              <button type="button" class="lv-chip sm" title="求和 ∑" onclick={() => insertMathSnippet("\\sum_{i=1}^n")}>∑</button>
-              <button type="button" class="lv-chip sm" title="积分 ∫" onclick={() => insertMathSnippet("\\int")}>∫</button>
-              <button type="button" class="lv-chip sm" title="圆周率 π" onclick={() => insertMathSnippet("\\pi")}>π</button>
-              <button type="button" class="lv-chip sm" title="阿尔法 α" onclick={() => insertMathSnippet("\\alpha")}>α</button>
-              <button type="button" class="lv-chip sm" title="贝塔 β" onclick={() => insertMathSnippet("\\beta")}>β</button>
-              <button type="button" class="lv-chip sm" title="西塔 θ" onclick={() => insertMathSnippet("\\theta")}>θ</button>
-              <button type="button" class="lv-chip sm" title="正负号 ±" onclick={() => insertMathSnippet("\\pm")}>±</button>
-              <button type="button" class="lv-chip sm" title="小于等于 ≤" onclick={() => insertMathSnippet("\\le")}>≤</button>
-              <button type="button" class="lv-chip sm" title="大于等于 ≥" onclick={() => insertMathSnippet("\\ge")}>≥</button>
-              <button type="button" class="lv-chip sm" title="无穷大 ∞" onclick={() => insertMathSnippet("\\infty")}>∞</button>
+            <div class="lv-row" style="margin:0;gap:4px;align-items:center;flex-wrap:wrap">
+              <div class="lv-session-dock" role="tablist" aria-label="符号分类" style="margin:0">
+                <button type="button" role="tab" class="lv-chip sm" class:acc={manualSymbolTab === "math"} aria-selected={manualSymbolTab === "math"} onclick={() => manualSymbolTab = "math"}>📐 数理</button>
+                <button type="button" role="tab" class="lv-chip sm" class:acc={manualSymbolTab === "pinyin"} aria-selected={manualSymbolTab === "pinyin"} onclick={() => manualSymbolTab = "pinyin"}>🔤 拼音</button>
+                <button type="button" role="tab" class="lv-chip sm" class:acc={manualSymbolTab === "phonetic"} aria-selected={manualSymbolTab === "phonetic"} onclick={() => manualSymbolTab = "phonetic"}>🗣️ 音标</button>
+              </div>
+              <div class="lv-session-dock" role="toolbar" aria-label="符号选择坞" style="overflow-x:auto;max-width:100%;flex:1">
+                {#if manualSymbolTab === "math"}
+                  <button type="button" class="lv-chip sm" title="上标 x²" onclick={() => insertMathSnippet("x^2")}>x²</button>
+                  <button type="button" class="lv-chip sm" title="根号 √x" onclick={() => insertMathSnippet("\\sqrt{x}")}>√x</button>
+                  <button type="button" class="lv-chip sm" title="分式 a/b" onclick={() => insertMathSnippet("\\frac{a}{b}")}>a/b</button>
+                  <button type="button" class="lv-chip sm" title="求和 ∑" onclick={() => insertMathSnippet("\\sum_{i=1}^n")}>∑</button>
+                  <button type="button" class="lv-chip sm" title="积分 ∫" onclick={() => insertMathSnippet("\\int")}>∫</button>
+                  <button type="button" class="lv-chip sm" title="极限 lim" onclick={() => insertMathSnippet("\\lim_{x \\to 0}")}>lim</button>
+                  <button type="button" class="lv-chip sm" title="偏导 ∂" onclick={() => insertMathSnippet("\\partial")}>∂</button>
+                  <button type="button" class="lv-chip sm" title="圆周率 π" onclick={() => insertMathSnippet("\\pi")}>π</button>
+                  <button type="button" class="lv-chip sm" title="正负号 ±" onclick={() => insertMathSnippet("\\pm")}>±</button>
+                  <button type="button" class="lv-chip sm" title="小于等于 ≤" onclick={() => insertMathSnippet("\\le")}>≤</button>
+                  <button type="button" class="lv-chip sm" title="大于等于 ≥" onclick={() => insertMathSnippet("\\ge")}>≥</button>
+                  <button type="button" class="lv-chip sm" title="无穷大 ∞" onclick={() => insertMathSnippet("\\infty")}>∞</button>
+                {:else if manualSymbolTab === "pinyin"}
+                  <button type="button" class="lv-chip sm" title="拼音 a 一声" onclick={() => insertMathSnippet("ā")}>ā</button>
+                  <button type="button" class="lv-chip sm" title="拼音 a 二声" onclick={() => insertMathSnippet("á")}>á</button>
+                  <button type="button" class="lv-chip sm" title="拼音 a 三声" onclick={() => insertMathSnippet("ǎ")}>ǎ</button>
+                  <button type="button" class="lv-chip sm" title="拼音 a 四声" onclick={() => insertMathSnippet("à")}>à</button>
+                  <button type="button" class="lv-chip sm" title="拼音 o 一声" onclick={() => insertMathSnippet("ō")}>ō</button>
+                  <button type="button" class="lv-chip sm" title="拼音 o 二声" onclick={() => insertMathSnippet("ó")}>ó</button>
+                  <button type="button" class="lv-chip sm" title="拼拼 o 三声" onclick={() => insertMathSnippet("ǒ")}>ǒ</button>
+                  <button type="button" class="lv-chip sm" title="拼音 o 四声" onclick={() => insertMathSnippet("ò")}>ò</button>
+                  <button type="button" class="lv-chip sm" title="拼音 e 一声" onclick={() => insertMathSnippet("ē")}>ē</button>
+                  <button type="button" class="lv-chip sm" title="拼音 e 二声" onclick={() => insertMathSnippet("é")}>é</button>
+                  <button type="button" class="lv-chip sm" title="拼音 e 三声" onclick={() => insertMathSnippet("ě")}>ě</button>
+                  <button type="button" class="lv-chip sm" title="拼音 e 四声" onclick={() => insertMathSnippet("è")}>è</button>
+                  <button type="button" class="lv-chip sm" title="拼音 i 一声" onclick={() => insertMathSnippet("ī")}>ī</button>
+                  <button type="button" class="lv-chip sm" title="拼音 i 二声" onclick={() => insertMathSnippet("í")}>í</button>
+                  <button type="button" class="lv-chip sm" title="拼音 i 三声" onclick={() => insertMathSnippet("ǐ")}>ǐ</button>
+                  <button type="button" class="lv-chip sm" title="拼音 i 四声" onclick={() => insertMathSnippet("ì")}>ì</button>
+                  <button type="button" class="lv-chip sm" title="拼音 u 一声" onclick={() => insertMathSnippet("ū")}>ū</button>
+                  <button type="button" class="lv-chip sm" title="拼音 u 二声" onclick={() => insertMathSnippet("ú")}>ú</button>
+                  <button type="button" class="lv-chip sm" title="拼音 u 三声" onclick={() => insertMathSnippet("ǔ")}>ǔ</button>
+                  <button type="button" class="lv-chip sm" title="拼音 u 四声" onclick={() => insertMathSnippet("ù")}>ù</button>
+                  <button type="button" class="lv-chip sm" title="拼音 ü 一声" onclick={() => insertMathSnippet("ǖ")}>ǖ</button>
+                  <button type="button" class="lv-chip sm" title="拼音 ü 二声" onclick={() => insertMathSnippet("ǘ")}>ǘ</button>
+                  <button type="button" class="lv-chip sm" title="拼音 ü 三声" onclick={() => insertMathSnippet("ǚ")}>ǚ</button>
+                  <button type="button" class="lv-chip sm" title="拼音 ü 四声" onclick={() => insertMathSnippet("ǜ")}>ǜ</button>
+                {:else if manualSymbolTab === "phonetic"}
+                  <button type="button" class="lv-chip sm" title="主重音 ˈ" onclick={() => insertMathSnippet("ˈ")}>ˈ</button>
+                  <button type="button" class="lv-chip sm" title="次重音 ˌ" onclick={() => insertMathSnippet("ˌ")}>ˌ</button>
+                  <button type="button" class="lv-chip sm" title="央元音 schwa" onclick={() => insertMathSnippet("ə")}>ə</button>
+                  <button type="button" class="lv-chip sm" title="开前不圆唇元音" onclick={() => insertMathSnippet("æ")}>æ</button>
+                  <button type="button" class="lv-chip sm" title="后不圆唇元音" onclick={() => insertMathSnippet("ʌ")}>ʌ</button>
+                  <button type="button" class="lv-chip sm" title="咬舌清辅音" onclick={() => insertMathSnippet("θ")}>θ</button>
+                  <button type="button" class="lv-chip sm" title="咬舌浊辅音" onclick={() => insertMathSnippet("ð")}>ð</button>
+                  <button type="button" class="lv-chip sm" title="清后齿龈擦音" onclick={() => insertMathSnippet("ʃ")}>ʃ</button>
+                  <button type="button" class="lv-chip sm" title="浊后齿龈擦音" onclick={() => insertMathSnippet("ʒ")}>ʒ</button>
+                  <button type="button" class="lv-chip sm" title="软腭鼻音" onclick={() => insertMathSnippet("ŋ")}>ŋ</button>
+                  <button type="button" class="lv-chip sm" title="次闭次前不圆唇元音" onclick={() => insertMathSnippet("ɪ")}>ɪ</button>
+                  <button type="button" class="lv-chip sm" title="次闭次后圆唇元音" onclick={() => insertMathSnippet("ʊ")}>ʊ</button>
+                  <button type="button" class="lv-chip sm" title="长元音 aw" onclick={() => insertMathSnippet("ɔː")}>ɔː</button>
+                {/if}
+              </div>
             </div>
           </div>
           <textarea id="lv-manual-stem" class="lv-input lv-textarea" bind:value={mStem} oninput={clearManualValidation} placeholder={t("manual.stemPlaceholder")} data-manual-field="stem" aria-invalid={manualErrorField === "stem" ? "true" : undefined} aria-describedby={manualErrorField === "stem" ? "manual-validation-error" : undefined}></textarea>

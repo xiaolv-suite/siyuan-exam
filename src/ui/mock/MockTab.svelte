@@ -28,6 +28,7 @@
     import { countWordsAndCharacters, generatePaperGrid } from "../../core/wordCount";
     import { getScratchpadText, updateScratchpadText, clearCurrentScratchpad, type ScratchpadStore, type ScratchpadMode } from "../../core/scratchpad";
     import { resolveCbtKeyAction, computeSectionNavigation } from "../../core/cbtKeyboard";
+    import { ttsSpeak, ttsSupported } from "../../core/tts";
     
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
     let appOverride = $state<ExamApp | null>(null);
@@ -508,6 +509,37 @@
     let mockPaperGridOpen = $state(false);
     let viewportBottomPad = $state(0);
     let presetOptions = $state<import("@/core/examPresets").ExamBlueprintPreset[]>([]);
+    function readLocal(key: string): string {
+      try {
+        return typeof localStorage !== "undefined" ? localStorage.getItem(key) ?? "" : "";
+      } catch {
+        return "";
+      }
+    }
+    function writeLocal(key: string, value: string | null) {
+      try {
+        if (typeof localStorage !== "undefined") {
+          if (value === null) localStorage.removeItem(key);
+          else localStorage.setItem(key, value);
+        }
+      } catch { /* 容错 */ }
+    }
+    let examFontSize = $state<"normal" | "large" | "xlarge">((readLocal("lv-exam/font-scale") as any) || "normal");
+    function cycleExamFontSize() {
+      examFontSize = examFontSize === "normal" ? "large" : examFontSize === "large" ? "xlarge" : "normal";
+      writeLocal("lv-exam/font-scale", examFontSize);
+    }
+
+    let stemHtml = $state("");
+    let stemHtmlFor = $state("");
+    $effect(() => {
+      const q = currentQ;
+      if (!q || view !== "exam" || !app) { stemHtml = ""; stemHtmlFor = ""; return; }
+      stemHtml = ""; stemHtmlFor = q.id;
+      void app.renderStem(q).then((html) => {
+        if (html && stemHtmlFor === q.id) stemHtml = html;
+      });
+    });
     function readLocalRole(): "student" | "teacher" {
       try {
         return typeof localStorage !== "undefined" && localStorage.getItem("lv-exam/role") === "teacher"
@@ -1781,6 +1813,14 @@
       {/if}
       <span class="lv-chip num">{cursor + 1}/{session.state.qids.length}</span>
       <span class="fn__flex-1"></span>
+      {#if ttsSupported()}
+        <button class="lv-btn sm lv-btn--ghost" title="朗读题干与选项（外语听读伴读）" aria-label="朗读本题" disabled={examLocked} onclick={() => ttsSpeak([currentQ.stem, ...currentQ.options].join(" "), { lang: currentQ.studyMeta?.lang })}>
+          <Icon name="volume" size={13} />
+        </button>
+      {/if}
+      <button type="button" class="lv-btn sm lv-btn--ghost num" onclick={cycleExamFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
+        A{examFontSize === "normal" ? "" : examFontSize === "large" ? "⁺" : "²⁺"}
+      </button>
       <button class="lv-btn sm lv-flag-btn" class:lv-flag-btn--on={session.flags.has(current)} title={`${t("mock.flag")} (F)`} aria-label={`${t("mock.flag")} (F)`} aria-pressed={session.flags.has(current)} disabled={examLocked} onclick={() => { session?.toggleFlag(current); persistRun(); }}><Icon name="pin" size={14} /> <span class="lv-kbd sm">F</span></button>
       <button class="lv-btn sm lv-flag-btn" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-label={t("scratchpad.tip")} aria-pressed={scratchpadOpen} disabled={examLocked} onclick={() => scratchpadOpen = !scratchpadOpen}><Icon name="pencil" size={13} /></button>
       <button class="lv-btn sm" class:acc={isFullscreen} title={isFullscreen ? t("mock.exitFullscreen") : t("mock.fullscreen")} aria-label={isFullscreen ? t("mock.exitFullscreen") : t("mock.fullscreen")} disabled={examLocked} onclick={(e) => void toggleExamFullscreen(e.currentTarget)}><Icon name={isFullscreen ? "close" : "expand"} size={14} /></button>
@@ -1830,7 +1870,17 @@
         </div>
       {/if}
       <span class="lv-chip lv-chip--acc">{t("qtype." + currentQ.type)}</span>
-      <div class="lv-stem">{currentQ.stem}</div>
+      {#if stemHtml}
+        <div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{@html stemHtml}</div>
+      {:else}
+        <div class="lv-stem" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{currentQ.stem}</div>
+      {/if}
+      {#if currentQ.studyMeta?.phonetic}
+        <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
+          <Icon name="volume" size={12} />
+          <span>注音 / 音标：{currentQ.studyMeta.phonetic}</span>
+        </div>
+      {/if}
       <p class="lv-muted">{t("session.guide." + currentQ.type)}</p>
       {#if runSaveBusy}
         <p class="lv-hint" role="status" aria-live="polite">{t("mock.runSaving", "正在保存答题进度…")}</p>

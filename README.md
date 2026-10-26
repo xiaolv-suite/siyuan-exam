@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.84（2026-10-27）
+## 最新版本：v0.11.85（2026-10-27）
+
+本版本为全真模考场（MockTab）富文本渲染、考场朗读与手工录题多学段符号坞实装版本。考场题面补齐 LaTeX 公式与 Markdown 渲染引擎及音标胶囊；考场操作栏实装字号多档微调与一键语音朗读；录题工坊新增【数理公式】·【幼小拼音】·【国际音标】三合一符号坞。全套单测 180 个测试文件、1399 项单测 100% 全部通过。
+
+## 上一版本：v0.11.84（2026-10-27）
 
 本版本为中级考证与高数全真蓝图预设实装及全线依赖安全升级版本。实装《中级会计实务》与《大学高等数学微积分》标准化组卷蓝图预设；全面升级 Svelte 5.57.2、Playwright Core 1.64.1、Prettier 3.9.10 等核心开发依赖，合入 Dependabot 待更新项保持仓库前沿健康。全套单测 180 个测试文件、1399 项单测 100% 全部通过。
 
