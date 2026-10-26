@@ -9568,12 +9568,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-guard--welcome { max-width: 760px; }
   .lv-guard-kicker { display: inline-flex; align-items: center; gap: 7px; color: var(--lv-accent); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-semibold); margin-bottom: 8px; }
   .lv-guard-title { font-size: 16px; font-weight: var(--lv-font-weight-bold); margin-bottom: 8px; }
-  /* —— 结算三联数据（规范 v6 指标语言：大数字 + 标签，语义色只上数字） —— */
-  .lv-done-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 10px 0 6px; }
-  .lv-done-stats > div { display: grid; gap: 2px; justify-items: center; padding: 6px 0; }
+  /* —— 结算三联数据（规范 v6 指标语言：Bento 聚合卡片，大数字 + 标签） —— */
+  .lv-done-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 12px 0 8px; padding: 10px 12px; background: var(--lv-surface-2); border-radius: var(--lv-r-2); border: 1px solid var(--lv-border); }
+  .lv-done-stats > div { display: grid; gap: 2px; justify-items: center; padding: 4px 0; }
   .lv-done-stats > div + div { border-left: 1px solid var(--lv-border); }
-  .lv-done-stats strong { font-size: var(--lv-font-size-kpi-mobile); font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; }
-  .lv-done-stats span { font-size: var(--lv-font-size-label); color: var(--lv-text-3); }
+  .lv-done-stats strong { font-size: 26px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .lv-done-stats span { font-size: var(--lv-font-size-label); color: var(--lv-text-3); font-weight: var(--lv-font-weight-medium); }
   .lv-done-stats .good strong { color: var(--lv-green); }
   .lv-done-stats .bad strong { color: var(--lv-red); }
   .lv-guard p { margin: 6px 0; }
@@ -9662,11 +9662,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   /* —— 作答动作区（原型 .answer-actions：上分隔线 + 层次） —— */
   .lv-answer-actions { margin-top: 14px; padding-top: 18px; border-top: 1px solid var(--lv-border); }
   /* —— 改答原因弹层（63-03：轻量内联，不阻断作答） —— */
-  .lv-reason { margin: 8px 0 0; padding: 10px 14px; border-radius: var(--lv-r-2); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-left: 3.5px solid var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface)); box-shadow: var(--lv-sh-1), var(--lv-inset-subtle, inset 0 1px 0 transparent); }
+  .lv-reason { margin: 10px 0 0; padding: 12px 16px; border-radius: var(--lv-r-3); border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface)); box-shadow: var(--lv-sh-1), var(--lv-inset-card); }
   /* —— 结构化作答框（54 第三刀：数值单行 / 多空逐空） —— */
   .lv-answer-num { min-height: 48px; font-size: 16px; font-variant-numeric: tabular-nums; }
   .lv-answer-blank { min-height: 44px; margin-bottom: 10px; }
-  .lv-analysis { border-left: 3px solid var(--lv-accent); background: var(--lv-surface-2); border-radius: 0 var(--lv-r-2) var(--lv-r-2) 0; padding: var(--lv-space-3) var(--lv-space-4); font-size: var(--lv-font-size-body); color: var(--lv-text-2); margin-bottom: 10px; white-space: pre-wrap; }
+  .lv-analysis { border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-accent); background: var(--lv-surface-2); border-radius: var(--lv-r-2); padding: 14px 18px; font-size: var(--lv-font-size-body); color: var(--lv-text-2); margin-bottom: 12px; white-space: pre-wrap; box-shadow: var(--lv-sh-1); }
   .lv-success { margin: 8px 0; padding: 10px 14px; border-radius: var(--lv-r-2); background: var(--lv-green-soft); color: var(--lv-green); font-size: var(--lv-font-size-body-compact); font-weight: var(--lv-font-weight-semibold); }
   .lv-error-row { font-size: var(--lv-font-size-meta); color: var(--lv-red); padding: 4px 2px; border-bottom: 1px dashed var(--lv-border); }
   .lv-empty { border-radius: var(--lv-r-3); padding: 52px 24px; text-align: center; color: var(--lv-text-3); font-size: var(--lv-font-size-body); background: color-mix(in srgb, var(--lv-surface-2) 40%, var(--lv-surface)); border: 1.5px dashed var(--lv-border); }
