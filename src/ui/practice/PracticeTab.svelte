@@ -7844,19 +7844,23 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           {#if aiQueueBankId !== activeBankId}<div class="lv-error">{t("ai.queueWrongBank")}</div>{/if}
         {/if}
         {#if aiQueue.length || aiRejected.length || aiDuplicates || aiCost}
-        <div class="lv-row" style="margin-top:14px">
-          <b style="font-size:var(--lv-font-size-md)">{t("ai.queue")}</b>
-          <span class="lv-chip lv-chip--acc num">{aiQueue.length}</span>
-          {#if aiRejected.length}<span class="lv-chip lv-chip--red num">✕ {aiRejected.length}</span>{/if}
-          {#if aiDuplicates}<span class="lv-chip lv-chip--amb num">⧉ {aiDuplicates}</span>{/if}
-          {#if aiCost}<span class="lv-chip num">{aiCost}</span>{/if}
-          <span class="fn__flex-1"></span>
-          {#if aiRejected.length}
-            <button class="lv-btn sm" onclick={retryRejected} disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} title={t("ai.retryTitle")}><Icon name="rotate" size={13} /> {t("ai.retryRejected")}（{aiRejected.length}）</button>
-          {/if}
-          {#if aiQueue.length}
-            <button class="lv-btn lv-btn--primary sm" onclick={approveAllAi} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)}>✓ {t("ai.approveAll")}（{aiQueue.length}）</button>
-          {/if}
+        <div class="lv-row" style="margin-top:14px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+            <b style="font-size:var(--lv-font-size-md)">{t("ai.queue")}</b>
+            <span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审</span>
+            {#if aiRejected.length}<span class="lv-chip lv-chip--red num">✕ {aiRejected.length}</span>{/if}
+            {#if aiDuplicates}<span class="lv-chip lv-chip--amb num">⧉ {aiDuplicates}</span>{/if}
+            {#if aiCost}<span class="lv-chip num">{aiCost}</span>{/if}
+          </div>
+          <div class="lv-row" style="margin:0;gap:6px">
+            {#if aiRejected.length}
+              <button class="lv-btn sm" onclick={retryRejected} disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} title={t("ai.retryTitle")}><Icon name="rotate" size={13} /> {t("ai.retryRejected")}（{aiRejected.length}）</button>
+            {/if}
+            {#if aiQueue.length}
+              <button class="lv-btn lv-btn--primary sm" onclick={approveAllAi} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)}>✓ {t("ai.approveAll")}（{aiQueue.length}）</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { aiQueue = []; void persistAiQueue(); }} disabled={aiMutationBusy} title="清空当前待审核候选池">清空队列</button>
+            {/if}
+          </div>
         </div>
         {#if aiSaved}<div class="lv-success num">✓ {t("ai.saved")} {aiSaved}</div>{/if}
         {#each aiQueue as q (q.id)}

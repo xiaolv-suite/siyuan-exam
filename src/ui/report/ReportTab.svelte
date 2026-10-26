@@ -1322,27 +1322,31 @@
       <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:var(--lv-space-2)">
         <b>{t("report.mastery")}</b>
         {#if mastery.length >= 3}
-          <div class="lv-row" style="gap:var(--lv-space-1);align-items:center">
-            <button
-              type="button"
-              class="lv-chip sm"
-              class:acc={masteryTab === "radar"}
-              aria-pressed={masteryTab === "radar"}
-              onclick={() => masteryTab = "radar"}
-              title={t("report.radarTitle")}
-            >
-              <Icon name="sparkles" size={12} /> {t("report.asChart")}
-            </button>
-            <button
-              type="button"
-              class="lv-chip sm"
-              class:acc={masteryTab === "list"}
-              aria-pressed={masteryTab === "list"}
-              onclick={() => masteryTab = "list"}
-              title={t("report.asTable")}
-            >
-              <Icon name="table" size={12} /> {t("report.asTable")}
-            </button>
+          <div class="lv-row" style="gap:var(--lv-space-2);align-items:center;flex-wrap:wrap">
+            <div class="lv-session-dock" role="tablist" aria-label="呈现形式" style="margin:0">
+              <button
+                type="button"
+                role="tab"
+                class="lv-chip sm"
+                class:acc={masteryTab === "radar"}
+                aria-selected={masteryTab === "radar"}
+                onclick={() => masteryTab = "radar"}
+                title={t("report.radarTitle")}
+              >
+                <Icon name="sparkles" size={12} /> {t("report.asChart")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="lv-chip sm"
+                class:acc={masteryTab === "list"}
+                aria-selected={masteryTab === "list"}
+                onclick={() => masteryTab = "list"}
+                title={t("report.asTable")}
+              >
+                <Icon name="table" size={12} /> {t("report.asTable")}
+              </button>
+            </div>
             <button
               type="button"
               class="lv-chip sm"
