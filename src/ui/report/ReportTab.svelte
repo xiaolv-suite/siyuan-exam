@@ -1158,8 +1158,8 @@
         {:else}
           <div class="lv-quad-grid">
             <div class="lv-quad lv-quad--grn"><span class="v num">{quad.cells.sureRight}</span><span class="l">{t("quad.sureRight")}</span></div>
-            <div class="lv-quad lv-quad--red"><span class="v num">{quad.cells.sureWrong}</span><span class="l">{t("quad.sureWrong")}</span></div>
-            <div class="lv-quad lv-quad--amb"><span class="v num">{quad.cells.guessedRight}</span><span class="l">{t("quad.guessedRight")}</span></div>
+            <div class="lv-quad lv-quad--red" role="button" tabindex="0" title="点击下钻查看确信却答错的盲区题目" onclick={() => cwOpen = !cwOpen} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); cwOpen = !cwOpen; } }} style="cursor:pointer"><span class="v num">{quad.cells.sureWrong}</span><span class="l">{t("quad.sureWrong")} ▾</span></div>
+            <div class="lv-quad lv-quad--amb" role="button" tabindex="0" title="点击下钻查看瞎猜却答对的题目" onclick={() => ucOpen = !ucOpen} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ucOpen = !ucOpen; } }} style="cursor:pointer"><span class="v num">{quad.cells.guessedRight}</span><span class="l">{t("quad.guessedRight")} ▾</span></div>
             <div class="lv-quad"><span class="v num">{quad.cells.fuzzyRight}</span><span class="l">{t("quad.fuzzyRight")}</span></div>
           </div>
           {#if quad.cells.noConfidence}

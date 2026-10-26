@@ -189,8 +189,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let bankHubOpen = $state(false);
     let sessionSheetOpen = $state(false);
     let bankFilterKeyword = $state("");
+    let bankFilterCategory = $state<string>("all");
     const filteredBanks = $derived(
-      banks.filter((b) => !bankFilterKeyword.trim() || String(b.name || "").toLowerCase().includes(bankFilterKeyword.trim().toLowerCase())),
+      banks.filter((b) =>
+        (!bankFilterKeyword.trim() || String(b.name || "").toLowerCase().includes(bankFilterKeyword.trim().toLowerCase())) &&
+        (bankFilterCategory === "all" || (b.category || "general") === bankFilterCategory)
+      ),
     );
 
     let renamingBankId = $state("");
@@ -9378,6 +9382,29 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         </button>
       </div>
     {/if}
+    {#if view === "browse" && batchMode && selectedCount > 0}
+      <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:95;width:min(680px, calc(100vw - 32px));animation:lv-appear 0.2s var(--lv-ease-out)">
+        <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 22px);border:1px solid var(--lv-border);background:var(--lv-surface)">
+          <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div class="lv-row" style="margin:0;gap:6px">
+              <span class="lv-chip lv-chip--acc num">已选 {selectedCount} 题</span>
+              <button class="lv-btn sm lv-btn--ghost" onclick={clearSelection}>清空选择</button>
+            </div>
+            <div class="lv-row" style="margin:0;gap:6px">
+              <button class="lv-btn sm lv-btn--primary" onclick={startFilteredFocusDrill} title="将勾选的这批题目发起专属特训">
+                <Icon name="play" size={13} /> 开始特训
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedQuestions} title="导出为 A4 双栏试卷">
+                <Icon name="file" size={13} /> 打印试卷
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => void batchConvertToCards()} disabled={batchCardBusy || !app?.kernelOnline} title="批量制成闪卡">
+                <Icon name="layers" size={13} /> 推送闪卡
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
     {#if sessionSheetOpen && session}
       <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭答题卡" onclick={() => (sessionSheetOpen = false)}></button>
       <div class="lv-hotkeys-wrap">
@@ -9431,6 +9458,23 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <span class="lv-dialog-title-tag">{banks.length} 题库</span>
             </div>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => bankHubOpen = false}>✕</button>
+          </div>
+          <div class="lv-session-dock" role="tablist" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto">
+            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>
+              全部 ({banks.length})
+            </button>
+            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "exam"} aria-selected={bankFilterCategory === "exam"} onclick={() => bankFilterCategory = "exam"}>
+              🎯 备考 ({banks.filter((b) => b.category === "exam").length})
+            </button>
+            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "language"} aria-selected={bankFilterCategory === "language"} onclick={() => bankFilterCategory = "language"}>
+              🗣️ 语言 ({banks.filter((b) => b.category === "language").length})
+            </button>
+            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "teaching"} aria-selected={bankFilterCategory === "teaching"} onclick={() => bankFilterCategory = "teaching"}>
+              👨‍🏫 教研 ({banks.filter((b) => b.category === "teaching").length})
+            </button>
+            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "general"} aria-selected={bankFilterCategory === "general"} onclick={() => bankFilterCategory = "general"}>
+              🧠 通识 ({banks.filter((b) => (b.category || "general") === "general").length})
+            </button>
           </div>
           <div class="lv-row" style="margin:0 0 12px;gap:8px">
             <input class="lv-input" style="flex:1" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
