@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.59（2026-10-26）
+## 最新版本：v0.11.60（2026-10-26）
+
+本版本为题库浏览行（.lv-qrow）Bento 柔和质感与背诵自评按键（.lv-rate）物理微触感优化版本。题目浏览项升级为 18px Bento 柔和圆角（`--lv-r-3`）并注入高光内阴影（`--lv-inset-card`），内边距放宽为 15px 18px；背诵自评按键升级为 12px 现代圆角（`--lv-r-2`）与专属高光内阴影，按键数字块随等级着色。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.59（2026-10-26）
 
 本版本为首页区段标题矢量图标引导、Hero 主按钮独立投影与布局节奏优化版本。在首页研学模式与快速工具区段标题中加入极简单色线性矢量图标与副标题指引，大幅提升界面呼吸感；规整主按钮投影至专属独立靛蓝柔光微阴影（`var(--lv-btn-primary-shadow)`），优化计划说明字重与多栏自适应折叠布局。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 
