@@ -24,6 +24,8 @@ describe("经典组卷蓝图预设与错题限时卷引擎 (examPresets)", () =>
     expect(ids).toContain("law_exam_objective");
     expect(ids).toContain("academic_final_exam");
     expect(ids).toContain("micro_quiz_sprint");
+    expect(ids).toContain("intermediate_qualification");
+    expect(ids).toContain("higher_calculus_exam");
   });
 
   it("adaptPresetToBlueprint 智能根据题库实际题量与考点自适应平账", () => {

@@ -90,6 +90,32 @@ export const EXAM_BLUEPRINT_PRESETS: ExamBlueprintPreset[] = [
     ],
   },
   {
+    id: "intermediate_qualification",
+    title: "全国会计专业技术资格 ·《中级会计实务》全真模拟卷",
+    category: "qualification",
+    description: "财政部统一中级会计职称考试标准题型（单选 10 题 + 多选 10 题 + 判断 10 题），时限 120 分钟",
+    durationMinutes: 120,
+    passLine: 60,
+    sections: [
+      { name: "一、单项选择题", kpKeyword: "中级", count: 10, scoreEach: 1.5, types: ["single"] },
+      { name: "二、多项选择题", kpKeyword: "中级", count: 10, scoreEach: 2, types: ["multiple"] },
+      { name: "三、判断题", kpKeyword: "中级", count: 10, scoreEach: 1, types: ["judge"] },
+    ],
+  },
+  {
+    id: "higher_calculus_exam",
+    title: "大学高等数学与微积分 · 期末考与考研高数模拟卷",
+    category: "academic",
+    description: "覆盖极限极值、一元微积分、多元微分与微分方程核心大题，时限 120 分钟",
+    durationMinutes: 120,
+    passLine: 60,
+    sections: [
+      { name: "一、基础单选题", kpKeyword: "高数", count: 10, scoreEach: 3, types: ["single"] },
+      { name: "二、填空题", kpKeyword: "高数", count: 8, scoreEach: 4, types: ["fill"] },
+      { name: "三、分析与综合论述题", kpKeyword: "高数", count: 4, scoreEach: 9.5, types: ["short"] },
+    ],
+  },
+  {
     id: "english_cet_sprint",
     title: "多语言研学 · 大学英语与雅思核心突破模考卷",
     category: "language",

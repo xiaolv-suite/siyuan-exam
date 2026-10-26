@@ -83,6 +83,8 @@ describe("全场景多维研学体系升级 (多语言/资格证/K12升学)", ()
     const presetIds = EXAM_BLUEPRINT_PRESETS.map((p) => p.id);
     expect(presetIds).toContain("teacher_qualification");
     expect(presetIds).toContain("fund_qualification");
+    expect(presetIds).toContain("intermediate_qualification");
+    expect(presetIds).toContain("higher_calculus_exam");
     expect(presetIds).toContain("english_cet_sprint");
     expect(presetIds).toContain("k12_sprint");
 
