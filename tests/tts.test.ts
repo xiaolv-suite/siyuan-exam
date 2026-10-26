@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ttsSupported, ttsSpeak, ttsStop, STUDY_LANGUAGES } from "../src/core/tts";
+import { ttsSupported, ttsSpeak, ttsStop, cleanTtsText, STUDY_LANGUAGES } from "../src/core/tts";
 
 describe("TTS 语音朗读引擎 (tts)", () => {
   it("遇到空文本或空白文本安全返回 false 不调用语音合成", () => {
@@ -50,6 +50,17 @@ describe("TTS 语音朗读引擎 (tts)", () => {
       expect(ok).toBe(true);
       expect(mockSynth.cancel).toHaveBeenCalledTimes(1);
       expect(mockSynth.speak).toHaveBeenCalledTimes(1);
+    });
+
+    it("cleanTtsText 自动剥离 HTML 标签、Markdown 符号、思源 IAL 与 LaTeX 标记", () => {
+      const raw = '### 题目：已知 **函数** $f(x) = x^2$ <span class="tag">重点</span> {: id="2026"}，求导数。';
+      const cleaned = cleanTtsText(raw);
+      expect(cleaned).not.toContain("###");
+      expect(cleaned).not.toContain("**");
+      expect(cleaned).not.toContain('<span class="tag">');
+      expect(cleaned).not.toContain('{: id="2026"}');
+      expect(cleaned).not.toContain("$");
+      expect(cleaned).toContain("题目：已知 函数 f(x) = x^2 重点 ，求导数。");
     });
   });
 });

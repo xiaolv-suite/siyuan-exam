@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.75（2026-10-26）
+## 最新版本：v0.11.76（2026-10-26）
+
+本版本为 TTS 语音朗读 Markdown/LaTeX 杂音过滤与模态确认弹窗优雅换行修复版本。朗读引擎新增净化过滤，自动剥离题干解析中的 Markdown、HTML、思源 IAL 与 LaTeX 符号，彻底杜绝语音怪音杂音；模态确认弹窗内容容器补全 `white-space: pre-wrap` 样式，考场交卷与二次确认保持多段落优雅排版。全套单测 180 个测试文件、1397 项单测 100% 全部通过。
+
+## 上一版本：v0.11.75（2026-10-26）
 
 本版本为多语言研学（英语/粤语双主导）、从业资格认证（教师资格证/基金从业资格）与 K12 升学体系顶层融合实装版本。语言类学习全面升级为英语、粤语双主导研学，英语题库支持 IPA 国际音标与 en-US 发音；实装教师资格证（NTCE）与基金从业人员资格考试真题题库与蓝图预设；题库画廊与空态引导重构为【资格认证】·【英语研学】·【粤语口语】·【综合通识】顶层多维研学选择漏斗。全套单测 180 个测试文件、1396 项单测 100% 全部通过。
 

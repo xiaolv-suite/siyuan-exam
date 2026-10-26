@@ -83,7 +83,7 @@ export const confirmDialog = (args: IConfirmDialogArgs) => {
   const dialog = new Dialog({
     title,
     content: `<div class="b3-dialog__content">
-    <div class="ft__breakword">
+    <div class="ft__breakword" style="white-space:pre-wrap;line-height:1.6">
     </div>
 </div>
 <div class="b3-dialog__action">

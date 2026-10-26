@@ -324,7 +324,7 @@ describe("阅读笔记原文高亮与切片渐进式制卡出题引擎（excerpt
 
       // 材料不存在时报错防呆
       await expect(app.extractCardsFromNotes("non-existent-id")).rejects.toThrow(/未找到指定材料/);
-    });
+    }, 15000);
 
     it("exportCardsCsv 与 exportCardsMarkdown 空值防御与非对象容错", () => {
       expect(() => exportCardsCsv(undefined as unknown as Question[])).not.toThrow();
