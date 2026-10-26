@@ -381,6 +381,14 @@ button.lv-chip {
   resize: vertical;
 }
 
+/* —— 写作信纸横线背景模式（申论/主观题专用） —— */
+.lv-textarea--ruled {
+  background-image: repeating-linear-gradient(transparent, transparent 27px, var(--lv-border) 27px, var(--lv-border) 28px);
+  line-height: 28px !important;
+  background-attachment: local;
+  padding-top: 6px;
+}
+
 /* —— 图标位（原型 .tile-icon：44px 圆角 soft 底 accent 图标容器） —— */
 .lv-tile-icon {
   display: grid;

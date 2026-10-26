@@ -115,7 +115,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let speedDrillEnabled = $state(readLocal("lv-exam/speed-drill") === "1");
     let userRole = $state<"student" | "teacher">(readLocal("lv-exam/role") === "teacher" ? "teacher" : "student");
     let hotkeysHelpOpen = $state(false);
+    let hotkeyCategory = $state<"all" | "session" | "recite" | "nav">("all");
     let paperGridModalOpen = $state(false);
+    let shortLinedPaper = $state(readLocal("lv-exam/lined-paper") === "1");
 
     let touchStartX = 0;
     let touchStartY = 0;
@@ -3804,6 +3806,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         : L;
     }
 
+    function insertMathSnippet(snippet: string) {
+      mStem = (mStem ? mStem + " " : "") + snippet;
+      clearManualValidation();
+    }
+
     let ocrModalOpen = $state(false);
     let ocrInputText = $state("");
 
@@ -6858,7 +6865,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     disabled={!!feedback} />
                 {/each}
               {:else}
-                <textarea class="lv-input lv-textarea" placeholder={q.type === "short" ? t("session.shortPlaceholder") : t("session.fillPlaceholder")} aria-label={t("session.guide." + q.type)}
+                <textarea class="lv-input lv-textarea" class:lv-textarea--ruled={shortLinedPaper} placeholder={q.type === "short" ? t("session.shortPlaceholder") : t("session.fillPlaceholder")} aria-label={t("session.guide." + q.type)}
                   value={feedback?.myAnswer ?? currentDraft}
                   oninput={(e) => { draftLive = (e.target as HTMLTextAreaElement).value; session.setDraft(q.id, draftLive); }}
                 onchange={(e) => trailInput(q.id, (e.target as HTMLTextAreaElement).value)}
@@ -6870,6 +6877,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                       字数统计：<strong class="num">{words.examWords}</strong> 字（中文 {words.chineseChars} · 英文 {words.englishWords} · {words.paragraphs} 段）
                     </span>
                     <div class="lv-row" style="margin:0;gap:6px">
+                      <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" class:acc={shortLinedPaper} onclick={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }} title="切换横线稿纸视觉背景">
+                        <Icon name="file-text" size={11} /> {shortLinedPaper ? "纯白底" : "横线纸"}
+                      </button>
                       <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" onclick={() => (paperGridModalOpen = !paperGridModalOpen)} title={t("session.gridPreview")}>
                         <Icon name="grid" size={11} /> {t("session.gridPreview")}
                       </button>
@@ -7500,7 +7510,25 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             <button type="button" class="lv-chip" class:acc={mStatus === "draft"} aria-pressed={mStatus === "draft"} onclick={() => { mStatus = "draft"; clearManualValidation(); }}>{t("lifecycle.draft")}</button>
           </div>
         </div>
-        <div class="lv-field"><label class="lv-muted" for="lv-manual-stem">{t("manual.stem")}</label>
+        <div class="lv-field">
+          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 4px;flex-wrap:wrap;gap:6px">
+            <label class="lv-muted" for="lv-manual-stem">{t("manual.stem")}</label>
+            <div class="lv-session-dock" role="toolbar" aria-label="公式与常用符号" style="overflow-x:auto;max-width:100%">
+              <button type="button" class="lv-chip sm" title="上标 x²" onclick={() => insertMathSnippet("x^2")}>x²</button>
+              <button type="button" class="lv-chip sm" title="根号 √x" onclick={() => insertMathSnippet("\\sqrt{x}")}>√x</button>
+              <button type="button" class="lv-chip sm" title="分式 a/b" onclick={() => insertMathSnippet("\\frac{a}{b}")}>a/b</button>
+              <button type="button" class="lv-chip sm" title="求和 ∑" onclick={() => insertMathSnippet("\\sum_{i=1}^n")}>∑</button>
+              <button type="button" class="lv-chip sm" title="积分 ∫" onclick={() => insertMathSnippet("\\int")}>∫</button>
+              <button type="button" class="lv-chip sm" title="圆周率 π" onclick={() => insertMathSnippet("\\pi")}>π</button>
+              <button type="button" class="lv-chip sm" title="阿尔法 α" onclick={() => insertMathSnippet("\\alpha")}>α</button>
+              <button type="button" class="lv-chip sm" title="贝塔 β" onclick={() => insertMathSnippet("\\beta")}>β</button>
+              <button type="button" class="lv-chip sm" title="西塔 θ" onclick={() => insertMathSnippet("\\theta")}>θ</button>
+              <button type="button" class="lv-chip sm" title="正负号 ±" onclick={() => insertMathSnippet("\\pm")}>±</button>
+              <button type="button" class="lv-chip sm" title="小于等于 ≤" onclick={() => insertMathSnippet("\\le")}>≤</button>
+              <button type="button" class="lv-chip sm" title="大于等于 ≥" onclick={() => insertMathSnippet("\\ge")}>≥</button>
+              <button type="button" class="lv-chip sm" title="无穷大 ∞" onclick={() => insertMathSnippet("\\infty")}>∞</button>
+            </div>
+          </div>
           <textarea id="lv-manual-stem" class="lv-input lv-textarea" bind:value={mStem} oninput={clearManualValidation} placeholder={t("manual.stemPlaceholder")} data-manual-field="stem" aria-invalid={manualErrorField === "stem" ? "true" : undefined} aria-describedby={manualErrorField === "stem" ? "manual-validation-error" : undefined}></textarea>
         </div>
         {#if mType === "single" || mType === "multiple"}
@@ -9534,18 +9562,31 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => hotkeysHelpOpen = false}>✕</button>
           </div>
+          <div class="lv-session-dock" role="tablist" aria-label="快捷键分类" style="margin:0 0 12px;width:100%">
+            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "all"} aria-selected={hotkeyCategory === "all"} onclick={() => hotkeyCategory = "all"}>全部</button>
+            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "session"} aria-selected={hotkeyCategory === "session"} onclick={() => hotkeyCategory = "session"}>做题台</button>
+            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "recite"} aria-selected={hotkeyCategory === "recite"} onclick={() => hotkeyCategory = "recite"}>纸面背诵</button>
+            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "nav"} aria-selected={hotkeyCategory === "nav"} onclick={() => hotkeyCategory = "nav"}>全局导航</button>
+          </div>
           <div class="lv-hotkeys-grid">
-            <div class="lv-hotkeys-row"><span class="lv-kbd">A</span> - <span class="lv-kbd">D</span><span>快速选择答案选项</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">Enter</span><span>确认作答 / 极速下一题</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">3</span><span>作答前标记把握度 / 答错后一键标记错因</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">E</span><span>收藏 / 取消收藏本题</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">V</span><span>朗读本题题干（语音助记）</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">Space</span><span>背诵模式翻开答案 / 练习先回忆揭示</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">4</span><span>背诵模式四级自评（1重来 2困难 3良好 4熟练）</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">↑ / ↓</span><span>题库抽屉上一题 / 下一题连续翻阅</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">⌘K / Ctrl+K</span><span>随时呼出全局命令面板</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">?</span><span>打开 / 关闭本快捷键速查指南</span></div>
-            <div class="lv-hotkeys-row"><span class="lv-kbd">Esc</span><span>退出当前会话 / 关闭详情抽屉与浮层</span></div>
+            {#if hotkeyCategory === "all" || hotkeyCategory === "session"}
+              <div class="lv-hotkeys-row"><span class="lv-kbd">A</span> - <span class="lv-kbd">D</span><span>快速选择答案选项</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">Enter</span><span>确认作答 / 极速下一题</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">3</span><span>作答前标记把握度 / 答错后一键标记错因</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">E</span><span>收藏 / 取消收藏本题</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">V</span><span>朗读本题题干（语音助记）</span></div>
+            {/if}
+            {#if hotkeyCategory === "all" || hotkeyCategory === "recite"}
+              <div class="lv-hotkeys-row"><span class="lv-kbd">Space</span><span>背诵模式翻开答案 / 练习先回忆揭示</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">4</span><span>背诵模式四级自评（1重来 2困难 3良好 4熟练）</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">H</span><span>查看背诵下一级提示</span></div>
+            {/if}
+            {#if hotkeyCategory === "all" || hotkeyCategory === "nav"}
+              <div class="lv-hotkeys-row"><span class="lv-kbd">↑ / ↓</span><span>题库抽屉上一题 / 下一题连续翻阅</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">⌘K / Ctrl+K</span><span>随时呼出全局命令面板</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">?</span><span>打开 / 关闭本快捷键速查指南</span></div>
+              <div class="lv-hotkeys-row"><span class="lv-kbd">Esc</span><span>退出当前会话 / 关闭详情抽屉与浮层</span></div>
+            {/if}
           </div>
         </div>
       </div>
