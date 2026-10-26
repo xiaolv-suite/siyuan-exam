@@ -287,15 +287,10 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     const queued = this.queuedTab;
     this.queuedTab = null;
     if (queued) {
-      // Honor a command or deep link that arrived while the app was starting.
-      // The topbar still queues practice, while mock/report commands must not
-      // be immediately overridden by the default workbench fallback.
+      // 响应应用启动期间用户触发的命令或深度跳转（如有排队请求才打开对应页签）
       this.openTabByType(queued.type, queued.icon, queued.title);
-    } else {
-      // The sole visible plugin entry always opens the exam workbench. Internal
-      // Mock/Report views remain reachable from the workbench Rail and commands.
-      this.openPractice();
     }
+    // 启动时不主动弹窗打扰用户，静默初始化完成，由用户点击顶栏/命令主动进入练习台
     // 48-05：雷切组件面板接入（有界重试；未安装安静降级）
     if (this.examApp) {
       this.speedSwitchHandle = registerExamDailySummary({

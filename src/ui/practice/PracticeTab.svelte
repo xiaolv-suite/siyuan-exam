@@ -6557,18 +6557,27 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
           {/if}
           {#if sessionDone.wrong > 0}
-            <button class="lv-btn" style="width:100%" onclick={sameKpSession}><Icon name="rotate" size={16} /> {t("memory.sameKp")}</button>
-            <button class="lv-btn" style="width:100%;margin-top:6px" onclick={wrongsToCard}><Icon name="layers" size={16} /> {t("session.wrongsToCard")}</button>
-            <button class="lv-btn" style="width:100%;margin-top:6px" disabled={actionBusy} onclick={wrongsToActions}>
-              <Icon name="pin" size={16} /> {actionBusy ? "…" : t("action.addWrong")}
-            </button>
-            {#if actionNote}<p class="lv-muted num" style="margin:6px 0 0">{actionNote}</p>{/if}
-            <!-- 44-01 end 模式/回看：错题逐题展开（题干+我的答案+正确答案+解析）；quiet 边框给出可点可供养 -->
-            <button class="lv-btn" style="width:100%;margin-top:6px" onclick={() => { reviewOpen = !reviewOpen; if (reviewOpen) void loadReflections(); }}>
-              {reviewOpen ? "▾" : "▸"} {t("session.reviewWrongs")}
-            </button>
+            <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border)">
+              <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:6px">
+                <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
+                  <Icon name="target" size={14} /> 发现 {sessionDone.wrong} 道错题 · 推荐即时强化
+                </b>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => { reviewOpen = !reviewOpen; if (reviewOpen) void loadReflections(); }}>
+                  {reviewOpen ? "▾ 收起错题" : "▸ " + t("session.reviewWrongs")}
+                </button>
+              </div>
+              <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" onclick={sameKpSession}>
+                <Icon name="rotate" size={15} /> {t("memory.sameKp")}
+              </button>
+              <div class="lv-row" style="margin:0;gap:6px;justify-content:center;flex-wrap:wrap">
+                <button class="lv-btn sm lv-btn--ghost" onclick={wrongsToCard} title="将错题推送到思源闪卡"><Icon name="layers" size={13} /> {t("session.wrongsToCard")}</button>
+                <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} onclick={wrongsToActions} title="加入待办错题列表"><Icon name="pin" size={13} /> {actionBusy ? "…" : t("action.addWrong")}</button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => plugin.openReport?.()} title="查看学情诊断报告"><Icon name="chart" size={13} /> 学情报告</button>
+              </div>
+              {#if actionNote}<p class="lv-muted num" style="margin:6px 0 0;text-align:center">{actionNote}</p>{/if}
+            </div>
             {#if reviewOpen}
-              <div class="lv-detail" style="text-align:left;max-height:260px;overflow:auto">
+              <div class="lv-detail" style="text-align:left;max-height:260px;overflow:auto;margin-bottom:8px">
                 {#each session.answered.filter((a) => a.grade.verdict !== "correct") as a, _ri (_ri)}
                   {@const aq = questionMap.get(a.qid)}
                   <div class="lv-error-row" style="white-space:normal">
@@ -6613,8 +6622,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                 {/if}
               </div>
             {/if}
+          {:else}
+            <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);text-align:center">
+              <b style="color:var(--lv-green);font-size:14px;display:block;margin-bottom:8px">🎉 全部正确，达成全对通关！</b>
+              <div class="lv-row" style="margin:0;gap:8px;justify-content:center">
+                <button class="lv-btn sm lv-btn--primary" onclick={() => void startDrill("quick")}>
+                  <Icon name="zap" size={14} /> 开启下一轮练习
+                </button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => plugin.openReport?.()}>
+                  <Icon name="chart" size={14} /> 查看学情诊断
+                </button>
+              </div>
+            </div>
           {/if}
-          <button class="lv-btn lv-btn--primary" style="width:100%;margin-top:8px" onclick={exitSession} disabled={exitBusy}>{exitBusy ? "…" : t("session.back")}</button>
+          <button class="lv-btn" style="width:100%;margin-top:6px" onclick={exitSession} disabled={exitBusy}>{exitBusy ? "…" : t("session.back")}</button>
         </div>
       </div>
     {:else}
