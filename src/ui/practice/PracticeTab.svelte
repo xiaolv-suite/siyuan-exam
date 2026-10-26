@@ -6958,28 +6958,35 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               {#if q.analysis}<div class="lv-analysis">{q.analysis}</div>{/if}
               {#if feedback.verdict === "wrong"}
                 <div class="lv-row lv-session-reason-row" style="margin:10px 0;gap:var(--lv-space-compact);align-items:center;flex-wrap:wrap">
-                  <span class="lv-muted" style="font-size:var(--lv-font-size-label);font-weight:600">{t("session.reason")}:</span>
-                  {#each ["careless", "unknown", "trap"] as r, ri (ri)}
-                    <button
-                      class="lv-chip lv-reason-btn"
-                      class:acc={savedReason === r}
-                      aria-pressed={savedReason === r}
-                      title={t("entry.days") === "天" ? `快捷键 ${ri + 1}` : `Key ${ri + 1}`}
-                      onclick={async () => { await app?.saveWrongReason(q.id, r as any); savedReason = r; }}
-                    >
-                      <span class="lv-reason-key">{ri + 1}</span>
-                      {savedReason === r ? "✓ " : ""}{t("reason." + r)}
-                    </button>
-                  {/each}
+                  <div class="lv-session-dock" role="group" aria-label={t("session.reason")}>
+                    <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("session.reason")}:</span>
+                    {#each ["careless", "unknown", "trap"] as r, ri (ri)}
+                      <button
+                        type="button"
+                        class="lv-chip lv-reason-btn"
+                        class:acc={savedReason === r}
+                        aria-pressed={savedReason === r}
+                        title={t("entry.days") === "天" ? `快捷键 ${ri + 1}` : `Key ${ri + 1}`}
+                        onclick={async () => { await app?.saveWrongReason(q.id, r as any); savedReason = r; }}
+                      >
+                        <span class="lv-reason-key">{ri + 1}</span>
+                        {savedReason === r ? "✓ " : ""}{t("reason." + r)}
+                      </button>
+                    {/each}
+                  </div>
                 </div>
               {/if}
             {/if}
             {#if !feedback}
-              <div class="lv-row lv-muted" style="font-size:var(--lv-font-size-caption);gap:var(--lv-space-compact);flex-wrap:wrap">
-                <span>{t("confidence.before")}</span>
-                {#each ["sure", "fuzzy", "guess"] as c, _i (_i)}
-                  <button class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={`Key ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => confidenceSel = c as "sure" | "fuzzy" | "guess"}>{t("confidence." + c)}</button>
-                {/each}
+              <div class="lv-row" style="margin:6px 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                <div class="lv-session-dock" role="group" aria-label={t("confidence.before")}>
+                  <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("confidence.before")}</span>
+                  {#each ["sure", "fuzzy", "guess"] as c, _i (_i)}
+                    <button type="button" class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={`Key ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => confidenceSel = c as "sure" | "fuzzy" | "guess"}>
+                      <span class="lv-reason-key">{_i + 1}</span> {t("confidence." + c)}
+                    </button>
+                  {/each}
+                </div>
                 <span class="lv-chip num" class:lv-chip--amb={qTimeoutS > 0 && qElapsedS >= qTimeoutS * 0.8 && qElapsedS < qTimeoutS} class:lv-chip--red={qTimeoutS > 0 && qElapsedS >= qTimeoutS} class:lv-pulse={qTimeoutS > 0 && qElapsedS >= qTimeoutS} title={qTimeoutS > 0 ? t("session.timeoutHint").replace("{n}", String(qTimeoutS)) : ""}>
                   <Icon name="clock" size={12} /> {qElapsedS}s
                 </span>
@@ -7980,10 +7987,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     <div class="lv-pad">
       <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.browse.eyebrow")}</span><h1 class="lv-h1">{t("head.browse.title")}</h1><p>{t("head.browse.desc")}</p></div>
       <!-- 工具条分行（原型密度规则）：筛选行（搜索/结构化筛选）与工具行（动作 chip）分离，高度节奏一致 -->
-      <div class="lv-row" style="margin:0 0 8px">
-        <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("browse.searchPlaceholder")} bind:value={searchText} />
+      <div class="lv-row" style="margin:0 0 8px;gap:8px">
+        <input class="lv-input" style="flex:1;min-width:180px" placeholder={t("browse.searchPlaceholder")} bind:value={searchText} />
         <!-- 65-01 lite：结构化筛选（题型/来源/仅错题），与搜索词叠加 -->
-        <select class="lv-select" style="max-width:110px" bind:value={filterType} onchange={() => (browseLimit = 200)}>
+        <select class="lv-select" style="max-width:115px" bind:value={filterType} onchange={() => (browseLimit = 200)}>
           <option value="">{t("browse.fAnyType")}</option>
           {#each ["single", "multiple", "judge", "fill", "short", "material"] as tp, _i (_i)}
             <option value={tp}>{t("qtype." + tp)}</option>
@@ -8002,27 +8009,37 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             {#each sourceOptions as src, _i (_i)}<option value={src}>{src}</option>{/each}
           </select>
         {/if}
-        <button class="lv-chip" class:acc={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")}>✕ {t("browse.fWrong")}</button>
-        <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
-        <button class="lv-chip" class:acc={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
-        <button class="lv-chip" class:acc={favOnly} onclick={() => favOnly = !favOnly}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}>⭐️ {t("session.tagStar")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}>⚠️ {t("session.tagTrap")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}>❓ {t("session.tagDoubt")}</button>
-        <select class="lv-select" style="max-width:110px" bind:value={filterDays} title={t("browse.fDaysTip")}>
+        <select class="lv-select" style="max-width:115px" bind:value={filterDays} title={t("browse.fDaysTip")}>
           <option value={0}>{t("browse.fAnyDay")}</option>
           <option value={1}>{t("browse.fToday")}</option>
           <option value={7}>{t("browse.f7")}</option>
           <option value={30}>{t("browse.f30")}</option>
         </select>
-        {#if smartViews.length}
-          <select class="lv-select" style="max-width:150px" bind:value={selectedView} onchange={() => void applyNamedView(selectedView)} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed}>
-            <option value="">{t("view.pick")}</option>
-            {#each smartViews as v, _i (_i)}<option value={v.name}>{v.name}</option>{/each}
-          </select>
-          <button class="lv-btn sm lv-btn--ghost" title={t("view.delete")} aria-label={t("view.delete")} aria-busy={smartViewBusy} disabled={!selectedView || smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} onclick={() => void deleteNamedView()}><Icon name="trash" size={13} /></button>
-        {/if}
-        <button class="lv-btn sm lv-btn--ghost" title={t("view.saveTitle")} aria-busy={smartViewBusy} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed || !activeBankId} onclick={() => void saveCurrentView()}><Icon name="save" size={13} /> {smartViewBusy ? "…" : t("view.save")}</button>
+      </div>
+      <div class="lv-row" style="margin:0 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
+          <div class="lv-session-dock" role="group" aria-label="状态快速过滤">
+            <button class="lv-chip" class:acc={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")}>✕ {t("browse.fWrong")}</button>
+            <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
+            <button class="lv-chip" class:acc={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
+            <button class="lv-chip" class:acc={favOnly} onclick={() => favOnly = !favOnly}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
+          </div>
+          <div class="lv-session-dock" role="group" aria-label="考点标签过滤">
+            <button class="lv-chip" class:acc={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}>⭐️ {t("session.tagStar")}</button>
+            <button class="lv-chip" class:acc={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}>⚠️ {t("session.tagTrap")}</button>
+            <button class="lv-chip" class:acc={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}>❓ {t("session.tagDoubt")}</button>
+          </div>
+        </div>
+        <div class="lv-row" style="margin:0;gap:6px">
+          {#if smartViews.length}
+            <select class="lv-select" style="max-width:140px" bind:value={selectedView} onchange={() => void applyNamedView(selectedView)} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed}>
+              <option value="">{t("view.pick")}</option>
+              {#each smartViews as v, _i (_i)}<option value={v.name}>{v.name}</option>{/each}
+            </select>
+            <button class="lv-btn sm lv-btn--ghost" title={t("view.delete")} aria-label={t("view.delete")} aria-busy={smartViewBusy} disabled={!selectedView || smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} onclick={() => void deleteNamedView()}><Icon name="trash" size={13} /></button>
+          {/if}
+          <button class="lv-btn sm lv-btn--ghost" title={t("view.saveTitle")} aria-busy={smartViewBusy} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed || !activeBankId} onclick={() => void saveCurrentView()}><Icon name="save" size={13} /> {smartViewBusy ? "…" : t("view.save")}</button>
+        </div>
       </div>
           {#if smartViewError}<div class="lv-error" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-relaxed);overflow-wrap:anywhere"><span>{smartViewError}</span>{#if smartViewLoadFailed}<button class="lv-btn sm" disabled={smartViewLoadBusy} aria-busy={smartViewLoadBusy} onclick={() => void loadSmartViews()}>{smartViewLoadBusy ? "…" : t("view.retryLoad")}</button>{/if}</div>{/if}
       <!-- 工具行收敛：高频（章节树/批量编辑）内联，维护面板与导出打印入「更多」菜单；面板开启时按钮出点标 -->
