@@ -941,9 +941,17 @@
         handInConfirming = true;
         const targetSession = session;
         const unanswered = session.state.qids.length - [...session.answers.values()].filter((a) => a.answer?.trim()).length;
+        const missingNos = session.state.qids
+          .map((id, idx) => (!session.answers.get(id)?.answer?.trim() ? idx + 1 : 0))
+          .filter(Boolean);
+        const sampleStr = missingNos.length <= 6
+          ? missingNos.join("、")
+          : missingNos.slice(0, 5).join("、") + ` 等共 ${missingNos.length} 题`;
         try {
           const { confirmDialogSync } = await import("../../libs/dialog");
-          const prompt = unanswered > 0 ? t("mock.confirmHandIn").replace("{n}", String(unanswered)) : t("mock.confirmHandInAll", "所有题目均已填写，确认交卷？");
+          const prompt = unanswered > 0
+            ? t("mock.confirmHandIn").replace("{n}", String(unanswered)) + `（未答题号：第 ${sampleStr}）`
+            : t("mock.confirmHandInAll", "所有题目均已填写，确认交卷？");
           if (!(await confirmDialogSync({ title: t("mock.handIn"), content: prompt + "\n" + t("mock.confirmHandInImpact", "交卷后答案将锁定、计时停止；未答题按 0 分计入本卷成绩。") }))) return;
         } finally { handInConfirming = false; }
         // 确认框打开期间可能已到时自动交卷，不能再次写入相同流水。

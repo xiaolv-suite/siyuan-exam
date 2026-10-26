@@ -1495,11 +1495,12 @@
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "knowledge"}>
         <b>{t("report.weak")}</b>
         {#each weak.slice(0, 5) as w, i (i)}
-          <div class="lv-row" style="margin:4px 0">
+          <div class="lv-row" style="margin:4px 0;align-items:center;gap:8px">
             <span class="lv-chip lv-chip--red num">{i + 1}</span>
             <span style="flex:1">{w.root}</span>
             <span class="num" style="color:var(--lv-red);font-weight:var(--lv-font-weight-bold)">{Math.round(w.accuracy * 100)}%</span>
-            <button class="lv-btn sm" onclick={() => drillWeak(w.root)}>{t("report.drillKp")}</button>
+            <button class="lv-btn sm lv-btn--primary" onclick={() => startWeakDrill(w.root)} title="针对该考点立即开启专项靶向刷题"><Icon name="play" size={12} /> 专项特训</button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => drillWeak(w.root)} title={t("report.drillKp")}>{t("report.drillKp")}</button>
           </div>
         {/each}
       </div>

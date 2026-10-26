@@ -5318,6 +5318,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         feedback = null; selected = ""; confidenceSel = ""; sessionDone = null; view = "session";
       });
     }
+
+    function cloneToManualStudio(q: Question) {
+      mType = q.type === "material" ? "single" : q.type;
+      mStem = q.stem ? `${q.stem}（变式）` : "";
+      mOptions = q.options?.length ? [...q.options] : ["", ""];
+      mAnswer = q.answer || "";
+      mAnalysis = q.analysis || "";
+      mKp = q.kp || "";
+      mSource = q.source || "";
+      mStatus = "draft";
+      closePeekDrawer();
+      view = "manual";
+      showMessage("已将该题载入手工录题台，可直接微调题干选项并保存！", 3200, "info");
+    }
     let peekDrawerEl = $state<HTMLDivElement | null>(null);
     let peekReturnFocus: HTMLElement | null = null;
     let peekWasOpen = false;
@@ -8904,6 +8918,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                   <div class="lv-row" style="flex-wrap:wrap;gap:var(--lv-space-1)">
                     <button class="lv-btn sm lv-btn--primary" onclick={() => void drillSingleQuestion(q)} title={t("browse.drillSingleTip")}><Icon name="play" size={13} /> {t("browse.drillSingle")}</button>
                     <button class="lv-btn sm" onclick={() => openEditForm(q)}>✎ {t("edit.open")}</button>
+                    <button class="lv-btn sm lv-btn--ghost" onclick={() => cloneToManualStudio(q)} title="基于此题克隆为变式题并进入手工录题台"><Icon name="layers" size={13} /> 衍生变式题</button>
                     <button class="lv-btn sm lv-btn--ghost" class:acc-btn={isQuestionDisputed(q)} onclick={() => toggleDisputeForm(q)}>
                       <Icon name="alert-triangle" size={13} /> {isQuestionDisputed(q) ? t("dispute.resolveAction") : t("dispute.flagAction")}
                     </button>
