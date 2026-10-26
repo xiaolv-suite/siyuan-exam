@@ -315,8 +315,8 @@ describe("应用层记忆/写入路径（应用编排层测试补盲）", () => 
   });
 
   it("43-08：ExamApp 全库与单题区分度校准与 CSV 导出闭环", async () => {
-    const q1 = { ...qWithBlock("q-disc-1"), difficulty: 3 };
-    const q2 = { ...qWithBlock("q-disc-2"), difficulty: 4 };
+    const q1 = { ...qWithBlock("q-disc-1"), kp: "数学/微积分", difficulty: 3 };
+    const q2 = { ...qWithBlock("q-disc-2"), kp: "数学/微积分", difficulty: 4 };
 
     const client = {
       sql: async () => [],
@@ -346,6 +346,11 @@ describe("应用层记忆/写入路径（应用编排层测试补盲）", () => 
     const csv = await app.exportBankDiscriminationCsv("bank-disc");
     expect(csv).toContain("q-disc-1");
     expect(csv).toContain("实测通过率P");
+
+    // 3. 考点拓扑因果与阶段通关规划
+    const clearance = await app.planClearanceStudy("bank-disc");
+    expect(clearance.summary.totalStages).toBeGreaterThanOrEqual(1);
+    expect(clearance.stages.length).toBeGreaterThanOrEqual(1);
   });
 
   it("54-06：ExamApp 主观题字数测算与 25×N 答题方格纸模型生成闭环", async () => {

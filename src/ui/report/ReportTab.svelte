@@ -68,7 +68,19 @@
     let kpi = $state({ attempts: 0, accuracy: 0, eliminated: 0, streak: 0 });
     let heat = $state<{ date: string; count: number }[]>([]);
     let mastery = $state<ReturnType<typeof masteryByKp>>([]);
-    let masteryTab = $state<"radar" | "list">("radar");
+    let masteryTab = $state<"radar" | "list" | "roadmap">("radar");
+    let clearancePlan = $state<import("@/core/knowledgeGraphPath").ClearancePlan | null>(null);
+    let clearanceLoading = $state(false);
+
+    async function loadClearancePlan() {
+      if (!app || clearanceLoading) return;
+      clearanceLoading = true;
+      try {
+        clearancePlan = await app.planClearanceStudy(bankId || undefined);
+      } catch { /* 容错 */ } finally {
+        clearanceLoading = false;
+      }
+    }
     const radarDimensions = $derived(extractRadarDimensions(mastery, 8));
     const radarChart = $derived(buildRadarChartModel(radarDimensions, { size: 320, radius: 100 }));
 
@@ -609,6 +621,9 @@
         if (userRole === "teacher" || reportSection === "quality") {
           void loadDiscriminationAudit();
         }
+        if (masteryTab === "roadmap") {
+          void loadClearancePlan();
+        }
         if (showFeedback) showMessage(t("report.refreshDone"), 2600, "info");
       } catch (e) {
         errorMsg = String(e instanceof Error ? e.message : e);
@@ -678,6 +693,9 @@
       await reloadBankScope();
       if (userRole === "teacher" || reportSection === "quality") {
         void loadDiscriminationAudit();
+      }
+      if (masteryTab === "roadmap") {
+        void loadClearancePlan();
       }
     }
 
@@ -1410,6 +1428,17 @@
               >
                 <Icon name="table" size={12} /> {t("report.asTable")}
               </button>
+              <button
+                type="button"
+                role="tab"
+                class="lv-chip sm"
+                class:acc={masteryTab === "roadmap"}
+                aria-selected={masteryTab === "roadmap"}
+                onclick={() => { masteryTab = "roadmap"; void loadClearancePlan(); }}
+                title="考点因果拓扑图谱与逐阶段通关学习路线"
+              >
+                <Icon name="compass" size={12} /> {t("report.asRoadmap", "通关地图")}
+              </button>
             </div>
             <button
               type="button"
@@ -1537,7 +1566,7 @@
             {t("report.radarNeedMore")}
           </div>
         {/if}
-      {:else}
+      {:else if masteryTab === "list"}
         {#each mastery.slice(0, 8) as m, _i (_i)}
           <!-- 栅格行：五列定宽对齐，窄屏末列折行到第二行（避免 flex-wrap 造成的悬挂碎片） -->
           <div class="lv-mastery-row">
@@ -1552,6 +1581,77 @@
             <span class="num lv-muted" title={t("report.uniqueTip")}>{t("report.uniqueQ")} {m.uniqueQids}{#if m.coverage >= 0} · {t("report.coverage")} {Math.round(m.coverage * 100)}%{/if}</span>
           </div>
         {/each}
+      {:else if masteryTab === "roadmap"}
+        <!-- 🗺️ 阶段通关学习路线与核心阻断图谱 -->
+        {#if clearanceLoading}
+          <div class="lv-pad" style="text-align:center"><p class="lv-muted">正在根据考点前后拓扑因果关系计算通关地图…</p></div>
+        {:else if clearancePlan}
+          <div class="stack-md" style="margin-top:10px">
+            <!-- 核心阻断溯源关键链 -->
+            {#if clearancePlan.criticalChain.length > 0}
+              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-2)">
+                <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <b style="color:var(--lv-red);font-size:13px;display:flex;align-items:center;gap:6px">
+                    <Icon name="alert-triangle" size={13} /> 🚨 核心阻断溯源关键链（前修考点薄弱阻断了后续进阶）
+                  </b>
+                  <span class="lv-chip sm num lv-chip--red">{clearancePlan.criticalChain.length} 个考点</span>
+                </div>
+                <div class="lv-row" style="margin:4px 0 0;gap:6px;align-items:center;flex-wrap:wrap">
+                  {#each clearancePlan.criticalChain as kp, ki (kp)}
+                    <span class="lv-chip lv-chip--amb num" style="font-weight:600">
+                      {kp}
+                    </span>
+                    {#if ki < clearancePlan.criticalChain.length - 1}
+                      <span style="color:var(--lv-accent);font-weight:bold">➔</span>
+                    {/if}
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            <!-- 阶段路线概览 -->
+            <div class="lv-row" style="gap:8px;flex-wrap:wrap;margin:0">
+              <span class="lv-chip num">阶段总数: {clearancePlan.summary.totalStages}</span>
+              <span class="lv-chip lv-chip--grn num">已牢固: {clearancePlan.summary.masteredCount}</span>
+              <span class="lv-chip lv-chip--red num">薄弱待攻坚: {clearancePlan.summary.weakCount}</span>
+              <span class="lv-chip num">预估用时: ~{clearancePlan.summary.estimatedStudyMinutes} 分钟</span>
+            </div>
+
+            <!-- 逐阶段路线卡片 -->
+            <div class="stack-sm">
+              {#each clearancePlan.stages as stg (stg.stage)}
+                <div class="lv-card" style="padding:12px 16px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border)">
+                  <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+                    <div>
+                      <b style="font-size:14px;color:var(--lv-text)">阶段 {stg.stage} · {stg.kps.map((k) => k.kp.split('/').pop()).join('、')}</b>
+                      <span class="lv-muted" style="font-size:11px;margin-left:8px">共 {stg.totalQuestions || 0} 题 · 包含 {stg.kps.length} 个考点</span>
+                    </div>
+                    {#if stg.kps.length > 0}
+                      <button class="lv-btn sm lv-btn--primary" onclick={() => startWeakDrill(stg.kps[0].kp.split('/')[0])}>
+                        <Icon name="play" size={12} /> 攻坚本阶段
+                      </button>
+                    {/if}
+                  </div>
+                  <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
+                    {#each stg.kps as item (item.kp)}
+                      <span
+                        class="lv-chip num sm"
+                        class:lv-chip--grn={item.status === "mastered"}
+                        class:lv-chip--red={item.status === "weak"}
+                        class:lv-chip--amb={item.status === "learning"}
+                        title={`状态: ${item.status === "mastered" ? "已掌握" : item.status === "weak" ? "薄弱" : item.status === "learning" ? "学习中" : "未练习"}`}
+                      >
+                        {item.kp}
+                      </span>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {:else}
+          <div class="lv-muted" style="padding:16px 0;text-align:center">暂无可推演的考点拓扑路径。</div>
+        {/if}
       {/if}
     </div>
 

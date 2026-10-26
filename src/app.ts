@@ -3520,6 +3520,20 @@ export class ExamApp {
   }
 
   // ---------- 考点拓扑图谱与阶段通关导学案导出 ----------
+  async planClearanceStudy(bankId?: string): Promise<import("./core/knowledgeGraphPath").ClearancePlan> {
+    const targetBank = bankId ?? this.listBanks()[0]?.id;
+    const questions = targetBank ? await this.listQuestions(targetBank) : [];
+    const events = this.attempts.all();
+    const { buildKnowledgeGraph, planClearancePath } = await import("./core/knowledgeGraphPath");
+    const genericQs = questions.map((q) => ({ id: q.id, kp: q.kp, stem: q.stem, difficulty: q.difficulty }));
+    const graph = buildKnowledgeGraph({
+      questions: genericQs,
+      relations: [],
+      attempts: events.map((e) => ({ qid: e.qid, verdict: e.verdict === "correct" ? "right" : "wrong" })),
+    });
+    return planClearancePath(graph, { questions: genericQs });
+  }
+
   async exportClearanceStudyGuideMarkdown(bankId?: string): Promise<string> {
     const targetBank = bankId ?? this.listBanks()[0]?.id;
     const questions = targetBank ? await this.listQuestions(targetBank) : [];

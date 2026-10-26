@@ -641,6 +641,7 @@
     "report.fullHtmlReport": "全景学情战报(HTML)",
     "report.asTable": "数据表",
     "report.asChart": "图表",
+    "report.asRoadmap": "通关地图",
     "report.mastery": "考点掌握度（正确率 × 留存衰减）",
     "report.insufficient": "数据不足",
     "report.weak": "薄弱考点",

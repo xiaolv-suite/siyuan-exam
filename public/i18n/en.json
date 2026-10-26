@@ -614,6 +614,7 @@
     "report.fullHtmlReport": "Full Diagnostics (HTML)",
     "report.asTable": "Data table",
     "report.asChart": "Chart",
+    "report.asRoadmap": "Roadmap",
     "report.mastery": "Kp mastery (accuracy × retention)",
     "report.insufficient": "Insufficient data",
     "report.weak": "Weak topics",
