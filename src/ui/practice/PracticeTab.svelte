@@ -1188,6 +1188,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     const bankName = $derived(banks.find((b) => b.id === activeBankId)?.name ?? "");
+    const bankCategory = $derived(banks.find((b) => b.id === activeBankId)?.category ?? "general");
     const hasBank = $derived(banks.length > 0);
     const offline = $derived(!app?.kernelOnline);
     /** onMount 注册的窗口事件监听清理（Svelte onMount 返回值与内部 async 冲突时用变量中转） */
@@ -6335,9 +6336,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       {/if}
       <div class="lv-pad">
         <div class="lv-screen-head">
-          <span class="lv-eyebrow">{t("head.entry.eyebrow")}</span>
-          <h1 class="lv-h1">{t("head.entry.title")}</h1>
-          <p>{t("head.entry.desc")}</p>
+          <span class="lv-eyebrow">{hasBank ? `${getBankCategoryMeta(bankCategory).badge} · 研学空间` : t("head.entry.eyebrow")}</span>
+          <h1 class="lv-h1">{hasBank ? bankName : t("head.entry.title")}</h1>
+          <p>先输入理解，再背诵内化；既有日常沉浸自测，亦有全真限时模考。</p>
         </div>
         {#if bankCreateError}<div class="lv-error" role="alert" style="margin-bottom:14px">{bankCreateError}</div>{/if}
         {#if sampleNotice}
@@ -6582,10 +6583,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           </button>
         </div>
         <div class="lv-section-title">
-          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="grid" size={14} /> {t("entry.modes")}</span>
-          <span class="lv-muted" style="font-size:12px;font-weight:400">选择专项研学模式沉浸自测</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="zap" size={14} /> 阶段一：日常自测与靶向精练</span>
+          <span class="lv-muted" style="font-size:12px;font-weight:400">边学边练 · 查漏补缺 · 即时反馈</span>
         </div>
-        <!-- 层级：队列驱动三模式（快速/每日/错题）为一级 accent 键帽；低频三模式降噪为中性键帽 -->
+        <!-- 核心练习主跑道：队列驱动三模式（快速/每日/错题）为一级 accent 键帽 -->
         <div class="lv-modes">
           <button class="lv-mode" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => startDrill("quick")}>
             <span class="lv-mode-icon lv-mode-icon--quick"><Icon name="zap" /></span><span class="lv-mode-body"><b>{t("mode.quick")}</b><span class="lv-muted">{t("mode.quick.desc")}</span></span>
@@ -6596,6 +6597,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           <button class="lv-mode" disabled={!wrongList.length} title={!wrongList.length ? t("state.noWrong") : ""} onclick={() => startDrill("wrong")}>
             <span class="lv-mode-icon lv-mode-icon--wrong"><Icon name="xcircle" /></span><span class="lv-mode-body"><b>{t("mode.wrong")}</b><span class="lv-muted num">{wrongList.length} {t("mode.wrong.unit")}</span></span>
           </button>
+        </div>
+
+        <div class="lv-section-title" style="margin-top:20px">
+          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="rotate" size={14} /> 阶段二：概念内化与纸面背诵</span>
+          <span class="lv-muted" style="font-size:12px;font-weight:400">主动回忆 · 遮盖自评 · 听音伴读</span>
+        </div>
+        <div class="lv-modes">
           <button class="lv-mode lv-mode--minor" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => startRecite()}>
             <span class="lv-mode-icon lv-mode-icon--recite"><Icon name="rotate" /></span><span class="lv-mode-body"><b>{t("mode.recite")}</b><span class="lv-muted">{t("mode.recite.desc")}</span></span>
           </button>
@@ -6617,6 +6625,25 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <span class="lv-mode-icon lv-mode-icon--wrong">⚠️</span><span class="lv-mode-body"><b>陷阱排雷</b><span class="lv-muted">易混陷阱攻坚（<span class="num">{count}</span> {t("mode.wrong.unit")}）</span></span>
             </button>
           {/if}
+        </div>
+
+        <!-- 阶段三：全真模考与实战检验（保留并强化大考主打功能） -->
+        <div class="lv-card" style="margin-top:22px;padding:16px 20px;border-radius:var(--lv-r-3);background:var(--lv-surface);border:1px solid var(--lv-border);box-shadow:var(--lv-sh-card)">
+          <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+            <div>
+              <span class="lv-eyebrow" style="color:var(--lv-brand);font-weight:600">阶段三：全真模考与实战检验</span>
+              <h3 style="margin:4px 0 2px;font-size:16px;color:var(--lv-text)">标准化机考沙盘 · 出版级试卷印刷</h3>
+              <p class="lv-muted" style="margin:0;font-size:12px">考试是检验能力的试金石。支持标准限时模考、CBT 答题卡、防漏答强校验与双栏纸笔试卷。</p>
+            </div>
+            <div class="lv-row" style="margin:0;gap:8px">
+              <button class="lv-btn lv-btn--primary" onclick={() => plugin.openMock?.()} title="进入全真模拟考场">
+                <Icon name="clock" size={15} /> 进入全真模考场
+              </button>
+              <button class="lv-btn" onclick={() => plugin.openReport?.()} title="查看学情诊断报告">
+                <Icon name="chart" size={15} /> 查看学情报告
+              </button>
+            </div>
+          </div>
         </div>
         <div class="lv-section-title" style="margin-top:22px">
           <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="compass" size={14} /> {t("entry.tools")}</span>
@@ -8163,7 +8190,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       </div>
       <div class="lv-card" style="margin-top:10px">
         <div class="lv-row">
-          <button type="button" class="lv-btn" disabled={materialsBusy || offline || app.materialsReadonly} title={app.materialsReadonly ? t("materials.readonly") : offline ? t("state.offlineHint") : ""} onclick={() => materialFileInput?.click()}>
+          <button type="button" class="lv-btn" disabled={materialsBusy || offline || app.materialsReadonly} title={app.materialsReadonly ? t("materials.readonly") : offline ? t("state.offlineHint") : ""} onclick={() => materialFileInput?.click()} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); materialFileInput?.click(); } }}>
             <Icon name="paperclip" size={14} /> {t("materials.pickFile")}
           </button>
           <input bind:this={materialFileInput} type="file" accept=".pdf,.mp4,.webm,.m4v,.mp3,.m4a,.wav,.ogg,.png,.jpg,.jpeg,.gif,.webp,.md,.txt,.docx,.epub" hidden onchange={onMaterialFile} disabled={materialsBusy || offline || app.materialsReadonly} />
@@ -9432,7 +9459,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             {/if}
           {:else}
           <div class="lv-row">
-            <button type="button" class="lv-btn" disabled={importBusy} onclick={() => importFileInput?.click()}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
+            <button type="button" class="lv-btn" disabled={importBusy} onclick={() => importFileInput?.click()} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); importFileInput?.click(); } }}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
             <input bind:this={importFileInput} type="file" accept=".xlsx,.xls,.csv" hidden onchange={onExcelFile} disabled={importBusy} />
             <button class="lv-btn sm" onclick={downloadTemplate}><Icon name="import" size={15} /> {t("import.template")}</button>
             <button class="lv-btn sm lv-btn--ghost" onclick={pasteClipboardToImport} disabled={importBusy} title={t("import.pasteClipboardTip")}><Icon name="copy" size={14} /> {t("import.pasteClipboard")}</button>
