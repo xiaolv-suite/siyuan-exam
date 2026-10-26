@@ -28,6 +28,8 @@ import { SAMPLE_BANK_NAME, SAMPLE_BANK_INTRO, sampleQuestions } from "./core/sam
 import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_BANK_INTRO, cantoneseSampleQuestions } from "./core/cantoneseSample";
 import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_BANK_INTRO, englishSampleQuestions } from "./core/englishSample";
 import { QUALIFICATION_SAMPLE_BANK_NAME, QUALIFICATION_SAMPLE_BANK_INTRO, qualificationSampleQuestions } from "./core/qualificationSample";
+import { K12_SAMPLE_BANK_NAME, K12_SAMPLE_BANK_INTRO, k12SampleQuestions } from "./core/k12Sample";
+import { HIGHER_SAMPLE_BANK_NAME, HIGHER_SAMPLE_BANK_INTRO, higherSampleQuestions } from "./core/higherSample";
 import type { BankCategory } from "./core/bankCategory";
 import { BATCH_FIELD_ATTR, type BatchField } from "./core/batchEdit";
 import { auditAttemptEvents, type DataAuditReport } from "./core/dataAudit";
@@ -561,14 +563,14 @@ export class ExamApp {
     return info;
   }
 
-  /** 用户主动创建示例题库；支持通用演示题库、粤语/英语多语言研学及教师资格/基金从业资格题库；并发点击共享任务。 */
-  createSampleBank(kind: "general" | "cantonese" | "english" | "qualification" = "general"): Promise<BankInfo> {
+  /** 用户主动创建示例题库；支持通用通识、粤语/英语多语言、职业资格、K12全科与大学硕博高阶题库；并发点击共享任务。 */
+  createSampleBank(kind: "general" | "cantonese" | "english" | "qualification" | "k12" | "higher" = "general"): Promise<BankInfo> {
     if (this.sampleBankCreation) return this.sampleBankCreation;
     this.sampleBankCreation = this.writeSampleBank(kind).finally(() => { this.sampleBankCreation = null; });
     return this.sampleBankCreation;
   }
 
-  private async writeSampleBank(kind: "general" | "cantonese" | "english" | "qualification" = "general"): Promise<BankInfo> {
+  private async writeSampleBank(kind: "general" | "cantonese" | "english" | "qualification" | "k12" | "higher" = "general"): Promise<BankInfo> {
     this.assertStorageWritable();
     if (!this.kernelOnline) throw new Error("思源内核未连接，请恢复连接后再创建示例题库。");
     let bankName = SAMPLE_BANK_NAME;
@@ -594,7 +596,19 @@ export class ExamApp {
       bankIntro = QUALIFICATION_SAMPLE_BANK_INTRO;
       getQuestions = qualificationSampleQuestions;
       docTitle = "从业资格认证试题";
-      category = "exam";
+      category = "certificate";
+    } else if (kind === "k12") {
+      bankName = K12_SAMPLE_BANK_NAME;
+      bankIntro = K12_SAMPLE_BANK_INTRO;
+      getQuestions = k12SampleQuestions;
+      docTitle = "K12全科基础试题";
+      category = "k12";
+    } else if (kind === "higher") {
+      bankName = HIGHER_SAMPLE_BANK_NAME;
+      bankIntro = HIGHER_SAMPLE_BANK_INTRO;
+      getQuestions = higherSampleQuestions;
+      docTitle = "大学与硕博学术试题";
+      category = "higher";
     }
 
     let info = this.banks.find((bank) => bank.name === bankName && bank.sampleState);

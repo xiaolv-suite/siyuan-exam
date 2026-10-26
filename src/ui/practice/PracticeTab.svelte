@@ -77,6 +77,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_QUESTION_COUNT } from "@/core/cantoneseSample";
     import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_QUESTION_COUNT } from "@/core/englishSample";
     import { QUALIFICATION_SAMPLE_BANK_NAME, QUALIFICATION_SAMPLE_QUESTION_COUNT } from "@/core/qualificationSample";
+    import { K12_SAMPLE_BANK_NAME, K12_SAMPLE_QUESTION_COUNT } from "@/core/k12Sample";
+    import { HIGHER_SAMPLE_BANK_NAME, HIGHER_SAMPLE_QUESTION_COUNT } from "@/core/higherSample";
     import { getBankCategoryMeta, type BankCategory } from "@/core/bankCategory";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
@@ -291,6 +293,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let reciteError = $state("");
     let reciteRatings = $state<number[]>([]);
     let reciteAutoTts = $state(readLocal("lv-exam/recite-auto-tts") === "1");
+    let ttsSlowRate = $state(readLocal("lv-exam/tts-slow") === "1");
     /** 39-03：本次背诵评级的结果状态（未转卡/已写回/待确认/失败/离线未写回） */
     let reciteOutcome = $state<RatingOutcomeView | null>(null);
     /** 39-03：防双击与重复提交（同会话同题同评级只写一次；失败后放行重试） */
@@ -917,6 +920,68 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         }
       } catch (e) {
         showMessage(`打印勾选题失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      }
+    }
+
+    async function printSelectedTeacherPaper() {
+      if (!selectedCount) return;
+      const ids = new Set(Object.keys(selectedIds));
+      const targetQuestions = questions.filter((q) => ids.has(q.id));
+      if (!targetQuestions.length) return;
+      try {
+        const { buildTeacherLectureSheetPro } = await import("@/core/printPro");
+        const html = buildTeacherLectureSheetPro(`${bankName || "题库"} · 勾选题备课讲义`, targetQuestions, {
+          paperSize: "A4",
+          columns: "double",
+          groupByKp: true,
+        });
+        const win = window.open("", "_blank");
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+        } else {
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `${bankName || "题库"}-勾选题备课讲义.html`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          showMessage("已生成勾选题教师讲义教案文件", 3000, "info");
+        }
+      } catch (e) {
+        showMessage(`导出勾选题讲义失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      }
+    }
+
+    async function printSelectedHomeworkSheet() {
+      if (!selectedCount) return;
+      const ids = new Set(Object.keys(selectedIds));
+      const targetQuestions = questions.filter((q) => ids.has(q.id));
+      if (!targetQuestions.length) return;
+      try {
+        const { buildStudentHomeworkSheetPro } = await import("@/core/printPro");
+        const html = buildStudentHomeworkSheetPro(`${bankName || "题库"} · 勾选题分层作业单`, targetQuestions, {
+          paperSize: "A4",
+          columns: "double",
+          groupByKp: true,
+        });
+        const win = window.open("", "_blank");
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+        } else {
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `${bankName || "题库"}-课后作业单.html`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+          showMessage("已生成勾选题课后分层作业单", 3000, "info");
+        }
+      } catch (e) {
+        showMessage(`导出作业单失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       }
     }
 
@@ -1950,9 +2015,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       } finally { creating = false; }
     }
 
-    type SampleBankKind = "general" | "cantonese" | "english" | "qualification";
+    type SampleBankKind = "general" | "cantonese" | "english" | "qualification" | "k12" | "higher";
     async function createSampleBank(kind: SampleBankKind | Event = "general") {
-      const actualKind: SampleBankKind = (kind === "cantonese" || kind === "english" || kind === "qualification") ? kind : "general";
+      const actualKind: SampleBankKind = (kind === "cantonese" || kind === "english" || kind === "qualification" || kind === "k12" || kind === "higher") ? kind : "general";
       if (creating) return;
       creating = true; creatingSample = true;
       errorMsg = ""; bankCreateError = ""; sampleNotice = "";
@@ -1967,6 +2032,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       } else if (actualKind === "qualification") {
         targetCount = QUALIFICATION_SAMPLE_QUESTION_COUNT;
         targetName = QUALIFICATION_SAMPLE_BANK_NAME;
+      } else if (actualKind === "k12") {
+        targetCount = K12_SAMPLE_QUESTION_COUNT;
+        targetName = K12_SAMPLE_BANK_NAME;
+      } else if (actualKind === "higher") {
+        targetCount = HIGHER_SAMPLE_QUESTION_COUNT;
+        targetName = HIGHER_SAMPLE_BANK_NAME;
       }
       try {
         const b = await app.createSampleBank(actualKind);
@@ -2683,7 +2754,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       reciteSessionId = `s-recite-${Date.now().toString(36)}`;
       view = "recite";
       if (reciteAutoTts && reciteQueue[0]) {
-        ttsSpeak(reciteQueue[0].stem, reciteQueue[0].studyMeta?.lang ? { lang: reciteQueue[0].studyMeta.lang } : 1);
+        ttsSpeak(reciteQueue[0].stem, { lang: reciteQueue[0].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
       }
     }
 
@@ -2692,7 +2763,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (reciteAutoTts && reciteQueue[reciteCursor]) {
         const q = reciteQueue[reciteCursor];
         const ansText = String(q.answer ?? "");
-        if (ansText) ttsSpeak(ansText, q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1);
+        if (ansText) ttsSpeak(ansText, { lang: q.studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
       }
     }
 
@@ -2715,7 +2786,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         if (reciteCursor < reciteQueue.length - 1) {
           reciteCursor++; reciteRevealed = false;
           if (reciteAutoTts && reciteQueue[reciteCursor]) {
-            ttsSpeak(reciteQueue[reciteCursor].stem, reciteQueue[reciteCursor].studyMeta?.lang ? { lang: reciteQueue[reciteCursor].studyMeta.lang } : 1);
+            ttsSpeak(reciteQueue[reciteCursor].stem, { lang: reciteQueue[reciteCursor].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
           }
         } else {
           reciteDone = true;
@@ -6401,7 +6472,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     高等数学微积分、线性代数、考研政治专业课、四六级长难句
                   </p>
                 </div>
-                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("qualification")} disabled={creating || offline} title="体验大学高数与考研真题">
+                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("higher")} disabled={creating || offline} title="体验大学高数与考研真题">
                   体验高数题库
                 </button>
               </div>
@@ -6436,7 +6507,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     小学/初中/高中全科基础、中高考物理数学公式与古诗文
                   </p>
                 </div>
-                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("general")} disabled={creating || offline} title="体验综合基础自测题库">
+                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("k12")} disabled={creating || offline} title="体验K12初高中全科题库">
                   体验基础题库
                 </button>
               </div>
@@ -6992,7 +7063,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")} {pos}/{sibs.length}</span>
             {/if}
             <div class="lv-session-dock" role="group" aria-label="核心学习操作">
-              <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak([q.stem, ...q.options].join(" "), q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1)}><Icon name="volume" size={13} /></button>
+              <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak([q.stem, ...q.options].join(" "), { lang: q.studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 })}><Icon name="volume" size={13} /></button>
+              <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
+                {ttsSlowRate ? "0.8x" : "1.0x"}
+              </button>
               <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={toggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
               <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={() => toggleFavCurrent()}><Icon name="star" size={13} /></button>
             </div>
@@ -7458,6 +7532,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           <button type="button" class="lv-chip" class:acc={reciteAutoTts} title="伴学自动朗读开关：开启后自动朗读题干与揭示答案" onclick={() => { reciteAutoTts = !reciteAutoTts; writeLocal("lv-exam/recite-auto-tts", reciteAutoTts ? "1" : "0"); }}>
             <Icon name="volume" size={12} /> {reciteAutoTts ? "伴读开" : "伴读"}
           </button>
+          <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
+            {ttsSlowRate ? "0.8x" : "1.0x"}
+          </button>
           {#if reciteQueue[reciteCursor]?.group}
             <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
           {/if}
@@ -7711,7 +7788,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.snooze7")} onclick={() => void snoozeWrong(w.qid, 7)}><Icon name="clock" size={12} /> {t("wrongbook.snooze7")}</button>
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.archiveTip")} onclick={() => void archiveWrong(w.qid)}><Icon name="folder" size={12} /> {t("wrongbook.archive")}</button>
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => void startSameKpFor(w.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
-                    <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => void masterWrong(w.qid)}>{wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}</button>
+                    <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-green);font-weight:600" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => void masterWrong(w.qid)}><Icon name="check" size={13} /> {wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}</button>
                   </div>
                 {/each}
               {:else if wbTab === "eliminated"}
@@ -8296,7 +8373,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       </div>
       <div class="lv-card" style="margin-top:10px">
         <div class="lv-row">
-          <button type="button" class="lv-btn" disabled={materialsBusy || offline || app.materialsReadonly} title={app.materialsReadonly ? t("materials.readonly") : offline ? t("state.offlineHint") : ""} onclick={() => materialFileInput?.click()} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); materialFileInput?.click(); } }}>
+          <button type="button" class="lv-btn" disabled={materialsBusy || offline || app.materialsReadonly} title={app.materialsReadonly ? t("materials.readonly") : offline ? t("state.offlineHint") : ""} onclick={() => materialFileInput?.click()}>
             <Icon name="paperclip" size={14} /> {t("materials.pickFile")}
           </button>
           <input bind:this={materialFileInput} type="file" accept=".pdf,.mp4,.webm,.m4v,.mp3,.m4a,.wav,.ogg,.png,.jpg,.jpeg,.gif,.webp,.md,.txt,.docx,.epub" hidden onchange={onMaterialFile} disabled={materialsBusy || offline || app.materialsReadonly} />
@@ -8713,6 +8790,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               </button>
               <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedQuestions} title="将勾选的题目生成 A4 双栏试卷">
                 <Icon name="file" size={13} /> {t("batch.printSelected")}
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedTeacherPaper} title="导出勾选题目的教师讲义教案（含答案与采分细则）">
+                <Icon name="book" size={13} /> 教师教案
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedHomeworkSheet} title="导出勾选题目的课后分层作业单（带姓名与反思框）">
+                <Icon name="file-text" size={13} /> 分层作业单
               </button>
             {/if}
             {#if batchUndoHere && !appliedChanges.length}
@@ -9526,8 +9609,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                 {/if}
               </div>
             </div>
-          {/if}
-          {#if importSubTab === "cloze"}
+          {:else if importSubTab === "cloze"}
             <!-- 52-09 正文划重点挖空出题工作台 -->
             <div class="lv-row" style="margin:4px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
               <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">识别语法：</span>
@@ -9565,7 +9647,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             {/if}
           {:else}
           <div class="lv-row">
-            <button type="button" class="lv-btn" disabled={importBusy} onclick={() => importFileInput?.click()} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); importFileInput?.click(); } }}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
+            <button type="button" class="lv-btn" disabled={importBusy} onclick={() => importFileInput?.click()}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
             <input bind:this={importFileInput} type="file" accept=".xlsx,.xls,.csv" hidden onchange={onExcelFile} disabled={importBusy} />
             <button class="lv-btn sm" onclick={downloadTemplate}><Icon name="import" size={15} /> {t("import.template")}</button>
             <button class="lv-btn sm lv-btn--ghost" onclick={pasteClipboardToImport} disabled={importBusy} title={t("import.pasteClipboardTip")}><Icon name="copy" size={14} /> {t("import.pasteClipboard")}</button>
@@ -9809,6 +9891,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedQuestions} title="导出为 A4 双栏试卷">
                 <Icon name="file" size={13} /> 打印试卷
               </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedTeacherPaper} title="导出勾选题教师教案讲义">
+                <Icon name="book" size={13} /> 教师教案
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedHomeworkSheet} title="导出勾选题课后作业单">
+                <Icon name="file-text" size={13} /> 作业单
+              </button>
               <button class="lv-btn sm lv-btn--ghost" onclick={() => void batchConvertToCards()} disabled={batchCardBusy || !app?.kernelOnline} title="批量制成闪卡">
                 <Icon name="layers" size={13} /> 推送闪卡
               </button>
@@ -9892,19 +9980,25 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </button>
           </div>
           <div class="lv-row" style="margin:0 0 12px;gap:8px;flex-wrap:wrap">
-            <input class="lv-input" style="flex:1;min-width:180px" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
+            <input class="lv-input" style="flex:1;min-width:160px" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
             <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
               <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("qualification"); }} disabled={creating || offline} title="一键体验教师资格证与基金从业资格真题题库">
-                🎯 资格示例
+                🎯 考证
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("higher"); }} disabled={creating || offline} title="体验大学高数与考研学术题库">
+                🎓 高数
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("k12"); }} disabled={creating || offline} title="体验K12初高中全科基础题库">
+                🎒 K12
               </button>
               <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("english"); }} disabled={creating || offline} title="体验大学英语雅思词汇与发音研学题库">
-                🗣️ 英语示例
+                🗣️ 英语
               </button>
               <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("cantonese"); }} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
-                🇭🇰 粤语示例
+                🇭🇰 粤语
               </button>
               <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("general"); }} disabled={creating || offline} title="体验综合基础演示题库">
-                🧠 通识示例
+                🧠 通识
               </button>
             </div>
           </div>

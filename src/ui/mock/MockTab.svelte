@@ -1656,11 +1656,33 @@
     <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0 8px">
       <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
         <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
-        <select class="lv-select" style="max-width:170px" onchange={(e) => void onPresetSelected((e.target as HTMLSelectElement).value)}>
+        <select class="lv-select" style="max-width:180px" onchange={(e) => void onPresetSelected((e.target as HTMLSelectElement).value)}>
           <option value="">{t("mock.pickPreset")}</option>
-          {#each presetOptions as opt (opt.id)}
-            <option value={opt.id}>{opt.title}</option>
-          {/each}
+          <optgroup label="📜 职业考证">
+            {#each presetOptions.filter((p) => p.category === "qualification") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="🎓 大学与考研硕博">
+            {#each presetOptions.filter((p) => p.category === "academic" || p.category === "postgraduate") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="🎒 K12 基础教育">
+            {#each presetOptions.filter((p) => p.category === "k12") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="🎯 公务员与法考">
+            {#each presetOptions.filter((p) => p.category === "civil_service" || p.category === "law") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="🗣️ 语言与微测验">
+            {#each presetOptions.filter((p) => p.category === "language" || p.category === "micro") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
         </select>
         <button class="lv-btn sm" onclick={generateAdaptiveSprint} disabled={sprintBusy || !questions.length || starting} aria-busy={sprintBusy} title="基于考点盲区与高频错题自适应装配全真密卷"><Icon name="sparkles" size={14} /> {sprintBusy ? "…" : t("mock.sprintPaper")}</button>
       </div>

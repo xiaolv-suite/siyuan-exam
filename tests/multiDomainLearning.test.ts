@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { englishSampleQuestions, ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_QUESTION_COUNT } from "../src/core/englishSample";
 import { qualificationSampleQuestions, QUALIFICATION_SAMPLE_BANK_NAME, QUALIFICATION_SAMPLE_QUESTION_COUNT } from "../src/core/qualificationSample";
+import { k12SampleQuestions, K12_SAMPLE_BANK_NAME, K12_SAMPLE_QUESTION_COUNT } from "../src/core/k12Sample";
+import { higherSampleQuestions, HIGHER_SAMPLE_BANK_NAME, HIGHER_SAMPLE_QUESTION_COUNT } from "../src/core/higherSample";
 import { EXAM_BLUEPRINT_PRESETS, adaptPresetToBlueprint } from "../src/core/examPresets";
 import { ExamApp } from "../src/app";
 import { MemoryStorage } from "../src/core/attemptLog";
@@ -114,10 +116,59 @@ describe("全场景多维研学体系升级 (多语言/资格证/K12升学)", ()
     // 2. 从业资格题库
     const qualBank = await app.createSampleBank("qualification");
     expect(qualBank.name).toBe(QUALIFICATION_SAMPLE_BANK_NAME);
-    expect(qualBank.category).toBe("exam");
+    expect(qualBank.category).toBe("certificate");
     expect(qualBank.sampleState).toBe("ready");
 
+    // 3. K12全科题库
+    const k12Bank = await app.createSampleBank("k12");
+    expect(k12Bank.name).toBe(K12_SAMPLE_BANK_NAME);
+    expect(k12Bank.category).toBe("k12");
+    expect(k12Bank.sampleState).toBe("ready");
+
+    // 4. 大学与硕博高阶学术题库
+    const higherBank = await app.createSampleBank("higher");
+    expect(higherBank.name).toBe(HIGHER_SAMPLE_BANK_NAME);
+    expect(higherBank.category).toBe("higher");
+    expect(higherBank.sampleState).toBe("ready");
+
     const allBanks = app.listBanks();
-    expect(allBanks.length).toBe(2);
+    expect(allBanks.length).toBe(4);
+  });
+
+  it("K12全科题库 (k12Sample) 覆盖小学古诗拼音、初中理化与高中导数", () => {
+    const questions = k12SampleQuestions();
+    expect(questions.length).toBe(K12_SAMPLE_QUESTION_COUNT);
+    expect(K12_SAMPLE_BANK_NAME).toContain("K12基础教育");
+
+    const poemQ = questions.find((q) => q.stem.includes("春眠不觉晓"));
+    expect(poemQ).toBeDefined();
+    expect(poemQ?.studyMeta?.phonetic).toBe("chūn mián bù jué xiǎo");
+    expect(poemQ?.answer).toBe("A");
+
+    const mathQ = questions.find((q) => q.stem.includes("切线斜率"));
+    expect(mathQ).toBeDefined();
+    expect(mathQ?.kp).toContain("高中数学");
+    expect(mathQ?.answer).toBe("A");
+  });
+
+  it("大学与考研硕博题库 (higherSample) 覆盖微积分、线代、马哲与学术英语", () => {
+    const questions = higherSampleQuestions();
+    expect(questions.length).toBe(HIGHER_SAMPLE_QUESTION_COUNT);
+    expect(HIGHER_SAMPLE_BANK_NAME).toContain("大学与考研硕博");
+
+    const calcQ = questions.find((q) => q.stem.includes("牛顿-莱布尼茨公式"));
+    expect(calcQ).toBeDefined();
+    expect(calcQ?.kp).toContain("高等数学");
+    expect(calcQ?.answer).toBe("A");
+
+    const matrixQ = questions.find((q) => q.stem.includes("可逆矩阵"));
+    expect(matrixQ).toBeDefined();
+    expect(matrixQ?.kp).toContain("线性代数");
+    expect(matrixQ?.answer).toBe("A");
+
+    const marxQ = questions.find((q) => q.stem.includes("唯物辩证法") || q.kp?.includes("马哲"));
+    expect(marxQ).toBeDefined();
+    expect(marxQ?.kp).toContain("考研思想政治");
+    expect(marxQ?.answer).toBe("A");
   });
 });
