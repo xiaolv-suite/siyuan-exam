@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.70（2026-10-26）
+## 最新版本：v0.11.71（2026-10-26）
+
+本版本为思源笔记导入题库能力全面进化与候选多选提取体验升级版本。思源文档提取引擎兼容超级块（`{{{row`）与标题行前缀，任务列表复选框智能识别（`- [x] B. 选项` 自动提取为答案 B）；原生高亮挖空（Cloze）兜底：阅读笔记无标准题号但包含 `==重点==` 时自动提取为填空题；文档候选列表支持多选勾选批量提取，空搜索时默认展示最近编辑笔记。全套单测 179 个测试文件、1390 项单测 100% 全部通过。
+
+## 上一版本：v0.11.70（2026-10-26）
 
 本版本为学情复盘呈现形式胶囊坞与 AI 候选审核批量工具栏升级版本。学情报告考点掌握度图表雷达与表格清单重构为结构化胶囊滑块坞（`.lv-session-dock`）；AI 出题工作台候选审核池增加批量清空队列与批量采纳状态栏，消除堆叠与误点。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 

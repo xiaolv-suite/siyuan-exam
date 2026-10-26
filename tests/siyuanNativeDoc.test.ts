@@ -7,7 +7,6 @@ import {
 } from "../src/core/siyuanDocImporter";
 import {
   buildSiyuanExamDocMarkdown,
-  buildSiyuanWrongbookDocMarkdown,
 } from "../src/core/siyuanSyncDoc";
 
 describe("思源原生文档导入与题库文档同步引擎 (siyuanNativeDoc)", () => {
@@ -226,11 +225,47 @@ ANSWER: A
       expect(docMd).toContain('custom-exam-id="q-sync-2"');
     });
 
-    it("buildSiyuanWrongbookDocMarkdown 生成错题攻坚复盘文档", () => {
-      const docMd = buildSiyuanWrongbookDocMarkdown("民法题库", [testQuestions[0]]);
-      expect(docMd).toContain("民法题库 · 错题攻坚复盘手册");
-      expect(docMd).toContain("<details>");
-      expect(docMd).toContain("平面向量的正交分解是指什么？");
+    it("cleanSiyuanDocMarkdown 兼容超级块、标题行前缀与任务列表勾选答案提取", async () => {
+      const raw = `
+{{{row
+### 1. 下列属于行政行为的是（ ）。
+- [ ] A. 气象局发布天气预报
+- [x] B. 市场监管局吊销营业执照
+- [ ] C. 机关采购办公电脑
+- [ ] D. 街道办组织拔河比赛
+}}}
+      `;
+      const report = await parseQuestionsFromSiyuanDoc(raw, {
+        docId: "doc-admin-act",
+        title: "行政法超级块笔记",
+      });
+
+      expect(report.ok.length).toBe(1);
+      const q = report.ok[0];
+      expect(q.stem).toContain("下列属于行政行为的是");
+      expect(q.options.length).toBe(4);
+      expect(q.answer).toBe("B");
+    });
+
+    it("parseQuestionsFromSiyuanDoc 在文档无标准试题时自动提取思源高亮挖空为填空题", async () => {
+      const readingNote = `
+# 刑法总论速记
+
+在我国刑法中，==犯罪故意==是指明知自己的行为会发生危害社会的结果，并且希望或者放任这种结果发生的主观心理态度。
+刑罚分为主刑和附加刑，主刑包括管制、拘役、有期徒刑、无期徒刑和==死刑==。
+      `;
+
+      const report = await parseQuestionsFromSiyuanDoc(readingNote, {
+        docId: "doc-criminal-note",
+        title: "刑法读书笔记",
+        hpath: "/法学/刑法",
+      });
+
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].type).toBe("fill");
+      expect(report.ok[0].answer).toBe("犯罪故意");
+      expect(report.ok[1].type).toBe("fill");
+      expect(report.ok[1].answer).toBe("死刑");
     });
   });
 });

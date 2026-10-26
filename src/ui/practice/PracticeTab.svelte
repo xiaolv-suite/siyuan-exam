@@ -5659,16 +5659,51 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let docSearchQuery = $state("");
     let siyuanDocCandidates = $state<Array<{ id: string; title: string; hpath: string; box: string }>>([]);
     let siyuanDocBusy = $state(false);
+    let selectedDocIds = $state<Record<string, boolean>>({});
+    const selectedDocCount = $derived(Object.keys(selectedDocIds).length);
 
     async function doSearchDocs(q: string) {
       if (!app) return;
       siyuanDocBusy = true;
+      selectedDocIds = {};
       try {
         siyuanDocCandidates = await app.searchSiyuanDocs(q);
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
       } finally {
         siyuanDocBusy = false;
+      }
+    }
+
+    async function importSelectedDocs() {
+      const ids = Object.keys(selectedDocIds);
+      if (!ids.length || !app) return;
+      siyuanDocBusy = true;
+      try {
+        const report = await app.importFromSiyuanDocBatch(ids);
+        if (!report.ok.length) {
+          showMessage(report.errors[0]?.reason || "所选文档内未检索到题目格式内容", 3500, "info");
+          return;
+        }
+        importReport = report;
+        importText = "";
+        importSubTab = "standard";
+        selectedDocIds = {};
+        showMessage(`从已选 ${ids.length} 篇文档中成功批量提取 ${report.ok.length} 道试题，请在下方预览并确认入库！`, 4200, "info");
+      } catch (e) {
+        showMessage(`批量提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        siyuanDocBusy = false;
+      }
+    }
+
+    function toggleSelectAllDocs() {
+      if (selectedDocCount === siyuanDocCandidates.length) {
+        selectedDocIds = {};
+      } else {
+        const next: Record<string, boolean> = {};
+        for (const doc of siyuanDocCandidates) next[doc.id] = true;
+        selectedDocIds = next;
       }
     }
 
@@ -9138,24 +9173,45 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                 <input class="lv-input" style="flex:1" placeholder={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => void doSearchDocs((e.target as HTMLInputElement).value)} />
                 <button class="lv-btn sm" onclick={() => void doSearchDocs(docSearchQuery)} disabled={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
               </div>
-              <div class="stack-sm" style="max-height:220px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:6px;padding:6px;background:var(--lv-surface)">
+              <div class="stack-sm" style="max-height:360px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2);padding:6px;background:var(--lv-surface)">
                 {#if siyuanDocCandidates.length === 0}
-                  <div class="lv-muted" style="padding:10px;text-align:center">{siyuanDocBusy ? "正在搜索思源文档…" : "输入文档标题或路径开始查找"}</div>
+                  <div class="lv-muted" style="padding:16px;text-align:center">{siyuanDocBusy ? "正在搜索思源文档…" : "未找到匹配文档，请尝试输入其他关键词"}</div>
                 {:else}
-                  <div class="lv-row" style="justify-content:space-between;padding:4px 8px;margin-bottom:4px;background:var(--lv-surface-2);border-radius:4px">
-                    <span class="lv-muted" style="font-size:11px">已搜索到 {siyuanDocCandidates.length} 篇相关笔记</span>
-                    <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} onclick={importAllSearchedDocs}>
-                      <Icon name="layers" size={12} /> 一键批量提取全部 ({siyuanDocCandidates.length})
-                    </button>
+                  <div class="lv-row" style="justify-content:space-between;align-items:center;padding:6px 10px;margin-bottom:6px;background:var(--lv-surface-2);border-radius:var(--lv-r-1);flex-wrap:wrap;gap:6px">
+                    <div class="lv-row" style="margin:0;gap:8px;align-items:center">
+                      <button type="button" class="lv-chip num sm" onclick={toggleSelectAllDocs} class:acc={selectedDocCount > 0}>
+                        {selectedDocCount === siyuanDocCandidates.length ? "☑ 全选" : selectedDocCount > 0 ? `☑ 已选 ${selectedDocCount}` : "☐ 全选"}
+                      </button>
+                      <span class="lv-muted" style="font-size:11px">
+                        {docSearchQuery.trim() ? `搜索到 ${siyuanDocCandidates.length} 篇相关笔记` : `🕒 最近编辑笔记（共 ${siyuanDocCandidates.length} 篇）`}
+                      </span>
+                    </div>
+                    <div class="lv-row" style="margin:0;gap:6px">
+                      {#if selectedDocCount > 0}
+                        <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} onclick={importSelectedDocs}>
+                          <Icon name="import" size={12} /> 提取已选 ({selectedDocCount})
+                        </button>
+                      {/if}
+                      <button class="lv-btn sm lv-btn--ghost" disabled={siyuanDocBusy} onclick={importAllSearchedDocs}>
+                        <Icon name="layers" size={12} /> 全部提取 ({siyuanDocCandidates.length})
+                      </button>
+                    </div>
                   </div>
                   {#each siyuanDocCandidates as doc (doc.id)}
-                    <div class="lv-row" style="justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--lv-border-subtle)">
-                      <div style="flex:1;min-width:0;margin-right:10px">
-                        <b style="font-size:var(--lv-font-size-sm)">{doc.title}</b>
-                        <div class="lv-muted" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.hpath}</div>
+                    <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--lv-border-subtle);gap:8px">
+                      <div class="lv-row" style="margin:0;gap:8px;align-items:center;flex:1;min-width:0">
+                        <input type="checkbox" checked={!!selectedDocIds[doc.id]} onchange={(e) => {
+                          const checked = (e.target as HTMLInputElement).checked;
+                          if (checked) selectedDocIds[doc.id] = true;
+                          else { delete selectedDocIds[doc.id]; selectedDocIds = { ...selectedDocIds }; }
+                        }} />
+                        <div style="flex:1;min-width:0">
+                          <b style="font-size:var(--lv-font-size-sm);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.title}</b>
+                          <div class="lv-muted" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.hpath}</div>
+                        </div>
                       </div>
                       <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} onclick={() => void pickAndImportSiyuanDoc(doc.id, doc.title)}>
-                        <Icon name="import" size={12} /> 提取此文档题目
+                        <Icon name="import" size={12} /> 提取此篇
                       </button>
                     </div>
                   {/each}

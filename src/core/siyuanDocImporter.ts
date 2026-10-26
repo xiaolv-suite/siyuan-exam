@@ -35,6 +35,22 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   // 1. 移除思源 IAL 块属性行（例如 {: id="2026..." updated="2026..."}）
   s = s.replace(/\{:[^}]*\}\s*$/gm, "");
 
+  // 1.1 移除思源超级块与排版标记（{{{row, {{{col, }}}）
+  s = s.replace(/^\{\{\{(?:row|col)?\s*$/gm, "");
+  s = s.replace(/^\}\}\}\s*$/gm, "");
+
+  // 1.2 剥离标题行前缀（如 ### 1. 题目 -> 1. 题目，避免题目被当成标题忽略）
+  s = s.replace(/^#{1,6}\s*(?=\d+[.、])/gm, "");
+
+  // 1.3 规范化复选框任务列表中的正确答案标记
+  // 若包含 - [x] A. 选项 或 - [X] B. 选项，且原文本未带显式答案行，则提取为标准答案
+  const checkedMatches = [...s.matchAll(/^[-*]\s*\[[xX]\]\s*([A-Fa-f])[.、]/gm)];
+  if (checkedMatches.length > 0 && !/(?:ANSWER|【答案】|答案\s*[:：])/i.test(s)) {
+    const checkedLetters = checkedMatches.map((m) => m[1].toUpperCase()).join("");
+    s = s.trimEnd() + `\nANSWER: ${checkedLetters}\n`;
+  }
+  s = s.replace(/^[-*]\s*\[[ xX]\]\s*/gm, "");
+
   // 2. 剥离行首引用块标记（支持整道题写在引用块 > 里的场景）
   s = s.replace(/^>\s?/gm, "");
 
@@ -85,7 +101,22 @@ export async function parseQuestionsFromSiyuanDoc(
   }
 
   // 统一通过导入分流引擎解析（支持 MarkdownExam / Aiken / TSV / GIFT / 挖空）
-  const report = await parseText(cleanedText, options);
+  let report = await parseText(cleanedText, options);
+
+  // 兜底高亮挖空（Cloze）：如果常规试题未提取出任何有效题目，但文档包含思源原生高亮标记 ==重点== 或 {{挖空}}，自动提取为填空题
+  if (!report.ok.length && (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText))) {
+    const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
+    const clozeItems = parseClozeText(cleanedText, { modes: ["highlight", "curly"] });
+    if (clozeItems.length > 0) {
+      const clozeQuestions = clozeItemsToQuestions(clozeItems);
+      report = {
+        batch: report.batch || newBatchId(),
+        ok: clozeQuestions,
+        errors: [],
+        duplicates: 0,
+      };
+    }
+  }
 
   // 为所有成功提取的题目注入文档元数据
   const rawQuestions = report.ok ?? [];
