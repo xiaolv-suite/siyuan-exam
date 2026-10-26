@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.60（2026-10-26）
+## 最新版本：v0.11.61（2026-10-26）
+
+本版本为错题本工具栏双栏解耦重构与手工录题题型/状态双胶囊滑块组升级版本。错题本队列工具栏将 3 大分类选项卡（活跃/归档/消灭）与 6 大攻坚行动彻底解耦，左侧采用胶囊导航坞，右侧整齐排列攻坚动作；出题工作台将题型与生命周期状态按钮重构为自适应紧凑双胶囊滑块组，OCR 弹窗边框颜色彻底规整为独立品牌主题色。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.60（2026-10-26）
 
 本版本为题库浏览行（.lv-qrow）Bento 柔和质感与背诵自评按键（.lv-rate）物理微触感优化版本。题目浏览项升级为 18px Bento 柔和圆角（`--lv-r-3`）并注入高光内阴影（`--lv-inset-card`），内边距放宽为 15px 18px；背诵自评按键升级为 12px 现代圆角（`--lv-r-2`）与专属高光内阴影，按键数字块随等级着色。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 

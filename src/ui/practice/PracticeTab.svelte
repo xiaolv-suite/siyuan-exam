@@ -7204,18 +7204,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:6px 0 0">{t("wrongbook.reasons.note")}</p>
             </div>
             <div class="lv-card">
-              <div class="lv-row" style="justify-content:space-between;margin:0 0 6px">
-                <div class="lv-row" style="margin:0;gap:8px">
-                  <b class="lv-block-title" style="margin:0">{t("wrongbook.queue")}</b>
-                  <button type="button" class="lv-chip sm" class:acc={wbTab === "active"} onclick={() => wbTab = "active"}>
+              <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:8px">
+                <div class="lv-session-dock" role="tablist" aria-label={t("wrongbook.queue")}>
+                  <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "active"} aria-selected={wbTab === "active"} onclick={() => wbTab = "active"}>
                     {t("wrongbook.tabActive")} ({wrongList.length})
                   </button>
-                  <button type="button" class="lv-chip sm" class:acc={wbTab === "archived"} onclick={() => wbTab = "archived"}>
+                  <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "archived"} aria-selected={wbTab === "archived"} onclick={() => wbTab = "archived"}>
                     {t("wrongbook.tabArchived")} ({archivedWrongList.length})
                   </button>
-                  <button type="button" class="lv-chip sm" class:acc={wbTab === "eliminated"} onclick={() => wbTab = "eliminated"}>
+                  <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "eliminated"} aria-selected={wbTab === "eliminated"} onclick={() => wbTab = "eliminated"}>
                     {t("wrongbook.tabEliminated")} ({eliminatedWrongList.length})
                   </button>
+                </div>
+                <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => void printWrongSheet("question")} disabled={printWrongBusy || !filteredWrongQueue.length} title="将当前筛选的错题导出或打印为 A4 双栏试卷（绝不泄题）"><Icon name="file" size={13} /> {t("mock.printCompact")}</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => void printWrongSheet("answer")} disabled={printWrongBusy || !filteredWrongQueue.length} title="导出或打印配套答案册"><Icon name="book" size={13} /> 答案册</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={exportCheatSheet} disabled={cheatSheetBusy || !filteredWrongQueue.length} title={t("cram.cheatSheetTip")}><Icon name="file-text" size={13} /> {t("cram.cheatSheet")}</button>
@@ -7231,7 +7232,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                   </button>
                   <button class="lv-btn sm lv-btn--primary" onclick={() => void launchWrongbookMockExam()} disabled={!filteredWrongQueue.length} title="将当前筛选的错题组建为全真限时模拟考卷，拉起答题卡进行考场高压攻坚"><Icon name="clock" size={13} /> {t("wrongbook.launchExam")}</button>
                 </div>
-                <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("wrongbook.queue.note")}</span>
               </div>
               {#if wbTab === "active"}
                 <div class="lv-row" style="gap:var(--lv-space-compact);margin:8px 0 12px;flex-wrap:wrap;align-items:center">
@@ -7425,7 +7425,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         {#if mSaved}<span class="lv-chip lv-chip--grn num">✓ {mSaved}</span>{/if}
       </div>
       {#if ocrModalOpen}
-        <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border-color:var(--b3-theme-primary)">
+        <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border-color:var(--lv-accent)">
           <label class="lv-field">
             <span style="font-weight:var(--lv-font-weight-semibold)">{t("manual.ocrPrompt")}</span>
             <textarea class="lv-input lv-textarea" style="min-height:90px;margin-top:6px" bind:value={ocrInputText} placeholder="粘贴整段试题识别文本（支持题干、A. B. C. D. 选项、答案、解析），点击解析填单即可自动分类填入下方表单"></textarea>
@@ -7443,17 +7443,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       {/if}
       <div class="lv-studio-grid lv-studio-grid--manual">
       <div class="lv-card lv-pad-card lv-studio-form" data-manual-form>
-        <div class="lv-row" role="group" aria-label={t("manual.type", "题型")}>
-          <span class="lv-chip">{t("manual.type")}</span>
-          {#each ["single", "multiple", "judge", "fill", "short"] as tt, _i (_i)}
-            <button class="lv-chip" class:acc={mType === tt} aria-pressed={mType === tt} onclick={() => void switchManualType(tt as typeof mType)}>{t("qtype." + tt)}</button>
-          {/each}
-        </div>
-        <div class="lv-row" role="group" aria-label={t("manual.status")}>
-          <span class="lv-chip">{t("manual.status")}</span>
-          <button type="button" class="lv-chip" class:acc={mStatus === "published"} aria-pressed={mStatus === "published"} onclick={() => { mStatus = "published"; clearManualValidation(); }}>{t("lifecycle.published")}</button>
-          <button type="button" class="lv-chip" class:acc={mStatus === "review"} aria-pressed={mStatus === "review"} onclick={() => { mStatus = "review"; clearManualValidation(); }}>{t("lifecycle.review")}</button>
-          <button type="button" class="lv-chip" class:acc={mStatus === "draft"} aria-pressed={mStatus === "draft"} onclick={() => { mStatus = "draft"; clearManualValidation(); }}>{t("lifecycle.draft")}</button>
+        <div class="lv-row" style="margin:0 0 12px;gap:var(--lv-space-3);flex-wrap:wrap">
+          <div class="lv-session-dock" role="group" aria-label={t("manual.type", "题型")}>
+            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("manual.type")}</span>
+            {#each ["single", "multiple", "judge", "fill", "short"] as tt, _i (_i)}
+              <button type="button" class="lv-chip" class:acc={mType === tt} aria-pressed={mType === tt} onclick={() => void switchManualType(tt as typeof mType)}>{t("qtype." + tt)}</button>
+            {/each}
+          </div>
+          <div class="lv-session-dock" role="group" aria-label={t("manual.status")}>
+            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("manual.status")}</span>
+            <button type="button" class="lv-chip" class:acc={mStatus === "published"} aria-pressed={mStatus === "published"} onclick={() => { mStatus = "published"; clearManualValidation(); }}>{t("lifecycle.published")}</button>
+            <button type="button" class="lv-chip" class:acc={mStatus === "review"} aria-pressed={mStatus === "review"} onclick={() => { mStatus = "review"; clearManualValidation(); }}>{t("lifecycle.review")}</button>
+            <button type="button" class="lv-chip" class:acc={mStatus === "draft"} aria-pressed={mStatus === "draft"} onclick={() => { mStatus = "draft"; clearManualValidation(); }}>{t("lifecycle.draft")}</button>
+          </div>
         </div>
         <div class="lv-field"><label class="lv-muted" for="lv-manual-stem">{t("manual.stem")}</label>
           <textarea id="lv-manual-stem" class="lv-input lv-textarea" bind:value={mStem} oninput={clearManualValidation} placeholder={t("manual.stemPlaceholder")} data-manual-field="stem" aria-invalid={manualErrorField === "stem" ? "true" : undefined} aria-describedby={manualErrorField === "stem" ? "manual-validation-error" : undefined}></textarea>
