@@ -4915,7 +4915,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const { confirmDialogSync } = await import("../../libs/dialog");
       const ok = await confirmDialogSync({
         title: t("materials.removeTitle"),
-        content: `${escapeHtml(m.title)}<br><span style="font-size:var(--lv-font-size-sm);color:var(--b3-theme-on-surface-light, #888)">${t("materials.removeNote")}</span>`,
+        content: `${escapeHtml(m.title)}<br><span style="font-size:var(--lv-font-size-sm);color:var(--lv-text-3)">${t("materials.removeNote")}</span>`,
       });
       if (!ok) return;
       materialsBusy = true; materialsNote = "";
@@ -6347,7 +6347,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         <div class="lv-widgets">
           {#if plan && plan.daysToExam != null}
             <div class="lv-card lv-widget">
-              <span class="lv-streak-flame" style="color:var(--b3-theme-primary)"><Icon name="clock" size={22} /></span>
+              <span class="lv-streak-flame lv-streak-flame--clock"><Icon name="clock" size={22} /></span>
               <div class="lv-widget-body">
                 <div class="lv-widget-title">{plan.mode === "sprint" ? t("entry.sprint") : t("entry.examCountdown")}</div>
                 <strong class="num">{plan.daysToExam} {t("entry.days")}</strong>
@@ -6857,7 +6857,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                   </div>
                   {#if paperGridModalOpen}
                     {@const gridModel = generatePaperGrid(feedback?.myAnswer ?? currentDraft ?? "", { columns: 20 })}
-                    <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--b3-theme-primary)">
+                    <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent)">
                       <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
                         <b style="font-size:12px">📝 考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）</b>
                         <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (paperGridModalOpen = false)}>✕</button>
@@ -9611,7 +9611,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-onboard-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--lv-space-loose); margin: 14px 0 0; padding: 0; list-style: none; }
   @container lv-exam (max-width: 960px) { .lv-onboard-steps { grid-template-columns: minmax(0, 1fr); } }
   .lv-onboard-step { position: relative; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); padding: 14px 16px; background: var(--lv-surface-2); }
-  .lv-onboard-no { position: absolute; right: 12px; top: 8px; font-size: 26px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; color: color-mix(in srgb, var(--b3-theme-primary) 26%, transparent); }
+  .lv-onboard-no { position: absolute; right: 12px; top: 8px; font-size: 26px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; color: color-mix(in srgb, var(--lv-accent) 26%, transparent); }
   .lv-onboard-step b { display: block; font-size: var(--lv-font-size-body); margin: 8px 0 0; }
   .lv-onboard-step-desc { margin-top: 5px; font-size: var(--lv-font-size-caption); line-height: 1.5; }
   @container lv-exam (max-width: 760px) { .lv-guard-steps { grid-template-columns: minmax(0, 1fr); } }
@@ -9658,7 +9658,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   /* —— 选项圆点指示（规范 v6 .option：radio 圆 / checkbox 方；随四态着色） —— */
   .lv-opt-check { width: 18px; height: 18px; border-radius: var(--lv-radius-round); border: 1.5px solid var(--lv-ctl-border); background: var(--lv-surface); flex: none; display: grid; place-items: center; transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease; }
   .lv-opt-check.box { border-radius: 5px; }
-  .lv-opt-check::after { content: ""; width: 8px; height: 8px; border-radius: var(--lv-radius-round); background: var(--lv-on-accent, var(--b3-theme-on-primary, #fff)); transform: scale(0); transition: transform var(--lv-dur-micro) var(--lv-ease-out); }
+  .lv-opt-check::after { content: ""; width: 8px; height: 8px; border-radius: var(--lv-radius-round); background: var(--lv-on-accent, #fff); transform: scale(0); transition: transform var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-opt-check.box::after { border-radius: 1.5px; }
   .lv-opt.sel .lv-opt-check, .lv-opt.right .lv-opt-check, .lv-opt.wrong .lv-opt-check { border-color: transparent; }
   .lv-opt.sel .lv-opt-check { background: var(--lv-accent); }
@@ -9666,11 +9666,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-opt.wrong .lv-opt-check { background: var(--lv-red); }
   .lv-opt.sel .lv-opt-check::after, .lv-opt.right .lv-opt-check::after, .lv-opt.wrong .lv-opt-check::after { transform: scale(1); }
   .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 6px 18px -2px color-mix(in srgb, var(--lv-accent) 24%, transparent); }
-  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, var(--b3-theme-on-primary, #fff)); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
+  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
   .lv-opt.right { border-color: var(--lv-green); background: var(--lv-green-soft); box-shadow: 0 0 0 1px var(--lv-green), 0 4px 14px color-mix(in srgb, var(--lv-green) 18%, transparent); }
-  .lv-opt.right .key { background: var(--lv-green); border-color: var(--lv-green); color: var(--lv-on-green, var(--b3-theme-on-primary, #fff)); }
+  .lv-opt.right .key { background: var(--lv-green); border-color: var(--lv-green); color: var(--lv-on-green, #fff); }
   .lv-opt.wrong { border-color: var(--lv-red); background: var(--lv-red-soft); box-shadow: 0 0 0 1px var(--lv-red), 0 4px 14px color-mix(in srgb, var(--lv-red) 18%, transparent); }
-  .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, var(--b3-theme-on-primary, #fff)); }
+  .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, #fff); }
   .lv-feedback { margin: 16px 0 12px; padding: 16px 20px; border: 1px solid color-mix(in srgb, var(--lv-red) 26%, var(--lv-border)); border-left: 4px solid var(--lv-red); border-radius: var(--lv-r-3); font-weight: var(--lv-font-weight-semibold); font-size: var(--lv-font-size-md); background: color-mix(in srgb, var(--lv-red-soft) 85%, var(--lv-surface)); color: var(--lv-red); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-red) 12%, transparent); animation: lv-appear var(--lv-dur-view) var(--lv-ease-out); }
   .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-green) 12%, transparent); }
   /* —— 作答动作区（原型 .answer-actions：上分隔线 + 层次） —— */

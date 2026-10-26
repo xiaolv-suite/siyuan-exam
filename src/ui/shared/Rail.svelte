@@ -471,7 +471,7 @@
     display: grid;
     place-items: center;
     background: linear-gradient(135deg, var(--lv-brand) 0%, color-mix(in srgb, var(--lv-brand) 82%, var(--lv-brand-deep, #000)) 100%);
-    color: var(--b3-theme-on-primary, #fff);
+    color: var(--lv-on-accent, #fff);
     box-shadow: 0 3px 10px color-mix(in srgb, var(--lv-brand) 36%, transparent);
     flex-shrink: 0;
   }

@@ -1873,7 +1873,7 @@
             </div>
             {#if mockPaperGridOpen}
               {@const gridModel = generatePaperGrid(answeredMap[current] ?? "", { columns: 20 })}
-              <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--b3-theme-primary)">
+              <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
                   <b style="font-size:12px">📝 考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）</b>
                   <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (mockPaperGridOpen = false)}>✕</button>
@@ -2379,12 +2379,12 @@
   .lv-opt .key { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 13px; font-weight: var(--lv-font-weight-bold, 700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--lv-surface-2); color: var(--lv-text-2); border: 1px solid var(--lv-border); box-shadow: var(--lv-keycap-shadow); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease; }
   .lv-opt-check { width: 18px; height: 18px; border-radius: var(--lv-radius-round); border: 1.5px solid var(--lv-ctl-border); background: var(--lv-surface); flex: none; display: grid; place-items: center; transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease; }
   .lv-opt-check.box { border-radius: 5px; }
-  .lv-opt-check::after { content: ""; width: 8px; height: 8px; border-radius: var(--lv-radius-round); background: var(--lv-on-accent, var(--b3-theme-on-primary, #fff)); transform: scale(0); transition: transform var(--lv-dur-micro) var(--lv-ease-out); }
+  .lv-opt-check::after { content: ""; width: 8px; height: 8px; border-radius: var(--lv-radius-round); background: var(--lv-on-accent, #fff); transform: scale(0); transition: transform var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-opt-check.box::after { border-radius: 1.5px; }
   .lv-opt.sel .lv-opt-check { border-color: transparent; background: var(--lv-accent); }
   .lv-opt.sel .lv-opt-check::after { transform: scale(1); }
   .lv-opt.sel { border-color: var(--lv-accent); background: var(--lv-accent-soft); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 6px 18px -2px color-mix(in srgb, var(--lv-accent) 24%, transparent); }
-  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, var(--b3-theme-on-primary, #fff)); box-shadow: 0 2px 6px color-mix(in srgb, var(--lv-accent) 28%, transparent); }
+  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 6px color-mix(in srgb, var(--lv-accent) 28%, transparent); }
   .lv-bp-table { border: 1px solid var(--lv-border); border-radius: 12px; overflow-x: auto; margin: 10px 0; }
   .lv-bp-row { display: grid; grid-template-columns: 1.1fr .5fr .5fr .8fr 1fr 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px dashed var(--lv-border); align-items: center; min-width: 560px; }
   .lv-bp-row:last-child { border-bottom: none; }
@@ -2406,7 +2406,7 @@
   .lv-cell:active:not(:disabled) { transform: scale(0.96); }
   .lv-cell.done { background: var(--lv-accent-soft); color: var(--lv-accent); border-color: color-mix(in srgb, var(--lv-accent) 36%, transparent); font-weight: var(--lv-font-weight-bold); }
   .lv-cell.flag { outline: 2px solid var(--lv-amber); outline-offset: -2px; box-shadow: 0 0 8px color-mix(in srgb, var(--lv-amber) 35%, transparent); }
-  .lv-cell.cur { background: var(--lv-accent); color: var(--lv-on-accent, var(--b3-theme-on-primary, #fff)); border-color: transparent; box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4.5px var(--lv-accent), 0 2px 10px color-mix(in srgb, var(--lv-accent) 35%, transparent); animation: lv-radar-pulse 2.2s infinite ease-in-out; transform: scale(1.04); z-index: 2; }
+  .lv-cell.cur { background: var(--lv-accent); color: var(--lv-on-accent, #fff); border-color: transparent; box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4.5px var(--lv-accent), 0 2px 10px color-mix(in srgb, var(--lv-accent) 35%, transparent); animation: lv-radar-pulse 2.2s infinite ease-in-out; transform: scale(1.04); z-index: 2; }
   @keyframes lv-radar-pulse {
     0%, 100% { box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4px var(--lv-accent), 0 2px 10px color-mix(in srgb, var(--lv-accent) 30%, transparent); }
     50% { box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 5.5px color-mix(in srgb, var(--lv-accent) 75%, transparent), 0 4px 16px color-mix(in srgb, var(--lv-accent) 45%, transparent); }

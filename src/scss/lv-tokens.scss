@@ -39,12 +39,16 @@
   --lv-accent-grad: linear-gradient(135deg, #4f46e5, #6366f1);
   --lv-accent-deep: #4338ca;
   --lv-btn-primary-bg: #4f46e5;
+  --lv-on-accent: #ffffff;
   --lv-green: #059669;
   --lv-green-soft: rgba(5, 150, 105, 0.1);
+  --lv-on-green: #ffffff;
   --lv-red: #e11d48;
   --lv-red-soft: rgba(225, 29, 72, 0.09);
+  --lv-on-red: #ffffff;
   --lv-amber: #d97706;
   --lv-amber-soft: rgba(217, 119, 6, 0.1);
+  --lv-on-amber: #ffffff;
   /* —— 教师教研端专属角色主题色 Token —— */
   --lv-teacher-primary: #7c3aed;
   --lv-teacher-soft: rgba(124, 58, 237, 0.1);
@@ -60,6 +64,7 @@
   --lv-scene-general-soft: rgba(217, 119, 6, 0.1);
   --lv-brand: #0284c7; /* 普鲁士学院蓝 */
   --lv-brand-soft: rgba(2, 132, 199, 0.09);
+  --lv-brand-deep: #0369a1;
   --lv-accent-seal: #e11d48; /* 朱砂红满分印 */
   --lv-accent-seal-soft: rgba(225, 29, 72, 0.1);
 
@@ -208,12 +213,16 @@ html[data-theme-mode="dark"] {
   --lv-accent-soft: rgba(129, 140, 248, 0.14);
   --lv-accent-deep: #6366f1;
   --lv-btn-primary-bg: #6366f1;
+  --lv-on-accent: #ffffff;
   --lv-green: #34d399;
   --lv-green-soft: rgba(52, 211, 153, 0.15);
+  --lv-on-green: #090d16;
   --lv-red: #fb7185;
   --lv-red-soft: rgba(251, 113, 133, 0.15);
+  --lv-on-red: #090d16;
   --lv-amber: #fbbf24;
   --lv-amber-soft: rgba(251, 191, 36, 0.15);
+  --lv-on-amber: #090d16;
 
   --lv-teacher-primary: #a78bfa;
   --lv-teacher-soft: rgba(167, 139, 250, 0.14);
@@ -221,6 +230,7 @@ html[data-theme-mode="dark"] {
 
   --lv-brand: #38bdf8;
   --lv-brand-soft: rgba(56, 189, 248, 0.14);
+  --lv-brand-deep: #0284c7;
   --lv-accent-seal: #fb7185;
   --lv-accent-seal-soft: rgba(251, 113, 133, 0.15);
 

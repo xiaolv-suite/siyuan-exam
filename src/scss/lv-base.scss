@@ -306,7 +306,7 @@ button.lv-chip {
 .lv-btn--primary {
   background: var(--lv-btn-primary-bg);
   border-color: transparent;
-  color: var(--lv-on-accent, var(--b3-theme-on-primary, #fff));
+  color: var(--lv-on-accent, #fff);
   box-shadow: var(--lv-btn-primary-shadow);
 
   /* 对齐原型 .primary:hover：渐变收拢为 deep 纯色（暗色为亮档），再抬升 */
@@ -656,7 +656,7 @@ input[type="range"] {
 
 /* —— 选区主题化（细节质感：拖蓝跟随主色，明暗自适应） —— */
 ::selection {
-  background: color-mix(in srgb, var(--b3-theme-primary) 22%, transparent);
+  background: color-mix(in srgb, var(--lv-accent) 22%, transparent);
 }
 
 /* —— 数据表（原型 table：th 浅底 muted、行分隔线；报告/模考数据表共用）
@@ -853,7 +853,7 @@ input[type="range"] {
    多行示例（如 Aiken 导入）会被误读为已填入内容（真机走查发现） */
 .lv-input::placeholder,
 .lv-textarea::placeholder {
-  color: var(--lv-text-3, var(--b3-theme-on-surface, #888));
+  color: var(--lv-text-3);
   opacity: 1;
 }
 /* 抽屉触发按钮（窄屏显示；置于各 Tab 头部） */
@@ -1480,6 +1480,10 @@ input[type="range"] {
 .lv-streak-flame--wrong {
   background: var(--lv-red-soft);
   color: var(--lv-red);
+}
+.lv-streak-flame--clock {
+  background: var(--lv-brand-soft);
+  color: var(--lv-brand);
 }
 
 /* —— 会话顶部结构化操作坞（Session Toolbar Dock） —— */

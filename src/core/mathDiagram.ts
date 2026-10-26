@@ -75,10 +75,10 @@ export function renderBarChartSvg(
 
   // 柱体与标签
   const colors = [
-    "var(--b3-theme-primary, #5e59cb)",
-    "color-mix(in srgb, var(--b3-theme-primary, #5e59cb) 80%, #00bcd4)",
-    "color-mix(in srgb, var(--b3-theme-primary, #5e59cb) 65%, #4caf50)",
-    "color-mix(in srgb, var(--b3-theme-primary, #5e59cb) 50%, #ff9800)",
+    "var(--lv-accent, #4f46e5)",
+    "color-mix(in srgb, var(--lv-brand, #0284c7) 85%, transparent)",
+    "color-mix(in srgb, var(--lv-green, #059669) 85%, transparent)",
+    "color-mix(in srgb, var(--lv-amber, #d97706) 85%, transparent)",
   ];
 
   items.forEach((it, idx) => {
@@ -123,12 +123,12 @@ export function renderPieChartSvg(
   }
 
   const colors = [
-    "var(--b3-theme-primary, #5e59cb)",
-    "#26a69a",
-    "#ffa726",
-    "#ef5350",
-    "#ab47bc",
-    "#29b6f6",
+    "var(--lv-accent, #4f46e5)",
+    "#059669",
+    "#d97706",
+    "#e11d48",
+    "#7c3aed",
+    "#0284c7",
   ];
 
   let currentAngle = -Math.PI / 2; // 从 12 点钟方向开始
@@ -215,15 +215,15 @@ export function renderNumberLineSvg(options: {
     const isRightOpen = options.intervalOpen?.[1] ?? false;
 
     // 区间高亮线
-    parts.push(`<line x1="${xLeft.toFixed(1)}" y1="${lineY}" x2="${xRight.toFixed(1)}" y2="${lineY}" stroke="var(--b3-theme-primary, #5e59cb)" stroke-width="3" stroke-linecap="round" />`);
+    parts.push(`<line x1="${xLeft.toFixed(1)}" y1="${lineY}" x2="${xRight.toFixed(1)}" y2="${lineY}" stroke="var(--lv-accent, #4f46e5)" stroke-width="3" stroke-linecap="round" />`);
 
     // 左端点
-    const fillLeft = isLeftOpen ? "var(--lv-surface)" : "var(--b3-theme-primary, #5e59cb)";
-    parts.push(`<circle cx="${xLeft.toFixed(1)}" cy="${lineY}" r="4" fill="${fillLeft}" stroke="var(--b3-theme-primary, #5e59cb)" stroke-width="1.8" />`);
+    const fillLeft = isLeftOpen ? "var(--lv-surface)" : "var(--lv-accent, #4f46e5)";
+    parts.push(`<circle cx="${xLeft.toFixed(1)}" cy="${lineY}" r="4" fill="${fillLeft}" stroke="var(--lv-accent, #4f46e5)" stroke-width="1.8" />`);
 
     // 右端点
-    const fillRight = isRightOpen ? "var(--lv-surface)" : "var(--b3-theme-primary, #5e59cb)";
-    parts.push(`<circle cx="${xRight.toFixed(1)}" cy="${lineY}" r="4" fill="${fillRight}" stroke="var(--b3-theme-primary, #5e59cb)" stroke-width="1.8" />`);
+    const fillRight = isRightOpen ? "var(--lv-surface)" : "var(--lv-accent, #4f46e5)";
+    parts.push(`<circle cx="${xRight.toFixed(1)}" cy="${lineY}" r="4" fill="${fillRight}" stroke="var(--lv-accent, #4f46e5)" stroke-width="1.8" />`);
   }
 
   parts.push(`</svg>`);
@@ -341,7 +341,7 @@ export function renderFunctionPlotSvg(
 
   for (const seg of pathSegments) {
     const d = `M ${seg.join(" L ")}`;
-    parts.push(`<path d="${d}" fill="none" stroke="var(--b3-theme-primary, #5e59cb)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />`);
+    parts.push(`<path d="${d}" fill="none" stroke="var(--lv-accent, #4f46e5)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />`);
   }
 
   // 3. 图表说明标题
@@ -371,7 +371,7 @@ export function renderTriangleSvg(
   parts.push(`<svg class="lv-math-diagram lv-math-geometry" viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px;height:auto;display:block;margin:8px auto;background:var(--lv-surface);border:1px solid var(--lv-border);border-radius:6px" role="img" aria-label="几何图形: △${p1.name}${p2.name}${p3.name}">`);
 
   // 填充与边线
-  parts.push(`<polygon points="${pointsStr}" fill="color-mix(in srgb, var(--b3-theme-primary, #5e59cb) 8%, transparent)" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />`);
+  parts.push(`<polygon points="${pointsStr}" fill="color-mix(in srgb, var(--lv-accent, #4f46e5) 8%, transparent)" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />`);
 
   // 顶点字母标签
   const labelOffset = (p: { x: number; y: number }, ox: number, oy: number, name: string) =>
