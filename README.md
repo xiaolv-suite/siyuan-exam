@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.58（2026-10-26）
+## 最新版本：v0.11.59（2026-10-26）
+
+本版本为首页区段标题矢量图标引导、Hero 主按钮独立投影与布局节奏优化版本。在首页研学模式与快速工具区段标题中加入极简单色线性矢量图标与副标题指引，大幅提升界面呼吸感；规整主按钮投影至专属独立靛蓝柔光微阴影（`var(--lv-btn-primary-shadow)`），优化计划说明字重与多栏自适应折叠布局。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
+
+## 上一版本：v0.11.58（2026-10-26）
 
 本版本为结算战报三联 Bento 仪表盘升级、深度解析全圆角卡片与改答错因框质感优化版本。做题完成后的三联成绩看板升级为独立次表面底衬卡片，大数字字号加固至 26px 等宽排版；解析卡片升级为四边圆角完整、微阴影、带左侧高雅深色强调线的优雅卡片；改答错因框升级为 18px 柔和圆角与高光内阴影。全套单测 179 个测试文件、1389 项单测 100% 全部通过。
 

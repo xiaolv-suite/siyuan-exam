@@ -6383,7 +6383,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
           </button>
         </div>
-        <div class="lv-section-title"><span>{t("entry.modes")}</span></div>
+        <div class="lv-section-title">
+          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="grid" size={14} /> {t("entry.modes")}</span>
+          <span class="lv-muted" style="font-size:12px;font-weight:400">选择专项研学模式沉浸自测</span>
+        </div>
         <!-- 层级：队列驱动三模式（快速/每日/错题）为一级 accent 键帽；低频三模式降噪为中性键帽 -->
         <div class="lv-modes">
           <button class="lv-mode" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => startDrill("quick")}>
@@ -6417,7 +6420,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </button>
           {/if}
         </div>
-        <div class="lv-section-title" style="margin-top:22px"><span>{t("entry.tools")}</span></div>
+        <div class="lv-section-title" style="margin-top:22px">
+          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="compass" size={14} /> {t("entry.tools")}</span>
+          <span class="lv-muted" style="font-size:12px;font-weight:400">题库导入、AI出题与资料整理</span>
+        </div>
         <div class="lv-row" style="margin-top:0">
           <button class="lv-btn lv-btn--ghost" onclick={createSampleBank} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}><Icon name="book" size={16} /> {creatingSample ? t("guard.sampleCreating") : t("guard.sampleOpen")}</button>
           <button class="lv-btn lv-btn--ghost" onclick={() => view = "import"}><Icon name="import" size={16} /> {t("import.title")}</button>
@@ -9555,7 +9561,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   @container lv-exam (max-width: 960px) { .lv-entry-overview { grid-template-columns: minmax(0, 1fr); } }
   /* 原型 .hero-actions：主操作在 hero 卡内部 */
   .lv-hero-actions { margin-top: 18px; }
-  .lv-hero-actions .lv-btn--primary { box-shadow: 0 3px 10px color-mix(in srgb, var(--b3-theme-primary) 24%, transparent); }
+  .lv-hero-actions .lv-btn--primary { box-shadow: var(--lv-btn-primary-shadow); }
   @container lv-exam (max-width: 600px) {
     .lv-entry-hero { grid-template-columns: minmax(0,1fr); padding: 18px; }
     .lv-entry-num { border-left: 0; border-top: 1px solid var(--lv-border); padding: 12px 0 0; flex-direction: row; align-items: baseline; gap: var(--lv-space-relaxed); justify-content: flex-start; }
