@@ -23,20 +23,23 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.97 (2026-10-27)
+## 🌟 Latest Release: v0.11.98 (2026-10-27)
 
-This release delivers the SpeechEvalCapsule architecture decoupling and closes the pronunciation evaluation loop in recitation mode.
+This release delivers the GroupBatchSummaryCard architecture decoupling and persistent wrongbook sorting preferences.
 
-- **Recitation Mode Speech Evaluation:**
-  - Integrated real-time pronunciation feedback directly below the stem in paper recitation mode, enabling immediate alignment score inspection.
-- **SpeechEvalCapsule Architecture Decoupling:**
-  - Extracted pronunciation assessment feedback into `src/ui/practice/SpeechEvalCapsule.svelte`, eliminating redundant templates across practice and recitation.
+- **Persistent Wrongbook Multi-Dimensional Sorting:**
+  - Preferences for sorting wrong answers (latest, highest error frequency, or grouped by knowledge points) now persist across reloads via local storage (`lv-exam/wrong-sort`).
+- **GroupBatchSummaryCard Architecture Decoupling:**
+  - Extracted the delayed 5-item batch review summary into `src/ui/practice/GroupBatchSummaryCard.svelte`, encapsulating interval accuracy and question outcome lists.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.97 SpeechEvalCapsule Decoupling & Recitation Loop:**
+  - Extracted `SpeechEvalCapsule.svelte` and completed the speech pronunciation feedback loop in recitation mode.
 
 - **v0.11.96 ScratchpadDrawer Decoupling & Block Deep-Link Highlighting:**
   - Extracted `ScratchpadDrawer.svelte` and enabled `siyuan://blocks/` flash-focus navigation.

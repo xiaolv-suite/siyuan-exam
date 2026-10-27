@@ -69,6 +69,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import SessionSheetModal from "./SessionSheetModal.svelte";
     import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
     import SpeechEvalCapsule from "./SpeechEvalCapsule.svelte";
+    import GroupBatchSummaryCard from "./GroupBatchSummaryCard.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -2278,7 +2279,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let wbReasonFilter = $state<"all" | "careless" | "unknown" | "trap">("all");
     let wbFilterStubborn = $state(false);
     let wbKpFilter = $state("");
-    let wbSortMode = $state<"default" | "wrongCount" | "kp">("default");
+    let wbSortMode = $state<"default" | "wrongCount" | "kp">((readLocal("lv-exam/wrong-sort") as any) || "default");
     const archivedWrongList = $derived.by(() => {
       void dataRev;
       if (!app) return [];
@@ -7129,24 +7130,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             onclose={() => (scratchpadOpen = false)}
           />
           {#if groupBatchModal}
-            <!-- 44-01：小组延迟批次复盘小结卡 -->
-            <div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:14px 16px">
-              <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-                <b><Icon name="check" size={15} /> {t("session.groupFeedback")}（{t("material.subQ").replace("{n}", String(groupBatchModal.fromIndex))} - {t("material.subQ").replace("{n}", String(groupBatchModal.toIndex))}）</b>
-                <span class="lv-chip lv-chip--acc num">{t("session.initialAccuracy")}: {groupBatchModal.accuracy}% ({groupBatchModal.correct}/{groupBatchModal.total})</span>
-              </div>
-              <div class="lv-row" style="gap:6px;flex-wrap:wrap;margin:6px 0 12px">
-                {#each groupBatchModal.items as item, ii (item.qid)}
-                  {@const q = questionMap.get(item.qid)}
-                  <span class="lv-chip num" class:lv-chip--grn={item.verdict === "correct"} class:lv-chip--red={item.verdict === "wrong"} title={q?.stem ?? item.qid}>
-                    {groupBatchModal.fromIndex + ii}. {item.verdict === "correct" ? "✓" : "✕"} {#if item.myAnswer}({item.myAnswer}){/if}
-                  </span>
-                {/each}
-              </div>
-              <button class="lv-btn lv-btn--primary" onclick={() => { groupBatchModal = null; nextQuestion(); }}>
-                <Icon name="play" size={13} /> {t("session.groupContinue")}
-              </button>
-            </div>
+            <GroupBatchSummaryCard
+              modal={groupBatchModal}
+              {questionMap}
+              {t}
+              oncontinue={() => {
+                groupBatchModal = null;
+                nextQuestion();
+              }}
+            />
           {/if}
           <div class="lv-card lv-question" class:lv-pure={pureListen} role="region" aria-label={t("session.card")} ontouchstart={onTouchStart} ontouchend={onTouchEnd}>
             {#if materialContext}
@@ -7746,7 +7738,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                   {/if}
                   <div class="lv-row" style="margin:0 0 0 auto;gap:6px;align-items:center">
                     <span class="lv-muted" style="font-size:11px">排序:</span>
-                    <select class="lv-select" style="max-width:130px;height:28px;font-size:12px;padding:2px 8px" bind:value={wbSortMode} title="切换错题排序方式">
+                    <select
+                      class="lv-select"
+                      style="max-width:130px;height:28px;font-size:12px;padding:2px 8px"
+                      bind:value={wbSortMode}
+                      onchange={(e) => writeLocal("lv-exam/wrong-sort", (e.target as HTMLSelectElement).value)}
+                      title="切换错题排序方式"
+                    >
                       <option value="default">最新错题优先</option>
                       <option value="wrongCount">犯错频次降序</option>
                       <option value="kp">按考点聚类</option>
