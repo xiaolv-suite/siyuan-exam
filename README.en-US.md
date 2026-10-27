@@ -23,20 +23,23 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.94 (2026-10-27)
+## 🌟 Latest Release: v0.11.95 (2026-10-27)
 
-This release delivers the direct note-to-quiz shortcut on the onboarding screen and decoupled the bank gallery modal into a standalone module.
+This release delivers the SessionSheetModal architecture decoupling and bidirectional mother-question provenance linking for question variations.
 
-- **Note-to-Quiz Direct Onboarding:**
-  - Added one-click shortcuts to extract quiz questions from SiYuan notes directly on empty bank screens, plus fast bank-switching actions.
-- **BankGalleryModal Architecture Decoupling:**
-  - Extracted bank management and gallery filtering into `src/ui/practice/BankGalleryModal.svelte`, reducing monolithic complexity in the main tab.
+- **Bidirectional Mother-Question Provenance Links:**
+  - One-click variation derivation automatically links the source question's SiYuan block (`((blockId 'Mother Question'))`) and explanation into the manual authoring draft.
+- **SessionSheetModal Architecture Decoupling:**
+  - Extracted practice answer sheet navigation into `src/ui/practice/SessionSheetModal.svelte`, isolating answer grid logic from the main tab.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.94 Onboarding Note-to-Quiz Direct & BankGalleryModal Decoupling:**
+  - Direct note-to-quiz extraction shortcut on empty screens and extracted `BankGalleryModal.svelte`.
 
 - **v0.11.93 Floating Dock Tactile Overhaul & ShortcutsModal Decoupling:**
   - 20px Bento Floating Dock with tactile micro-elastic feedback and standalone `ShortcutsHelpModal.svelte`.

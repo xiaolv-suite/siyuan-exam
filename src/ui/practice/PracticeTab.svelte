@@ -66,6 +66,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import PracticeDoneCard from "./PracticeDoneCard.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
+    import SessionSheetModal from "./SessionSheetModal.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -5589,13 +5590,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       mStem = q.stem ? `${q.stem}（变式）` : "";
       mOptions = q.options?.length ? [...q.options] : ["", ""];
       mAnswer = q.answer || "";
-      mAnalysis = q.analysis || "";
+      mAnalysis = q.analysis ? `【母题解析】：${q.analysis}` : "";
       mKp = q.kp || "";
-      mSource = q.source || "";
+      mSource = q.blockId ? `(( ${q.blockId} '${q.stem.slice(0, 20)}...' ))` : (q.source || "");
       mStatus = "draft";
       closePeekDrawer();
       view = "manual";
-      showMessage("已将该题载入手工录题台，可直接微调题干选项并保存！", 3200, "info");
+      showMessage("已将该题载入手工录题台，并自动建立母题溯源反链！", 3500, "info");
     }
     let peekDrawerEl = $state<HTMLDivElement | null>(null);
     let peekReturnFocus: HTMLElement | null = null;
@@ -10004,48 +10005,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         </div>
       </div>
     {/if}
-    {#if sessionSheetOpen && session}
-      <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭答题卡" onclick={() => (sessionSheetOpen = false)}></button>
-      <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="练习答题卡" style="width:min(440px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-4, 22px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border)">
-          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px">
-            <div class="lv-dialog-title-wrap">
-              <span class="lv-dialog-title-icon"><Icon name="grid" size={13} /></span>
-              <span>练习答题卡</span>
-              <span class="lv-dialog-title-tag">第 {session.state.cursor + 1} 题</span>
-            </div>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (sessionSheetOpen = false)}>✕</button>
-          </div>
-          <div class="lv-row" style="margin-bottom:8px;font-size:11px;color:var(--lv-text-3);gap:8px">
-            <span>已答 {curProgress.done}</span>
-            <span>未答 {curProgress.total - curProgress.done}</span>
-          </div>
-          <div class="lv-sheet" style="max-height:50vh;overflow-y:auto">
-            {#each session.state.qids as _qid, i (i)}
-              {@const isCur = i === session.state.cursor}
-              {@const ansItem = session.state.answered?.find((a) => a.pos === i)}
-              {@const isDone = Boolean(ansItem)}
-              {@const isWrong = ansItem?.verdict === "wrong"}
-              {@const isCorrect = ansItem?.verdict === "correct"}
-              <button
-                class="lv-cell"
-                class:cur={isCur}
-                class:done={isDone}
-                style={isWrong ? "background:var(--lv-red-soft);color:var(--lv-red);border-color:var(--lv-red);" : isCorrect ? "background:var(--lv-green-soft);color:var(--lv-green);border-color:var(--lv-green);" : ""}
-                onclick={() => {
-                  session.jumpTo(i);
-                  sessionRev++;
-                  restoreQuestionControls();
-                  sessionSheetOpen = false;
-                }}
-              >
-                {i + 1}
-              </button>
-            {/each}
-          </div>
-        </div>
-      </div>
-    {/if}
+    <SessionSheetModal
+      open={sessionSheetOpen}
+      {session}
+      doneCount={curProgress.done}
+      totalCount={curProgress.total}
+      title={t("session.sheetTitle", "练习答题卡")}
+      onclose={() => (sessionSheetOpen = false)}
+      onjump={(i) => {
+        session.jumpTo(i);
+        sessionRev++;
+        restoreQuestionControls();
+        sessionSheetOpen = false;
+      }}
+    />
     <BankGalleryModal
       open={bankHubOpen}
       {banks}

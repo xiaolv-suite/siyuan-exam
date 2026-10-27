@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.94（2026-10-27）
+## 最新版本：v0.11.95（2026-10-27）
+
+本版本为做题答题卡进度网格弹窗（SessionSheetModal）解耦重构与变式题母题反链溯源闭环发版。一键衍生变式题时自动注入思源超级块反链与母题解析；解耦抽离独立的 SessionSheetModal 会话答题卡网格组件，持续加速页面加载。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
+
+## 上一版本：v0.11.94（2026-10-27）
 
 本版本为空态启程中心思源笔记智能提取直通与题库画廊弹窗（BankGalleryModal）解耦重构发版。空题库主页增设从思源笔记智能提取试题一键直通与切换题库通道；解耦抽离独立的 BankGalleryModal 弹窗组件，主文件体积进一步优化。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
 
