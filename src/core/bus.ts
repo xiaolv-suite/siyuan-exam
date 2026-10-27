@@ -25,7 +25,9 @@ export type BusEventType =
   | "open-practice-questions" // {qids, bank} 其他板块/块菜单 → 练习台题目集会话
   | "open-in-browse" // {qid, bank} 块菜单 → 浏览视图聚焦
   | "edit-question" // {qid, bank} 块菜单 → 浏览视图编辑
-  | "session-ended" // {sessionId, mode, total, correct, wrong} 会话结算（仅计数，无题干）
+  | "session-ended" // {sessionId, mode, total, correct, wrong, weakKnowledgePoints?} 会话结算（仅计数，无题干）
+  | "weakness-alert" // {sessionId, weakKnowledgePoints} 薄弱考点反哺生态（供拾遗/闪卡提升权重）
+  | "open-creator" // {text, sourceBlockId, sourceTitle, type?} 外部一键提取出题制卡
   | "wrongbook-changed" // {qid, status} 错题处置/暂缓/再错（生态消费者按需重读）
   | "open-view" // {view, requestId?} 稳定入口深链，requestId 用于挂载/广播去重
   | "bank-changed" // {bank} 题库创建或切换完成，其他已打开页签重新读取当前库
@@ -66,4 +68,27 @@ export function onExamEvent<T extends Record<string, unknown>>(
   };
   window.addEventListener(name, listener);
   return () => window.removeEventListener(name, listener);
+}
+
+/** 计算薄弱考点清单（正确率不足 60% 的考点），供生态漫游与间隔复习反哺 */
+export function computeWeakKnowledgePoints(
+  items: Array<{ kp?: string; verdict?: string }>,
+  threshold = 0.6,
+): string[] {
+  const stats = new Map<string, { total: number; correct: number }>();
+  for (const item of items) {
+    const kp = item.kp?.trim();
+    if (!kp) continue;
+    const s = stats.get(kp) ?? { total: 0, correct: 0 };
+    s.total++;
+    if (item.verdict === "correct") s.correct++;
+    stats.set(kp, s);
+  }
+  const weak: string[] = [];
+  for (const [kp, s] of stats) {
+    if (s.total > 0 && s.correct / s.total < threshold) {
+      weak.push(kp);
+    }
+  }
+  return weak;
 }

@@ -11,7 +11,7 @@
     import { showMessage } from "siyuan";
     import { assemble, blueprintTotals, defaultMockSections, dedupeSectionNames, MockSession, validateBlueprint, type Blueprint, type BlueprintSection, type SectionSource, type MockRunSnapshot, type MockScore } from "../../core/mock";
     import { newRunId } from "../../core/ids";
-    import { emitExamEvent, onExamEvent } from "../../core/bus";
+    import { emitExamEvent, onExamEvent, computeWeakKnowledgePoints } from "../../core/bus";
     import { openPracticeView, type ExamPluginLike } from "../../core/pluginTab";
     import { answerChoices, isChoiceQuestion, toggleChoice } from "../../core/answerChoices";
     import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
@@ -176,12 +176,19 @@
       const correct = answers.filter((a) => a.verdict === "correct").length;
       const wrong = answers.filter((a) => a.verdict === "wrong").length;
 
+      const answeredKps = answers.map((a) => {
+        const targetQ = questions.find((q) => q.id === a.qid);
+        return { kp: targetQ?.kp, verdict: a.verdict };
+      });
+      const weakKps = computeWeakKnowledgePoints(answeredKps);
+
       emitExamEvent("session-ended", {
         sessionId: runId,
         mode: "mock",
         total,
         correct,
         wrong,
+        weakKnowledgePoints: weakKps,
       });
 
       // Epoch 6：小驴生态联邦标准事件广播 lv-exam:session-ended
@@ -201,10 +208,30 @@
                 total,
                 correct,
                 wrong,
+                weakKnowledgePoints: weakKps,
               },
             },
           }),
         );
+
+        if (weakKps.length > 0) {
+          window.dispatchEvent(
+            new CustomEvent("lv-exam:weakness-alert", {
+              detail: {
+                v: 1,
+                source: "siyuan-exam",
+                type: "lv-exam:weakness-alert",
+                eventId: `ev-weak-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+                at: new Date().toISOString(),
+                payload: {
+                  sessionId: runId,
+                  mode: "mock",
+                  weakKnowledgePoints: weakKps,
+                },
+              },
+            }),
+          );
+        }
       }
     }
     const startDisabledReason = $derived(

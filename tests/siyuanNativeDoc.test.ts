@@ -313,5 +313,22 @@ ANSWER: A
       expect(report.ok[1].stem).toContain("法定公积金");
       expect(report.ok[1].answer).toContain("公司分配当年税后利润时");
     });
+
+    it("parseQuestionsFromSiyuanDoc 处理纯日常日记等无试题文本时友好归一化错误，杜绝出现缺少ANSWER行报错", async () => {
+      const dailyDiary = `
+# 2026-10-27
+今天天气晴朗，早上去图书馆借阅了两本书。
+下午和团队讨论了产品设计方案，晚上整理了房间并早点休息。
+`;
+      const report = await parseQuestionsFromSiyuanDoc(dailyDiary, {
+        docId: "doc-diary-20261027",
+        title: "2026-10-27",
+      });
+
+      expect(report.ok.length).toBe(0);
+      expect(report.errors.length).toBeGreaterThan(0);
+      expect(report.errors[0].reason).toContain("未检测到题目内容");
+      expect(report.errors[0].reason).not.toContain("缺少 ANSWER 行");
+    });
   });
 });

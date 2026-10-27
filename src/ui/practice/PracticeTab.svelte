@@ -62,7 +62,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { probeGlean, listLaterClips, formatClipsForSource, markClipDone, type GleanClip } from "@/core/gleanBridge";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
-    import { onExamEvent, emitExamEvent } from "@/core/bus";
+    import { onExamEvent, emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -1722,8 +1722,29 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           if (view === "materials") loadMaterials();
         }
       };
+      function applyQuizDraft(opts: { text?: string; sourceBlockId?: string; sourceTitle?: string; type?: string }) {
+        if (!opts?.text) return;
+        switchView("manual");
+        mStem = opts.text.trim();
+        if (opts.sourceBlockId) {
+          mSource = `(( ${opts.sourceBlockId} '${opts.sourceTitle || "来源原文"}' ))`;
+        }
+        if (opts.type === "cloze") {
+          mType = "fill";
+        } else if (opts.type === "single") {
+          mType = "single";
+        } else {
+          mType = "short";
+        }
+        showMessage("[小驴学习] 已由长文划词自动载入出题制卡工坊 ✓", 3200, "info");
+      }
+
       const offs = [
         onExamEvent("app-ready", onAppReady),
+        onExamEvent("open-creator", (env) => {
+          if (!tabRoot?.isConnected) return;
+          applyQuizDraft(env.payload as any);
+        }),
         onExamEvent("open-question", onOpenQ),
         onExamEvent("open-practice-questions", onOpenPracticeQuestions),
         onExamEvent("open-in-browse", onBrowseQ),
@@ -1752,7 +1773,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       onMountCleanup = () => offs.forEach((off) => off());
       const pendingView = consumePendingPracticeView(plugin);
       const initialView = pendingView?.view ?? plugin?.pendingInitialView;
-      if (["wrongbook", "entry", "browse", "manual", "import", "ai", "materials", "recite"].includes(initialView ?? "")) {
+      if ((plugin as any)?.pendingExternalQuiz) {
+        const pendingQuiz = (plugin as any).pendingExternalQuiz;
+        (plugin as any).pendingExternalQuiz = null;
+        applyQuizDraft(pendingQuiz);
+      } else if (["wrongbook", "entry", "browse", "manual", "import", "ai", "materials", "recite"].includes(initialView ?? "")) {
         if (plugin) plugin.pendingInitialView = undefined;
         if (pendingView) appliedPracticeViewRequestId = pendingView.id;
         applyMaterialRequest(pendingView);
@@ -3799,12 +3824,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       sessionDone.totalTimeS = Math.round(times.reduce((s, t) => s + t, 0) / 1000);
       sessionDone.avgTimeS = times.length ? Math.round(times.reduce((s, t) => s + t, 0) / 1000 / times.length) : 0;
       // 48-02 lite：会话结束事件（仅计数，无题干；生态消费者按需重读明细）
+      const answeredKps = session.answered.map((a) => {
+        const targetQ = questions.find((q) => q.id === a.qid);
+        return { kp: targetQ?.kp, verdict: a.grade.verdict };
+      });
+      const weakKps = computeWeakKnowledgePoints(answeredKps);
+
       emitExamEvent("session-ended", {
         sessionId: session.id,
         mode: session.state.mode,
         total: sessionDone.total,
         correct: sessionDone.correct,
         wrong: sessionDone.wrong,
+        weakKnowledgePoints: weakKps,
       });
 
       // Epoch 6：小驴生态联邦标准事件广播 lv-exam:session-ended
@@ -3824,10 +3856,30 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                 total: sessionDone.total,
                 correct: sessionDone.correct,
                 wrong: sessionDone.wrong,
+                weakKnowledgePoints: weakKps,
               },
             },
           }),
         );
+
+        if (weakKps.length > 0) {
+          window.dispatchEvent(
+            new CustomEvent("lv-exam:weakness-alert", {
+              detail: {
+                v: 1,
+                source: "siyuan-exam",
+                type: "lv-exam:weakness-alert",
+                eventId: `ev-weak-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+                at: new Date().toISOString(),
+                payload: {
+                  sessionId: session.id,
+                  mode: session.state.mode,
+                  weakKnowledgePoints: weakKps,
+                },
+              },
+            }),
+          );
+        }
       }
 
       await app.saveSession();
@@ -5917,7 +5969,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       try {
         const report = await app.importFromSiyuanDocBatch(ids);
         if (!report.ok.length) {
-          showMessage(report.errors[0]?.reason || "所选文档内未检索到题目格式内容", 3500, "info");
+          const rawReason = report.errors[0]?.reason || "";
+          const reason = /缺少 ANSWER 行|Aiken/i.test(rawReason)
+            ? "所选文档内未检索到题目内容（支持选择题、表格题表、==高亮挖空== 或 **术语** 定义）"
+            : (rawReason || "所选文档内未检索到题目格式内容");
+          showMessage(reason, 4000, "info");
           return;
         }
         importReport = report;
@@ -5948,7 +6004,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       try {
         const report = await app.importFromSiyuanDoc(docId);
         if (!report.ok.length) {
-          showMessage(report.errors[0]?.reason || "文档内未检索到题目格式内容", 3500, "info");
+          const rawReason = report.errors[0]?.reason || "";
+          const reason = /缺少 ANSWER 行|Aiken/i.test(rawReason)
+            ? `《${title}》内未检索到题目内容（支持选择题、表格题表、==高亮挖空== 或 **术语** 定义）`
+            : (rawReason || "文档内未检索到题目格式内容");
+          showMessage(reason, 4000, "info");
           return;
         }
         importReport = report;

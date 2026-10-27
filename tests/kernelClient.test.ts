@@ -398,4 +398,18 @@ describe("718 Retry-After 契约与退避（内核 429 限流恢复）", () => {
     await expect(t.postForm("/api/import/importSY", new Blob(["zip"]), "b.sy.zip")).resolves.toMatchObject({ code: 0 });
     expect(calls).toBe(2);
   });
+
+  it("HttpTransport.post：思源 3.8.9 document metadata is not ready 归类 retryable 自动重试成功", async () => {
+    let calls = 0;
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return calls === 1
+        ? { ok: true, status: 200, text: async () => JSON.stringify({ code: -1, msg: "document metadata is not ready", data: null }) }
+        : { ok: true, status: 200, text: async () => JSON.stringify({ code: 0, msg: "", data: "doc-created-ok" }) };
+    }) as never, 5_000, 1);
+
+    const res = await t.post("/api/filetree/createDocWithMd", { notebook: "box1", path: "/test" });
+    expect(res).toMatchObject({ code: 0, data: "doc-created-ok" });
+    expect(calls).toBe(2);
+  });
 });

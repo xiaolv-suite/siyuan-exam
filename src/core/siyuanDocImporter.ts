@@ -191,7 +191,7 @@ export async function parseQuestionsFromSiyuanDoc(
   let report = await parseText(cleanedText, options);
 
   // 兜底 1：Markdown 表格试题识别（用户用表格制作的生词表、概念表、问答表、选项表）
-  if (!report.ok.length && docMarkdown.includes("|")) {
+  if (!report.ok.length && !report.duplicates && docMarkdown.includes("|")) {
     const tableQuestions = parseMarkdownTableToQuestions(docMarkdown, docMeta);
     if (tableQuestions.length > 0) {
       report = {
@@ -204,7 +204,7 @@ export async function parseQuestionsFromSiyuanDoc(
   }
 
   // 兜底 2：高亮挖空（Cloze）：如果常规试题未提取出任何有效题目，但文档包含思源原生高亮标记 ==重点== 或 {{挖空}}，自动提取为填空题
-  if (!report.ok.length && (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText))) {
+  if (!report.ok.length && !report.duplicates && (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText))) {
     const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
     const clozeItems = parseClozeText(cleanedText, { modes: ["highlight", "curly"] });
     if (clozeItems.length > 0) {
@@ -216,6 +216,44 @@ export async function parseQuestionsFromSiyuanDoc(
         duplicates: 0,
       };
     }
+  }
+
+  // 兜底 3：渐进式阅读笔记概念与列表制卡提取（识别术语定义、列举项等）
+  if (!report.ok.length && !report.duplicates && cleanedText.trim().length >= 10) {
+    try {
+      const { extractCardsFromExcerpt } = await import("./excerptCard");
+      const excerptResult = extractCardsFromExcerpt({
+        materialId: docMeta.docId,
+        materialTitle: docMeta.title,
+        text: cleanedText,
+      });
+      if (excerptResult.questions.length > 0) {
+        report = {
+          batch: report.batch || newBatchId(),
+          ok: excerptResult.questions,
+          errors: [],
+          duplicates: 0,
+        };
+      }
+    } catch {
+      // 提取异常静默容错
+    }
+  }
+
+  // 兜底 4：如果文档内确实没有任何可提取的题目，归一化错误信息，消除底层 Aiken 内部“缺少 ANSWER 行”等不友好报错
+  if (!report.ok.length && !report.duplicates) {
+    return {
+      batch: report.batch || newBatchId(),
+      ok: [],
+      errors: [
+        {
+          row: 1,
+          raw: cleanedText.slice(0, 100),
+          reason: `《${docMeta.title}》未检测到题目内容（支持选择题、表格题表、==高亮挖空== 或 **术语** 定义）`,
+        },
+      ],
+      duplicates: 0,
+    };
   }
 
   // 为所有成功提取的题目注入文档元数据

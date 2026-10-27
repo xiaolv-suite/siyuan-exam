@@ -58,7 +58,7 @@ export class KernelError extends Error {
   }
 }
 
-const RETRIABLE_HOST = /ECONN|ETIMEDOUT|timeout|abort|network|fetch failed|failed to fetch|connection reset|socket/i;
+const RETRIABLE_HOST = /ECONN|ETIMEDOUT|timeout|abort|network|fetch failed|failed to fetch|connection reset|socket|metadata is not ready|not ready|database.*locked|is busy|busy|indexing/i;
 
 function classify(e: unknown): ErrKind {
   const msg = e instanceof Error ? e.message : String(e);
@@ -185,7 +185,11 @@ export class HttpTransport implements KernelTransport {
         } catch {
           throw new KernelError("fatal", endpoint, "非 JSON 响应");
         }
-        if (body.code !== 0) throw new KernelError("fatal", endpoint, body.msg || `code ${body.code}`, undefined, body.code);
+        if (body.code !== 0) {
+          const isRetryableMsg = RETRIABLE_HOST.test(body.msg || "");
+          const kind = isRetryableMsg ? "retryable" : "fatal";
+          throw new KernelError(kind, endpoint, body.msg || `code ${body.code}`, undefined, body.code);
+        }
         return body;
       } catch (e) {
         lastErr = e;
@@ -256,7 +260,11 @@ export class HttpTransport implements KernelTransport {
         } catch {
           throw new KernelError("fatal", endpoint, "非 JSON 响应");
         }
-        if (body.code !== 0) throw new KernelError("fatal", endpoint, body.msg || `code ${body.code}`, undefined, body.code);
+        if (body.code !== 0) {
+          const isRetryableMsg = RETRIABLE_HOST.test(body.msg || "");
+          const kind = isRetryableMsg ? "retryable" : "fatal";
+          throw new KernelError(kind, endpoint, body.msg || `code ${body.code}`, undefined, body.code);
+        }
         return body;
       } catch (e) {
         lastErr = e;

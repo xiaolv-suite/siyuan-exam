@@ -618,6 +618,8 @@ export class ExamApp {
       info = { id: notebookId, name: bankName, createdAt: Date.now(), category, sampleState: "pending" };
       // 先注册真实笔记本，后续失败可在同一库继续，不会再次新建笔记本。
       this.banks.push(info);
+      // 思源 3.8.9-beta.2：新建笔记本后给内核 200ms 异步建立根目录和文档元数据树的时间，防 createDocWithMd 竞态
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
     await this.saveBankRegistry();
     try {
@@ -897,16 +899,40 @@ export class ExamApp {
     // createDocWithMd 幂等：已存在返回 ""（思源行为）——先查再建；
     // 建后重查一次：与思源日记自动建档存在竞态时 createDocWithMd 可能返回 ""
     // 而真实文档由宿主创建（真机走查实测出现同 hpath 双文档块，写入静默落空）
-    const existing = await this.deps.client.sql(
-      `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
-    );
-    if (existing[0]?.id) return String(existing[0].id);
-    const created = await this.deps.client.createDocWithMd(bankId, hpath, markdown ?? `# ${hpath.split("/").pop()}\n\n`);
-    if (created) return created;
-    const again = await this.deps.client.sql(
-      `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
-    );
-    return String(again[0]?.id ?? "");
+    const findExisting = async () => {
+      const existing = await this.deps.client.sql(
+        `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
+      );
+      return existing[0]?.id ? String(existing[0].id) : "";
+    };
+
+    const initial = await findExisting();
+    if (initial) return initial;
+
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const created = await this.deps.client.createDocWithMd(bankId, hpath, markdown ?? `# ${hpath.split("/").pop()}\n\n`);
+        if (created) return created;
+        const again = await findExisting();
+        if (again) return again;
+      } catch (e) {
+        lastErr = e;
+        const msg = String(e instanceof Error ? e.message : e);
+        // 思源 3.8.9-beta.2：处理 metadata is not ready 等内核瞬态竞态自愈重试
+        if (/metadata is not ready|not ready|busy|locked/i.test(msg) && attempt < 2) {
+          await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+          const checked = await findExisting().catch(() => "");
+          if (checked) return checked;
+          continue;
+        }
+        throw e;
+      }
+    }
+    const finalDoc = await findExisting().catch(() => "");
+    if (finalDoc) return finalDoc;
+    if (lastErr) throw lastErr;
+    return "";
   }
 
   async listQuestions(bankId: string): Promise<(Question & { blockId: string; rootId: string; hpath: string })[]> {

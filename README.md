@@ -10,13 +10,17 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1407%20passed-brightgreen)](#开发)
+[![Tests](https://img.shields.io/badge/tests-1411%20passed-brightgreen)](#开发)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.90（2026-10-27）
+## 最新版本：v0.11.91（2026-10-27）
+
+本版本为思源 3.8.9-beta.2 新建示例题库瞬态 metadata not ready 自动自愈修复、思源文档提取“缺少 ANSWER 行”友好化升级、长文划词制卡协议（Extract to Quiz）与学情薄弱考点生态反哺发版。全面提升新内核新建题库稳定性；智能消除笔记提取生硬报错并接入阅读切片制卡；开放 extractToQuiz 服务桥打通长文制卡出题闭环；实装正确率<60%薄弱考点生态广播与暗色模式微边框。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
+
+## 上一版本：v0.11.90（2026-10-27）
 
 本版本为模考交卷标准生态事件（lv-exam:session-ended）联邦规范落地、英文文档全景翻新与仓库卫生加固发版。全真模考场（MockTab）交卷结算补齐生态广播与防题干泄漏规范；全量重构英文 README.en-US.md 与 docs/STATUS.md 消除跨版本信息断层；.gitignore 补齐构建哈希忽略保持工作区纯净。全套单测 181 个测试文件、1407 项单测 100% 全部通过。
 

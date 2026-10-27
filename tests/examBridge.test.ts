@@ -51,6 +51,7 @@ describe("小驴考试 · 服务桥与生态集成契约 (Epoch 6)", () => {
       "wrongbook",
       "mock",
       "report",
+      "extractToQuiz",
       "stats",
       "statsRead",
       "whenReady",
@@ -198,5 +199,30 @@ describe("小驴考试 · 服务桥与生态集成契约 (Epoch 6)", () => {
     expect((detail.payload as any).stem).toBeUndefined();
     expect((detail.payload as any).content).toBeUndefined();
     expect((detail.payload as any).questions).toBeUndefined();
+  });
+
+  it("extractToQuiz 成功派发长文划词制卡协议并具备能力声明", async () => {
+    const host = createMockHost({
+      extractToQuiz: vi.fn().mockReturnValue(true),
+    });
+    const bridge = buildLvExamBridge(host);
+
+    expect(bridge.hasCapability("extractToQuiz")).toBe(true);
+
+    const ok = await bridge.extractToQuiz({
+      text: "宪法是国家的根本法，具有最高的法律效力。",
+      sourceBlockId: "block-20261027-abcdef",
+      sourceTitle: "法学通论",
+      type: "cloze",
+    });
+
+    expect(ok).toBe(true);
+    expect(host.openPractice).toHaveBeenCalled();
+    expect(host.extractToQuiz).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "宪法是国家的根本法，具有最高的法律效力。",
+        sourceBlockId: "block-20261027-abcdef",
+      }),
+    );
   });
 });

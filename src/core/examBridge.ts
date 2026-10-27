@@ -25,6 +25,14 @@ export interface LvExamBridgeOverview {
   updatedAt: string;
 }
 
+export interface ExtractToQuizOptions {
+  text: string;
+  sourceBlockId?: string;
+  sourceTitle?: string;
+  type?: "cloze" | "single" | "qa";
+  bankId?: string;
+}
+
 export interface ExamBridgeHost {
   version: string;
   openPractice: () => void;
@@ -33,6 +41,7 @@ export interface ExamBridgeHost {
   openReport: () => void;
   getStats: () => unknown;
   statsRead: () => Promise<unknown>;
+  extractToQuiz?: (options: ExtractToQuizOptions) => Promise<boolean> | boolean;
   onBridgeDisposed?: () => void;
 }
 
@@ -47,6 +56,7 @@ export interface LvExamBridgeApi {
   wrongbook: () => void;
   mock: () => void;
   report: () => void;
+  extractToQuiz: (options: ExtractToQuizOptions) => Promise<boolean>;
   stats: () => unknown;
   statsRead: () => Promise<unknown>;
   getOverview: () => LvExamBridgeOverview;
@@ -67,6 +77,7 @@ export function buildLvExamBridge(host: ExamBridgeHost): LvExamBridgeApi {
     "wrongbook",
     "mock",
     "report",
+    "extractToQuiz",
     "stats",
     "statsRead",
     "whenReady",
@@ -83,6 +94,25 @@ export function buildLvExamBridge(host: ExamBridgeHost): LvExamBridgeApi {
     },
     hasCapability(name: string) {
       return (capabilities as readonly string[]).includes(name);
+    },
+    async extractToQuiz(options: ExtractToQuizOptions) {
+      if (!options?.text?.trim()) return false;
+      host.openPractice();
+      if (typeof host.extractToQuiz === "function") {
+        await host.extractToQuiz(options);
+      }
+      try {
+        emitExamEvent("open-creator", {
+          text: options.text.trim(),
+          sourceBlockId: options.sourceBlockId,
+          sourceTitle: options.sourceTitle,
+          type: options.type || "qa",
+          bankId: options.bankId,
+        });
+      } catch {
+        // 忽略异常保证调用安全
+      }
+      return true;
     },
     open() {
       host.openPractice();

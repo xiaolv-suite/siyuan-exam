@@ -62,6 +62,7 @@ export const ECOSYSTEM_EVENTS = Object.freeze({
     GLEAN_STATUS_CHANGED: "lv-glean:clip-status-changed",
     // 考试
     EXAM_SESSION_ENDED: "lv-exam:session-ended",
+    EXAM_WEAKNESS_ALERT: "lv-exam:weakness-alert",
     EXAM_WRONGBOOK_CHANGED: "lv-exam:wrongbook-changed",
     EXAM_STATS: "lv-exam:stats",
     // 闪卡

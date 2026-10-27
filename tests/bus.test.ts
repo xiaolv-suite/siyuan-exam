@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { emitExamEvent, onExamEvent, busEventName, type BusEvent } from "../src/core/bus";
+import { emitExamEvent, onExamEvent, busEventName, computeWeakKnowledgePoints, type BusEvent } from "../src/core/bus";
 
 /** node 测试环境无 window：用 EventTarget 桩（CustomEvent 在 node≥19 全局可用） */
 beforeEach(() => {
@@ -36,5 +36,20 @@ describe("lv-exam:* 事件总线（2.1/47-04 雏形，廿五批）", () => {
     const a = emitExamEvent("open-in-browse", { qid: "q1", bank: "b1" });
     const b = emitExamEvent("open-in-browse", { qid: "q1", bank: "b1" });
     expect(a!.eventId).not.toBe(b!.eventId);
+  });
+
+  it("computeWeakKnowledgePoints 精准检出正确率<60%的薄弱考点，排除全对考点与空考点", () => {
+    const items = [
+      { kp: "高等数学/微积分", verdict: "wrong" },
+      { kp: "高等数学/微积分", verdict: "wrong" },
+      { kp: "高等数学/微积分", verdict: "correct" }, // 1/3 = 33% -> 薄弱
+      { kp: "线性代数/行列式", verdict: "correct" },
+      { kp: "线性代数/行列式", verdict: "correct" }, // 2/2 = 100% -> 非薄弱
+      { kp: "  ", verdict: "wrong" }, // 空考点自动忽略
+      { kp: undefined, verdict: "wrong" },
+    ];
+
+    const weak = computeWeakKnowledgePoints(items);
+    expect(weak).toEqual(["高等数学/微积分"]);
   });
 });

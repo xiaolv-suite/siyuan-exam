@@ -308,6 +308,11 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       openWrongbook: () => this.openWrongbook(),
       openMock: () => this.openMock(),
       openReport: () => this.openReport(),
+      extractToQuiz: (opts) => {
+        (this as any).pendingExternalQuiz = opts;
+        this.openPractice();
+        return true;
+      },
       getStats: () => {
         if (!this.examApp) return null;
         return this.lastPublicStats ?? null;

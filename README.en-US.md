@@ -11,7 +11,7 @@
 
 [![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1407%20passed-brightgreen)](#-development)
+[![Tests](https://img.shields.io/badge/tests-1411%20passed-brightgreen)](#-development)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
 
@@ -23,22 +23,31 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.90 (2026-10-27)
+## 🌟 Latest Release: v0.11.91 (2026-10-27)
 
-This release delivers the ecosystem federation event standard for Mock Exams, complete English documentation overhaul, and repository hygiene hardening.
+This release delivers automatic resilience for SiYuan 3.8.9-beta.2 transient metadata readiness during bank initialization, friendly error normalization for note import, the Extract to Quiz service bridge, and ecosystem weakness feedback.
 
-- **Ecosystem Federation Event Standard (`lv-exam:session-ended`):**
-  - Aligned CBT Mock Exam completion (`MockTab.svelte`) with the ecosystem standard `window.dispatchEvent` contract, broadcasting leak-free session metrics (`sessionId`, `mode`, `total`, `correct`, `wrong`) directly to companion plugins (such as `siyuan-checkin` and `siyuan-speed-switch`).
-- **Comprehensive English Documentation:**
-  - Fully refreshed `README.en-US.md` and `docs/STATUS.md` to reflect the latest state across 80+ iterations, synchronizing naming with `plugin.json` (`Lv Study (Beta)`).
-- **Repository Cleanliness:**
-  - Added build hash artifact `SHA256SUMS` to `.gitignore` to prevent untracked file clutter.
+- **SiYuan 3.8.9-beta.2 `metadata not ready` Self-Healing:**
+  - Classified transient metadata errors as `retryable` in `HttpTransport`, implementing exponential backoff;
+  - Added 3-tier resilient retries and SQL confirmation inside `ensureDoc` alongside an asynchronous mounting buffer after creating notebooks.
+- **SiYuan Note Extraction Intelligence:**
+  - Eliminated confusing raw parser errors (such as "Missing ANSWER line") when importing ordinary notes or diaries;
+  - Integrated progressive reading excerpt card extraction (`excerptCard.ts`), converting definitions and list items into quiz questions with clear user guidance.
+- **Extract to Quiz Service Bridge:**
+  - Extended `LvExamBridgeApi` with `extractToQuiz`, allowing companion plugins (like `siyuan-glean`) to inject highlighted text into the question authoring workshop with `((sourceBlockId))` provenance links.
+- **Weak Knowledge Point Ecosystem Feedback:**
+  - Dispatched `lv-exam:weakness-alert` events for knowledge points with accuracy below 60%, informing flashcard and reading systems to raise review weights.
+- **Dark Mode Edge Definition:**
+  - Enhanced `--lv-inset-card` with subtle 0.8px border definition to prevent card edge blending in pure-black themes.
 - **Automated Verification:**
-  - 100% green test suite across **181 test files and 1407 unit tests**.
+  - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.90 Mock Exam Federation Event & Repo Hygiene:**
+  - Aligned CBT Mock Exam completion with `lv-exam:session-ended` ecosystem standard events and added `SHA256SUMS` to `.gitignore`.
 
 - **v0.11.89 Multilingual Speech & Pronunciation Evaluation:**
   - Pure-function edit distance and character-matching evaluation algorithm (`speechEval.ts`) filtering punctuation and casing.
