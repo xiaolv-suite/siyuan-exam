@@ -23,20 +23,23 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.98 (2026-10-27)
+## 🌟 Latest Release: v0.11.99 (2026-10-27)
 
-This release delivers the GroupBatchSummaryCard architecture decoupling and persistent wrongbook sorting preferences.
+This release delivers the MaterialGroupContextCard architecture decoupling and persistent material expansion state across sub-questions.
 
-- **Persistent Wrongbook Multi-Dimensional Sorting:**
-  - Preferences for sorting wrong answers (latest, highest error frequency, or grouped by knowledge points) now persist across reloads via local storage (`lv-exam/wrong-sort`).
-- **GroupBatchSummaryCard Architecture Decoupling:**
-  - Extracted the delayed 5-item batch review summary into `src/ui/practice/GroupBatchSummaryCard.svelte`, encapsulating interval accuracy and question outcome lists.
+- **Persistent Material Expansion in Shared Contexts:**
+  - Navigating between sub-questions in the same reading passage now preserves the material's expanded state, eliminating repetitive manual unfolds.
+- **MaterialGroupContextCard Architecture Decoupling:**
+  - Extracted shared material context and sibling sub-question navigation into `src/ui/practice/MaterialGroupContextCard.svelte`.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.98 GroupBatchSummaryCard Decoupling & Wrongbook Sorting:**
+  - Extracted `GroupBatchSummaryCard.svelte` and persisted wrongbook multi-dimensional sorting preferences.
 
 - **v0.11.97 SpeechEvalCapsule Decoupling & Recitation Loop:**
   - Extracted `SpeechEvalCapsule.svelte` and completed the speech pronunciation feedback loop in recitation mode.

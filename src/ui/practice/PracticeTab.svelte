@@ -70,6 +70,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
     import SpeechEvalCapsule from "./SpeechEvalCapsule.svelte";
     import GroupBatchSummaryCard from "./GroupBatchSummaryCard.svelte";
+    import MaterialGroupContextCard from "./MaterialGroupContextCard.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -2696,7 +2697,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         selected = "";
         draftLive = "";
         confidenceSel = "";
-        materialExpanded = false;
+        // 同组切题保持展开状态，避免重复手动展开
         answerStart = Date.now();
         hideOptions = false;
         recallDraft = "";
@@ -2707,10 +2708,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     /** 长材料折叠（TODO 12 组）：>500 字默认折叠，切题重置；展开后完整可读 */
-    const MATERIAL_FOLD_AT = 500;
     let materialExpanded = $state(false);
-    const materialLong = $derived(materialContext.length > MATERIAL_FOLD_AT);
-    const materialShown = $derived(!materialLong || materialExpanded ? materialContext : materialContext.slice(0, 200) + "…");
 
     /** 共用题干：材料组母卡（背诵视图） */    const reciteMaterial = $derived.by(() => {
       const q = reciteQueue[reciteCursor];
@@ -7141,41 +7139,22 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             />
           {/if}
           <div class="lv-card lv-question" class:lv-pure={pureListen} role="region" aria-label={t("session.card")} ontouchstart={onTouchStart} ontouchend={onTouchEnd}>
-            {#if materialContext}
-              <div class="lv-analysis lv-rich b3-typography" style="margin-bottom:12px">
-                <div class="lv-row" style="margin:0 0 6px;justify-content:space-between;align-items:center;flex-wrap:wrap">
-                  <b class="lv-mat-chip"><Icon name="paperclip" size={14} /> {groupContext ? formatMaterialGroupHeader(groupContext) : t("material.shared")}</b>
-                  {#if materialLong}
-                    <button class="lv-chip num" onclick={() => { materialExpanded = !materialExpanded; if (materialExpanded && !feedback) addExposure(q.id, "material"); }}>
-                      {materialExpanded ? t("material.fold") : t("material.expand")}
-                    </button>
-                  {/if}
-                </div>
-                {#if groupContext && groupContext.siblings.length > 1}
-                  <!-- 43-03 兄弟题导航条：展示已答对/已答错/当前/未答状态，支持卷面一键跳转 -->
-                  <div class="lv-row lv-sibling-nav" style="margin:4px 0 8px;gap:6px;flex-wrap:wrap" role="group" aria-label={t("material.siblings")}>
-                    {#each groupContext.siblings as sib (sib.qid)}
-                      <button
-                        type="button"
-                        class="lv-chip num lv-sibling-pill"
-                        class:acc={sib.isCurrent}
-                        class:lv-chip--grn={sib.verdict === "correct"}
-                        class:lv-chip--red={sib.verdict === "wrong"}
-                        disabled={!sib.inSession}
-                        title={sib.inSession ? `${t("material.jumpTo")}: ${sib.stemSnippet}` : t("material.notInSession")}
-                        onclick={() => jumpToSibling(sib)}
-                      >
-                        {t("material.subQ").replace("{n}", String(sib.subIndex))}
-                        {#if sib.verdict === "correct"}✓{:else if sib.verdict === "wrong"}✕{/if}
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-                <div style={materialExpanded ? "max-height:280px;overflow-y:auto;padding:2px 0" : ""}>
-                  {@html materialLong && !materialExpanded ? escapeHtml(materialShown) : (materialHtml || escapeHtml(materialShown))}
-                </div>
-              </div>
-            {/if}
+            <MaterialGroupContextCard
+              {materialContext}
+              {materialHtml}
+              {groupContext}
+              {materialExpanded}
+              {t}
+              {escapeHtml}
+              {formatMaterialGroupHeader}
+              ontoggleExpand={() => {
+                materialExpanded = !materialExpanded;
+                if (materialExpanded && !feedback && session?.current) {
+                  addExposure(session.current.id, "material");
+                }
+              }}
+              onjumpSibling={jumpToSibling}
+            />
             {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
             <SpeechEvalCapsule result={speechEvalResult} ondismiss={() => speechEvalResult = null} />
             {#if q.studyMeta?.phonetic}

@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.98（2026-10-27）
+## 最新版本：v0.11.99（2026-10-27）
+
+本版本为大题共用材料上下文组件（MaterialGroupContextCard）解耦重构与材料组切题展开状态记忆发版。大题同材料组内切题智能保持材料展开状态，免除重复手动展开与寻找；解耦抽离独立的 MaterialGroupContextCard 材料上下文组件。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
+
+## 上一版本：v0.11.98（2026-10-27）
 
 本版本为小组延迟批次复盘小结卡组件（GroupBatchSummaryCard）解耦重构与错题本排序偏好持久化发版。错题队列排序选择器全面对齐本地持久化存储，无缝恢复用户定制排序；解耦抽离独立的 GroupBatchSummaryCard 小结卡组件。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
 
