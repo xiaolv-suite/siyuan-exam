@@ -359,7 +359,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           speechRecording = false;
         };
         rec.start();
-      } catch (e) {
+      } catch {
         speechRecording = false;
         showMessage("无法启动麦克风录音识别，请检查设备麦克风权限", 3500, "error");
       }
