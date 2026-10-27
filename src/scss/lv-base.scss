@@ -1703,6 +1703,41 @@ input[type="range"] {
   .lv-preview-card { position: static; }
 }
 
+/* —— 错题本与背诵模式通用样式 (Wrongbook & Recite) —— */
+.lv-done-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 12px 0 8px; padding: 10px 12px; background: var(--lv-surface-2); border-radius: var(--lv-r-2); border: 1px solid var(--lv-border); }
+.lv-done-stats > div { display: grid; gap: 2px; justify-items: center; padding: 4px 0; }
+.lv-done-stats > div + div { border-left: 1px solid var(--lv-border); }
+.lv-done-stats strong { font-size: 26px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.lv-done-stats span { font-size: var(--lv-font-size-label); color: var(--lv-text-3); font-weight: var(--lv-font-weight-medium); }
+.lv-done-stats .good strong { color: var(--lv-green); }
+.lv-done-stats .bad strong { color: var(--lv-red); }
+.lv-shell-grid { display: grid; grid-template-columns: minmax(0, 1fr) 288px; gap: var(--lv-space-5); align-items: start; }
+@container lv-exam (max-width: 960px) { .lv-shell-grid { grid-template-columns: minmax(0, 1fr); } }
+.lv-shell-grid > .stack { min-width: 0; }
+.lv-shell-grid > .stack > .lv-card { min-width: 0; }
+.lv-block-title { display: block; font-size: var(--lv-font-size-h3); font-weight: var(--lv-font-weight-semibold); letter-spacing: -0.2px; }
+.stack { display: grid; gap: var(--lv-space-4); align-content: start; min-width: 0; }
+.stack-sm { display: grid; gap: var(--lv-space-2); }
+.task-number { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; border: 1px solid var(--lv-border); background: var(--lv-surface-2); color: var(--lv-accent); font-size: var(--lv-font-size-sm); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.lv-rate { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.lv-recite-revealed { animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
+.lv-rate .lv-btn { justify-content: center; min-height: 48px; padding: 10px 14px; font-weight: var(--lv-font-weight-semibold); border-radius: var(--lv-r-2); box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease; }
+.lv-rate .lv-btn:active:not(:disabled) { transform: scale(0.97); }
+.lv-rate-key { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 7px; font-size: var(--lv-font-size-label); font-weight: var(--lv-font-weight-bold); font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; color: var(--lv-text-2); background: var(--lv-surface-2); border: 1px solid var(--lv-border); box-shadow: var(--lv-keycap-shadow); transition: background-color var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
+.lv-rate .r1 .lv-rate-key { color: var(--lv-red); background: var(--lv-red-soft); border-color: transparent; }
+.lv-rate .r2 .lv-rate-key { color: var(--lv-amber); background: var(--lv-amber-soft); border-color: transparent; }
+.lv-rate .r3 .lv-rate-key { color: var(--lv-green); background: var(--lv-green-soft); border-color: transparent; }
+.lv-rate .r4 .lv-rate-key { color: var(--lv-accent); background: var(--lv-accent-soft); border-color: transparent; }
+.lv-rate .r1:hover { border-color: var(--lv-red); color: var(--lv-red); background: color-mix(in srgb, var(--lv-red-soft) 60%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-red) 18%, transparent); }
+.lv-rate .r2:hover { border-color: var(--lv-amber); color: var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 60%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-amber) 18%, transparent); }
+.lv-rate .r3:hover { border-color: var(--lv-green); color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 60%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-green) 18%, transparent); }
+.lv-rate .r4:hover { border-color: var(--lv-accent); color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 60%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
+@container lv-exam (max-width: 600px) {
+  .lv-rate { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lv-space-2); }
+  .lv-rate .lv-btn { min-width: 0; white-space: normal; }
+  .lv-rate-key { flex-shrink: 0; }
+}
+
 /* —— 动效兜底 —— */
 @media (prefers-reduced-motion: reduce) {
   *,

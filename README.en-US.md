@@ -23,22 +23,24 @@
 
 ---
 
-## 🌟 Latest Release: v0.12.1 (2026-10-27)
+## 🌟 Latest Release: v0.12.2 (2026-10-27)
 
-This release delivers deep batch architectural decoupling: modularized four core studio sub-views and dropped the main monolithic tab below 9600 lines.
+This release delivers the second wave of batch architectural decoupling: modularized Batch Import, Recitation, and Wrongbook into standalone sub-views, shedding another 600+ lines.
 
-- **Batch Architecture Decoupling (1000+ Lines Shed):**
-  - Extracted `ManualStudioView.svelte` (manual authoring & real-time dual-column preview, 330+ lines).
-  - Extracted `AiStudioView.svelte` (AI generation & Inbox review candidate queue, 200+ lines).
-  - Extracted `MaterialsView.svelte` (textbook reference library & personal note store, 120+ lines).
-  - Extracted `StudioSubNav.svelte` (unified studio sub-navigation tabs).
-  - Consolidated shared studio layouts in `lv-base.scss`, purging unused style selectors and states from the main tab.
+- **Batch Architecture Decoupling (Wave 2 · 600+ Lines Shed):**
+  - Extracted `ImportStudioView.svelte` (batch question import, SiYuan note extraction, and cloze generation, 360+ lines).
+  - Extracted `ReciteStudioView.svelte` (paper recitation cockpit, speech evaluation, forgot-to-retest loops, 125+ lines).
+  - Extracted `WrongbookStudioView.svelte` (wrongbook cockpit, active/archived/eliminated tabs, multi-dimensional sorting, 155+ lines).
+  - Over 1600+ total lines decoupled from the main tab across iterations.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.12.1 Studio Sub-Views Batch Decoupling:**
+  - Extracted `ManualStudioView.svelte`, `AiStudioView.svelte`, `MaterialsView.svelte`, and `StudioSubNav.svelte`.
 
 - **v0.12.0 Teacher Workspace Physical Decoupling:**
   - Extracted `TeacherWorkspaceView.svelte`, completely separating educator prep and publishing from student practice.
