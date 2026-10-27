@@ -63,6 +63,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
     import { onExamEvent, emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
+    import PracticeDoneCard from "./PracticeDoneCard.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -3922,6 +3923,24 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
     }
 
+    async function syncSingleWrongToCard(qid: string) {
+      if (!hasCardsPlugin) {
+        showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
+        return;
+      }
+      const targetQ = questions.find((q) => q.id === qid);
+      if (!targetQ) {
+        showMessage("[小驴学习] 未找到该题目对象", 2500, "info");
+        return;
+      }
+      try {
+        const n = await app.convertToCards(activeBankId, bankName, [targetQ]);
+        showMessage(`[小驴学习] 已将 ${n} 道顽疾错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
+      } catch (e) {
+        showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      }
+    }
+
     /** 44-09 撤销作答：在反馈态下撤回刚才误触的提交，恢复原草稿并安全回滚作答流水 */
     async function undoRecentSubmit() {
       if (!session || !app) return;
@@ -7027,173 +7046,37 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   {:else if view === "session" && session}
     <!-- ===== S2 会话 ===== -->
     {#if sessionDone}
-      <div class="lv-pad lv-center">
-        <div class="lv-card lv-guard" style="border-top:3.5px solid var(--lv-brand);box-shadow:var(--lv-sh-pop)">
-          <div class="lv-guard-title" style="color:var(--lv-brand);display:flex;align-items:center;justify-content:center;gap:6px">
-            <Icon name="trophy" size={20} />
-            <span>{t("session.done")}</span>
-            <span style="font-size:13px;opacity:0.85">· {sessionDone.wrong === 0 ? "满分通关！" : sessionDone.correct >= sessionDone.wrong ? "战绩优异！" : "查漏补缺！"}</span>
-          </div>
-          <!-- 战报成就胶囊矩阵（9999px） -->
-          <div class="lv-row" style="justify-content:center;gap:6px;margin:8px 0 14px;flex-wrap:wrap">
-            <span class="lv-achievement-pill">
-              🎯 {sessionDone.total > 0 ? Math.round((sessionDone.correct / sessionDone.total) * 100) : 0}% 正确率
-            </span>
-            {#if streakDays > 0}
-              <span class="lv-achievement-pill lv-achievement-pill--seal">
-                🔥 连续 {streakDays} 天自律打卡
-              </span>
-            {/if}
-            <span class="lv-achievement-pill">
-              ⏱️ 累计用时 {sessionDone.totalTimeS || 0}s
-            </span>
-          </div>
-          <div class="lv-done-stats num">
-            <div><strong>{sessionDone.total}</strong><span>{t("session.total")}</span></div>
-            <div class="good"><strong>{sessionDone.correct}</strong><span>{t("session.correct")}</span></div>
-            <div class="bad"><strong>{sessionDone.wrong}</strong><span>{t("session.wrong")}</span></div>
-          </div>
-          {#if sessionDone.initialTotal}
-            <div class="lv-row" style="justify-content:center;gap:var(--lv-space-2);margin:6px 0 2px" role="status">
-              <span class="lv-chip num" title={t("session.initialRateTip")}>
-                {t("session.initialAccuracy")}: {Math.round((sessionDone.initialCorrect / sessionDone.initialTotal) * 100)}% ({sessionDone.initialCorrect}/{sessionDone.initialTotal})
-              </span>
-              {#if (sessionDone.delayedTotal ?? 0) > 0}
-                <span class="lv-chip lv-chip--grn num" title={t("session.delayedRecoveredTip")}>
-                  🔄 {t("session.delayedRecovered")}: {sessionDone.delayedRecovered}/{sessionDone.delayedTotal}
-                </span>
-              {/if}
-            </div>
-          {/if}
-          {#if sessionDone.totalTimeS}
-            <div class="lv-row" style="justify-content:center;gap:var(--lv-space-3);margin:6px 0 2px" role="status">
-              <span class="lv-chip num"><Icon name="clock" size={12} /> {t("session.totalTime")} {sessionDone.totalTimeS >= 60 ? `${Math.floor(sessionDone.totalTimeS / 60)}m${sessionDone.totalTimeS % 60 ? ` ${sessionDone.totalTimeS % 60}s` : ""}` : `${sessionDone.totalTimeS}s`}</span>
-              <span class="lv-chip num">{t("session.avgTime")} {sessionDone.avgTimeS}s</span>
-            </div>
-          {/if}
-          <!-- 39-02：队列身份与写回回执——明确本次是否调用内核 riff 调度，避免「普通练习伪装成内核复习」 -->
-          <div class="lv-row" style="justify-content:center;margin:6px 0 2px" role="status">
-            <span class="lv-chip num" class:lv-chip--amb={queueSemantics(settleMode).kind === "cram"}
-              title={writeBackReceipt(settleMode)}>
-              <Icon name="info" size={11} /> {queueSemantics(settleMode).label} · {t("session.noWriteBack")}
-            </span>
-          </div>
-          {#if kpBreakdown.length > 1}
-            <!-- 知识点分布：本次会话按考点聚合对错，帮助即时识别薄弱考点 -->
-            <div class="lv-row" style="flex-wrap:wrap;justify-content:center;gap:var(--lv-space-1);margin:8px 0 2px">
-              {#each kpBreakdown as kp (kp.kp)}
-                <span class="lv-chip {kp.wrong > 0 ? 'lv-chip--red' : 'lv-chip--grn'} num" title="{kp.kp}: {kp.correct}/{kp.total}">
-                  {kp.kp} {kp.correct}/{kp.total}
-                </span>
-              {/each}
-            </div>
-          {/if}
-          {#if checkinStatus && checkinStatus !== "disabled" && checkinStatus !== "below-threshold" && checkinStatus !== "no-api"}
-            <!-- 48-03 lite：打卡桥状态（未配置/未达标/打卡未装时安静不显） -->
-            <p class="lv-muted" style="margin:2px 0" role="status">
-              <Icon name="calendar" size={12} /> {t("checkin.status." + checkinStatus)}{#if checkinStatus === "pending" && checkinNote}<span class="num">（{checkinNote}）</span>{/if}
-            </p>
-          {/if}
-          {#if session.state.order}
-            <!-- 44-03：结算显示本次排序策略（同队列可重放，不能以单次正确率下学习结论） -->
-            <p class="lv-muted" style="margin:2px 0">{t("session.orderLabel")}：{session.state.order === "interleaved" ? t("session.orderInter") : t("session.orderAdj")}</p>
-          {/if}
-          {#if session.state.seed}
-            <!-- 65-05 lite：可复现标识（同 seed+同候选池=同卷序；题库版本变化/缺题如实反映为队列差异） -->
-            <p class="lv-muted" style="margin:2px 0" role="status">
-              <Icon name="hourglass" size={12} /> {t("session.seedLabel")}：<span class="num">{session.state.seed}</span>
-            </p>
-          {/if}
-          {#if session.answered.length}
-            <div class="lv-row" style="flex-wrap:wrap;gap:var(--lv-space-1);margin:8px 0">
-              {#each session.answered as a, ai (ai)}
-                {@const aq = questionMap.get(a.qid)}
-                <span class="lv-chip num" class:lv-chip--grn={a.grade.verdict === "correct"} class:lv-chip--red={a.grade.verdict === "wrong"} title={aq?.stem.slice(0, 60) ?? a.qid}>{ai + 1} {a.grade.verdict === "correct" ? "✓" : a.grade.verdict === "wrong" ? "✕" : "–"} {(a.timeMs / 1000).toFixed(0)}s</span>
-              {/each}
-            </div>
-          {/if}
-          {#if sessionDone.wrong > 0}
-            <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border)">
-              <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:6px">
-                <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
-                  <Icon name="target" size={14} /> 发现 {sessionDone.wrong} 道错题 · 推荐即时强化
-                </b>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => { reviewOpen = !reviewOpen; if (reviewOpen) void loadReflections(); }}>
-                  {reviewOpen ? "▾ 收起错题" : "▸ " + t("session.reviewWrongs")}
-                </button>
-              </div>
-              <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" onclick={sameKpSession}>
-                <Icon name="rotate" size={15} /> {t("memory.sameKp")}
-              </button>
-              <div class="lv-row" style="margin:0;gap:6px;justify-content:center;flex-wrap:wrap">
-                <button class="lv-btn sm lv-btn--ghost" onclick={wrongsToCard} title="将错题推送到思源闪卡"><Icon name="layers" size={13} /> {t("session.wrongsToCard")}</button>
-                <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} onclick={wrongsToActions} title="加入待办错题列表"><Icon name="pin" size={13} /> {actionBusy ? "…" : t("action.addWrong")}</button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => plugin.openReport?.()} title="查看学情诊断报告"><Icon name="chart" size={13} /> 学情报告</button>
-              </div>
-              {#if actionNote}<p class="lv-muted num" style="margin:6px 0 0;text-align:center">{actionNote}</p>{/if}
-            </div>
-            {#if reviewOpen}
-              <div class="lv-detail" style="text-align:left;max-height:260px;overflow:auto;margin-bottom:8px">
-                {#each session.answered.filter((a) => a.grade.verdict !== "correct") as a, _ri (_ri)}
-                  {@const aq = questionMap.get(a.qid)}
-                  <div class="lv-error-row" style="white-space:normal">
-                    <b class="num">✕</b> {aq?.stem.slice(0, 80) ?? a.qid}
-                    <div class="lv-muted num">{t("browse.answer")}: {aq?.answer ?? "—"}{#if a.grade.myAnswer} · {t("session.myAnswer")}: {a.grade.myAnswer}{/if}{#if aq?.analysis} · {aq.analysis}{/if}</div>
-                    {#if reflections[a.qid]}
-                      <!-- 52-04：上次检查点回显 -->
-                      <div class="lv-muted" style="font-size:var(--lv-font-size-caption)"><Icon name="pencil" size={12} /> {t("reflection.last").replace("{d}", new Date(reflections[a.qid].at).toLocaleDateString())}：{reflections[a.qid].text}</div>
-                    {/if}
-                    <div class="lv-row" style="margin:4px 0 0;gap:var(--lv-space-1)">
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => void editReflection(a.qid)}>
-                        <Icon name="pencil" size={13} /> {reflections[a.qid] ? t("reflection.edit") : t("reflection.add")}
-                      </button>
-                      <!-- 116-01 T08：AI 错因假设（事实→假设→验证行动；采纳由用户操作） -->
-                      <button class="lv-btn sm lv-btn--ghost" disabled={misdiagnosisBusy === a.qid}
-                        onclick={() => void runMisdiagnosis(a)}>
-                        <Icon name="flask" size={13} /> {misdiagnosisBusy === a.qid ? "…" : t("misdiagnosis.ask")}
-                      </button>
-                    </div>
-                    {#if misdiagnosisText[a.qid]}
-                      <div class="lv-detail" style="margin:4px 0 0;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">{misdiagnosisText[a.qid]}</div>
-                      <div class="lv-muted" style="font-size:var(--lv-font-size-compact)">{t("misdiagnosis.disclaimer")}</div>
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => void adoptMisdiagnosis(a.qid)}>＋ {t("misdiagnosis.adopt")}</button>
-                    {/if}
-                  </div>
-                {/each}
-                {#if session.answered.some((a) => a.grade.verdict === "correct" && helpShown.get(a.qid))}
-                  <!-- 114-05 lite：受助答对 → 自我解释（用自己的话说明依据；可跳过；与错题复盘同层存储） -->
-                  <div class="lv-muted" style="margin:8px 0 2px;font-size:var(--lv-font-size-caption)"><Icon name="bulb" size={12} /> {t("selfexplain.header")}</div>
-                  {#each session.answered.filter((a) => a.grade.verdict === "correct" && helpShown.get(a.qid)) as a, _si2 (_si2)}
-                    {@const aq = questionMap.get(a.qid)}
-                    <div class="lv-error-row" style="white-space:normal">
-                      <b class="num">✓</b> {aq?.stem.slice(0, 80) ?? a.qid}
-                      {#if reflections[a.qid]}
-                        <div class="lv-muted" style="font-size:var(--lv-font-size-caption)">{reflections[a.qid].text}</div>
-                      {/if}
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => void editReflection(a.qid)}>
-                        <Icon name="message" size={13} /> {reflections[a.qid] ? t("selfexplain.edit") : t("selfexplain.add")}
-                      </button>
-                    </div>
-                  {/each}
-                {/if}
-              </div>
-            {/if}
-          {:else}
-            <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);text-align:center">
-              <b style="color:var(--lv-green);font-size:14px;display:block;margin-bottom:8px">🎉 全部正确，达成全对通关！</b>
-              <div class="lv-row" style="margin:0;gap:8px;justify-content:center">
-                <button class="lv-btn sm lv-btn--primary" onclick={() => void startDrill("quick")}>
-                  <Icon name="zap" size={14} /> 开启下一轮练习
-                </button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => plugin.openReport?.()}>
-                  <Icon name="chart" size={14} /> 查看学情诊断
-                </button>
-              </div>
-            </div>
-          {/if}
-          <button class="lv-btn" style="width:100%;margin-top:6px" onclick={exitSession} disabled={exitBusy}>{exitBusy ? "…" : t("session.back")}</button>
-        </div>
-      </div>
+      <PracticeDoneCard
+        {sessionDone}
+        {streakDays}
+        {kpBreakdown}
+        {checkinStatus}
+        {checkinNote}
+        {settleMode}
+        {session}
+        {questionMap}
+        {reviewOpen}
+        {reflections}
+        {misdiagnosisBusy}
+        {misdiagnosisText}
+        {helpShown}
+        {actionBusy}
+        {actionNote}
+        {exitBusy}
+        {t}
+        {queueSemantics}
+        {writeBackReceipt}
+        ontoggleReview={() => { reviewOpen = !reviewOpen; if (reviewOpen) void loadReflections(); }}
+        onsameKpSession={sameKpSession}
+        onwrongsToCard={wrongsToCard}
+        onwrongsToActions={wrongsToActions}
+        onopenReport={() => plugin.openReport?.()}
+        onstartNextDrill={() => void startDrill("quick")}
+        oneditReflection={(qid) => void editReflection(qid)}
+        onrunMisdiagnosis={(a) => void runMisdiagnosis(a)}
+        onadoptMisdiagnosis={(qid) => void adoptMisdiagnosis(qid)}
+        onexitSession={exitSession}
+      />
     {:else}
       {@const q = curQ}
       {#if q}
@@ -7880,13 +7763,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                   <button class="lv-btn sm lv-btn--ghost" onclick={exportCheatSheet} disabled={cheatSheetBusy || !filteredWrongQueue.length} title={t("cram.cheatSheetTip")}><Icon name="file-text" size={13} /> {t("cram.cheatSheet")}</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={saveWrongbookAsDoc} disabled={!filteredWrongQueue.length} title="将当前筛选的错题组建排版为思源笔记文档，折叠答案，卸载插件永久保留"><Icon name="file" size={13} /> {t("wrongbook.saveAsSiyuanDoc")}</button>
                   <button
-                    class="lv-btn sm lv-btn--ghost"
+                    class="lv-btn sm {wbFilterStubborn ? 'lv-btn--primary' : 'lv-btn--ghost'}"
                     style={!hasCardsPlugin ? "opacity: 0.45;" : ""}
                     onclick={() => void syncWrongbookToCards()}
                     disabled={!filteredWrongQueue.length}
-                    title={hasCardsPlugin ? "将当前筛选的错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行 FSRS 间隔复习" : "未检测到小驴闪卡插件（siyuan-lv-cards），安装后可一键将错题同步至 FSRS 卡包复习；当前内置错题重练 100% 独立可用"}
+                    title={hasCardsPlugin ? (wbFilterStubborn ? "将当前筛选的顽疾错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行 FSRS 重点强化" : "将当前筛选的错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行 FSRS 间隔复习") : "未检测到小驴闪卡插件（siyuan-lv-cards），安装后可一键将错题同步至 FSRS 卡包复习；当前内置错题重练 100% 独立可用"}
                   >
-                    <Icon name="layers" size={13} /> {t("wrongbook.pushCards")}
+                    <Icon name="layers" size={13} /> {wbFilterStubborn ? "顽疾推闪卡" : t("wrongbook.pushCards")}
                   </button>
                   <button class="lv-btn sm lv-btn--primary" onclick={() => void launchWrongbookMockExam()} disabled={!filteredWrongQueue.length} title="将当前筛选的错题组建为全真限时模拟考卷，拉起答题卡进行考场高压攻坚"><Icon name="clock" size={13} /> {t("wrongbook.launchExam")}</button>
                 </div>
@@ -7961,6 +7844,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                       </div>
                     </div>
                     <button class="lv-btn sm" onclick={() => void startWrongFor(w.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                    {#if w.wrongCount >= 2}
+                      <button
+                        class="lv-btn sm lv-btn--ghost"
+                        style="color:var(--lv-brand-deep);font-weight:600"
+                        title="该题犯错频次较高（顽疾错题），可一键推送到小驴闪卡进行 FSRS 间隔强化训练"
+                        onclick={() => void syncSingleWrongToCard(w.qid)}
+                      >
+                        <Icon name="layers" size={12} /> 推闪卡
+                      </button>
+                    {/if}
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.traceMother")} onclick={() => { const q = qOf(w.qid); if (q) void traceMotherQuestion(q); }}><Icon name="compass" size={13} /> {t("wrongbook.traceMother")}</button>
                     <button class="lv-btn sm lv-btn--ghost" title={t("session.drillVariantTip")} onclick={() => { const q = qOf(w.qid); if (q) void drillVariantFor(q); }}><Icon name="layers" size={13} /> {t("session.drillVariant")}</button>
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.snooze7")} onclick={() => void snoozeWrong(w.qid, 7)}><Icon name="clock" size={12} /> {t("wrongbook.snooze7")}</button>

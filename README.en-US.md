@@ -23,28 +23,23 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.91 (2026-10-27)
+## 🌟 Latest Release: v0.11.92 (2026-10-27)
 
-This release delivers automatic resilience for SiYuan 3.8.9-beta.2 transient metadata readiness during bank initialization, friendly error normalization for note import, the Extract to Quiz service bridge, and ecosystem weakness feedback.
+This release delivers the stubborn Leech wrongbook-to-flashcard FSRS workflow and decoupled the practice session completion card into a standalone module.
 
-- **SiYuan 3.8.9-beta.2 `metadata not ready` Self-Healing:**
-  - Classified transient metadata errors as `retryable` in `HttpTransport`, implementing exponential backoff;
-  - Added 3-tier resilient retries and SQL confirmation inside `ensureDoc` alongside an asynchronous mounting buffer after creating notebooks.
-- **SiYuan Note Extraction Intelligence:**
-  - Eliminated confusing raw parser errors (such as "Missing ANSWER line") when importing ordinary notes or diaries;
-  - Integrated progressive reading excerpt card extraction (`excerptCard.ts`), converting definitions and list items into quiz questions with clear user guidance.
-- **Extract to Quiz Service Bridge:**
-  - Extended `LvExamBridgeApi` with `extractToQuiz`, allowing companion plugins (like `siyuan-glean`) to inject highlighted text into the question authoring workshop with `((sourceBlockId))` provenance links.
-- **Weak Knowledge Point Ecosystem Feedback:**
-  - Dispatched `lv-exam:weakness-alert` events for knowledge points with accuracy below 60%, informing flashcard and reading systems to raise review weights.
-- **Dark Mode Edge Definition:**
-  - Enhanced `--lv-inset-card` with subtle 0.8px border definition to prevent card edge blending in pure-black themes.
+- **Stubborn Error Flashcard Escalation (Wrongbook to FSRS):**
+  - Added dedicated push-to-flashcard actions for Leech errors (repeatedly missed $\ge 2$ times), highlighting the top-bar button when stubborn filtering is active.
+- **PracticeDoneCard Architecture Decoupling:**
+  - Extracted the completion report card into `src/ui/practice/PracticeDoneCard.svelte`, reducing monolithic bloat and improving Svelte compilation performance.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.91 SiYuan 3.8.9 Metadata Resilience & Note Import:**
+  - Auto self-healing for `metadata not ready` on SiYuan 3.8.9-beta.2, normalized note extraction errors, Extract to Quiz bridge, and weakness alert federation.
 
 - **v0.11.90 Mock Exam Federation Event & Repo Hygiene:**
   - Aligned CBT Mock Exam completion with `lv-exam:session-ended` ecosystem standard events and added `SHA256SUMS` to `.gitignore`.
