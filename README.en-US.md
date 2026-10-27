@@ -23,20 +23,23 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.92 (2026-10-27)
+## 🌟 Latest Release: v0.11.93 (2026-10-27)
 
-This release delivers the stubborn Leech wrongbook-to-flashcard FSRS workflow and decoupled the practice session completion card into a standalone module.
+This release delivers the tactile Floating Dock overhaul for the practice workspace and decoupled the shortcuts help modal into a standalone module.
 
-- **Stubborn Error Flashcard Escalation (Wrongbook to FSRS):**
-  - Added dedicated push-to-flashcard actions for Leech errors (repeatedly missed $\ge 2$ times), highlighting the top-bar button when stubborn filtering is active.
-- **PracticeDoneCard Architecture Decoupling:**
-  - Extracted the completion report card into `src/ui/practice/PracticeDoneCard.svelte`, reducing monolithic bloat and improving Svelte compilation performance.
+- **Tactile Floating Dock for Practice:**
+  - Absorbed design tokens from `siyuan-lv-cards` into a 20px Bento curved Floating Dock with blurred glass, inset highlights, and tactile 0.97x micro-elastic active feedback.
+- **ShortcutsHelpModal Architecture Decoupling:**
+  - Extracted shortcuts help into `src/ui/practice/ShortcutsHelpModal.svelte`, stripping modal markup and isolated styles from the main tab.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.92 Leech Flashcard Escalation & DoneCard Decoupling:**
+  - Dedicated push-to-flashcard actions for Leech errors and extracted `PracticeDoneCard.svelte`.
 
 - **v0.11.91 SiYuan 3.8.9 Metadata Resilience & Note Import:**
   - Auto self-healing for `metadata not ready` on SiYuan 3.8.9-beta.2, normalized note extraction errors, Extract to Quiz bridge, and weakness alert federation.

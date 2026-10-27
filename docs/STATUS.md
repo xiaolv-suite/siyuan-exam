@@ -1,8 +1,8 @@
 # 小驴学习（原小驴考试）当前状态
 
-> 更新日期：2026-10-27 · 源码版本：v0.11.92。全套自动化测试 181 个测试文件、1411 项单测 100% 全绿通过，Svelte 检查 0 错误 0 警告，1550 键 i18n 严格对齐，42 项架构守卫全部通过。
+> 更新日期：2026-10-27 · 源码版本：v0.11.93。全套自动化测试 181 个测试文件、1411 项单测 100% 全绿通过，Svelte 检查 0 错误 0 警告，1550 键 i18n 严格对齐，42 项架构守卫全部通过。
 
-> **当前审计入口：** 本版实装错题本顽疾错题一键推送到闪卡（Wrongbook to FSRS）高光操作，解耦抽离独立的 PracticeDoneCard 纯净战报结算组件降低 PracticeTab 巨石体积。前序 v0.11.91 实装思源 3.8.9 瞬态 metadata not ready 自愈、思源文档提取“缺少 ANSWER 行”友好化与长文制卡生态反哺。版本与发版边界须结合 [CHANGELOG](../CHANGELOG.md) 与远端 GitHub Release。
+> **当前审计入口：** 本版实装做题台浮岛悬浮底座（Floating Dock）聚拢跟手微质感与操作按键体验，解耦抽离独立的 ShortcutsHelpModal 快捷键速查弹窗组件。前序 v0.11.92 实装错题本顽疾错题一键推送到闪卡（Wrongbook to FSRS）与 PracticeDoneCard 组件抽离。版本与发版边界须结合 [CHANGELOG](../CHANGELOG.md) 与远端 GitHub Release。
 
 当前隔离证据为 SiYuan 3.8.8-alpha.3 / Chrome browser-desktop / 插件 v0.10.4，已覆盖练习、错题、模考保存恢复交卷及报告读取、手工/CSV 写入读回、资料链接和笔记保存。日常主宿主 v0.10.3 不作本轮验收依据。真实 AI、Android、打卡桥、TTS 发声、打印及剪贴板等仍待各自环境验证。版本与发布边界须结合 [CHANGELOG](../CHANGELOG.md)、当前审计及远端 Release 核验。
 

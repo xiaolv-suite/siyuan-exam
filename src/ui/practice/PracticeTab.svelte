@@ -64,6 +64,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
     import { onExamEvent, emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
     import PracticeDoneCard from "./PracticeDoneCard.svelte";
+    import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -120,7 +121,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let speedDrillEnabled = $state(readLocal("lv-exam/speed-drill") === "1");
     let userRole = $state<"student" | "teacher">(readLocal("lv-exam/role") === "teacher" ? "teacher" : "student");
     let hotkeysHelpOpen = $state(false);
-    let hotkeyCategory = $state<"all" | "session" | "recite" | "nav">("all");
     let paperGridModalOpen = $state(false);
     let shortLinedPaper = $state(readLocal("lv-exam/lined-paper") === "1");
     let studyFontSize = $state<"normal" | "large" | "xlarge">((readLocal("lv-exam/font-scale") as any) || "normal");
@@ -10163,47 +10163,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         </div>
       </div>
     {/if}
-    {#if hotkeysHelpOpen}
-      <button type="button" class="lv-hotkeys-backdrop" aria-label={t("dialog.close", "关闭")} onclick={() => hotkeysHelpOpen = false}></button>
-      <div class="lv-hotkeys-wrap">
-        <div class="lv-card lv-hotkeys-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("hotkeys.title")}>
-          <div class="lv-row" style="justify-content:space-between;margin:0 0 14px">
-            <div class="lv-dialog-title-wrap">
-              <span class="lv-dialog-title-icon"><Icon name="activity" size={13} /></span>
-              <span>{t("hotkeys.title")}</span>
-              <span class="lv-dialog-title-tag">v{manifest.version}</span>
-            </div>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => hotkeysHelpOpen = false}>✕</button>
-          </div>
-          <div class="lv-session-dock" role="tablist" aria-label="快捷键分类" style="margin:0 0 12px;width:100%">
-            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "all"} aria-selected={hotkeyCategory === "all"} onclick={() => hotkeyCategory = "all"}>全部</button>
-            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "session"} aria-selected={hotkeyCategory === "session"} onclick={() => hotkeyCategory = "session"}>做题台</button>
-            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "recite"} aria-selected={hotkeyCategory === "recite"} onclick={() => hotkeyCategory = "recite"}>纸面背诵</button>
-            <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "nav"} aria-selected={hotkeyCategory === "nav"} onclick={() => hotkeyCategory = "nav"}>全局导航</button>
-          </div>
-          <div class="lv-hotkeys-grid">
-            {#if hotkeyCategory === "all" || hotkeyCategory === "session"}
-              <div class="lv-hotkeys-row"><span class="lv-kbd">A</span> - <span class="lv-kbd">D</span><span>快速选择答案选项</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">Enter</span><span>确认作答 / 极速下一题</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">3</span><span>作答前标记把握度 / 答错后一键标记错因</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">E</span><span>收藏 / 取消收藏本题</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">V</span><span>朗读本题题干（语音助记）</span></div>
-            {/if}
-            {#if hotkeyCategory === "all" || hotkeyCategory === "recite"}
-              <div class="lv-hotkeys-row"><span class="lv-kbd">Space</span><span>背诵模式翻开答案 / 练习先回忆揭示</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">4</span><span>背诵模式四级自评（1重来 2困难 3良好 4熟练）</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">H</span><span>查看背诵下一级提示</span></div>
-            {/if}
-            {#if hotkeyCategory === "all" || hotkeyCategory === "nav"}
-              <div class="lv-hotkeys-row"><span class="lv-kbd">↑ / ↓</span><span>题库抽屉上一题 / 下一题连续翻阅</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">⌘K / Ctrl+K</span><span>随时呼出全局命令面板</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">?</span><span>打开 / 关闭本快捷键速查指南</span></div>
-              <div class="lv-hotkeys-row"><span class="lv-kbd">Esc</span><span>退出当前会话 / 关闭详情抽屉与浮层</span></div>
-            {/if}
-          </div>
-        </div>
-      </div>
-    {/if}
+    <ShortcutsHelpModal
+      open={hotkeysHelpOpen}
+      version={manifest.version}
+      title={t("hotkeys.title")}
+      onclose={() => hotkeysHelpOpen = false}
+    />
   </div>
 </div>
 
@@ -10420,8 +10385,31 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, #fff); }
   .lv-feedback { margin: 16px 0 12px; padding: 16px 20px; border: 1px solid color-mix(in srgb, var(--lv-red) 26%, var(--lv-border)); border-left: 4px solid var(--lv-red); border-radius: var(--lv-r-3); font-weight: var(--lv-font-weight-semibold); font-size: var(--lv-font-size-md); background: color-mix(in srgb, var(--lv-red-soft) 85%, var(--lv-surface)); color: var(--lv-red); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-red) 12%, transparent); animation: lv-appear var(--lv-dur-view) var(--lv-ease-out); }
   .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-green) 12%, transparent); }
-  /* —— 作答动作区（原型 .answer-actions：上分隔线 + 层次） —— */
-  .lv-answer-actions { margin-top: 14px; padding-top: 18px; border-top: 1px solid var(--lv-border); }
+  /* —— 作答动作区（吸收小驴闪卡 Floating Dock 浮岛悬浮底座质感：圆角聚拢 + 毛玻璃 + 微微弹性） —— */
+  .lv-answer-actions {
+    margin-top: 18px;
+    padding: 12px 18px;
+    border-radius: var(--lv-r-4, 20px);
+    background: color-mix(in srgb, var(--lv-surface-2) 75%, var(--lv-surface));
+    border: 1px solid var(--lv-border);
+    box-shadow: var(--lv-sh-card), var(--lv-inset-card);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    transition: box-shadow var(--lv-dur-view, 0.2s) ease;
+  }
+  .lv-answer-actions > .lv-btn {
+    min-height: 38px;
+    border-radius: 9999px;
+    font-weight: var(--lv-font-weight-semibold, 600);
+    padding: 0 18px;
+    transition: transform var(--lv-dur-micro, 0.15s) ease, background-color var(--lv-dur-micro) ease;
+  }
+  .lv-answer-actions > .lv-btn:active {
+    transform: scale(0.97);
+  }
   /* —— 改答原因弹层（63-03：轻量内联，不阻断作答） —— */
   .lv-reason { margin: 10px 0 0; padding: 12px 16px; border-radius: var(--lv-r-3); border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface)); box-shadow: var(--lv-sh-1), var(--lv-inset-card); }
   /* —— 结构化作答框（54 第三刀：数值单行 / 多空逐空） —— */

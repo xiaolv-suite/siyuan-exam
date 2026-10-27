@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.92（2026-10-27）
+## 最新版本：v0.11.93（2026-10-27）
+
+本版本为做题台浮岛悬浮底座（Floating Dock）聚拢跟手微质感升级与快捷键速查弹窗（ShortcutsHelpModal）解耦重构发版。作答动作区重塑为 20px Bento 圆角微浮岛底座，注入深邃毛玻璃与精细内嵌高光描边，按钮升级为饱满药丸键帽并自带 0.97x 触控微弹性回弹；解耦抽离独立的 ShortcutsHelpModal 弹窗组件，净化主文件状态。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
+
+## 上一版本：v0.11.92（2026-10-27）
 
 本版本为错题本顽疾错题一键推送到闪卡（Wrongbook to FSRS）高光操作实装与做题结算卡组件（PracticeDoneCard）解耦重构发版。错题列表对连错≥2次顽疾题提供高光【推闪卡】动作，顽疾题筛选下顶栏推闪卡按钮高亮联动；解耦抽离独立的 PracticeDoneCard 纯净战报组件，降低 PracticeTab 巨石体积。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
 
