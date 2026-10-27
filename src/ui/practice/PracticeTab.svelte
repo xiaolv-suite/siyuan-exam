@@ -65,6 +65,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { onExamEvent, emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
     import PracticeDoneCard from "./PracticeDoneCard.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
+    import BankGalleryModal from "./BankGalleryModal.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -215,34 +216,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     // 题库管理画廊 Hub 状态
     let bankHubOpen = $state(false);
     let sessionSheetOpen = $state(false);
-    let bankFilterKeyword = $state("");
-    let bankFilterCategory = $state<string>("all");
-    const filteredBanks = $derived(
-      banks.filter((b) =>
-        (!bankFilterKeyword.trim() || String(b.name || "").toLowerCase().includes(bankFilterKeyword.trim().toLowerCase())) &&
-        (bankFilterCategory === "all" || (b.category || "general") === bankFilterCategory)
-      ),
-    );
-
-    let renamingBankId = $state("");
-    let renameInputName = $state("");
-
-    function startRenameBank(b: any) {
-      renamingBankId = b.id;
-      renameInputName = b.name;
-    }
-
-    async function submitRenameBank(bId: string) {
-      if (!renameInputName.trim() || !app) return;
-      try {
-        await app.renameBank(bId, renameInputName.trim());
-        banks = app.listBanks();
-        renamingBankId = "";
-        showMessage("题库名称已更新 ✓", 2500, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
-      }
-    }
 
     async function cycleBankCategory(b: BankInfo) {
       if (!app) return;
@@ -6681,13 +6654,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </div>
 
             <!-- 下方：载入笔记与出题通道 -->
-            <div class="lv-row" style="justify-content:center;gap:12px;flex-wrap:wrap;margin:12px 0 0;padding-top:16px;border-top:1px solid var(--lv-border-subtle)">
-              <button class="lv-btn lv-btn--primary" onclick={() => { view = "import"; }}>
-                <Icon name="import" size={15} /> {t("import.title")} (思源笔记 / Excel / CSV)
+            <div class="lv-row" style="justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 0;padding-top:16px;border-top:1px solid var(--lv-border-subtle)">
+              <button class="lv-btn lv-btn--primary" onclick={() => { view = "import"; importSubTab = "siyuan"; }}>
+                <Icon name="file" size={15} /> 从思源笔记智能提取试题
               </button>
-              <button class="lv-btn" onclick={() => { view = "manual"; }}>
-                <Icon name="clipboard" size={15} /> {t("entry.manual")} (录入第一道题)
+              <button class="lv-btn lv-btn--ghost" onclick={() => { view = "import"; importSubTab = "standard"; }}>
+                <Icon name="import" size={15} /> 批量导入 (Excel / CSV / Aiken)
               </button>
+              <button class="lv-btn lv-btn--ghost" onclick={() => { view = "manual"; }}>
+                <Icon name="clipboard" size={15} /> 手工录题工坊
+              </button>
+              {#if banks.length > 1}
+                <button class="lv-btn lv-btn--ghost" onclick={() => { bankHubOpen = true; }}>
+                  <Icon name="folder" size={15} /> 切换其他已有题库 ({banks.length})
+                </button>
+              {/if}
             </div>
           </div>
         {:else if userRole === "teacher"}
@@ -10065,104 +10046,34 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         </div>
       </div>
     {/if}
-    {#if bankHubOpen}
-      <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={() => bankHubOpen = false}></button>
-      <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:24px;border-radius:var(--lv-r-4, 22px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border)">
-          <div class="lv-row" style="justify-content:space-between;margin:0 0 12px">
-            <div class="lv-dialog-title-wrap">
-              <span class="lv-dialog-title-icon"><Icon name="folder" size={13} /></span>
-              <span>{t("bank.hubTitle")}</span>
-              <span class="lv-dialog-title-tag">{banks.length} 题库</span>
-            </div>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => bankHubOpen = false}>✕</button>
-          </div>
-          <div class="lv-session-dock" role="tablist" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto">
-            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>
-              全部 ({banks.length})
-            </button>
-            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} aria-selected={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} onclick={() => bankFilterCategory = "exam"}>
-              🎯 资格考证 ({banks.filter((b) => b.category === "exam" || b.category === "certificate").length})
-            </button>
-            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "k12" || bankFilterCategory === "higher"} aria-selected={bankFilterCategory === "k12" || bankFilterCategory === "higher"} onclick={() => bankFilterCategory = "higher"}>
-              🎓 升学学术 ({banks.filter((b) => b.category === "k12" || b.category === "higher").length})
-            </button>
-            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "language"} aria-selected={bankFilterCategory === "language"} onclick={() => bankFilterCategory = "language"}>
-              🗣️ 语言 ({banks.filter((b) => b.category === "language").length})
-            </button>
-            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "teaching"} aria-selected={bankFilterCategory === "teaching"} onclick={() => bankFilterCategory = "teaching"}>
-              👨‍🏫 教研 ({banks.filter((b) => b.category === "teaching").length})
-            </button>
-            <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "general"} aria-selected={bankFilterCategory === "general"} onclick={() => bankFilterCategory = "general"}>
-              🧠 通识 ({banks.filter((b) => (b.category || "general") === "general").length})
-            </button>
-          </div>
-          <div class="lv-row" style="margin:0 0 12px;gap:8px;flex-wrap:wrap">
-            <input class="lv-input" style="flex:1;min-width:160px" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
-            <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("qualification"); }} disabled={creating || offline} title="一键体验教师资格证与基金从业资格真题题库">
-                🎯 考证
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("higher"); }} disabled={creating || offline} title="体验大学高数与考研学术题库">
-                🎓 高数
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("k12"); }} disabled={creating || offline} title="体验K12初高中全科基础题库">
-                🎒 K12
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("english"); }} disabled={creating || offline} title="体验大学英语雅思词汇与发音研学题库">
-                🗣️ 英语
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("cantonese"); }} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
-                🇭🇰 粤语
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = false; void createSampleBank("general"); }} disabled={creating || offline} title="体验综合基础演示题库">
-                🧠 通识
-              </button>
-            </div>
-          </div>
-          <div class="stack-sm" style="max-height:450px;overflow-y:auto">
-            {#each filteredBanks as b (b.id)}
-              <div class="lv-card" style="padding:12px;margin-bottom:6px;border-left:3px solid {b.id === activeBankId ? 'var(--lv-accent)' : 'transparent'};background:var(--lv-surface-2)">
-                <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
-                  <div style="flex:1;min-width:0;margin-right:8px">
-                    {#if renamingBankId === b.id}
-                      <div class="lv-row" style="margin:0;gap:4px">
-                        <input class="lv-input" style="max-width:180px;height:28px" bind:value={renameInputName} placeholder="输入新题库名…" />
-                        <button class="lv-btn sm lv-btn--primary" onclick={() => void submitRenameBank(b.id)}>保存</button>
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => { renamingBankId = ""; }}>取消</button>
-                      </div>
-                    {:else}
-                      <b style="font-size:var(--lv-font-size-body)">{b.name}</b>
-                      <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="margin-left:6px" onclick={() => void cycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）">{getBankCategoryMeta(b.category).badge} ↻</button>
-                      {#if b.id === activeBankId}<span class="lv-chip sm lv-chip--acc" style="margin-left:4px">当前激活</span>{/if}
-                      <div class="lv-muted" style="font-size:11px;margin-top:2px">ID: {b.id} · 创建于 {new Date(b.createdAt || Date.now()).toLocaleDateString()}</div>
-                    {/if}
-                  </div>
-                  <div class="lv-row" style="margin:0;gap:4px">
-                    {#if renamingBankId !== b.id}
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => startRenameBank(b)} title={t("bank.rename")}>
-                        <Icon name="pencil" size={12} /> {t("bank.rename")}
-                      </button>
-                    {/if}
-                    {#if b.id !== activeBankId}
-                      <button class="lv-btn sm lv-btn--primary" onclick={() => { activeBankId = b.id; onBankSwitch(); bankHubOpen = false; }}>
-                        激活开练
-                      </button>
-                    {/if}
-                    <button class="lv-btn sm lv-btn--ghost" onclick={() => void syncBankToDoc(b.id)} title="将整套题库题册格式化同步为思源原生文档，折叠答案，卸载插件依然永久保留">
-                      <Icon name="file" size={12} /> {t("bank.syncToDoc")}
-                    </button>
-                    <button class="lv-btn sm lv-btn--ghost" onclick={() => { activeBankId = b.id; void removeActiveBank(); }} title={t("bank.removeTitle")}>
-                      <Icon name="trash" size={12} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            {/each}
-          </div>
-        </div>
-      </div>
-    {/if}
+    <BankGalleryModal
+      open={bankHubOpen}
+      {banks}
+      {activeBankId}
+      {creating}
+      {offline}
+      {t}
+      {getBankCategoryMeta}
+      onclose={() => bankHubOpen = false}
+      onselectBank={(id) => { activeBankId = id; onBankSwitch(); bankHubOpen = false; }}
+      oncreateSampleBank={(kind) => { bankHubOpen = false; void createSampleBank(kind); }}
+      onrenameBank={async (id, newName) => {
+        if (!app) return;
+        try {
+          await app.renameBank(id, newName);
+          banks = app.listBanks();
+          showMessage("题库名称已更新 ✓", 2500, "info");
+        } catch (e) {
+          showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
+        }
+      }}
+      oncycleBankCategory={cycleBankCategory}
+      onsyncBankToDoc={syncBankToDoc}
+      onremoveBank={async (id) => {
+        activeBankId = id;
+        await removeActiveBank();
+      }}
+    />
     <ShortcutsHelpModal
       open={hotkeysHelpOpen}
       version={manifest.version}
@@ -10175,12 +10086,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
   .lv-import-card.dragover { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); }
-  .lv-hotkeys-backdrop { position: fixed; inset: 0; z-index: 124; background: var(--lv-overlay); border: 0; padding: 0; cursor: pointer; backdrop-filter: blur(10px); animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
-  .lv-hotkeys-wrap { position: fixed; inset: 0; z-index: 125; display: grid; place-items: center; padding: 16px; pointer-events: none; animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
-  .lv-hotkeys-card { width: min(480px, 100%); pointer-events: auto; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-4, 22px); box-shadow: var(--lv-sh-pop), var(--lv-inset-card); padding: 24px 26px; max-height: 85vh; overflow-y: auto; }
-  .lv-hotkeys-grid { display: flex; flex-direction: column; gap: 8px; font-size: var(--lv-font-size-body-compact); }
-  .lv-hotkeys-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--lv-border-subtle); }
-  .lv-hotkeys-row:last-child { border-bottom: 0; }
   /* —— 出题工作区（与 R54 原型保持编辑/预览并置；窄屏自然回落单列） —— */
   .lv-studio-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(300px, .92fr); gap: var(--lv-space-panel); align-items: start; }
   .lv-studio-grid > * { min-width: 0; }
