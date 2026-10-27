@@ -23,20 +23,23 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.95 (2026-10-27)
+## 🌟 Latest Release: v0.11.96 (2026-10-27)
 
-This release delivers the SessionSheetModal architecture decoupling and bidirectional mother-question provenance linking for question variations.
+This release delivers the ScratchpadDrawer architecture decoupling and enhanced SiYuan block deep-link focusing.
 
-- **Bidirectional Mother-Question Provenance Links:**
-  - One-click variation derivation automatically links the source question's SiYuan block (`((blockId 'Mother Question'))`) and explanation into the manual authoring draft.
-- **SessionSheetModal Architecture Decoupling:**
-  - Extracted practice answer sheet navigation into `src/ui/practice/SessionSheetModal.svelte`, isolating answer grid logic from the main tab.
+- **SiYuan Block Deep-Link Highlighting:**
+  - Upgraded question detail actions to jump directly to exact question blocks via `siyuan://blocks/` with flash-focus highlighting.
+- **ScratchpadDrawer Architecture Decoupling:**
+  - Extracted math scratchpad and formula sheets into `src/ui/practice/ScratchpadDrawer.svelte`, further improving codebase modularity.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.95 SessionSheetModal Decoupling & Mother-Question Provenance:**
+  - Extracted `SessionSheetModal.svelte` and added bidirectional block provenance links for variations.
 
 - **v0.11.94 Onboarding Note-to-Quiz Direct & BankGalleryModal Decoupling:**
   - Direct note-to-quiz extraction shortcut on empty screens and extracted `BankGalleryModal.svelte`.

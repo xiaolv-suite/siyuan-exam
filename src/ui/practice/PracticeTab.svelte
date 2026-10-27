@@ -67,6 +67,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
     import SessionSheetModal from "./SessionSheetModal.svelte";
+    import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -5715,8 +5716,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       } finally { backlinkBusyFor = ""; }
     }
 
-    function openInSiYuan(rootId: string) {
-      if (!rootId) { showMessage(t("browse.docUnavailable"), 2600, "error"); return; }
+    function openInSiYuan(rootId: string, blockId?: string) {
+      if (!rootId && !blockId) { showMessage(t("browse.docUnavailable"), 2600, "error"); return; }
+      if (blockId) {
+        try {
+          window.open(`siyuan://blocks/${blockId}`);
+          return;
+        } catch { /* 容错回退 */ }
+      }
       void import("siyuan").then(({ openTab }) => {
         openTab({ app: ((plugin.app ?? plugin) as import("siyuan").App), doc: { id: rootId } });
       }).catch((e) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
@@ -7109,52 +7116,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             </span>
           </div>
           <div class="lv-session-main">
-          {#if scratchpadOpen}
-            <!-- 52-08 演算草稿纸浮层 -->
-            <div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:10px 14px">
-              <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
-                <div class="lv-row" style="margin:0;gap:6px">
-                  <b><Icon name="pencil" size={13} /> {t("scratchpad.title")}</b>
-                  <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "per_question"} onclick={() => scratchpadMode = "per_question"}>
-                    {t("scratchpad.modePerQ")}
-                  </button>
-                  <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "shared"} onclick={() => scratchpadMode = "shared"}>
-                    {t("scratchpad.modeShared")}
-                  </button>
-                </div>
-                <div class="lv-row" style="margin:0;gap:4px">
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={copyScratchpad} title={t("scratchpad.copy")}>
-                    <Icon name="copy" size={11} /> {t("scratchpad.copy")}
-                  </button>
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={clearScratchpad} title={t("scratchpad.clear")}>
-                    ✕ {t("scratchpad.clear")}
-                  </button>
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => scratchpadOpen = false}>
-                    ▼
-                  </button>
-                </div>
-              </div>
-              <textarea
-                class="lv-input lv-textarea num"
-                rows="3"
-                style="font-family:monospace;font-size:var(--lv-font-size-sm);line-height:1.4"
-                placeholder={t("scratchpad.placeholder")}
-                value={currentScratchpadText}
-                oninput={(e) => onScratchpadInput((e.target as HTMLTextAreaElement).value)}
-              ></textarea>
-              <details style="margin-top:6px;font-size:var(--lv-font-size-caption)">
-                <summary style="cursor:pointer;opacity:0.8;font-weight:600">📐 {t("scratchpad.formulaSheet")}</summary>
-                <div class="lv-card" style="margin-top:4px;padding:8px;background:var(--lv-surface);max-height:160px;overflow-y:auto">
-                  <div style="display:flex;flex-direction:column;gap:4px">
-                    <div><b>导数表：</b><code>(xⁿ)' = n·xⁿ⁻¹</code> · <code>(eˣ)' = eˣ</code> · <code>(ln x)' = 1/x</code> · <code>(sin x)' = cos x</code> · <code>(cos x)' = -sin x</code></div>
-                    <div><b>三角恒等：</b><code>sin²α + cos²α = 1</code> · <code>sin(2α) = 2sinα·cosα</code> · <code>cos(2α) = 2cos²α - 1</code></div>
-                    <div><b>物理常数：</b><code>c = 3.0×10⁸ m/s</code> · <code>G = 6.67×10⁻¹¹</code> · <code>NA = 6.02×10²³</code> · <code>e = 1.60×10⁻¹⁹ C</code> · <code>h = 6.63×10⁻³⁴ J·s</code></div>
-                    <div><b>立体几何：</b><code>S_圆 = πr²</code> · <code>V_球 = 4/3·πr³</code> · <code>V_锥 = 1/3·πr²h</code></div>
-                  </div>
-                </div>
-              </details>
-            </div>
-          {/if}
+          <ScratchpadDrawer
+            open={scratchpadOpen}
+            mode={scratchpadMode}
+            text={currentScratchpadText}
+            {t}
+            onmodeChange={(m) => (scratchpadMode = m)}
+            oninput={onScratchpadInput}
+            onclear={clearScratchpad}
+            oncopy={copyScratchpad}
+            onclose={() => (scratchpadOpen = false)}
+          />
           {#if groupBatchModal}
             <!-- 44-01：小组延迟批次复盘小结卡 -->
             <div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:14px 16px">
@@ -9182,7 +9154,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                 <button class="lv-btn sm lv-btn--ghost" class:lv-chip--amb={!!q.fav} title={`${t("session.kbdFav")} (E)`} aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} disabled={favBusy} onclick={() => void toggleFavQuestion(q)}>
                   <Icon name="star" size={13} />
                 </button>
-                  <button class="lv-btn sm lv-btn--ghost" title={t("browse.openDoc")} aria-label={t("browse.openDoc")} onclick={() => openInSiYuan(q.rootId)} disabled={!q.rootId}>
+                  <button class="lv-btn sm lv-btn--ghost" title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦" : t("browse.openDoc")} aria-label={t("browse.openDoc")} onclick={() => openInSiYuan(q.rootId, q.blockId)} disabled={!q.rootId && !q.blockId}>
                     <Icon name="pin" size={13} />
                   </button>
                 <button class="lv-btn sm lv-btn--ghost lv-peek-close" title={t("dialog.close", "关闭")} aria-label={t("dialog.close", "关闭")} onclick={closePeekDrawer}>
@@ -9414,7 +9386,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
                         {t("lifecycle.toDraft")}
                       </button>
                     {/if}
-                    <button class="lv-btn sm" onclick={() => openInSiYuan(q.rootId)} disabled={!q.rootId} title={!q.rootId ? t("browse.docUnavailable") : t("browse.openDoc")}><Icon name="pin" size={13} /> {t("browse.openDoc")}</button>
+                    <button class="lv-btn sm" onclick={() => openInSiYuan(q.rootId, q.blockId)} disabled={!q.rootId && !q.blockId} title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦" : t("browse.openDoc")}><Icon name="pin" size={13} /> {t("browse.openDoc")}</button>
                     <button class="lv-btn sm" onclick={() => void loadBacklinks(q.blockId)} disabled={!app.kernelOnline || !!backlinkBusyFor} aria-busy={backlinkBusyFor === q.blockId} title={!app.kernelOnline ? t("state.offlineHint") : t("browse.backlinks")}><Icon name="link" size={13} /> {backlinkBusyFor === q.blockId ? t("browse.backlinkLoading") : t("browse.backlinks")}</button>
                     {#if links}
                       {#if links.length === 0}<span class="lv-muted">{t("browse.noBacklinks")}</span>

@@ -1,8 +1,8 @@
 # 小驴学习（原小驴考试）当前状态
 
-> 更新日期：2026-10-27 · 源码版本：v0.11.95。全套自动化测试 181 个测试文件、1411 项单测 100% 全绿通过，Svelte 检查 0 错误 0 警告，1550 键 i18n 严格对齐，42 项架构守卫全部通过。
+> 更新日期：2026-10-27 · 源码版本：v0.11.96。全套自动化测试 181 个测试文件、1411 项单测 100% 全绿通过，Svelte 检查 0 错误 0 警告，1550 键 i18n 严格对齐，42 项架构守卫全部通过。
 
-> **当前审计入口：** 本版实装做题答题卡进度网格弹窗（SessionSheetModal）解耦重构与变式题母题反链溯源闭环，解耦抽离独立的 SessionSheetModal 会话答题卡网格组件。前序 v0.11.94 实装空态启程中心思源笔记智能提取一键直通与 BankGalleryModal 组件抽离。版本与发版边界须结合 [CHANGELOG](../CHANGELOG.md) 与远端 GitHub Release。
+> **当前审计入口：** 本版实装演算草稿纸浮层（ScratchpadDrawer）解耦重构与思源超级块原位定位回跳增强，解耦抽离独立的 ScratchpadDrawer 草稿纸浮层组件。前序 v0.11.95 实装会话答题卡网格弹窗（SessionSheetModal）解耦与变式题母题反链溯源闭环。版本与发版边界须结合 [CHANGELOG](../CHANGELOG.md) 与远端 GitHub Release。
 
 当前隔离证据为 SiYuan 3.8.8-alpha.3 / Chrome browser-desktop / 插件 v0.10.4，已覆盖练习、错题、模考保存恢复交卷及报告读取、手工/CSV 写入读回、资料链接和笔记保存。日常主宿主 v0.10.3 不作本轮验收依据。真实 AI、Android、打卡桥、TTS 发声、打印及剪贴板等仍待各自环境验证。版本与发布边界须结合 [CHANGELOG](../CHANGELOG.md)、当前审计及远端 Release 核验。
 
