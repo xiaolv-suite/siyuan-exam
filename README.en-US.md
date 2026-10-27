@@ -23,20 +23,24 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.99 (2026-10-27)
+## 🌟 Latest Release: v0.12.0 (2026-10-27)
 
-This release delivers the MaterialGroupContextCard architecture decoupling and persistent material expansion state across sub-questions.
+This milestone release delivers the physical architecture decoupling of the Teacher Research & Preparation workspace and printing center.
 
-- **Persistent Material Expansion in Shared Contexts:**
-  - Navigating between sub-questions in the same reading passage now preserves the material's expanded state, eliminating repetitive manual unfolds.
-- **MaterialGroupContextCard Architecture Decoupling:**
-  - Extracted shared material context and sibling sub-question navigation into `src/ui/practice/MaterialGroupContextCard.svelte`.
+- **Teacher Workspace Physical Decoupling:**
+  - Extracted the entire teaching and prep cockpit into `src/ui/practice/TeacherWorkspaceView.svelte`, completely separating student practice journeys from educator publishing and item analysis workflows.
+  - Encapsulated three core divisions: Publishing & Printing Center (A4 double-column, worksheets, teacher lecture keys), Question Authoring Studio, and Bank Archival & Distribution.
+- **Item Quality Diagnostics & Revision Loop:**
+  - Direct bridge between classical test theory (CTT) discrimination diagnostics and inline question revisions.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.99 MaterialGroupContextCard Decoupling & Expansion Memory:**
+  - Extracted `MaterialGroupContextCard.svelte` and persistent reading passage expansion across sub-questions.
 
 - **v0.11.98 GroupBatchSummaryCard Decoupling & Wrongbook Sorting:**
   - Extracted `GroupBatchSummaryCard.svelte` and persisted wrongbook multi-dimensional sorting preferences.
