@@ -1738,6 +1738,31 @@ input[type="range"] {
   .lv-rate-key { flex-shrink: 0; }
 }
 
+/* —— 题目浏览 Peek 抽屉通用样式 (Desktop 右侧抽屉 / Mobile 底部 Sheet) —— */
+.lv-peek-backdrop { position: fixed; inset: 0; background: var(--lv-overlay); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 120; animation: lv-fade-in var(--lv-dur-fast, 0.18s) ease-out; }
+.lv-peek-sheet-handle { display: none; width: 36px; height: 4px; border-radius: 2px; background: var(--lv-border); margin: 8px auto 2px; }
+.lv-peek-drawer { position: fixed; top: 14px; right: 16px; bottom: 14px; width: min(540px, calc(100vw - 32px)); max-width: 580px; z-index: 121; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-4, 22px); box-shadow: var(--lv-sh-pop), var(--lv-inset-card); display: flex; flex-direction: column; overflow: hidden; animation: lv-slide-left var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
+.lv-peek-head { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); padding: 14px 18px; border-bottom: 1px solid var(--lv-border); background: var(--lv-surface-2); flex-shrink: 0; }
+.lv-peek-src { font-size: var(--lv-font-size-caption); color: var(--lv-text-3); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-peek-head .lv-btn { min-width: 44px; min-height: 44px; }
+.lv-peek-close { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 8px; font-size: 14px; }
+.lv-peek-body { flex: 1; min-height: 0; padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.lv-peek-stem { font-size: 17px; font-weight: var(--lv-font-weight-semibold, 600); line-height: 1.6; color: var(--lv-text); overflow-wrap: anywhere; }
+.lv-peek-footer { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--lv-border); background: var(--lv-surface-2); flex-shrink: 0; }
+@keyframes lv-slide-left { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes lv-slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes lv-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@container lv-exam (max-width: 759px) {
+  .lv-peek-sheet-handle { display: block; }
+  .lv-peek-drawer { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 88vh; border-radius: var(--lv-r-card, 18px) var(--lv-r-card, 18px) 0 0; border-bottom: 0; padding-bottom: max(6px, env(safe-area-inset-bottom)); animation: lv-slide-up var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
+  .lv-peek-close { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .lv-peek-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+
+.lv-pad-card { margin: 8px 0; }
+.lv-btn--ghost.acc-btn { color: var(--lv-accent); background: var(--lv-accent-soft); border-color: transparent; }
+.lv-error-row { font-size: var(--lv-font-size-meta); color: var(--lv-red); padding: 4px 2px; border-bottom: 1px dashed var(--lv-border); }
+
 /* —— 动效兜底 —— */
 @media (prefers-reduced-motion: reduce) {
   *,

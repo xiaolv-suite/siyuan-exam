@@ -23,21 +23,24 @@
 
 ---
 
-## 🌟 Latest Release: v0.12.2 (2026-10-27)
+## 🌟 Latest Release: v0.12.3 (2026-10-27)
 
-This release delivers the second wave of batch architectural decoupling: modularized Batch Import, Recitation, and Wrongbook into standalone sub-views, shedding another 600+ lines.
+This release delivers the third wave of batch architectural decoupling: modularized Question Peek Drawer, Floating Batch Action Bar, and Bank Maintenance Drawers, shedding another 700+ lines.
 
-- **Batch Architecture Decoupling (Wave 2 · 600+ Lines Shed):**
-  - Extracted `ImportStudioView.svelte` (batch question import, SiYuan note extraction, and cloze generation, 360+ lines).
-  - Extracted `ReciteStudioView.svelte` (paper recitation cockpit, speech evaluation, forgot-to-retest loops, 125+ lines).
-  - Extracted `WrongbookStudioView.svelte` (wrongbook cockpit, active/archived/eliminated tabs, multi-dimensional sorting, 155+ lines).
-  - Over 1600+ total lines decoupled from the main tab across iterations.
+- **Batch Architecture Decoupling (Wave 3 · 700+ Lines Shed):**
+  - Extracted `QuestionPeekDrawer.svelte` (full question inspection drawer, multi-dimensional self-test masks, CTT item analysis, attempt receipt drill-down, and FSRS flashcard generation, 450+ lines).
+  - Extracted `BrowseBatchActionBar.svelte` (floating batch actions bar, focus drills, A4 double-column print, and teacher keys, 50+ lines).
+  - Extracted `BrowseMaintenanceDrawers.svelte` (6-in-1 governance drawers: heading trees, KP merging/filling, paper recall, errata import, batch edits, and cluster deduplication, 410+ lines).
+  - Over 2300+ total lines decoupled from the main tab across iterations, condensing `PracticeTab.svelte` into 8320 lines.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.12.2 Import, Recite & Wrongbook Batch Decoupling:**
+  - Extracted `ImportStudioView.svelte`, `ReciteStudioView.svelte`, and `WrongbookStudioView.svelte`.
 
 - **v0.12.1 Studio Sub-Views Batch Decoupling:**
   - Extracted `ManualStudioView.svelte`, `AiStudioView.svelte`, `MaterialsView.svelte`, and `StudioSubNav.svelte`.

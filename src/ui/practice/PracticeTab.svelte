@@ -46,7 +46,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       type OrphanDiagnosis,
       type OrphanKind,
     } from "../../core/bankHealth";
-    import { planBatchEdit, invertPlan, describeChange } from "../../core/batchEdit";
+    import { planBatchEdit, invertPlan } from "../../core/batchEdit";
     import { buildSectionTree } from "../../core/sectionTree";
     import { matchesBrowseFilter } from "../../core/browseFilter";
     import { queueKindOf, queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
@@ -54,7 +54,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { upsertView, viewBankMismatch } from "@/core/smartViews";
     import { avgMsByType, estimatePlanMinutes } from "@/core/timeBudget";
     import { kpAudit, planKpMerge, planEmptyKpFill } from "@/core/kpGovernance";
-    import { coverageTree, subtreeCount, subtreeLearned, subtreeNoSource, gapsToCsv } from "@/core/syllabus";
+    import { gapsToCsv } from "@/core/syllabus";
     import { parseErrataCsv, planErrata, errataTemplateCsv } from "@/core/errata";
     import { buildQuestionSheet, buildAnswerSheet, buildAnswerCardSheet } from "@/core/printSheet";
     import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
@@ -74,6 +74,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import ReciteStudioView from "./ReciteStudioView.svelte";
     import WrongbookStudioView from "./WrongbookStudioView.svelte";
     import ImportStudioView from "./ImportStudioView.svelte";
+    import QuestionPeekDrawer from "./QuestionPeekDrawer.svelte";
+    import BrowseBatchActionBar from "./BrowseBatchActionBar.svelte";
+    import BrowseMaintenanceDrawers from "./BrowseMaintenanceDrawers.svelte";
     import TeacherWorkspaceView from "./TeacherWorkspaceView.svelte";
     import MaterialsView from "./MaterialsView.svelte";
     import AiStudioView from "./AiStudioView.svelte";
@@ -1175,7 +1178,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let errataPlan = $state<import("@/core/errata").ErrataPlan | null>(null);
     let errataErrors = $state<{ row: number; reason: string }[]>([]);
     let errataBusy = $state(false);
-    let errataFileInput = $state<HTMLInputElement | null>(null);
     let errataNote = $state("");
 
     function exportErrataTemplate() {
@@ -7707,416 +7709,93 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { sectionSel = null; }}>{t("browse.sectionClear")}</button>
         </div>
       {/if}
-      {#if sectionOpen}
-        <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);max-height:260px;overflow:auto">
-          <b style="font-size:var(--lv-font-size-body-compact)">{t("browse.sectionTree")}</b>
-          {#if sectionBusy}<span class="lv-muted" style="margin-left:8px">…</span>{/if}
-          {#if !sectionTree.length && !sectionBusy}
-            <div class="lv-muted" style="margin-top:6px">{t("browse.sectionEmpty")}</div>
-          {/if}
-          {#each sectionTree as doc, _di (_di)}
-            <div class="lv-row" style="margin:6px 0 0">
-              <button class="lv-btn sm lv-btn--ghost" class:acc-btn={sectionSel?.kind === "doc" && sectionSel.id === doc.id}
-                onclick={() => { sectionSel = { kind: "doc", id: doc.id, hpath: doc.hpath }; }}>
-                <Icon name="file" size={13} /> {doc.title || doc.hpath}
-              </button>
-            </div>
-            {#each doc.children as h, _hi (_hi)}
-              <div class="lv-row" style="margin:2px 0 0;padding-left:{(h.level - 1) * 14}px">
-                <button class="lv-btn sm lv-btn--ghost" class:acc-btn={sectionSel?.kind === "heading" && sectionSel.hpath === h.hpath}
-                  onclick={() => { sectionSel = { kind: "heading", id: h.id, hpath: h.hpath }; }}>
-                  {"#".repeat(Math.min(6, h.level))} {h.text}
-                </button>
-              </div>
-            {/each}
-          {/each}
-        </div>
-      {/if}
-      {#if kpOpen}
-        <!-- 51-02 lite：考点治理——概览/同义名合并/空考点填充；变更走批量编辑 dry-run+撤销 -->
-        <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);max-height:320px;overflow:auto">
-          <b style="font-size:var(--lv-font-size-body-compact)">{t("kp.title")}</b>
-          {#if !kpData}
-            <div class="lv-muted" style="margin-top:6px">{t("browse.empty")}</div>
-          {:else}
-            <div class="lv-row" style="margin:6px 0 0">
-              <span class="lv-chip num">{t("kp.distinct").replace("{n}", String(kpData.entries.length))}</span>
-              {#if kpData.emptyCount}<span class="lv-chip lv-chip--amb num">{t("kp.empty").replace("{n}", String(kpData.emptyCount))}</span>{/if}
-            </div>
-            <div class="lv-row" style="margin:4px 0 0">
-              {#each kpData.entries.slice(0, 24) as e, _i (_i)}
-                <button class="lv-chip" class:lv-chip--red={e.suspect} class:acc={kpMergeFrom === e.kp}
-                  title={e.suspect ? t("kp.suspect") : t("kp.filterTip")}
-                  onclick={() => { kpMergeFrom = e.kp; kpMergeTo = ""; kpMergePlan = null; setSearch(e.kp); }}>
-                  {e.kp || "（空）"} · {e.count}
-                </button>
-              {/each}
-              {#if kpData.entries.length > 24}<span class="lv-muted num">… +{kpData.entries.length - 24}</span>{/if}
-            </div>
-            <div class="lv-row" style="margin:8px 0 0">
-              <b style="font-size:var(--lv-font-size-meta)">{t("kp.merge")}</b>
-              <input class="lv-input" style="max-width:160px" bind:value={kpMergeFrom} placeholder={t("kp.fromPlaceholder")} />
-              <span class="lv-muted">→</span>
-              <input class="lv-input" style="max-width:160px" bind:value={kpMergeTo} placeholder={t("kp.toPlaceholder")} />
-              <button class="lv-btn sm" onclick={previewKpMerge}><Icon name="search" size={13} /> {t("batch.preview")}</button>
-            </div>
-            {#if kpData.emptyCount}
-              <div class="lv-row" style="margin:4px 0 0">
-                <b style="font-size:var(--lv-font-size-meta)">{t("kp.fill").replace("{n}", String(kpData.emptyCount))}</b>
-                <input class="lv-input" style="max-width:160px" bind:value={kpFillKp} placeholder={t("kp.toPlaceholder")} />
-                <button class="lv-btn sm" onclick={previewKpFill}><Icon name="search" size={13} /> {t("batch.preview")}</button>
-              </div>
-            {/if}
-            {#if kpMergePlan}
-              <div class="lv-row" style="margin:6px 0 0">
-                <span class="lv-chip num">{t("batch.planCount").replace("{n}", String(kpMergePlan.changes.length))}</span>
-                <button class="lv-btn lv-btn--primary sm" disabled={kpBusy || !app.kernelOnline || !kpMergePlan.changes.length} onclick={() => void applyKpPlan(kpMergePlan!)}>
-                  {kpBusy ? "…" : t("batch.apply").replace("{n}", String(kpMergePlan.changes.length))}
-                </button>
-                {#if !app.kernelOnline}<span class="lv-chip lv-chip--amb">{t("state.offlineHint")}</span>{/if}
-              </div>
-            {/if}
-            {#if kpFillPlan}
-              <div class="lv-row" style="margin:6px 0 0">
-                <span class="lv-chip num">{t("batch.planCount").replace("{n}", String(kpFillPlan.changes.length))}</span>
-                <button class="lv-btn lv-btn--primary sm" disabled={kpBusy || !app.kernelOnline || !kpFillPlan.changes.length} onclick={() => void applyKpPlan(kpFillPlan!)}>
-                  {kpBusy ? "…" : t("batch.apply").replace("{n}", String(kpFillPlan.changes.length))}
-                </button>
-              </div>
-            {/if}
-            {#if kpNote}<div class="lv-row"><span class="lv-muted num">{kpNote}</span></div>{/if}
-            <!-- 51-01/03 lite：考纲对照——粘贴大纲树，按 kp 前缀覆盖，零题缺口明示可导出 -->
-            <div class="lv-row" style="margin:10px 0 0">
-              <b style="font-size:var(--lv-font-size-meta)"><Icon name="file-text" size={13} /> {t("syl.title")}</b>
-              {#if app.syllabusReadonly}<span class="lv-chip lv-chip--amb">{t("materials.readonly")}</span>{/if}
-              {#if sylDoc.roots.length}
-                <span class="lv-chip num">{t("syl.nodes").replace("{n}", String(countSyllabusNodes(sylDoc.roots)))}</span>
-                {#if sylDoc.meta.publisher}<span class="lv-chip">{sylDoc.meta.publisher}</span>{/if}
-                {#if sylDoc.meta.year}<span class="lv-chip num">{sylDoc.meta.year}</span>{/if}
-                <span class="lv-muted num">{t("syl.importedAt").replace("{d}", new Date(sylDoc.importedAt).toLocaleDateString())}</span>
-              {/if}
-            </div>
-            {#if sylDoc.roots.length}
-              {@const cov = coverageTree(sylDoc.roots, sylKpStats)}
-              <div class="lv-row" style="flex-wrap:wrap;margin:4px 0 0;gap:var(--lv-space-1)">
-                {#each cov as c, _ci (_ci)}
-                  {@const total = subtreeCount(c)}
-                  {@const learned = subtreeLearned(c)}
-                  <button class="lv-chip" class:lv-chip--red={total === 0} class:lv-chip--amb={total > 0 && learned === 0}
-                    title={`${t("syl.gapTip")}${subtreeNoSource(c) ? " · " + t("syl.noSourceTip").replace("{n}", String(subtreeNoSource(c))) : ""}`}
-                    onclick={() => { setSearch(c.node.kpPrefix); }}>
-                    {c.node.title} · <span class="num">{total}</span>
-                    {#if total === 0}&nbsp;{t("syl.gap")}
-                    {:else if learned === 0}&nbsp;{t("syl.unmastered")}
-                    {:else}&nbsp;<span class="num" title={t("syl.learnedTip")}>✓{learned}</span>{/if}
-                  </button>
-                {/each}
-                <button class="lv-btn sm lv-btn--ghost" onclick={downloadSyllabusGaps}><Icon name="export" size={13} /> {t("syl.exportGaps")}</button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={exportSyllabusAudit} title="深度体检考纲零题覆盖盲区与题量不足考点"><Icon name="chart" size={13} /> {t("syl.auditCoverage")}</button>
-              </div>
-            {/if}
-            {#if !sylDoc.roots.length || sylPreviewRoots}
-              <div class="lv-row" style="margin:4px 0 0">
-                <input class="lv-input" style="max-width:150px" placeholder={t("syl.publisher")} bind:value={sylPublisher} />
-                <input class="lv-input" style="max-width:90px" placeholder={t("syl.year")} bind:value={sylYear} />
-                <input class="lv-input" style="max-width:150px" placeholder={t("syl.source")} bind:value={sylSource} />
-              </div>
-              <textarea class="lv-input lv-textarea" rows="4" bind:value={sylText} placeholder={t("syl.placeholder")}></textarea>
-              <div class="lv-row">
-                <button class="lv-btn sm" onclick={previewSyllabus} disabled={!sylText.trim()}><Icon name="search" size={13} /> {t("syl.preview")}</button>
-                {#if sylPreviewRoots?.length}
-                  <span class="lv-chip num">{t("syl.nodes").replace("{n}", String(countSyllabusNodes(sylPreviewRoots)))}</span>
-                  <button class="lv-btn lv-btn--primary sm" onclick={() => void importSyllabus()} disabled={app.syllabusReadonly}>{t("syl.import")}</button>
-                {/if}
-              </div>
-            {/if}
-            {#if sylError}<div class="lv-error">{sylError}</div>{/if}
-            {#if sylNote}<div class="lv-row"><span class="lv-muted num">{sylNote}</span></div>{/if}
-          {/if}
-        </div>
-      {/if}
-      {#if paperOpen}
-        <!-- 68-02 lite：纸笔回录——「题号=作答」判分预览后 append 流水（mode=paper，不覆盖任何线上数据） -->
-        <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4)">
-          <div class="lv-row" style="margin:0">
-            <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="paperclip" size={13} /> {t("paper.title")}</b>
-            <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("paper.hint")}</span>
-          </div>
-          <textarea class="lv-input lv-textarea" rows="4" bind:value={paperText} placeholder={t("paper.placeholder")}></textarea>
-          {#if paperPreview}
-            <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
-              <span class="lv-chip lv-chip--grn num">✓ {paperPreview.items.filter((i) => i.verdict === "correct").length}</span>
-              <span class="lv-chip lv-chip--red num">✕ {paperPreview.items.filter((i) => i.verdict === "wrong").length}</span>
-              {#if paperPreview.items.some((i) => i.verdict === "not_attempted")}
-                <span class="lv-chip lv-chip--amb num" title={t("paper.shortNote")}>? {paperPreview.items.filter((i) => i.verdict === "not_attempted").length}</span>
-              {/if}
-              {#if paperPreview.outOfRange.length}
-                <span class="lv-chip lv-chip--amb num" title={paperPreview.outOfRange.join("、")}>{t("paper.outOfRange").replace("{n}", String(paperPreview.outOfRange.length))}</span>
-              {/if}
-              {#each paperPreview.errors.slice(0, 3) as pe, _pi (_pi)}
-                <div class="lv-error-row num">#{pe.row} {pe.reason}</div>
-              {/each}
-              <button class="lv-btn lv-btn--primary sm" disabled={paperBusy} onclick={() => void applyPaperRecall()}>
-                {paperBusy ? "…" : t("paper.apply").replace("{n}", String(paperPreview.items.filter((i) => i.verdict !== "not_attempted").length))}
-              </button>
-            </div>
-          {/if}
-          {#if paperNote}<div class="lv-row"><span class="lv-chip num">{paperNote}</span></div>{/if}
-        </div>
-      {/if}
-      {#if errataOpen}
-        <!-- 57 lite：勘误回导——qid 定向元数据勘误，dry-run 预览后走批量编辑同一写路径与撤销基线 -->
-        <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);max-height:320px;overflow:auto">
-          <div class="lv-row" style="margin:0">
-            <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="file-text" size={13} /> {t("errata.title")}</b>
-            <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("errata.hint")}</span>
-          </div>
-          <div class="lv-row" style="margin:6px 0 0">
-            <button class="lv-btn sm lv-btn--ghost" onclick={exportErrataTemplate}><Icon name="export" size={13} /> {t("errata.template")}</button>
-            <button type="button" class="lv-btn sm" disabled={errataBusy} onclick={() => errataFileInput?.click()}>
-              <Icon name="import" size={13} /> {t("errata.import")}
-            </button>
-            <input bind:this={errataFileInput} type="file" accept=".csv,.tsv,.txt" hidden onchange={onErrataFile} disabled={errataBusy} />
-          </div>
-          {#if errataErrors.length}
-            {#each errataErrors.slice(0, 5) as er, _ei (_ei)}
-              <div class="lv-error-row num">#{er.row} {er.reason}</div>
-            {/each}
-            {#if errataErrors.length > 5}<div class="lv-muted num">… +{errataErrors.length - 5}</div>{/if}
-          {/if}
-          {#if errataPlan}
-            <div class="lv-row" style="margin:6px 0 0;flex-wrap:wrap">
-              <span class="lv-chip num">{t("batch.planCount").replace("{n}", String(errataPlan.changes.length))}</span>
-              {#if errataPlan.unchanged}<span class="lv-chip num">{t("errata.unchanged").replace("{n}", String(errataPlan.unchanged))}</span>{/if}
-              {#if errataPlan.unknownQids.length}
-                <span class="lv-chip lv-chip--amb num" title={errataPlan.unknownQids.join("、")}>{t("errata.unknown").replace("{n}", String(errataPlan.unknownQids.length))}</span>
-              {/if}
-              <button class="lv-btn lv-btn--primary sm" disabled={errataBusy || !app.kernelOnline || !errataPlan.changes.length} onclick={() => void applyErrata()}>
-                {errataBusy ? "…" : t("batch.apply").replace("{n}", String(errataPlan.changes.length))}
-              </button>
-              {#if !app.kernelOnline}<span class="lv-chip lv-chip--amb">{t("state.offlineHint")}</span>{/if}
-            </div>
-            {#each errataPlan.changes.slice(0, 8) as c, _ci (_ci)}
-              <div class="lv-row lv-muted num" style="margin:2px 0;font-size:var(--lv-font-size-label)">
-                {t("batch.field." + c.field)}：{c.from || "（空）"} → {c.to || "（空）"}
-              </div>
-            {/each}
-            {#if errataPlan.changes.length > 8}<div class="lv-muted num">… +{errataPlan.changes.length - 8}</div>{/if}
-          {/if}
-          {#if errataNote}<div class="lv-row"><span class="lv-chip num">{errataNote}</span></div>{/if}
-        </div>
-      {/if}
-      {#if batchMode}
-        <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4)">
-          <div class="lv-row" style="margin:0;gap:var(--lv-space-compact);align-items:center;flex-wrap:wrap">
-            <b style="font-size:var(--lv-font-size-body-compact)">{t("batch.title")}</b>
-            <span class="lv-chip num">{t("batch.selected").replace("{n}", String(Object.keys(selectedIds).length))}</span>
-            <button class="lv-btn sm lv-btn--ghost" onclick={selectAllCurrentPage}>{t("batch.selectAll")}</button>
-            {#if selectedCount > 0}
-              <button class="lv-btn sm lv-btn--ghost" onclick={clearSelection}>{t("batch.clearSel")}</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => void batchConvertToCards()} disabled={batchCardBusy || !app?.kernelOnline} title="将勾选的题目批量制成闪卡送入卡包">
-                <Icon name="layers" size={13} /> {batchCardBusy ? "…" : t("batch.toCards")}
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedQuestions} title="将勾选的题目生成 A4 双栏试卷">
-                <Icon name="file" size={13} /> {t("batch.printSelected")}
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedTeacherPaper} title="导出勾选题目的教师讲义教案（含答案与采分细则）">
-                <Icon name="book" size={13} /> 教师教案
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedHomeworkSheet} title="导出勾选题目的课后分层作业单（带姓名与反思框）">
-                <Icon name="file-text" size={13} /> 分层作业单
-              </button>
-            {/if}
-            {#if batchUndoHere && !appliedChanges.length}
-              <span class="lv-chip num" title={t("batch.undoStoredHint")}>↩ {t("batch.undoStored").replace("{n}", String(batchUndo!.changes.length))}</span>
-              <button class="lv-btn sm" disabled={batchBusy || !app.kernelOnline} onclick={() => applyBatch(true)}>{t("batch.undo")}</button>
-            {/if}
-            <select class="lv-select" bind:value={batchField}>
-              <option value="kp">{t("batch.field.kp")}</option>
-              <option value="difficulty">{t("batch.field.difficulty")}</option>
-              <option value="source">{t("batch.field.source")}</option>
-              <option value="year">{t("batch.field.year")}</option>
-              <option value="score">{t("batch.field.score")}</option>
-            </select>
-            {#if batchField === "difficulty"}
-              <select class="lv-select" bind:value={batchValue}>
-                {#each [1, 2, 3, 4, 5] as d, _i (_i)}<option value={String(d)}>{d}</option>{/each}
-              </select>
-            {:else if batchField === "score"}
-              <input class="lv-input" style="max-width:120px" type="number" min="0.5" step="0.5" bind:value={batchValue} placeholder={t("batch.scorePlaceholder")} />
-            {:else}
-              <input class="lv-input" style="max-width:200px" bind:value={batchValue}
-                placeholder={batchField === "kp" ? t("batch.kpPlaceholder") : batchField === "year" ? t("batch.yearPlaceholder") : t("batch.sourcePlaceholder")} />
-            {/if}
-            <button class="lv-btn sm" disabled={!selectedCount} onclick={previewBatch}><Icon name="search" size={13} /> {t("batch.preview")}</button>
-            {#if batchPreview}
-              <button class="lv-btn lv-btn--primary sm" disabled={batchBusy || !batchPreview.changes.length} onclick={() => applyBatch(false)}>
-                {batchBusy ? "…" : t("batch.apply").replace("{n}", String(batchPreview.changes.length))}
-              </button>
-              {#if appliedChanges.length || batchUndoHere}
-                <button class="lv-btn sm" disabled={batchBusy} onclick={() => applyBatch(true)}>↩ {t("batch.undo")}</button>
-              {/if}
-            {/if}
-          </div>
-          {#if batchPreview}
-            <div class="lv-row" style="margin:8px 0 0">
-              <span class="lv-chip num">{t("batch.planCount").replace("{n}", String(batchPreview.changes.length))}</span>
-              {#if batchPreview.skipped}<span class="lv-chip num">{t("batch.skipped").replace("{n}", String(batchPreview.skipped))}</span>{/if}
-              {#if !app.kernelOnline}<span class="lv-chip lv-chip--amb">{t("state.offlineHint")}</span>{/if}
-            </div>
-            {#each batchPreview.changes.slice(0, 20) as c, _i (_i)}
-              {@const stem = questionMap.get(c.qid)?.stem ?? c.qid}
-              <div class="lv-error-row num">{describeChange(c, stem)}</div>
-            {/each}
-            {#if batchPreview.changes.length > 20}<div class="lv-muted num">… +{batchPreview.changes.length - 20}</div>{/if}
-            {#if batchNote}<div class="lv-row"><span class="lv-muted num">{batchNote}</span></div>{/if}
-          {/if}
-        </div>
-      {/if}
-      {#if health}
-        <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4)">
-          <b style="font-size:var(--lv-font-size-body-compact)">{t("health.title")}</b>
-          <span class="lv-chip num" style="margin-left:8px">{t("health.total")} {health.total}</span>
-          {#if answerDist && answerDist.total >= 10}
-            <!-- 67-03 lite：答案分布（公平性——答案可猜测性来自分布偏斜；样本 ≥10 才判定） -->
-            <div class="lv-row" style="margin:6px 0 0;flex-wrap:wrap;gap:var(--lv-space-1)">
-              <span class="lv-chip num" title={t("health.distTip")}><Icon name="chart" size={11} /> {t("health.dist")}（{answerDist.total}）</span>
-              {#each Object.entries(answerDist.counts).sort() as [letter, n] (letter)}
-                <span class="lv-chip num" class:lv-chip--red={answerDist.skewed === letter}>{letter} {n}</span>
-              {/each}
-              {#if answerDist.skewed}
-                <span class="lv-chip lv-chip--red" title={t("health.distSkewTip")}>⚠ {t("health.distSkew").replace("{l}", answerDist.skewed).replace("{n}", String(answerDist.skewedRatio ?? 0))}</span>
-              {/if}
-              {#if answerDist.starved.length}
-                <span class="lv-chip lv-chip--amb" title={t("health.distStarvedTip")}>{t("health.distStarved").replace("{l}", answerDist.starved.join(""))}</span>
-              {/if}
-            </div>
-          {/if}
-          {#if unreviewed && unreviewed.count}
-            <!-- 67-03 lite：AI 未审校比例（origin=ai 且 review=pending） -->
-            <div class="lv-row" style="margin:4px 0 0">
-              <span class="lv-chip lv-chip--amb num" title={t("health.unreviewedTip")}><Icon name="sparkles" size={12} /> {t("health.unreviewed").replace("{n}", String(unreviewed.count)).replace("{r}", String(unreviewed.ratio ?? 0))}</span>
-            </div>
-          {/if}
-          {#if coverage}
-            <!-- 43-04 lite：生产者覆盖概览（点击 chip 直达对应过滤列表） -->
-            <div class="lv-row" style="margin:6px 0 0">
-              {#each coverage.byType as t2, _ti (_ti)}
-                <button class="lv-chip num" class:acc={filterType === t2.type} title={t("coverage.typeTip")}
-                  onclick={() => { filterType = filterType === t2.type ? "" : t2.type; }}>{t("qtype." + t2.type)} {t2.count}</button>
-              {/each}
-              {#if coverage.kpLearned != null}
-                <!-- 51-03 lite：已学考点覆盖（有题考点中至少一题作答过的数量；练一题≠掌握整个考点） -->
-                <span class="lv-chip num" title={t("coverage.learnedTip")}><Icon name="book" size={11} /> {t("coverage.learned").replace("{l}", String(coverage.kpLearned)).replace("{t}", String(coverage.kpCovered))}</span>
-              {/if}
-              <span class="lv-chip num">{t("coverage.sources").replace("{n}", String(coverage.sources))}</span>
-              {#if coverage.sourceMissing}<button class="lv-chip lv-chip--amb num" onclick={() => { filterSource = "@@none"; }} title={t("coverage.sourceMissTip")}>{t("coverage.sourceMissing").replace("{n}", String(coverage.sourceMissing))}</button>{/if}
-              {#if coverage.kpMissing}<button class="lv-chip lv-chip--amb num" onclick={() => { kpOpen = true; }}>{t("kp.empty").replace("{n}", String(coverage.kpMissing))}</button>{/if}
-              {#if coverage.shortAnalysis}<span class="lv-chip lv-chip--amb num" title={t("coverage.shortTip")}>{t("coverage.shortAnalysis").replace("{n}", String(coverage.shortAnalysis))}</span>{/if}
-            </div>
-          {/if}
-          {#if !health.clusters.length && !health.missing.length}
-            <span class="lv-chip lv-chip--grn">✓ {t("health.clean")}</span>
-          {:else}
-            {#each health.clusters as cl, _i (_i)}
-              <button
-                type="button"
-                class="lv-chip num"
-                class:acc={activeClusterIndex === _i}
-                class:lv-chip--red={cl.similarity === 1}
-                title={t("health.clusterTip")}
-                onclick={() => toggleCluster(_i)}
-              >
-                ⧉ {cl.ids.length}× {Math.round(cl.similarity * 100)}%
-              </button>
-            {/each}
-            {#each health.missing as row, _i (_i)}
-              <span class="lv-chip lv-chip--amb num" title={row.qids.slice(0, 10).join(" · ")}>{t("health.field." + row.field)} {row.count}</span>
-            {/each}
-          {/if}
-          {#if activeClusterIndex >= 0 && health.clusters[activeClusterIndex]}
-            {@const cl = health.clusters[activeClusterIndex]}
-            <!-- 43-07：重复簇合并与差异比对面板 -->
-            <div class="lv-card lv-pad-card" style="margin:8px 0;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:10px 14px">
-              <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-                <b><Icon name="copy" size={13} /> {t("health.mergerTitle")}（{cl.ids.length} 题重复 · 相似度 {Math.round(cl.similarity * 100)}%）</b>
-                <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => activeClusterIndex = -1}>✕</button>
-              </div>
-              <div class="stack-sm">
-                {#each cl.ids as qid (qid)}
-                  {@const q = questionMap.get(qid)}
-                  {#if q}
-                    {@const attCount = app?.derived().byQuestion.get(qid)?.attempts ?? 0}
-                    <div class="lv-card" style="padding:8px 12px;background:var(--lv-surface-1)">
-                      <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
-                        <div class="lv-row" style="margin:0;gap:6px">
-                          <span class="lv-chip num sm">{q.id}</span>
-                          <span class="lv-chip sm">{t("qtype." + q.type)}</span>
-                          {#if q.kp}<span class="lv-chip sm">{q.kp}</span>{/if}
-                          {#if q.source}<span class="lv-muted" style="font-size:11px">{q.source}</span>{/if}
-                          <span class="num lv-muted" style="font-size:11px">作答 {attCount} 次</span>
-                        </div>
-                        <button
-                          type="button"
-                          class="lv-btn sm lv-btn--primary"
-                          disabled={mergeBusy}
-                          onclick={() => mergeClusterToTarget(q, cl.ids)}
-                        >
-                          {mergeBusy ? "…" : t("health.mergeIntoThis")}
-                        </button>
-                      </div>
-                      <div style="font-size:var(--lv-font-size-sm);margin:6px 0;font-weight:600">{q.stem}</div>
-                      <div class="lv-muted num" style="font-size:var(--lv-font-size-caption)">
-                        答案: <b>{q.answer}</b>{#if q.analysis} · 解析: {q.analysis.slice(0, 80)}{/if}
-                      </div>
-                    </div>
-                  {/if}
-                {/each}
-              </div>
-            </div>
-          {/if}
-          {#if orphanDiag}
-            <!-- 43-04：孤儿与缺陷队列（无母块子题/空材料母块/资料断链/缺答案/缺选项），点击直达过滤列表 -->
-            <div class="lv-row" style="margin:8px 0 0;flex-wrap:wrap;gap:var(--lv-space-1);align-items:center">
-              <span class="lv-chip num" title={t("health.orphans")}>
-                <Icon name="alert-triangle" size={11} /> {t("health.orphans")}（{orphanDiag.total}）
-              </span>
-              {#if orphanDiag.total === 0}
-                <span class="lv-chip lv-chip--grn">✓ {t("health.orphansClean")}</span>
-              {:else}
-                {#each (["orphan_group_sub", "orphan_group_material", "broken_material_ref", "defect_no_answer", "defect_no_options"] as const) as kind (kind)}
-                  {@const count = orphanDiag.byKind[kind].length}
-                  {#if count > 0}
-                    <button
-                      type="button"
-                      class="lv-chip lv-chip--red num"
-                      class:acc={filterOrphanKind === kind}
-                      onclick={() => drillOrphanKind(kind)}
-                      title="点击过滤此缺陷队列"
-                    >
-                      {t("health.orphan." + kind)} {count}
-                    </button>
-                  {/if}
-                {/each}
-              {/if}
-              <button class="lv-btn sm lv-btn--ghost" onclick={downloadHealthCsv} title={t("health.exportCsv")}>
-                ⬇️ CSV
-              </button>
-            </div>
-          {/if}
-          {#if batchList.length}
-            <div class="lv-row" style="margin:10px 0 0">
-              <b style="font-size:var(--lv-font-size-meta)">{t("import.batches")}</b>
-              {#each batchList as b, _i (_i)}
-                <span class="lv-chip num" title={b.batch}><Icon name="folder" size={11} /> {b.batch.slice(0, 16)} · {b.count}</span>
-                <button class="lv-btn sm lv-btn--ghost" disabled={rollbackBusy === b.batch} onclick={() => undoBatch(b.batch)}>
-                  {rollbackBusy === b.batch ? "…" : t("import.rollback")}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {/if}
+      <BrowseMaintenanceDrawers
+        {t}
+        {app}
+        {questionMap}
+        {sectionOpen}
+        {sectionBusy}
+        {sectionTree}
+        bind:sectionSel
+        bind:kpOpen
+        {kpData}
+        bind:kpMergeFrom
+        bind:kpMergeTo
+        bind:kpMergePlan
+        bind:kpFillKp
+        bind:kpFillPlan
+        {kpBusy}
+        {kpNote}
+        {sylDoc}
+        {sylKpStats}
+        bind:sylPublisher
+        bind:sylYear
+        bind:sylSource
+        bind:sylText
+        {sylPreviewRoots}
+        {sylError}
+        {sylNote}
+        {paperOpen}
+        bind:paperText
+        {paperPreview}
+        {paperBusy}
+        {paperNote}
+        {errataOpen}
+        {errataBusy}
+        {errataErrors}
+        {errataPlan}
+        {errataNote}
+        {batchMode}
+        {selectedIds}
+        {selectedCount}
+        {batchCardBusy}
+        bind:batchField
+        bind:batchValue
+        {batchBusy}
+        {batchPreview}
+        {batchUndoHere}
+        {appliedChanges}
+        {batchUndo}
+        {batchNote}
+        {health}
+        {answerDist}
+        {unreviewed}
+        {coverage}
+        bind:filterType
+        onsetFilterSource={(s) => { filterSource = s; }}
+        bind:activeClusterIndex
+        {mergeBusy}
+        {orphanDiag}
+        {filterOrphanKind}
+        {batchList}
+        {rollbackBusy}
+        onsearchKp={(kp) => setSearch(kp)}
+        onpreviewKpMerge={previewKpMerge}
+        onpreviewKpFill={previewKpFill}
+        onapplyKpPlan={(plan) => void applyKpPlan(plan)}
+        ondownloadSyllabusGaps={downloadSyllabusGaps}
+        onexportSyllabusAudit={exportSyllabusAudit}
+        onpreviewSyllabus={previewSyllabus}
+        onimportSyllabus={() => void importSyllabus()}
+        onapplyPaperRecall={() => void applyPaperRecall()}
+        onexportErrataTemplate={exportErrataTemplate}
+        onerrataFile={onErrataFile}
+        onapplyErrata={() => void applyErrata()}
+        onselectAllCurrentPage={selectAllCurrentPage}
+        onclearSelection={clearSelection}
+        onbatchConvertToCards={() => void batchConvertToCards()}
+        onprintSelectedQuestions={printSelectedQuestions}
+        onprintSelectedTeacherPaper={printSelectedTeacherPaper}
+        onprintSelectedHomeworkSheet={printSelectedHomeworkSheet}
+        onapplyBatch={(isUndo) => applyBatch(isUndo)}
+        onpreviewBatch={previewBatch}
+        ontoggleCluster={(idx) => toggleCluster(idx)}
+        onmergeClusterToTarget={(q, ids) => mergeClusterToTarget(q as Question & { blockId: string }, ids)}
+        ondrillOrphanKind={(k) => drillOrphanKind(k)}
+        ondownloadHealthCsv={downloadHealthCsv}
+        onundoBatch={(batch) => undoBatch(batch)}
+      />
+
       {#if questionsError}
         <div class="lv-error">{questionsError}</div>
       {:else if !questions.length}
@@ -8171,456 +7850,110 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             <div class="lv-qrow-stem" id={`lv-qrow-stem-${q.id}`}>{q.stem}</div>
           </div>
         {/each}
-        {#if activePeekQuestion}
-          {@const q = activePeekQuestion}
-          {@const status = getQuestionLifecycle(q)}
-          {@const links = app?.kernelOnline ? backlinkCache.get(q.blockId) : undefined}
-          <div class="lv-peek-backdrop" onclick={closePeekDrawer} role="presentation"></div>
-          <div bind:this={peekDrawerEl} class="lv-card lv-peek-drawer" aria-label={t("browse.detailTitle", "题目详情与操作")} role="dialog" aria-modal="true" tabindex="-1" onkeydown={onPeekDrawerKeydown}>
-            <div class="lv-peek-sheet-handle" aria-hidden="true"></div>
-            <header class="lv-peek-head">
-              <div class="lv-row" style="margin:0;gap:var(--lv-space-1);flex-wrap:wrap">
-                <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
-                {#if q.kp}<span class="lv-chip">{q.kp}</span>{/if}
-                {#if q.source}<span class="lv-muted lv-peek-src">{q.source}</span>{/if}
-                <span class="lv-chip sm" class:lv-chip--grn={status === "published"} class:lv-chip--amb={status === "draft"} class:lv-chip--acc={status === "review"} style={status === "deprecated" ? "opacity:0.6" : undefined} title={t("browse.lifecycle")}>
-                  {t("lifecycle." + status, LIFECYCLE_LABELS[status])}
-                </span>
-                {#if isQuestionDisputed(q)}
-                  <span class="lv-chip lv-chip--red sm" title={q.dispute?.note ?? ""}>
-                    ⚠️ {t("dispute.badge")} · {t("dispute.reason." + q.dispute?.reason)}
-                  </span>
-                {:else if q.dispute?.resolved}
-                  <span class="lv-chip lv-chip--grn sm" title={q.dispute.resolution ?? ""}>
-                    ✓ {t("dispute.resolved")}
-                  </span>
-                {/if}
-              </div>
-              <div class="lv-row" style="margin:0;gap:var(--lv-space-1)">
-                {#if currentPeekIndex >= 0}
-                  <span class="lv-chip num lv-peek-counter" title={t("browse.peekCounter", "当前位置")}>
-                    {currentPeekIndex + 1} / {shownQuestions.length}
-                  </span>
-                  <button class="lv-btn sm lv-btn--ghost" title={t("browse.prevQuestion", "上一题 (↑/k)")} aria-label={t("browse.prevQuestion", "上一题")} disabled={!hasPrevPeek} onclick={prevPeekQuestion}>
-                    ‹
-                  </button>
-                  <button class="lv-btn sm lv-btn--ghost" title={t("browse.nextQuestion", "下一题 (↓/j)")} aria-label={t("browse.nextQuestion", "下一题")} disabled={!hasNextPeek} onclick={nextPeekQuestion}>
-                    ›
-                  </button>
-                {/if}
-                <button class="lv-btn sm lv-btn--ghost" class:lv-chip--amb={!!q.fav} title={`${t("session.kbdFav")} (E)`} aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} disabled={favBusy} onclick={() => void toggleFavQuestion(q)}>
-                  <Icon name="star" size={13} />
-                </button>
-                  <button class="lv-btn sm lv-btn--ghost" title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦" : t("browse.openDoc")} aria-label={t("browse.openDoc")} onclick={() => openInSiYuan(q.rootId, q.blockId)} disabled={!q.rootId && !q.blockId}>
-                    <Icon name="pin" size={13} />
-                  </button>
-                <button class="lv-btn sm lv-btn--ghost lv-peek-close" title={t("dialog.close", "关闭")} aria-label={t("dialog.close", "关闭")} onclick={closePeekDrawer}>
-                  ✕
-                </button>
-              </div>
-            </header>
-            <div class="lv-peek-body">
-              <div class="lv-peek-stem">{q.stem}</div>
-              {#if q.studyMeta?.phonetic}
-                <div class="lv-phonetic-badge" style="margin:6px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
-                  <Icon name="volume" size={12} />
-                  <span>注音 / 粤拼：{q.studyMeta.phonetic}</span>
-                  <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 4px;font-size:11px" onclick={() => ttsSpeak([q.stem, ...q.options].join(" "), q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1)} title="听发音朗读">▶ 听发音</button>
-                </div>
-              {/if}
-              <div class="lv-detail">
-                {#if editingId === q.id && editDraft}
-                  <!-- 43-01 lite：题干/选项/答案/解析/考点/难度 内联编辑（updateBlock 整块重写 + exam-id 读回核验） -->
-                  <div class="lv-row" style="margin:2px 0"><b>{t("edit.title")}</b><span class="lv-chip">{t("qtype." + q.type)}</span></div>
-                  <textarea class="lv-input lv-textarea" rows="3" bind:value={editDraft.stem} placeholder={t("manual.stemPlaceholder")}></textarea>
-                  {#if editDraft.options.length}
-                    {#each editDraft.options as _o, oi (oi)}
-                      <div class="lv-row" style="margin:4px 0">
-                        <span class="lv-chip">{String.fromCharCode(65 + oi)}</span>
-                        <input class="lv-input" bind:value={editDraft.options[oi]} />
-                    <button class="lv-btn sm lv-btn--ghost" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} onclick={() => { const next = removeChoiceOption(q.type, editDraft!.options, editDraft!.answer, oi); editDraft = { ...editDraft!, ...next }; }}>✕</button>
-                      </div>
-                    {/each}
-                  {/if}
-                  {#if q.type === "single" || q.type === "multiple"}
-                    <button class="lv-btn sm lv-btn--ghost" onclick={() => { editDraft!.options.push(""); editDraft = { ...editDraft! }; }}>+ {t("manual.addOption")}</button>
-                  {/if}
-                  <div class="lv-row" style="margin:6px 0">
-                    <label class="lv-muted" for="lv-edit-answer">{t("browse.answer")}</label>
-                    <input id="lv-edit-answer" class="lv-input" style="max-width:180px" bind:value={editDraft.answer} placeholder={q.type === "judge" ? "对/错" : q.type === "multiple" ? "AB/ABC" : ""} />
-                    <label class="lv-muted" for="lv-edit-kp">{t("manual.kp")}</label>
-                    <input id="lv-edit-kp" class="lv-input" style="max-width:180px" bind:value={editDraft.kp} />
-                    <label class="lv-muted" for="lv-edit-diff">{t("batch.field.difficulty")}</label>
-                    <select id="lv-edit-diff" class="lv-select" bind:value={editDraft.difficulty}>
-                      <option value="">—</option>
-                      {#each [1, 2, 3, 4, 5] as d, _i (_i)}<option value={String(d)}>{d}</option>{/each}
-                    </select>
-                    <label class="lv-muted" for="lv-edit-status">{t("browse.lifecycle")}</label>
-                    <select id="lv-edit-status" class="lv-select" bind:value={editDraft.status}>
-                      <option value="published">{t("lifecycle.published")}</option>
-                      <option value="review">{t("lifecycle.review")}</option>
-                      <option value="draft">{t("lifecycle.draft")}</option>
-                      <option value="deprecated">{t("lifecycle.deprecated")}</option>
-                    </select>
-                  </div>
-                  {#if q.type === "fill"}
-                    <!-- 54-02：编辑表单的判分规格区（打开时自现有 spec 读入；留空=清除回自动识别） -->
-                    <div class="lv-row" style="margin:6px 0 4px">
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => (editSpecOpen = !editSpecOpen)}>
-                        ⚙ {t("spec.authorSection")}{#if editSpecOpen} ▾{/if}
-                      </button>
-                    </div>
-                    {#if editSpecOpen}
-                      <div class="lv-row" style="margin:4px 0 0;align-items:flex-end">
-                        <label class="lv-field" style="max-width:140px"><span class="lv-muted">{t("spec.unit")}</span>
-                          <input class="lv-input" bind:value={editSpecUnit} placeholder="m/s" />
-                        </label>
-                        <label class="lv-field" style="max-width:130px"><span class="lv-muted">{t("spec.absTol")}</span>
-                          <input class="lv-input num" bind:value={editSpecAbsTol} placeholder="0.5" inputmode="decimal" />
-                        </label>
-                        <label class="lv-field" style="max-width:130px"><span class="lv-muted">{t("spec.relPct")}</span>
-                          <input class="lv-input num" bind:value={editSpecRelPct} placeholder="5" inputmode="decimal" />
-                        </label>
-                        <label class="lv-field" style="flex:1;min-width:160px"><span class="lv-muted">{t("spec.altUnits")}</span>
-                          <input class="lv-input" bind:value={editSpecAltUnits} placeholder="km/h, cm/s" />
-                        </label>
-                      </div>
-                    {/if}
-                  {/if}
-                  <textarea class="lv-input lv-textarea" rows="2" bind:value={editDraft.analysis} placeholder={t("manual.analysis")}></textarea>
-                  {#if editError}<div class="lv-error">{editError}</div>{/if}
-                  <div class="lv-row">
-                    <button class="lv-btn lv-btn--primary sm" disabled={editBusy || offline} onclick={() => void saveEdit(q)}>
-                      {editBusy ? "…" : t("edit.save")}
-                    </button>
-                    <button class="lv-btn sm lv-btn--ghost" onclick={closeEditForm}>{t("edit.cancel")}</button>
-                    {#if offline}<span class="lv-chip lv-chip--amb">{t("state.offlineHint")}</span>{/if}
-                  </div>
-                {:else}
-                  {@const st = app.derived().byQuestion.get(q.id)}
-                  {@const wr = app.derived().wrongbook.get(q.id)}
-                  <div class="lv-row" style="margin:8px 0 6px;align-items:center;justify-content:space-between">
-                    <button class="lv-chip" class:acc={!peekHideAnswer} onclick={() => peekHideAnswer = !peekHideAnswer}>
-                      <Icon name={peekHideAnswer ? "eyeoff" : "eye"} size={12} /> {peekHideAnswer ? t("browse.showAnswer") : t("browse.hideAnswer")}
-                    </button>
-                    {#if peekHideAnswer}
-                      <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">已开启遮挡自测，点击上方按钮揭晓</span>
-                    {/if}
-                  </div>
-                  {#if !peekHideAnswer}
-                    <div class="lv-muted lv-peek-answer-box" style="animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out)">
-                      <b>{t("browse.answer")}:</b> <strong class="num" style="color:var(--lv-accent)">{q.answer}</strong>{#if q.analysis} · {q.analysis}{/if}
-                    </div>
-                  {/if}
-                  {#if st && st.attempts}
-                    {@const stubborn = wr ? isStubbornWrong(wr) : false}
-                    {@const isArchived = app?.isWrongArchived(q.id)}
-                    <!-- 43-02 lite：题目使用分析（作答次数/正确率/最近作答/错次） -->
-                    <div class="lv-row" style="margin:6px 0 2px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-                      <div class="lv-muted num" role="status">
-                        <Icon name="chart" size={11} /> {t("browse.usage").replace("{a}", String(st.attempts)).replace("{c}", String(Math.round((st.correct / st.attempts) * 100)))}{#if wr} · {t("browse.wrongCount").replace("{n}", String(wr.wrongCount))}{/if} · {new Date(st.lastAt).toLocaleDateString()}
-                        {#if stubborn}
-                          <span class="lv-chip lv-chip--amb sm" style="margin-left:6px" title={wr ? getStubbornRemediation(wr).reasonText : ""}>
-                            🔥 {t("wrongbook.stubbornBadge")}
-                          </span>
-                        {/if}
-                        {#if isArchived}
-                          <span class="lv-chip sm" style="margin-left:6px">{t("wrongbook.tabArchived")}</span>
-                        {/if}
-                      </div>
-                      <div class="lv-row" style="margin:0;gap:4px">
-                        {#if stubborn && !isArchived}
-                          <button class="lv-btn sm lv-btn--ghost" onclick={() => void snoozeWrong(q.id, 7)} title={t("wrongbook.snooze7")}>
-                            <Icon name="clock" size={11} /> {t("wrongbook.snooze7")}
-                          </button>
-                          <button class="lv-btn sm lv-btn--ghost" onclick={() => void archiveWrong(q.id)} title={t("wrongbook.archiveTip")}>
-                            <Icon name="folder" size={11} /> {t("wrongbook.archive")}
-                          </button>
-                        {:else if isArchived}
-                          <button class="lv-btn sm lv-btn--ghost" onclick={() => void unarchiveWrong(q.id)} title={t("wrongbook.unarchive")}>
-                            <Icon name="rotate" size={11} /> {t("wrongbook.unarchive")}
-                          </button>
-                        {/if}
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => toggleItemAnalysis(q)} title={t("browse.itemAnalysis")}>
-                          <Icon name="chart" size={12} /> {t("browse.itemAnalysis")}
-                        </button>
-                      </div>
-                    </div>
-                    {#if itemAnalysisOpenFor === q.id && itemAnalysisReport}
-                      <!-- 43-02 全量：选项选择率分布、有效/零命中干扰项与低样本提示 -->
-                      <div class="lv-detail" style="margin:4px 0 8px;padding:8px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-1);border:1px solid var(--lv-border-subtle)">
-                        <div class="lv-row" style="justify-content:space-between;align-items:center">
-                          <b>{t("browse.itemAnalysis")}</b>
-                          <button class="lv-btn sm lv-btn--ghost" onclick={() => downloadItemAnalysisCsv(itemAnalysisReport!)}>
-                            ⬇️ {t("browse.exportItemAnalysis")}
-                          </button>
-                        </div>
-                        {#if itemAnalysisReport.isLowSample}
-                          <div class="lv-chip lv-chip--amb sm" style="margin:4px 0" role="status">
-                            ⚠️ {t("browse.lowSample")}
-                          </div>
-                        {/if}
-                        <div class="lv-row num" style="margin:4px 0;gap:8px;font-size:var(--lv-font-size-caption)">
-                          <span>{t("browse.avgTime")}: {(itemAnalysisReport.avgTimeMs / 1000).toFixed(1)}s</span>
-                          <span>{t("browse.skipRate")}: {itemAnalysisReport.skipRate}%</span>
-                        </div>
-                        {#if itemAnalysisReport.options.length}
-                          <div class="lv-col" style="gap:4px;margin-top:6px">
-                            <div class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("browse.optionDist")}:</div>
-                            {#each itemAnalysisReport.options as opt (opt.letter)}
-                              <div class="lv-row" style="margin:2px 0;align-items:center;gap:6px;font-size:var(--lv-font-size-caption)">
-                                <span class="lv-chip sm" class:lv-chip--grn={opt.isCorrect} class:lv-chip--acc={!opt.isCorrect}>
-                                  {opt.letter}
-                                </span>
-                                <div style="flex:1;min-width:80px;height:6px;background:var(--lv-surface-3);border-radius:3px;overflow:hidden">
-                                  <div style="height:100%;width:{opt.pct}%;background:{opt.isCorrect ? 'var(--lv-green)' : 'var(--lv-accent)'}"></div>
-                                </div>
-                                <span class="num lv-muted" style="min-width:38px">{opt.pct}%</span>
-                                <span class="num lv-muted">({opt.count})</span>
-                                {#if opt.isDeadDistractor}
-                                  <span class="lv-chip lv-chip--amb sm" title={t("browse.deadDistractor")}>0%</span>
-                                {/if}
-                              </div>
-                            {/each}
-                          </div>
-                        {/if}
-                      </div>
-                    {/if}
-                  <div class="lv-row" style="margin:4px 0 0">
-                    <button class="lv-btn sm lv-btn--ghost" aria-expanded={revOpenFor === q.id} aria-busy={revLoadingFor === q.id || revRestoreKey.startsWith(`${q.id}#`)} disabled={!!revLoadingFor || !!revRestoreKey} onclick={() => void toggleRevisions(q.id)}><Icon name="pencil" size={12} /> {revLoadingFor === q.id ? t("rev.loading") : t("rev.drill")}{#if revOpenFor === q.id && revLoaded[q.id] !== undefined}（<span class="num">{revList(q.id).length}</span>）{/if}</button>
-                  </div>
-                  {#if revOpenFor === q.id}
-                    <div class="lv-row" style="flex-direction:column;align-items:stretch;gap:var(--lv-space-1);margin:4px 0 0">
-                      {#if revLoadingFor === q.id}
-                        <span class="lv-muted" role="status" aria-live="polite">{t("rev.loading")}</span>
-                      {:else if revLoadError[q.id]}
-                        <div class="lv-error" role="alert" style="overflow-wrap:anywhere">{t("rev.loadFailed").replace("{message}", revLoadError[q.id])}</div>
-                        <button class="lv-btn sm" disabled={!!revLoadingFor} onclick={() => void loadRevisions(q.id)}>{t("rev.retry")}</button>
-                      {:else}
-                        {#each revList(q.id) as r (r.ts)}
-                          <div class="lv-error-row" style="white-space:normal;flex-wrap:wrap;gap:4px 6px;align-items:center">
-                            <b class="num">{new Date(r.ts).toLocaleString()}</b>
-                            {#if r.changedFields?.length}
-                              {#each r.changedFields as f (f)}
-                                <span class="lv-chip lv-chip--acc sm">
-                                  {f === "stem" ? t("rev.fieldStem") : f === "options" ? t("rev.fieldOptions") : f === "answer" ? t("rev.fieldAnswer") : f === "analysis" ? t("rev.fieldAnalysis") : f === "kp" ? t("rev.fieldKp") : f === "difficulty" ? t("rev.fieldDifficulty") : t("rev.specChanged")}
-                                </span>
-                              {/each}
-                            {/if}
-                            <span class="lv-muted num">{t("browse.answer")}: <b>{r.answer}</b></span>
-                            {#if r.kp}<span class="lv-muted"> · {r.kp}</span>{/if}
-                            {#if r.summary}<span class="lv-muted" style="font-size:var(--lv-font-size-caption);width:100%" title={r.summary}>📝 {r.summary}</span>{/if}
-                            {#if revRestoreFailedKey === `${q.id}#${r.ts}`}<span class="lv-error" role="alert">{t("rev.restoreFailed").replace("{message}", revRestoreError[q.id])}</span><button class="lv-btn sm" disabled={!!revRestoreKey} onclick={() => void restoreRevision(q, r)}>{t("rev.retry")}</button>{/if}
-                            <button class="lv-btn sm lv-btn--ghost" style="margin-left:auto" disabled={!!revRestoreKey} aria-busy={revRestoreKey === `${q.id}#${r.ts}`} onclick={() => void restoreRevision(q, r)}>{revRestoreKey === `${q.id}#${r.ts}` ? "…" : t("rev.restore")}</button>
-                          </div>
-                        {:else}
-                          <span class="lv-muted num">{t("rev.empty")}</span>
-                        {/each}
-                      {/if}
-                    </div>
-                  {/if}
-                  {/if}
-                  <div class="lv-row" style="flex-wrap:wrap;gap:var(--lv-space-1)">
-                    <button class="lv-btn sm lv-btn--primary" onclick={() => void drillSingleQuestion(q)} title={t("browse.drillSingleTip")}><Icon name="play" size={13} /> {t("browse.drillSingle")}</button>
-                    <button class="lv-btn sm" onclick={() => openEditForm(q)}>✎ {t("edit.open")}</button>
-                    <button class="lv-btn sm lv-btn--ghost" onclick={() => cloneToManualStudio(q)} title="基于此题克隆为变式题并进入手工录题台"><Icon name="layers" size={13} /> 衍生变式题</button>
-                    <button class="lv-btn sm lv-btn--ghost" class:acc-btn={isQuestionDisputed(q)} onclick={() => toggleDisputeForm(q)}>
-                      <Icon name="alert-triangle" size={13} /> {isQuestionDisputed(q) ? t("dispute.resolveAction") : t("dispute.flagAction")}
-                    </button>
-                    {#if status === "draft" || status === "review"}
-                      <button class="lv-btn sm lv-btn--primary" disabled={peekLifecycleBusy || offline} aria-busy={peekLifecycleBusy} onclick={() => void changePeekLifecycle(q, "published")}>
-                        <Icon name="check" size={12} /> {t("lifecycle.publishNow")}
-                      </button>
-                    {:else if status === "published"}
-                      <button class="lv-btn sm lv-btn--ghost" disabled={peekLifecycleBusy || offline} aria-busy={peekLifecycleBusy} onclick={() => void changePeekLifecycle(q, "review")}>
-                        {t("lifecycle.toReview")}
-                      </button>
-                      <button class="lv-btn sm lv-btn--ghost" disabled={peekLifecycleBusy || offline} aria-busy={peekLifecycleBusy} onclick={() => void changePeekLifecycle(q, "deprecated")}>
-                        {t("lifecycle.deprecateNow")}
-                      </button>
-                    {:else if status === "deprecated"}
-                      <button class="lv-btn sm lv-btn--ghost" disabled={peekLifecycleBusy || offline} aria-busy={peekLifecycleBusy} onclick={() => void changePeekLifecycle(q, "draft")}>
-                        {t("lifecycle.toDraft")}
-                      </button>
-                    {/if}
-                    <button class="lv-btn sm" onclick={() => openInSiYuan(q.rootId, q.blockId)} disabled={!q.rootId && !q.blockId} title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦" : t("browse.openDoc")}><Icon name="pin" size={13} /> {t("browse.openDoc")}</button>
-                    <button class="lv-btn sm" onclick={() => void loadBacklinks(q.blockId)} disabled={!app.kernelOnline || !!backlinkBusyFor} aria-busy={backlinkBusyFor === q.blockId} title={!app.kernelOnline ? t("state.offlineHint") : t("browse.backlinks")}><Icon name="link" size={13} /> {backlinkBusyFor === q.blockId ? t("browse.backlinkLoading") : t("browse.backlinks")}</button>
-                    {#if links}
-                      {#if links.length === 0}<span class="lv-muted">{t("browse.noBacklinks")}</span>
-                      {:else}{#each links as l, _i (_i)}<span class="lv-chip" title={l.content}><Icon name="paperclip" size={11} /> {l.title}</span>{/each}{/if}
-                    {/if}
-                  </div>
-                  {#if disputeFormOpenFor === q.id}
-                    <!-- 57-04：争议标记与解决处置单面板 -->
-                    <div class="lv-detail" style="margin:6px 0;background:var(--lv-surface-2);border-radius:var(--lv-r-1);padding:10px 12px;border:1px solid var(--lv-border-subtle)">
-                      <div class="lv-row" style="margin:0 0 6px;align-items:center;justify-content:space-between">
-                        <b style="font-size:var(--lv-font-size-sm)">
-                          <Icon name="alert-triangle" size={13} /> {isQuestionDisputed(q) ? t("dispute.resolveAction") : t("dispute.flagAction")}
-                        </b>
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => toggleDisputeForm(q)}>✕</button>
-                      </div>
-                      {#if isQuestionDisputed(q)}
-                        <div class="lv-muted" style="margin:4px 0 8px;font-size:var(--lv-font-size-caption)">
-                          <b>{t("dispute.reason." + q.dispute?.reason)}</b> · {new Date(q.dispute?.at ?? Date.now()).toLocaleDateString()}: {q.dispute?.note}
-                        </div>
-                        <input class="lv-input" style="width:100%;margin:4px 0" bind:value={disputeResolution} placeholder={t("dispute.resolutionPlaceholder")} disabled={disputeBusy} />
-                        <div class="lv-row" style="margin-top:6px;gap:6px">
-                          <button class="lv-btn lv-btn--primary sm" disabled={disputeBusy || !disputeResolution.trim()} onclick={() => void submitResolveDispute(q)}>
-                            {disputeBusy ? "…" : t("dispute.resolveBtn")}
-                          </button>
-                          <button class="lv-btn sm lv-btn--ghost" disabled={disputeBusy} onclick={() => void submitClearDispute(q)}>
-                            {t("dispute.clearBtn")}
-                          </button>
-                        </div>
-                      {:else}
-                        <div class="lv-row" style="margin:4px 0 6px;gap:8px">
-                          <select class="lv-select" bind:value={disputeReason} disabled={disputeBusy}>
-                            <option value="wrong_answer">{t("dispute.reason.wrong_answer")}</option>
-                            <option value="multi_answer">{t("dispute.reason.multi_answer")}</option>
-                            <option value="missing_condition">{t("dispute.reason.missing_condition")}</option>
-                            <option value="expired_data">{t("dispute.reason.expired_data")}</option>
-                            <option value="other">{t("dispute.reason.other")}</option>
-                          </select>
-                        </div>
-                        <textarea class="lv-input lv-textarea" rows="2" bind:value={disputeNote} placeholder={t("dispute.notePlaceholder")} disabled={disputeBusy}></textarea>
-                        <div class="lv-row" style="margin-top:6px;gap:6px">
-                          <button class="lv-btn lv-btn--primary sm" disabled={disputeBusy || !disputeNote.trim()} onclick={() => void submitFlagDispute(q)}>
-                            {disputeBusy ? "…" : t("dispute.flagBtn")}
-                          </button>
-                          <button class="lv-btn sm lv-btn--ghost" disabled={disputeBusy} onclick={() => toggleDisputeForm(q)}>
-                            {t("edit.cancel")}
-                          </button>
-                        </div>
-                      {/if}
-                      {#if disputeError}<div class="lv-error" role="alert" style="margin-top:4px">{disputeError}</div>{/if}
-                    </div>
-                  {/if}
-                  {#if peekLifecycleError[q.id]}
-                    <div class="lv-error" role="alert" style="margin:4px 0;overflow-wrap:anywhere">{peekLifecycleError[q.id]}</div>
-                  {/if}
-                  {#if backlinkError[q.blockId]}<div class="lv-error" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-relaxed);overflow-wrap:anywhere"><span>{backlinkError[q.blockId]}</span><button class="lv-btn sm" disabled={!!backlinkBusyFor || !app.kernelOnline} onclick={() => void loadBacklinks(q.blockId)}>{t("rev.retry")}</button></div>{/if}
-                  {#if qrefView[q.id]}
-                    <!-- 120-05 lite：题目↔资料关联（回 PDF 页/视频时间点） -->
-                    <div class="lv-row lv-qref-bar" style="font-size:var(--lv-font-size-caption);padding:6px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-1);margin:6px 0;align-items:center;border:1px solid var(--lv-border-subtle)">
-                      <span class="lv-chip"><Icon name="file-text" size={11} /> {qrefView[q.id]!.title}{#if qrefView[q.id]!.label} · {qrefView[q.id]!.label}{/if}</span>
-                      {#if qrefView[q.id]!.stale}<span class="lv-chip lv-chip--amb" title={t("materials.relocateTip")}>{t("materials.relocate")}</span>{/if}
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => openQref(q.id)}>↗ {t("materials.openAt")}</button>
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => startQrefForm(q.id)}><Icon name="link" size={13} /> {t("qref.relink")}</button>
-                      <button class="lv-btn sm lv-btn--ghost" aria-label={t("qref.unlink")} title={t("qref.unlink")} disabled={qrefBusyFor === q.id} aria-busy={qrefBusyFor === q.id} onclick={() => void removeQref(q.id)}>{qrefBusyFor === q.id ? "…" : "✕"}</button>
-                    </div>
-                    {#if qrefActionError[q.id]}<div class="lv-error" role="alert" style="overflow-wrap:anywhere">{qrefActionError[q.id]}</div>{/if}
-                  {:else}
-                    <div class="lv-row" style="font-size:var(--lv-font-size-caption)">
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => startQrefForm(q.id)}><Icon name="link" size={13} /> {t("qref.link")}</button>
-                    </div>
-                  {/if}
-                  {#if qrefFormFor === q.id}
-                    <div class="lv-detail" style="margin:4px 0">
-                      <div class="lv-row" style="flex-wrap:wrap">
-                        <select class="lv-select" bind:value={qrefMatId}>
-                          <option value="">{t("qref.pickMaterial")}</option>
-                          {#each app.listMaterials() as m (m.id)}<option value={m.id}>{m.title}</option>{/each}
-                        </select>
-                        <input class="lv-input" style="max-width:90px" placeholder={t("materials.page")} bind:value={qrefPage} />
-                        <input class="lv-input" style="max-width:110px" placeholder="mm:ss" bind:value={qrefTime} />
-                        <button class="lv-btn lv-btn--primary sm" onclick={() => void saveQref(q.id)} disabled={!qrefMatId || !!qrefBusyFor} aria-busy={qrefBusyFor === q.id}>{qrefBusyFor === q.id ? "…" : t("qref.save")}</button>
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => (qrefFormFor = "")}>{t("edit.cancel")}</button>
-                      </div>
-                      {#if qrefError}<div class="lv-error" role="alert">{qrefError}</div>{/if}
-                    </div>
-                  {/if}
-                  {#if st && st.attempts}
-                    <!-- U14 lite：作答回执下钻（显示当时作答/判定/信心/受助/先回忆/用时；错题回执可接 AI 错因假设） -->
-                    <div class="lv-row" style="font-size:var(--lv-font-size-caption)">
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => toggleReceipts(q.id)}>
-                        <Icon name="table" size={13} /> {t("receipt.title")}（<span class="num">{st.attempts}</span>）
-                      </button>
-                    </div>
-                    {#if receiptOpenFor === q.id}
-                      <div class="lv-detail" style="margin:4px 0">
-                        {#if receiptStored}
-                          <!-- U14：上次 AI 假设（独立存储层回显，与用户复盘分层） -->
-                          <div class="lv-row" style="flex-wrap:wrap;margin:3px 0;gap:var(--lv-space-1);font-size:var(--lv-font-size-caption)">
-                            <span class="lv-chip"><Icon name="flask" size={11} /> {t("receipt.lastHypothesis")} · {new Date(receiptStored.at).toLocaleDateString()}</span>
-                            {#if receiptStored.adoptedAt}<span class="lv-chip lv-chip--grn">{t("receipt.adopted")}</span>{/if}
-                          </div>
-                          <div class="lv-muted" style="font-size:var(--lv-font-size-caption);white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 6px">{receiptStored.text}</div>
-                        {/if}
-                        {#each receiptCache as e (e.seq)}
-                          {@const rkey = `${e.qid}#${e.seq}`}
-                          {@const drifted = isAttemptVersionDrifted(e, q)}
-                          <div class="lv-row" style="flex-wrap:wrap;font-size:var(--lv-font-size-caption);margin:3px 0;gap:var(--lv-space-1)">
-                            <span class="lv-chip num">{new Date(e.ts).toLocaleString()}</span>
-                            <span class="lv-chip">{e.verdict === "correct" ? "✓" : e.verdict === "wrong" ? "✕" : "—"}</span>
-                            {#if e.myAnswer}<span class="lv-chip num">{t("session.myAnswer")}: {e.myAnswer}</span>{/if}
-                            {#if drifted}
-                              <span class="lv-chip lv-chip--amb sm" title={t("receipt.driftTip")}>
-                                ✏️ {t("receipt.drift")}{#if e.qVersion?.answer}（{t("receipt.origAnswer")}: {e.qVersion.answer}）{/if}
-                              </span>
-                            {/if}
-                            {#if e.confidence}<span class="lv-chip">{t("confidence." + e.confidence)}</span>{/if}
-                            {#if e.help}<span class="lv-chip lv-chip--amb"><Icon name="bulb" size={11} /> {t("receipt.help")}</span>{/if}
-                            {#if e.recall}<span class="lv-chip"><Icon name="eyeoff" size={11} /> {t("receipt.recall")}</span>{/if}
-                            {#if e.timeMs}<span class="lv-chip num">{Math.round(e.timeMs / 1000)}s</span>{/if}
-                            {#if e.verdict === "wrong"}
-                              <button class="lv-btn sm lv-btn--ghost" disabled={receiptBusy === rkey}
-                                onclick={() => void runReceiptMisdiagnosis(q, e)}><Icon name="flask" size={13} /> {receiptBusy === rkey ? "…" : t("misdiagnosis.ask")}</button>
-                            {/if}
-                            {#if receiptMisdiagnosis[rkey]}
-                              <div class="lv-detail" style="width:100%;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">{receiptMisdiagnosis[rkey]}</div>
-                            {/if}
-                          </div>
-                        {/each}
-                      </div>
-                    {/if}
-                  {/if}
-                  {#if flashError[q.id]}<div class="lv-error">{flashError[q.id]}</div>{/if}
-                  <div class="lv-row" style="font-size:var(--lv-font-size-caption)">
-                    <button class="lv-btn sm lv-btn--ghost" disabled={flashBusy === q.id} onclick={() => void makeFlashCandidates(q)}>
-                      <Icon name="layers" size={13} /> {flashBusy === q.id ? "…" : t("flash.ask")}
-                    </button>
-                    {#if flashCandidates[q.id]?.cards?.length}
-                      <span class="lv-chip num" title={flashCandidates[q.id]!.splitReason ?? ""}>{summarizeLoad(flashCandidates[q.id]!.cards)}</span>
-                    {/if}
-                  </div>
-                  {#if flashCandidates[q.id]?.cards?.length}
-                    <!-- 116-03 T10：先展示卡数/负荷/来源；确认后才建卡（ riff 卡包） -->
-                    <div class="lv-detail" style="margin:4px 0">
-                      {#each flashCandidates[q.id]!.cards as c, _ci (_ci)}
-                        <div class="lv-row" style="font-size:var(--lv-font-size-caption);margin:2px 0;align-items:flex-start;gap:var(--lv-space-1)">
-                          <span class="lv-chip">{t("flash.type." + c.type)}</span>
-                          <div style="flex:1;min-width:200px;overflow-wrap:anywhere">
-                            <b>{c.front}</b>
-                            <div class="lv-muted">→ {c.back}</div>
-                          </div>
-                          <span class="lv-chip num">{c.source}</span>
-                        </div>
-                      {/each}
-                      <div class="lv-row">
-                        <button class="lv-btn lv-btn--primary sm" disabled={flashBusy === q.id} onclick={() => void confirmFlashCards(q)}>
-                          {t("flash.confirm").replace("{n}", String(flashCandidates[q.id]!.cards.length))}
-                        </button>
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => { flashCandidates = { ...flashCandidates, [q.id]: { cards: [] } }; }}>{t("edit.cancel")}</button>
-                      </div>
-                    </div>
-                  {/if}
-                {/if}
-              </div>
-            </div>
-            <footer class="lv-peek-footer">
-              <button class="lv-btn lv-btn--primary sm" onclick={() => void startSingleById(q.id)}>
-                ▶ {t("browse.practiceOne", "只练这道题")}
-              </button>
-              {#if editingId !== q.id}
-                <button class="lv-btn sm" onclick={() => openEditForm(q)}>
-                  ✎ {t("edit.open", "编辑题目")}
-                </button>
-              {/if}
-              <button class="lv-btn sm lv-btn--ghost" onclick={closePeekDrawer}>
-                {t("dialog.close", "关闭")}
-              </button>
-            </footer>
-          </div>
+        {#if activePeekQuestion && activePeekQuestion.blockId}
+          <QuestionPeekDrawer
+            q={activePeekQuestion as Question & { blockId: string }}
+            bind:drawerEl={peekDrawerEl}
+            status={getQuestionLifecycle(activePeekQuestion)}
+            links={app?.kernelOnline ? backlinkCache.get(activePeekQuestion.blockId) : undefined}
+            {currentPeekIndex}
+            shownQuestionsCount={shownQuestions.length}
+            {hasPrevPeek}
+            {hasNextPeek}
+            {favBusy}
+            {editingId}
+            bind:editDraft
+            bind:editSpecOpen
+            bind:editSpecUnit
+            bind:editSpecAbsTol
+            bind:editSpecRelPct
+            bind:editSpecAltUnits
+            {editBusy}
+            {offline}
+            {editError}
+            {peekHideAnswer}
+            {app}
+            {itemAnalysisOpenFor}
+            {itemAnalysisReport}
+            {revOpenFor}
+            {revLoadingFor}
+            {revRestoreKey}
+            {revRestoreFailedKey}
+            {revLoaded}
+            {revLoadError}
+            {revRestoreError}
+            {revList}
+            {disputeFormOpenFor}
+            bind:disputeReason
+            bind:disputeNote
+            bind:disputeResolution
+            {disputeBusy}
+            {disputeError}
+            {peekLifecycleBusy}
+            {peekLifecycleError}
+            {backlinkBusyFor}
+            {backlinkError}
+            {qrefView}
+            {qrefActionError}
+            {qrefBusyFor}
+            bind:qrefFormFor
+            bind:qrefMatId
+            bind:qrefPage
+            bind:qrefTime
+            {qrefError}
+            {receiptOpenFor}
+            {receiptStored}
+            {receiptCache}
+            {receiptBusy}
+            {receiptMisdiagnosis}
+            {flashError}
+            {flashBusy}
+            bind:flashCandidates
+            {t}
+            {LIFECYCLE_LABELS}
+            {isQuestionDisputed}
+            {isStubbornWrong}
+            {getStubbornRemediation}
+            {isAttemptVersionDrifted}
+            {removeChoiceOption}
+            {summarizeLoad}
+            onclose={closePeekDrawer}
+            onkeydown={onPeekDrawerKeydown}
+            onprev={prevPeekQuestion}
+            onnext={nextPeekQuestion}
+            ontoggleFav={(q) => void toggleFavQuestion(q)}
+            onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+            onttsSpeak={(text, opt) => ttsSpeak(text, opt)}
+            onsaveEdit={(q) => void saveEdit(q)}
+            oncloseEdit={closeEditForm}
+            ontoggleHideAnswer={() => (peekHideAnswer = !peekHideAnswer)}
+            onsnoozeWrong={(qid, days) => void snoozeWrong(qid, days)}
+            onarchiveWrong={(qid) => void archiveWrong(qid)}
+            onunarchiveWrong={(qid) => void unarchiveWrong(qid)}
+            ontoggleItemAnalysis={(q) => toggleItemAnalysis(q)}
+            ondownloadItemAnalysisCsv={(rep) => downloadItemAnalysisCsv(rep)}
+            ontoggleRevisions={(qid) => void toggleRevisions(qid)}
+            onloadRevisions={(qid) => void loadRevisions(qid)}
+            onrestoreRevision={(q, r) => void restoreRevision(q, r)}
+            ondrillSingle={(q) => void drillSingleQuestion(q)}
+            onopenEditForm={(q) => openEditForm(q)}
+            oncloneToManualStudio={(q) => cloneToManualStudio(q)}
+            ontoggleDisputeForm={(q) => toggleDisputeForm(q)}
+            onchangeLifecycle={(q, st) => void changePeekLifecycle(q, st)}
+            onloadBacklinks={(bid) => void loadBacklinks(bid)}
+            onopenQref={(qid) => openQref(qid)}
+            onstartQrefForm={(qid) => startQrefForm(qid)}
+            onremoveQref={(qid) => void removeQref(qid)}
+            onsaveQref={(qid) => void saveQref(qid)}
+            ontoggleReceipts={(qid) => toggleReceipts(qid)}
+            onrunReceiptMisdiagnosis={(q, e) => void runReceiptMisdiagnosis(q, e)}
+            onmakeFlashCandidates={(q) => void makeFlashCandidates(q)}
+            onconfirmFlashCards={(q) => void confirmFlashCards(q)}
+            onstartSingleById={(qid) => void startSingleById(qid)}
+            onsubmitResolveDispute={(q) => void submitResolveDispute(q)}
+            onsubmitClearDispute={(q) => void submitClearDispute(q)}
+            onsubmitFlagDispute={(q) => void submitFlagDispute(q)}
+          />
         {/if}
         {#if hasMore}
           <button class="lv-btn" style="width:100%" onclick={() => (browseLimit += 200)}>
@@ -8734,33 +8067,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       </div>
     {/if}
     {#if view === "browse" && batchMode && selectedCount > 0}
-      <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:95;width:min(680px, calc(100vw - 32px));animation:lv-appear 0.2s var(--lv-ease-out)">
-        <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 22px);border:1px solid var(--lv-border);background:var(--lv-surface)">
-          <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-            <div class="lv-row" style="margin:0;gap:6px">
-              <span class="lv-chip lv-chip--acc num">已选 {selectedCount} 题</span>
-              <button class="lv-btn sm lv-btn--ghost" onclick={clearSelection}>清空选择</button>
-            </div>
-            <div class="lv-row" style="margin:0;gap:6px">
-              <button class="lv-btn sm lv-btn--primary" onclick={startFilteredFocusDrill} title="将勾选的这批题目发起专属特训">
-                <Icon name="play" size={13} /> 开始特训
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedQuestions} title="导出为 A4 双栏试卷">
-                <Icon name="file" size={13} /> 打印试卷
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedTeacherPaper} title="导出勾选题教师教案讲义">
-                <Icon name="book" size={13} /> 教师教案
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={printSelectedHomeworkSheet} title="导出勾选题课后作业单">
-                <Icon name="file-text" size={13} /> 作业单
-              </button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => void batchConvertToCards()} disabled={batchCardBusy || !app?.kernelOnline} title="批量制成闪卡">
-                <Icon name="layers" size={13} /> 推送闪卡
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <BrowseBatchActionBar
+        {selectedCount}
+        {batchCardBusy}
+        kernelOnline={!!app?.kernelOnline}
+        onclearSelection={clearSelection}
+        onstartFocusDrill={startFilteredFocusDrill}
+        onprintSelectedQuestions={printSelectedQuestions}
+        onprintTeacherPaper={printSelectedTeacherPaper}
+        onprintHomeworkSheet={printSelectedHomeworkSheet}
+        onbatchConvertToCards={() => void batchConvertToCards()}
+      />
     {/if}
     <SessionSheetModal
       open={sessionSheetOpen}
@@ -8855,7 +8172,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-center { display: flex; align-items: center; justify-content: center; min-height: 60%; }
   /* —— 视图切换（对齐原型 .subnav：文字 + 底部 2px 指示条，非按钮块） —— */
   .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) 22px; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-highlight, inset 0 1px 0 transparent); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-pad-card { margin: 8px 0; }
   .lv-guard { max-width: 460px; width: 100%; }
   .lv-guard--welcome { max-width: 760px; }
   .lv-guard-kicker { display: inline-flex; align-items: center; gap: 7px; color: var(--lv-accent); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-semibold); margin-bottom: 8px; }
@@ -8873,8 +8189,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-input:hover:not(:disabled) { border-color: var(--lv-border-hover, var(--lv-accent)); }
   .lv-input:focus { border-color: var(--lv-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv-accent) 18%, transparent), var(--lv-inset-subtle, inset 0 1px 0 transparent); outline: none; }
   .lv-textarea { width: 100%; min-height: 90px; resize: vertical; line-height: 1.8; padding: 12px; margin: 6px 0; }
-  /* .lv-btn/.lv-chip/.lv-select 外观基线上收 lv-base.scss（三 Tab 共用，暗色一致） */
-  .lv-btn--ghost.acc-btn { color: var(--lv-accent); background: var(--lv-accent-soft); border-color: transparent; }
   .lv-onboard-title { display: inline-flex; align-items: center; gap: var(--lv-space-2); }
   /* —— 首用引导三步卡（规范 v6 onboard-steps） —— */
   .lv-onboard { flex-direction: column; align-items: stretch; }
@@ -8973,7 +8287,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   .lv-answer-num { min-height: 48px; font-size: 16px; font-variant-numeric: tabular-nums; }
   .lv-answer-blank { min-height: 44px; margin-bottom: 10px; }
   .lv-analysis { border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-accent); background: var(--lv-surface-2); border-radius: var(--lv-r-2); padding: 14px 18px; font-size: var(--lv-font-size-body); color: var(--lv-text-2); margin-bottom: 12px; white-space: pre-wrap; box-shadow: var(--lv-sh-1); }
-  .lv-error-row { font-size: var(--lv-font-size-meta); color: var(--lv-red); padding: 4px 2px; border-bottom: 1px dashed var(--lv-border); }
   .lv-empty { border-radius: var(--lv-r-3); padding: 52px 24px; text-align: center; color: var(--lv-text-3); font-size: var(--lv-font-size-body); background: color-mix(in srgb, var(--lv-surface-2) 40%, var(--lv-surface)); border: 1.5px dashed var(--lv-border); }
   .lv-empty-icon { display: grid; place-items: center; width: 60px; height: 60px; margin: 0 auto; border-radius: 18px; background: var(--lv-accent-soft); color: var(--lv-accent); box-shadow: 0 4px 16px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
   .lv-empty b { display: block; font-size: 18px; font-weight: var(--lv-font-weight-bold); color: var(--lv-text); margin: 16px 0 8px; letter-spacing: -0.01em; }
@@ -9004,24 +8317,5 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   @container lv-exam (max-width: 480px) { .lv-modes { grid-template-columns: 1fr; } }
   /* —— R54 原型高级交互：题目浏览 Peek 抽屉 (Desktop 右侧抽屉 / Mobile 底部 Sheet) —— */
   .lv-qrow.active-peek { border-color: var(--lv-accent); border-left: 3.5px solid var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); box-shadow: 0 4px 16px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
-  .lv-peek-backdrop { position: fixed; inset: 0; background: var(--lv-overlay); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 120; animation: lv-fade-in var(--lv-dur-fast, 0.18s) ease-out; }
-  .lv-peek-sheet-handle { display: none; width: 36px; height: 4px; border-radius: 2px; background: var(--lv-border); margin: 8px auto 2px; }
-  .lv-peek-drawer { position: fixed; top: 14px; right: 16px; bottom: 14px; width: min(540px, calc(100vw - 32px)); max-width: 580px; z-index: 121; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-4, 22px); box-shadow: var(--lv-sh-pop), var(--lv-inset-card); display: flex; flex-direction: column; overflow: hidden; animation: lv-slide-left var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
-  .lv-peek-head { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); padding: 14px 18px; border-bottom: 1px solid var(--lv-border); background: var(--lv-surface-2); flex-shrink: 0; }
-  .lv-peek-src { font-size: var(--lv-font-size-caption); color: var(--lv-text-3); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lv-peek-head .lv-btn { min-width: 44px; min-height: 44px; }
-  .lv-peek-close { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 8px; font-size: 14px; }
-  .lv-peek-body { flex: 1; min-height: 0; padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-  .lv-peek-stem { font-size: 17px; font-weight: var(--lv-font-weight-semibold, 600); line-height: 1.6; color: var(--lv-text); overflow-wrap: anywhere; }
-  .lv-peek-footer { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--lv-border); background: var(--lv-surface-2); flex-shrink: 0; }
-  @keyframes lv-slide-left { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  @keyframes lv-slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  @keyframes lv-fade-in { from { opacity: 0; } to { opacity: 1; } }
-  @container lv-exam (max-width: 759px) {
-    .lv-peek-sheet-handle { display: block; }
-    .lv-peek-drawer { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 88vh; border-radius: var(--lv-r-card, 18px) var(--lv-r-card, 18px) 0 0; border-bottom: 0; padding-bottom: max(6px, env(safe-area-inset-bottom)); animation: lv-slide-up var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
-    .lv-peek-close { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
-    .lv-peek-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
-  }
-  @media (prefers-reduced-motion: reduce) { .lv-skeleton { animation: none; } .lv-mode, .lv-btn, .lv-opt, .lv-peek-drawer, .lv-peek-backdrop { transition: none; animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .lv-skeleton { animation: none; } .lv-mode, .lv-btn, .lv-opt { transition: none; animation: none; } }
 </style>

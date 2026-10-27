@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.12.2（2026-10-27）
+## 最新版本：v0.12.3（2026-10-27）
+
+本版本为深度批量解耦重构第三波发版：抽离题目浏览详情抽屉（QuestionPeekDrawer）、批量操作浮岛栏（BrowseBatchActionBar）与题库治理维护抽屉集（BrowseMaintenanceDrawers），主文件行数再降 700+ 行突破 8300 行区间！累计解耦逾 2300 行代码，全套单测 181 个测试文件、1411 项单测 100% 全部通过。
+
+## 上一版本：v0.12.2（2026-10-27）
 
 本版本为深度批量解耦重构持续突破发版：抽离批量导入、纸面背诵与错题本三大巨石子视图，主文件行数再次暴降 600+ 行至 9000 行区间！抽离 ImportStudioView、ReciteStudioView 与 WrongbookStudioView，累计解耦逾 1600 行代码。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
 
