@@ -16,7 +16,11 @@
 
 [English](README.en-US.md) · [当前状态](docs/STATUS.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [下载发行包](https://github.com/ai68298100/siyuan-exam/releases) · [查看 R54 UI 原型](design/prototype-r54/index.html) · [反馈问题](https://github.com/ai68298100/siyuan-exam/issues) · [参与讨论](https://github.com/ai68298100/siyuan-exam/discussions)
 
-## 最新版本：v0.11.96（2026-10-27）
+## 最新版本：v0.11.97（2026-10-27）
+
+本版本为听说跟读评测反馈胶囊组件（SpeechEvalCapsule）抽离解耦与背诵台发音评测闭环发版。解耦抽离独立的 SpeechEvalCapsule 听说发音评测反馈组件，消除做题台与背诵台重复模板；背诵模式全面补齐语音跟读评测交互闭环。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
+
+## 上一版本：v0.11.96（2026-10-27）
 
 本版本为演算草稿纸浮层（ScratchpadDrawer）解耦重构与思源超级块原位定位回跳增强发版。题目详情抽屉升级精准原位定位机制，通过思源原生块协议直跳至具体题目超级块并闪烁聚焦；解耦抽离独立的 ScratchpadDrawer 草稿纸浮层组件，代码结构更清晰。全套单测 181 个测试文件、1411 项单测 100% 全部通过。
 

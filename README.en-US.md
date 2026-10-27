@@ -23,20 +23,23 @@
 
 ---
 
-## 🌟 Latest Release: v0.11.96 (2026-10-27)
+## 🌟 Latest Release: v0.11.97 (2026-10-27)
 
-This release delivers the ScratchpadDrawer architecture decoupling and enhanced SiYuan block deep-link focusing.
+This release delivers the SpeechEvalCapsule architecture decoupling and closes the pronunciation evaluation loop in recitation mode.
 
-- **SiYuan Block Deep-Link Highlighting:**
-  - Upgraded question detail actions to jump directly to exact question blocks via `siyuan://blocks/` with flash-focus highlighting.
-- **ScratchpadDrawer Architecture Decoupling:**
-  - Extracted math scratchpad and formula sheets into `src/ui/practice/ScratchpadDrawer.svelte`, further improving codebase modularity.
+- **Recitation Mode Speech Evaluation:**
+  - Integrated real-time pronunciation feedback directly below the stem in paper recitation mode, enabling immediate alignment score inspection.
+- **SpeechEvalCapsule Architecture Decoupling:**
+  - Extracted pronunciation assessment feedback into `src/ui/practice/SpeechEvalCapsule.svelte`, eliminating redundant templates across practice and recitation.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.11.96 ScratchpadDrawer Decoupling & Block Deep-Link Highlighting:**
+  - Extracted `ScratchpadDrawer.svelte` and enabled `siyuan://blocks/` flash-focus navigation.
 
 - **v0.11.95 SessionSheetModal Decoupling & Mother-Question Provenance:**
   - Extracted `SessionSheetModal.svelte` and added bidirectional block provenance links for variations.

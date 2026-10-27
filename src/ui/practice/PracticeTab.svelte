@@ -68,6 +68,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import BankGalleryModal from "./BankGalleryModal.svelte";
     import SessionSheetModal from "./SessionSheetModal.svelte";
     import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
+    import SpeechEvalCapsule from "./SpeechEvalCapsule.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -7184,18 +7185,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
               </div>
             {/if}
             {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
-            {#if speechEvalResult}
-              <div class="lv-card" style="padding:8px 12px;background:var(--lv-surface-2);border-radius:6px;margin:6px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px">
-                <div style="font-size:12px;flex:1">
-                  <span>🎙️ 识别到：“<b>{speechEvalResult.transcript}</b>”</span>
-                  <span class="lv-chip num sm" class:lv-chip--grn={speechEvalResult.grade === "excellent"} class:lv-chip--amb={speechEvalResult.grade === "good"} class:lv-chip--red={speechEvalResult.grade === "practice"}>
-                    匹配度 {speechEvalResult.score}%
-                  </span>
-                  <span class="lv-muted" style="margin-left:6px">{speechEvalResult.feedback}</span>
-                </div>
-                <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => speechEvalResult = null}>✕</button>
-              </div>
-            {/if}
+            <SpeechEvalCapsule result={speechEvalResult} ondismiss={() => speechEvalResult = null} />
             {#if q.studyMeta?.phonetic}
               <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
                 <Icon name="volume" size={12} />
@@ -7609,6 +7599,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
             <div class="lv-analysis" style="margin-bottom:12px"><b class="lv-mat-chip"><Icon name="paperclip" size={14} /> {t("material.shared")}</b>{reciteMaterial}</div>
           {/if}
           {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
+          <SpeechEvalCapsule result={speechEvalResult} ondismiss={() => speechEvalResult = null} />
           {#if !reciteRevealed}
             {#if q.kp || q.analysis}
               <div class="lv-row"><button class="lv-chip" onclick={() => reciteHint = reciteHint === 0 ? (q.kp ? 1 : 2) : reciteHint === 1 && q.analysis ? 2 : 1} title={q.analysis ? t("recite.hint2Key") : ""}><Icon name="bulb" size={12} /> {reciteHint >= 2 ? t("recite.hint2") : t("recite.hint1")}：{reciteHint >= 2 ? (q.analysis ?? "").slice(0, 24) : (q.kp ?? q.analysis ?? "").slice(0, 24)}</button></div>
