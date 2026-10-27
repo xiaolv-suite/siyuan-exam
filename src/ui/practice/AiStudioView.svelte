@@ -1,0 +1,322 @@
+<script lang="ts">
+  import Icon from "../shared/Icon.svelte";
+  import type { Question } from "../../core/types";
+  import type { BankInfo } from "../../app";
+  import type { GleanClip } from "@/core/gleanBridge";
+  import StudioSubNav from "./StudioSubNav.svelte";
+
+  interface Props {
+    hasBank: boolean;
+    activeBankId: string;
+    banks: BankInfo[];
+    aiCustomEndpointSet: boolean;
+    aiError: string;
+    aiSource: string;
+    aiSourceOrigin: string;
+    gleanAvailable: boolean;
+    gleanBusy: boolean;
+    gleanError: string;
+    gleanErrorAction: "load" | "mark";
+    gleanPendingDone: GleanClip[];
+    gleanDoneBusy: boolean;
+    gleanDoneNote: string;
+    aiCount: number;
+    aiDifficulty: "easy" | "medium" | "hard" | "mixed";
+    aiPreset: string;
+    aiQuality: "standard" | "economy";
+    aiKp: string;
+    aiCustomHint: string;
+    aiBusy: boolean;
+    aiRegenBusy: string;
+    aiMutationBusy: boolean;
+    aiUsageTotal: { totalTokens: number; totalCalls: number } | null;
+    aiQueue: Question[];
+    aiRejected: Array<{ index: number; reason: string; raw?: string }>;
+    aiDuplicates: number;
+    aiCost: string;
+    aiQueueBankId: string;
+    aiSaved: number;
+    editingAiId: string;
+    aiEditDraft: any;
+    aiEditError: string;
+    aiTaskLog: any[];
+    t: (k: string, fb?: string) => string;
+    onback: () => void;
+    onchangeView: (view: "manual" | "materials" | "import" | "ai") => void;
+    onfromDoc: () => void;
+    onimportGlean: () => void;
+    onmarkGleanDone: () => void;
+    ongenerate: () => void;
+    oncancel: () => void;
+    onretryRejected: () => void;
+    onapproveAll: () => void;
+    onclearQueue: () => void;
+    onstartEdit: (q: Question) => void;
+    onsaveEdit: (q: Question) => void;
+    oncancelEdit: () => void;
+    onapproveOne: (q: Question) => void;
+    onregenOne: (q: Question) => void;
+    ondropOne: (q: Question) => void;
+  }
+
+  let {
+    hasBank,
+    activeBankId,
+    banks,
+    aiCustomEndpointSet,
+    aiError,
+    aiSource = $bindable(),
+    aiSourceOrigin = $bindable(),
+    gleanAvailable,
+    gleanBusy,
+    gleanError,
+    gleanErrorAction,
+    gleanPendingDone,
+    gleanDoneBusy,
+    gleanDoneNote,
+    aiCount = $bindable(),
+    aiDifficulty = $bindable(),
+    aiPreset = $bindable(),
+    aiQuality = $bindable(),
+    aiKp = $bindable(),
+    aiCustomHint = $bindable(),
+    aiBusy,
+    aiRegenBusy,
+    aiMutationBusy,
+    aiUsageTotal,
+    aiQueue = $bindable(),
+    aiRejected,
+    aiDuplicates,
+    aiCost,
+    aiQueueBankId,
+    aiSaved,
+    editingAiId,
+    aiEditDraft,
+    aiEditError,
+    aiTaskLog,
+    t,
+    onback,
+    onchangeView,
+    onfromDoc,
+    onimportGlean,
+    onmarkGleanDone,
+    ongenerate,
+    oncancel,
+    onretryRejected,
+    onapproveAll,
+    onclearQueue,
+    onstartEdit,
+    onsaveEdit,
+    oncancelEdit,
+    onapproveOne,
+    onregenOne,
+    ondropOne,
+  }: Props = $props();
+</script>
+
+<div class="lv-pad">
+  <div class="lv-screen-head">
+    <span class="lv-eyebrow">{t("head.ai.eyebrow")}</span>
+    <h1 class="lv-h1">{t("head.ai.title")}</h1>
+    <p>{t("head.ai.desc")}</p>
+  </div>
+  <StudioSubNav currentView="ai" {t} {onchangeView} />
+  {#if aiError}<div class="lv-error" role="alert">{aiError}</div>{/if}
+  <div class="lv-row">
+    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback}>← {t("mode.practice")}</button>
+    <span class="lv-chip"><Icon name="sparkles" size={12} /> {t("ai.title")}</span>
+    <span class="fn__flex-1"></span>
+    {#if aiCustomEndpointSet}
+      <span class="lv-chip lv-chip--amb" title={t("ai.endpointTitle") + " · " + t("setting.aiEndpoint.desc")}>{t("ai.channel.openai")}</span>
+    {:else}
+      <span class="lv-chip lv-chip--grn" title={t("ai.endpointTitle")}>{t("ai.channel.siyuan")}</span>
+    {/if}
+  </div>
+  <p class="lv-muted">{t("report.aiSetupHint", "AI 需要先配置：可使用思源设置中的可用模型，或在本插件设置中填写兼容端点、模型与密钥。统计和手动练习无需 AI。")}</p>
+  <div class="lv-studio-grid lv-studio-grid--ai">
+    <div class="lv-card lv-pad-card lv-ai-source-card">
+      <div class="lv-section-head">
+        <div><span class="lv-eyebrow">材料</span><h2>{t("ai.source")}</h2></div>
+        <span class="lv-chip">{aiSource.length} 字</span>
+      </div>
+      <div class="lv-field">
+        <span class="lv-muted">{t("ai.source")}</span>
+        <button class="lv-chip" title={t("ai.fromDocTitle")} onclick={onfromDoc}><Icon name="file-text" size={13} /> {t("ai.fromDoc")}</button>
+        {#if aiSourceOrigin}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:4px 0" aria-live="polite">{aiSourceOrigin}</div>{/if}
+        <textarea class="lv-input lv-textarea" rows="7" bind:value={aiSource} oninput={() => (aiSourceOrigin = "")} placeholder={t("ai.sourcePlaceholder")} aria-label={t("ai.source")}></textarea>
+        {#if gleanAvailable}
+          <div class="lv-row" style="margin:4px 0 0">
+            <button class="lv-btn sm lv-btn--ghost" disabled={gleanBusy} aria-busy={gleanBusy} onclick={onimportGlean}>
+              <Icon name="book" size={14} /> {gleanBusy ? "…" : t("ai.gleanLater")}
+            </button>
+            <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("ai.gleanHint")}</span>
+          </div>
+          {#if gleanError}
+            <div class="lv-error" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-relaxed);overflow-wrap:anywhere">
+              <span>{gleanError}</span>
+              <button class="lv-btn sm" disabled={gleanBusy || gleanDoneBusy} onclick={() => gleanErrorAction === "mark" ? onmarkGleanDone() : onimportGlean()}>{t("ai.gleanRetry")}</button>
+            </div>
+          {/if}
+          {#if gleanPendingDone.length && aiQueue.length}
+            <div class="lv-row" style="margin:6px 0 0">
+              <button class="lv-btn sm" disabled={gleanDoneBusy} aria-busy={gleanDoneBusy} onclick={onmarkGleanDone}>
+                ✓ {gleanDoneBusy ? "…" : t("ai.gleanMarkDone").replace("{n}", String(gleanPendingDone.length))}
+              </button>
+              {#if gleanDoneNote}<span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{gleanDoneNote}</span>{/if}
+            </div>
+          {/if}
+        {/if}
+      </div>
+      <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
+        <div class="lv-session-dock" role="group" aria-label={t("ai.count")}>
+          <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.count")}</span>
+          {#each [3, 5, 10, 20] as n, _i (_i)}
+            <button type="button" class="lv-chip" class:acc={aiCount === n} onclick={() => (aiCount = n)}>{n}</button>
+          {/each}
+        </div>
+        <div class="lv-session-dock" role="group" aria-label={t("ai.difficulty")}>
+          <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.difficulty")}</span>
+          {#each (["easy", "medium", "hard", "mixed"] as const) as d, _i (_i)}
+            <button type="button" class="lv-chip" class:acc={aiDifficulty === d} onclick={() => (aiDifficulty = d)}>{t("ai.diff." + d)}</button>
+          {/each}
+        </div>
+      </div>
+      <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
+        <div class="lv-session-dock" role="group" aria-label={t("ai.preset")}>
+          <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.preset")}</span>
+          {#each ["default", "medical", "legal", "exam_cn"] as p, _i (_i)}
+            <button type="button" class="lv-chip" class:acc={aiPreset === p} onclick={() => (aiPreset = p)}>{t("ai.preset." + p)}</button>
+          {/each}
+        </div>
+        <div class="lv-session-dock" role="group" aria-label={t("ai.quality")}>
+          <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.quality")}</span>
+          <button type="button" class="lv-chip" class:acc={aiQuality === "standard"} onclick={() => (aiQuality = "standard")}>{t("ai.quality.standard")}</button>
+          <button type="button" class="lv-chip" class:acc={aiQuality === "economy"} onclick={() => (aiQuality = "economy")}>{t("ai.quality.economy")}</button>
+        </div>
+      </div>
+      <div class="lv-row">
+        <span class="lv-chip">{t("manual.kp")}</span>
+        <input class="lv-input" style="max-width:200px" bind:value={aiKp} placeholder={t("ai.kpHint")} />
+      </div>
+      <div class="lv-row">
+        <span class="lv-chip">{t("ai.customHint")}</span>
+        <input class="lv-input" style="flex:1;min-width:200px" bind:value={aiCustomHint} placeholder={t("ai.customHintHint")} />
+      </div>
+      <div class="lv-row">
+        <button class="lv-btn lv-btn--primary" onclick={ongenerate} disabled={aiMutationBusy || !aiSource.trim() || !hasBank} title={!hasBank ? t("guard.needBankFirst") : t("ai.generate")}>
+          {aiBusy ? t("ai.generating") : t("ai.generate")}
+        </button>
+        {#if aiBusy || aiRegenBusy}
+          <button class="lv-btn sm" onclick={oncancel}>✕ {t("ai.cancel")}</button>
+        {/if}
+        <span class="lv-muted">{t("ai.pipelineNote")}</span>
+        {#if aiUsageTotal}<span class="lv-chip num" title={t("ai.usageTitle")}>Σ ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
+      </div>
+    </div>
+    <section class="lv-ai-review">
+      <div class="lv-section-head">
+        <div><span class="lv-eyebrow">审核工作区</span><h2>{t("ai.queue")}</h2></div>
+        {#if aiQueue.length}<span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审核</span>{/if}
+      </div>
+      {#if aiQueueBankId && (aiQueue.length || aiRejected.length)}
+        <p class="lv-muted" role="status">{t("ai.queueTarget").replace("{name}", banks.find((b) => b.id === aiQueueBankId)?.name ?? aiQueueBankId)}</p>
+        {#if aiQueueBankId !== activeBankId}<div class="lv-error">{t("ai.queueWrongBank")}</div>{/if}
+      {/if}
+      {#if aiQueue.length || aiRejected.length || aiDuplicates || aiCost}
+        <div class="lv-row" style="margin-top:14px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+            <b style="font-size:var(--lv-font-size-md)">{t("ai.queue")}</b>
+            <span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审</span>
+            {#if aiRejected.length}<span class="lv-chip lv-chip--red num">✕ {aiRejected.length}</span>{/if}
+            {#if aiDuplicates}<span class="lv-chip lv-chip--amb num">⧉ {aiDuplicates}</span>{/if}
+            {#if aiCost}<span class="lv-chip num">{aiCost}</span>{/if}
+          </div>
+          <div class="lv-row" style="margin:0;gap:6px">
+            {#if aiRejected.length}
+              <button class="lv-btn sm" onclick={onretryRejected} disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} title={t("ai.retryTitle")}><Icon name="rotate" size={13} /> {t("ai.retryRejected")}（{aiRejected.length}）</button>
+            {/if}
+            {#if aiQueue.length}
+              <button class="lv-btn lv-btn--primary sm" onclick={onapproveAll} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)}>✓ {t("ai.approveAll")}（{aiQueue.length}）</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={onclearQueue} disabled={aiMutationBusy} title="清空当前待审核候选池">清空队列</button>
+            {/if}
+          </div>
+        </div>
+        {#if aiSaved}<div class="lv-success num">✓ {t("ai.saved")} {aiSaved}</div>{/if}
+        {#each aiQueue as q (q.id)}
+          <div class="lv-card lv-qrow">
+            <div class="lv-qrow-head">
+              <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
+              {#if q.kp}<span class="lv-chip">{q.kp}</span>{/if}
+              <span class="lv-muted lv-qrow-src">{t("ai.pendingBadge")}</span>
+            </div>
+            {#if editingAiId === q.id && aiEditDraft}
+              <div class="lv-row" style="margin:6px 0 0"><input class="lv-input" bind:value={aiEditDraft.stem} placeholder={t("manual.stem")} /></div>
+              {#each aiEditDraft.options as _opt, i (i)}
+                <div class="lv-row" style="margin:4px 0 0">
+                  <span class="lv-chip num">{String.fromCharCode(65 + i)}</span>
+                  <input class="lv-input" bind:value={aiEditDraft.options[i]} />
+                  <button class="lv-btn sm lv-btn--ghost" title={t("manual.setCorrect")} onclick={() => { aiEditDraft.answer = String.fromCharCode(65 + i); }}>✓</button>
+                </div>
+              {/each}
+              <div class="lv-row" style="margin:4px 0 0">
+                <span class="lv-chip">{t("browse.answer")}</span>
+                <input class="lv-input" style="max-width:120px" bind:value={aiEditDraft.answer} />
+                <input class="lv-input" style="flex:1" bind:value={aiEditDraft.analysis} placeholder={t("manual.analysis")} />
+              </div>
+              {#if aiEditError}<div class="lv-error">{aiEditError}</div>{/if}
+              <div class="lv-row" style="margin:8px 0 0">
+                <button class="lv-btn sm lv-btn--primary" onclick={() => onsaveEdit(q)}>✓ {t("ai.editSave")}</button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={oncancelEdit}>{t("ai.editCancel")}</button>
+              </div>
+            {:else}
+              <div class="lv-qrow-stem">{q.stem}</div>
+              {#if q.options.length}
+                <div class="lv-muted" style="margin-top:4px">{q.options.map((o, i) => String.fromCharCode(65 + i) + ". " + o).join("　")}</div>
+              {/if}
+              <div class="lv-row" style="margin:6px 0;align-items:center;gap:var(--lv-space-compact);flex-wrap:wrap">
+                <span class="lv-chip lv-chip--acc num"><b>{t("browse.answer")}:</b> {q.answer}</span>
+                {#if q.difficulty}<span class="lv-chip num">★ {q.difficulty}</span>{/if}
+              </div>
+              <div class="lv-analysis" style="margin:8px 0 0">{q.analysis}</div>
+              <div class="lv-row" style="margin:8px 0 0">
+                <button class="lv-btn sm lv-btn--primary" onclick={() => onapproveOne(q)} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)}>✓ {t("ai.approve")}</button>
+                <button class="lv-btn sm" onclick={() => onstartEdit(q)} disabled={aiMutationBusy}>✎ {t("ai.edit")}</button>
+                <button class="lv-btn sm" disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} onclick={() => onregenOne(q)}><Icon name="rotate" size={13} /> {aiRegenBusy === q.id ? "…" : t("ai.regen")}</button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => ondropOne(q)} disabled={aiMutationBusy}>✕ {t("ai.drop")}</button>
+              </div>
+            {/if}
+          </div>
+        {/each}
+        {#each aiRejected.slice(0, 10) as rj, _i (_i)}
+          <div class="lv-error-row"><b class="num">#{rj.index}</b> {rj.reason}</div>
+        {/each}
+        {#if aiTaskLog.length}
+          <details class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);margin-top:14px">
+            <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold)">✚ {t("ai.taskLog")}（{aiTaskLog.length}）</summary>
+            <p class="lv-muted" style="margin:6px 0 0">{t("ai.taskLogHint")}</p>
+            {#each [...aiTaskLog].reverse().slice(0, 5) as e, _i (_i)}
+              <div class="lv-row" style="margin:8px 0 0">
+                <span class="lv-chip num">{new Date(e.at).toLocaleTimeString()}</span>
+                <span class="lv-chip num">{e.templateId}</span>
+                <span class="lv-chip num" class:lv-chip--red={e.status !== "ok"}>{e.status}</span>
+                <span class="lv-chip num">≈{e.tokens} tok</span>
+              </div>
+              <details style="margin:2px 0 0 8px">
+                <summary class="lv-muted" style="cursor:pointer;font-size:var(--lv-font-size-caption)">{t("ai.taskLogPayload")}</summary>
+                {#each e.messages as m, _i (_i)}
+                  <pre class="lv-muted num" style="white-space:pre-wrap;font-size:var(--lv-font-size-label);margin:4px 0">[{m.role}] {m.content.slice(0, 400)}{m.content.length > 400 ? "…" : ""}</pre>
+                {/each}
+              </details>
+            {/each}
+          </details>
+        {/if}
+      {:else}
+        <div class="lv-card lv-ai-empty">
+          <div class="lv-empty-icon"><Icon name="sparkles" size={22} /></div>
+          <b>{aiBusy ? t("ai.generating") : "候选题会显示在这里"}</b>
+          <p class="lv-muted">先整理本次材料并设置题型、数量和难度；生成结果需要逐题审核后才会写入题库。</p>
+        </div>
+      {/if}
+    </section>
+  </div>
+</div>

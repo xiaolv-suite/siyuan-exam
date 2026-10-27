@@ -23,21 +23,25 @@
 
 ---
 
-## 🌟 Latest Release: v0.12.0 (2026-10-27)
+## 🌟 Latest Release: v0.12.1 (2026-10-27)
 
-This milestone release delivers the physical architecture decoupling of the Teacher Research & Preparation workspace and printing center.
+This release delivers deep batch architectural decoupling: modularized four core studio sub-views and dropped the main monolithic tab below 9600 lines.
 
-- **Teacher Workspace Physical Decoupling:**
-  - Extracted the entire teaching and prep cockpit into `src/ui/practice/TeacherWorkspaceView.svelte`, completely separating student practice journeys from educator publishing and item analysis workflows.
-  - Encapsulated three core divisions: Publishing & Printing Center (A4 double-column, worksheets, teacher lecture keys), Question Authoring Studio, and Bank Archival & Distribution.
-- **Item Quality Diagnostics & Revision Loop:**
-  - Direct bridge between classical test theory (CTT) discrimination diagnostics and inline question revisions.
+- **Batch Architecture Decoupling (1000+ Lines Shed):**
+  - Extracted `ManualStudioView.svelte` (manual authoring & real-time dual-column preview, 330+ lines).
+  - Extracted `AiStudioView.svelte` (AI generation & Inbox review candidate queue, 200+ lines).
+  - Extracted `MaterialsView.svelte` (textbook reference library & personal note store, 120+ lines).
+  - Extracted `StudioSubNav.svelte` (unified studio sub-navigation tabs).
+  - Consolidated shared studio layouts in `lv-base.scss`, purging unused style selectors and states from the main tab.
 - **Automated Verification:**
   - 100% green test suite across **181 test files and 1411 unit tests**.
 
 ---
 
 ## ⚡ Recent Major Milestones
+
+- **v0.12.0 Teacher Workspace Physical Decoupling:**
+  - Extracted `TeacherWorkspaceView.svelte`, completely separating educator prep and publishing from student practice.
 
 - **v0.11.99 MaterialGroupContextCard Decoupling & Expansion Memory:**
   - Extracted `MaterialGroupContextCard.svelte` and persistent reading passage expansion across sub-questions.

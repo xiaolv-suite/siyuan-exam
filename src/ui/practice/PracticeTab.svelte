@@ -72,6 +72,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import GroupBatchSummaryCard from "./GroupBatchSummaryCard.svelte";
     import MaterialGroupContextCard from "./MaterialGroupContextCard.svelte";
     import TeacherWorkspaceView from "./TeacherWorkspaceView.svelte";
+    import MaterialsView from "./MaterialsView.svelte";
+    import AiStudioView from "./AiStudioView.svelte";
+    import ManualStudioView from "./ManualStudioView.svelte";
+    import StudioSubNav from "./StudioSubNav.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import type { PaletteCommand } from "../shared/Palette.svelte";
@@ -6295,22 +6299,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 <svelte:window onkeydown={onKeydown} onclick={(e) => { onRichTextClick(e); onWindowClick(e); }} onauxclick={onRichTextClick} ondragover={(e) => { if (tabRoot?.contains(e.target as Node)) e.preventDefault(); }} ondrop={onDrop} />
 
 <div class="fn__flex-1 lv-exam-tab" bind:this={tabRoot} role="region" aria-label={t("tab.practice")}>
-  {#snippet studioNav()}
-    <nav class="lv-studio-nav" aria-label="出题工作台">
-      <button type="button" class="lv-studio-tab" class:active={view === "manual"} onclick={() => (view = "manual")} aria-current={view === "manual" ? "page" : undefined}>
-        <Icon name="pencil" size={13} /> {t("tab.manual", "手工录题")}
-      </button>
-      <button type="button" class="lv-studio-tab" class:active={view === "materials"} onclick={() => (view = "materials")} aria-current={view === "materials" ? "page" : undefined}>
-        <Icon name="book" size={13} /> {t("tab.materials", "学习资料")}
-      </button>
-      <button type="button" class="lv-studio-tab" class:active={view === "import"} onclick={() => (view = "import")} aria-current={view === "import" ? "page" : undefined}>
-        <Icon name="import" size={13} /> {t("tab.import", "批量导入")}
-      </button>
-      <button type="button" class="lv-studio-tab" class:active={view === "ai"} onclick={() => (view = "ai")} aria-current={view === "ai" ? "page" : undefined}>
-        <Icon name="sparkles" size={13} /> {t("tab.ai", "AI 出题")}
-      </button>
-    </nav>
-  {/snippet}
   <div class="block__icons" class:lv-focus-toolbar={view === "session" && !sessionDone}>
     <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
     <!-- 原型 .breadcrumbs：题库 / 当前页（muted/当前 双色导航语境） -->
@@ -7752,656 +7740,156 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       {/if}
     </div>
   {:else if view === "manual"}
-    <!-- ===== S10 手工录题表单 ===== -->
-    <div class="lv-pad" onpaste={onManualPaste}>
-      <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.manual.eyebrow")}</span><h1 class="lv-h1">{t("head.manual.title")}</h1><p>{t("head.manual.desc")}</p></div>
-      {@render studioNav()}
-      <div class="lv-row">
-        <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={() => view = "entry"}>← {t("mode.practice")}</button>
-        <span class="lv-chip">{t("manual.title")}</span>
-        <button class="lv-btn sm" onclick={openOcrModal} title="粘贴试题识别文本一键智能提取填入表单"><Icon name="camera" size={13} /> {t("manual.ocrFastFill")}</button>
-        <button class="lv-btn sm" onclick={normalizeManualFormulas} title="清洗题干与选项中公式的空格与语法"><Icon name="sparkles" size={13} /> {t("manual.formulaNormalize")}</button>
-        <select class="lv-select" style="max-width:135px" onchange={(e) => {
-          const val = (e.target as HTMLSelectElement).value;
-          if (!val) return;
-          if (val === "plot") {
-            const plotTpl = `\n\n\`\`\`math-plot\ny = x^2 - 2\nx: [-3, 3]\ny: [-3, 5]\ntitle: 函数图像 y = x² - 2\n\`\`\`\n`;
-            mStem = (mStem ? mStem.trim() : "") + plotTpl;
-          } else if (val === "diagram") {
-            const diagTpl = `\n\n\`\`\`math-diagram\ntriangle: A(140, 20), B(40, 160), C(240, 160)\n\`\`\`\n`;
-            mStem = (mStem ? mStem.trim() : "") + diagTpl;
-          } else if (val === "bar") {
-            const barTpl = `\n\n\`\`\`math-bar\ntitle: 统计柱状图\n"一季度": 35\n"二季度": 58\n"三季度": 82\n"四季度": 95\n\`\`\`\n`;
-            mStem = (mStem ? mStem.trim() : "") + barTpl;
-          } else if (val === "pie") {
-            const pieTpl = `\n\n\`\`\`math-pie\ntitle: 成绩占比扇形图\n"优秀": 25\n"良好": 45\n"及格": 20\n"待提高": 10\n\`\`\`\n`;
-            mStem = (mStem ? mStem.trim() : "") + pieTpl;
-          } else if (val === "numberline") {
-            const nlTpl = `\n\n\`\`\`math-numberline\ntitle: 不等式解集区间\nrange: [-4, 6]\ninterval: [-1, 3)\n\`\`\`\n`;
-            mStem = (mStem ? mStem.trim() : "") + nlTpl;
-          }
-          (e.target as HTMLSelectElement).value = "";
-          showMessage("已在题干插入图表模板", 2500, "info");
-        }}>
-          <option value="">➕ 插入数学图表…</option>
-          <option value="plot">📈 {t("manual.insertPlot")}</option>
-          <option value="diagram">📐 {t("manual.insertDiagram")}</option>
-          <option value="bar">📊 {t("manual.insertBar")}</option>
-          <option value="pie">🥧 {t("manual.insertPie")}</option>
-          <option value="numberline">📏 {t("manual.insertNumberLine")}</option>
-        </select>
-        {#if draftRestored}<span class="lv-chip lv-chip--amb">{t("manual.draftRestored")}</span>{/if}
-        {#if mSaved}<span class="lv-chip lv-chip--grn num">✓ {mSaved}</span>{/if}
-      </div>
-      {#if ocrModalOpen}
-        <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border-color:var(--lv-accent)">
-          <label class="lv-field">
-            <span style="font-weight:var(--lv-font-weight-semibold)">{t("manual.ocrPrompt")}</span>
-            <textarea class="lv-input lv-textarea" style="min-height:90px;margin-top:6px" bind:value={ocrInputText} placeholder="粘贴整段试题识别文本（支持题干、A. B. C. D. 选项、答案、解析），点击解析填单即可自动分类填入下方表单"></textarea>
-          </label>
-          <div class="lv-row" style="margin-top:8px">
-            <button class="lv-btn lv-btn--primary sm" onclick={applyOcrFill} disabled={!ocrInputText.trim()}>{t("manual.ocrFastFill")}</button>
-            <label class="lv-btn sm lv-btn--ghost" style="cursor:pointer">
-              <Icon name="file" size={13} /> {ocrUploadBusy ? t("manual.ocrUploading") : t("manual.ocrUploadImage")}
-              <input type="file" accept="image/*" style="display:none" onchange={onFileInputChange} disabled={ocrUploadBusy} />
-            </label>
-            <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("manual.ocrPasteTip")}</span>
-            <button class="lv-btn lv-btn--ghost sm" style="margin-left:auto" onclick={() => (ocrModalOpen = false)}>取消</button>
-          </div>
-        </div>
-      {/if}
-      <div class="lv-studio-grid lv-studio-grid--manual">
-      <div class="lv-card lv-pad-card lv-studio-form" data-manual-form>
-        <div class="lv-row" style="margin:0 0 12px;gap:var(--lv-space-3);flex-wrap:wrap">
-          <div class="lv-session-dock" role="group" aria-label={t("manual.type", "题型")}>
-            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("manual.type")}</span>
-            {#each ["single", "multiple", "judge", "fill", "short"] as tt, _i (_i)}
-              <button type="button" class="lv-chip" class:acc={mType === tt} aria-pressed={mType === tt} onclick={() => void switchManualType(tt as typeof mType)}>{t("qtype." + tt)}</button>
-            {/each}
-          </div>
-          <div class="lv-session-dock" role="group" aria-label={t("manual.status")}>
-            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("manual.status")}</span>
-            <button type="button" class="lv-chip" class:acc={mStatus === "published"} aria-pressed={mStatus === "published"} onclick={() => { mStatus = "published"; clearManualValidation(); }}>{t("lifecycle.published")}</button>
-            <button type="button" class="lv-chip" class:acc={mStatus === "review"} aria-pressed={mStatus === "review"} onclick={() => { mStatus = "review"; clearManualValidation(); }}>{t("lifecycle.review")}</button>
-            <button type="button" class="lv-chip" class:acc={mStatus === "draft"} aria-pressed={mStatus === "draft"} onclick={() => { mStatus = "draft"; clearManualValidation(); }}>{t("lifecycle.draft")}</button>
-          </div>
-        </div>
-        <div class="lv-field">
-          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px;flex-wrap:wrap;gap:6px">
-            <label class="lv-muted" for="lv-manual-stem">{t("manual.stem")}</label>
-            <div class="lv-row" style="margin:0;gap:4px;align-items:center;flex-wrap:wrap">
-              <div class="lv-session-dock" role="tablist" aria-label="符号分类" style="margin:0">
-                <button type="button" role="tab" class="lv-chip sm" class:acc={manualSymbolTab === "math"} aria-selected={manualSymbolTab === "math"} onclick={() => manualSymbolTab = "math"}>📐 数理</button>
-                <button type="button" role="tab" class="lv-chip sm" class:acc={manualSymbolTab === "pinyin"} aria-selected={manualSymbolTab === "pinyin"} onclick={() => manualSymbolTab = "pinyin"}>🔤 拼音</button>
-                <button type="button" role="tab" class="lv-chip sm" class:acc={manualSymbolTab === "phonetic"} aria-selected={manualSymbolTab === "phonetic"} onclick={() => manualSymbolTab = "phonetic"}>🗣️ 音标</button>
-              </div>
-              <div class="lv-session-dock" role="toolbar" aria-label="符号选择坞" style="overflow-x:auto;max-width:100%;flex:1">
-                {#if manualSymbolTab === "math"}
-                  <button type="button" class="lv-chip sm" title="上标 x²" onclick={() => insertMathSnippet("x^2")}>x²</button>
-                  <button type="button" class="lv-chip sm" title="根号 √x" onclick={() => insertMathSnippet("\\sqrt{x}")}>√x</button>
-                  <button type="button" class="lv-chip sm" title="分式 a/b" onclick={() => insertMathSnippet("\\frac{a}{b}")}>a/b</button>
-                  <button type="button" class="lv-chip sm" title="求和 ∑" onclick={() => insertMathSnippet("\\sum_{i=1}^n")}>∑</button>
-                  <button type="button" class="lv-chip sm" title="积分 ∫" onclick={() => insertMathSnippet("\\int")}>∫</button>
-                  <button type="button" class="lv-chip sm" title="极限 lim" onclick={() => insertMathSnippet("\\lim_{x \\to 0}")}>lim</button>
-                  <button type="button" class="lv-chip sm" title="偏导 ∂" onclick={() => insertMathSnippet("\\partial")}>∂</button>
-                  <button type="button" class="lv-chip sm" title="圆周率 π" onclick={() => insertMathSnippet("\\pi")}>π</button>
-                  <button type="button" class="lv-chip sm" title="正负号 ±" onclick={() => insertMathSnippet("\\pm")}>±</button>
-                  <button type="button" class="lv-chip sm" title="小于等于 ≤" onclick={() => insertMathSnippet("\\le")}>≤</button>
-                  <button type="button" class="lv-chip sm" title="大于等于 ≥" onclick={() => insertMathSnippet("\\ge")}>≥</button>
-                  <button type="button" class="lv-chip sm" title="无穷大 ∞" onclick={() => insertMathSnippet("\\infty")}>∞</button>
-                {:else if manualSymbolTab === "pinyin"}
-                  <button type="button" class="lv-chip sm" title="拼音 a 一声" onclick={() => insertMathSnippet("ā")}>ā</button>
-                  <button type="button" class="lv-chip sm" title="拼音 a 二声" onclick={() => insertMathSnippet("á")}>á</button>
-                  <button type="button" class="lv-chip sm" title="拼音 a 三声" onclick={() => insertMathSnippet("ǎ")}>ǎ</button>
-                  <button type="button" class="lv-chip sm" title="拼音 a 四声" onclick={() => insertMathSnippet("à")}>à</button>
-                  <button type="button" class="lv-chip sm" title="拼音 o 一声" onclick={() => insertMathSnippet("ō")}>ō</button>
-                  <button type="button" class="lv-chip sm" title="拼音 o 二声" onclick={() => insertMathSnippet("ó")}>ó</button>
-                  <button type="button" class="lv-chip sm" title="拼拼 o 三声" onclick={() => insertMathSnippet("ǒ")}>ǒ</button>
-                  <button type="button" class="lv-chip sm" title="拼音 o 四声" onclick={() => insertMathSnippet("ò")}>ò</button>
-                  <button type="button" class="lv-chip sm" title="拼音 e 一声" onclick={() => insertMathSnippet("ē")}>ē</button>
-                  <button type="button" class="lv-chip sm" title="拼音 e 二声" onclick={() => insertMathSnippet("é")}>é</button>
-                  <button type="button" class="lv-chip sm" title="拼音 e 三声" onclick={() => insertMathSnippet("ě")}>ě</button>
-                  <button type="button" class="lv-chip sm" title="拼音 e 四声" onclick={() => insertMathSnippet("è")}>è</button>
-                  <button type="button" class="lv-chip sm" title="拼音 i 一声" onclick={() => insertMathSnippet("ī")}>ī</button>
-                  <button type="button" class="lv-chip sm" title="拼音 i 二声" onclick={() => insertMathSnippet("í")}>í</button>
-                  <button type="button" class="lv-chip sm" title="拼音 i 三声" onclick={() => insertMathSnippet("ǐ")}>ǐ</button>
-                  <button type="button" class="lv-chip sm" title="拼音 i 四声" onclick={() => insertMathSnippet("ì")}>ì</button>
-                  <button type="button" class="lv-chip sm" title="拼音 u 一声" onclick={() => insertMathSnippet("ū")}>ū</button>
-                  <button type="button" class="lv-chip sm" title="拼音 u 二声" onclick={() => insertMathSnippet("ú")}>ú</button>
-                  <button type="button" class="lv-chip sm" title="拼音 u 三声" onclick={() => insertMathSnippet("ǔ")}>ǔ</button>
-                  <button type="button" class="lv-chip sm" title="拼音 u 四声" onclick={() => insertMathSnippet("ù")}>ù</button>
-                  <button type="button" class="lv-chip sm" title="拼音 ü 一声" onclick={() => insertMathSnippet("ǖ")}>ǖ</button>
-                  <button type="button" class="lv-chip sm" title="拼音 ü 二声" onclick={() => insertMathSnippet("ǘ")}>ǘ</button>
-                  <button type="button" class="lv-chip sm" title="拼音 ü 三声" onclick={() => insertMathSnippet("ǚ")}>ǚ</button>
-                  <button type="button" class="lv-chip sm" title="拼音 ü 四声" onclick={() => insertMathSnippet("ǜ")}>ǜ</button>
-                {:else if manualSymbolTab === "phonetic"}
-                  <button type="button" class="lv-chip sm" title="主重音 ˈ" onclick={() => insertMathSnippet("ˈ")}>ˈ</button>
-                  <button type="button" class="lv-chip sm" title="次重音 ˌ" onclick={() => insertMathSnippet("ˌ")}>ˌ</button>
-                  <button type="button" class="lv-chip sm" title="央元音 schwa" onclick={() => insertMathSnippet("ə")}>ə</button>
-                  <button type="button" class="lv-chip sm" title="开前不圆唇元音" onclick={() => insertMathSnippet("æ")}>æ</button>
-                  <button type="button" class="lv-chip sm" title="后不圆唇元音" onclick={() => insertMathSnippet("ʌ")}>ʌ</button>
-                  <button type="button" class="lv-chip sm" title="咬舌清辅音" onclick={() => insertMathSnippet("θ")}>θ</button>
-                  <button type="button" class="lv-chip sm" title="咬舌浊辅音" onclick={() => insertMathSnippet("ð")}>ð</button>
-                  <button type="button" class="lv-chip sm" title="清后齿龈擦音" onclick={() => insertMathSnippet("ʃ")}>ʃ</button>
-                  <button type="button" class="lv-chip sm" title="浊后齿龈擦音" onclick={() => insertMathSnippet("ʒ")}>ʒ</button>
-                  <button type="button" class="lv-chip sm" title="软腭鼻音" onclick={() => insertMathSnippet("ŋ")}>ŋ</button>
-                  <button type="button" class="lv-chip sm" title="次闭次前不圆唇元音" onclick={() => insertMathSnippet("ɪ")}>ɪ</button>
-                  <button type="button" class="lv-chip sm" title="次闭次后圆唇元音" onclick={() => insertMathSnippet("ʊ")}>ʊ</button>
-                  <button type="button" class="lv-chip sm" title="长元音 aw" onclick={() => insertMathSnippet("ɔː")}>ɔː</button>
-                {/if}
-              </div>
-            </div>
-          </div>
-          <textarea id="lv-manual-stem" class="lv-input lv-textarea" bind:value={mStem} oninput={clearManualValidation} placeholder={t("manual.stemPlaceholder")} data-manual-field="stem" aria-invalid={manualErrorField === "stem" ? "true" : undefined} aria-describedby={manualErrorField === "stem" ? "manual-validation-error" : undefined}></textarea>
-        </div>
-        {#if mType === "single" || mType === "multiple"}
-          <div class="lv-field" role="group" aria-label={t("manual.options")}>
-            <span class="lv-muted">{t("manual.options")}</span>
-            {#each mOptions as _opt, i (i)}
-              <div class="lv-row" style="margin:4px 0">
-                <button class="lv-chip" class:acc={mAnswer.includes(String.fromCharCode(65 + i))}
-                  title={t("manual.setCorrect")} aria-label={`${t("manual.setCorrect")} ${String.fromCharCode(65 + i)}`} onclick={() => { clearManualValidation(); setCorrectOption(i); }} data-manual-field={i === 0 ? "answer" : undefined} aria-pressed={mAnswer.includes(String.fromCharCode(65 + i))} aria-describedby={manualErrorField === "answer" && i === 0 ? "manual-validation-error" : undefined}>{String.fromCharCode(65 + i)}</button>
-                <input class="lv-input" style="flex:1" bind:value={mOptions[i]} oninput={clearManualValidation} aria-label={`${t("manual.options")} ${String.fromCharCode(65 + i)}`} data-manual-field={`option-${i}`} aria-invalid={manualErrorField === `option-${i}` ? "true" : undefined} aria-describedby={manualErrorField === `option-${i}` ? "manual-validation-error" : undefined} />
-                {#if mOptions.length > 2}
-                  <button class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }}>✕</button>
-                {/if}
-              </div>
-            {/each}
-            {#if mOptions.length < 6}
-              <button class="lv-btn sm" style="border-style:dashed" onclick={() => mOptions = [...mOptions, ""]}>＋ {t("manual.addOption")}</button>
-            {/if}
-          </div>
-        {:else if mType === "judge"}
-          <div class="lv-row">
-            <button class="lv-chip" class:acc={mAnswer === "对"} onclick={() => { clearManualValidation(); mAnswer = "对"; }} data-manual-field="answer" aria-pressed={mAnswer === "对"} aria-describedby={manualErrorField === "answer" ? "manual-validation-error" : undefined}>对</button>
-            <button class="lv-chip" class:acc={mAnswer === "错"} onclick={() => { clearManualValidation(); mAnswer = "错"; }} aria-pressed={mAnswer === "错"}>错</button>
-          </div>
-        {:else}
-          <!-- B1 编辑入口：填空/简答答案输入此前缺失（表单无法完成填空录题）；多空/数值自动识别 -->
-          <div class="lv-field"><label class="lv-muted" for="lv-manual-answer">{t("manual.answer")}</label>
-            <textarea id="lv-manual-answer" class="lv-input lv-textarea" style="min-height:44px" bind:value={mAnswer} oninput={clearManualValidation}
-              placeholder={t("manual.answerHint")} data-manual-field="answer" aria-invalid={manualErrorField === "answer" ? "true" : undefined} aria-describedby={manualErrorField === "answer" ? "manual-validation-error" : undefined}></textarea>
-          </div>
-          {#if mType === "fill"}
-            <!-- 54-02 作者设置：数值判分规格（可折叠；留空=自动识别/exact） -->
-            <div class="lv-row" style="margin:4px 0 0">
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => (mSpecOpen = !mSpecOpen)}>
-                {t("spec.authorSection")}{#if mSpecOpen} ▾{/if}
-              </button>
-            </div>
-            {#if mSpecOpen}
-              <div class="lv-row" style="margin:4px 0 0;align-items:flex-end">
-                <label class="lv-field" style="max-width:160px"><span class="lv-muted">{t("spec.unit")}</span>
-                  <input class="lv-input" bind:value={mSpecUnit} placeholder="m/s" />
-                </label>
-                <label class="lv-field" style="max-width:150px"><span class="lv-muted">{t("spec.absTol")}</span>
-                  <input class="lv-input num" bind:value={mSpecAbsTol} placeholder="0.5" inputmode="decimal" />
-                </label>
-                <label class="lv-field" style="max-width:150px"><span class="lv-muted">{t("spec.relPct")}</span>
-                  <input class="lv-input num" bind:value={mSpecRelPct} placeholder="5" inputmode="decimal" />
-                </label>
-                <label class="lv-field" style="flex:1;min-width:180px"><span class="lv-muted">{t("spec.altUnits")}</span>
-                  <input class="lv-input" bind:value={mSpecAltUnits} placeholder="km/h, cm/s" />
-                </label>
-              </div>
-            {/if}
-          {/if}
-          {#if mType === "short"}
-            <!-- 55-05 作者设置：主观采分点（每行 `描述 | 权重 | 参考要点`；≥2 个采分点） -->
-            <div class="lv-row" style="margin:4px 0 0">
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => (mRubricOpen = !mRubricOpen)}>
-                {t("rubric.authorSection")}{#if mRubricOpen} ▾{/if}
-              </button>
-              {#if authorRubricPreview}<span class="lv-chip num">{t("rubric.criteriaCount").replace("{n}", String(authorRubricPreview.criteria.length))}</span>{/if}
-            </div>
-            {#if mRubricOpen}
-              <div class="lv-field">
-                <label class="lv-muted" for="lv-manual-rubric">{t("rubric.textLabel")}</label>
-                <textarea id="lv-manual-rubric" class="lv-input lv-textarea" style="min-height:72px" bind:value={mRubricText} oninput={clearManualValidation}
-                  placeholder={t("rubric.textPlaceholder")} data-manual-field="rubric"
-                  aria-invalid={manualErrorField === "rubric" ? "true" : undefined} aria-describedby={manualErrorField === "rubric" ? "manual-validation-error" : undefined}></textarea>
-                <p class="lv-muted" style="margin:4px 0 0;font-size:var(--lv-font-size-caption)">{t("rubric.textHint")}</p>
-              </div>
-              {#if authorRubricPreview}
-                <div class="lv-detail" style="margin:4px 0 0;padding:8px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-1)">
-                  {#each authorRubricPreview.criteria as c, ci (ci)}
-                    <div class="lv-row" style="margin:2px 0;gap:var(--lv-space-2)">
-                      <span class="lv-chip num">{Math.round(c.weight * 100)}%</span>
-                      <span style="font-size:var(--lv-font-size-sm)">{c.label}</span>
-                      {#if c.example}<span class="lv-muted" style="font-size:var(--lv-font-size-caption)">· {c.example}</span>{/if}
-                    </div>
-                  {/each}
-                </div>
-              {:else if mRubricText.trim()}
-                <p class="lv-error" role="alert">{t("rubric.parseFailed")}</p>
-              {/if}
-            {/if}
-          {/if}
-        {/if}
-        <div class="lv-field"><label class="lv-muted" for="lv-manual-analysis">{t("manual.analysis")}</label>
-          <textarea id="lv-manual-analysis" class="lv-input lv-textarea" style="min-height:52px" bind:value={mAnalysis}></textarea>
-        </div>
-        <div class="lv-row">
-          <label class="lv-chip" for="lv-manual-kp">{t("manual.kp")}</label><input id="lv-manual-kp" class="lv-input" style="max-width:180px" bind:value={mKp} placeholder={t("manual.kpHint")} />
-          <label class="lv-chip" for="lv-manual-source">{t("manual.source")}</label><input id="lv-manual-source" class="lv-input" style="max-width:160px" bind:value={mSource} placeholder={t("manual.sourceHint")} />
-          <label class="lv-chip" for="lv-manual-group">{t("manual.group")}</label><input id="lv-manual-group" class="lv-input num" style="max-width:200px" bind:value={mGroup} placeholder="grp-…" />
-        </div>
-        <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
-          <span class="lv-chip"><Icon name="volume" size={12} /> 朗读语言</span>
-          <select class="lv-select" bind:value={mStudyLang} style="max-width:140px;height:28px">
-            <option value="zh-CN">普通话 (zh-CN)</option>
-            <option value="zh-HK">粤语 (zh-HK)</option>
-            <option value="en-US">英语 (en-US)</option>
-            <option value="ja-JP">日语 (ja-JP)</option>
-          </select>
-          <label class="lv-chip" for="lv-manual-phonetic">注音 / 粤拼</label>
-          <input id="lv-manual-phonetic" class="lv-input" style="flex:1;min-width:160px;font-family:monospace" bind:value={mStudyPhonetic} placeholder="例如：m4 goi1 或拼音/音标（可选）" />
-        </div>
-        <div class="lv-row">
-          {#if manualErrorMsg}<p class="lv-error" id="manual-validation-error" role="alert">{manualErrorMsg}</p>{/if}
-          <button class="lv-btn lv-btn--primary" onclick={() => saveManual("published")} disabled={mSaving || !mStem.trim() || (mStatus === "published" && !mAnswer.trim() && mType !== "short")}>
-            {mSaving ? "…" : mStatus === "draft" ? t("manual.saveDraft") : t("manual.save")}
-          </button>
-          {#if mStatus !== "draft"}
-            <button class="lv-btn lv-btn--ghost" onclick={() => saveManual("draft")} disabled={mSaving || !mStem.trim()} title={t("manual.saveAsDraftTip")}>
-              {t("manual.saveDraft")}
-            </button>
-          {/if}
-          <button class="lv-btn lv-btn--ghost" onclick={blankManualDraft} disabled={mSaving || (!mStem && !mAnswer && !mAnalysis)} title={t("manual.blankTitle", "清空并开始录入新题")}>
-            {t("manual.blank", "换一道新题")}
-          </button>
-          {#if mSaved}<span class="lv-muted">{t("manual.savedHint")}</span>{/if}
-        </div>
-      </div>
-      <section class="lv-card lv-pad-card lv-preview-card" aria-live="polite">
-        <div class="lv-section-head">
-          <div>
-            <span class="lv-eyebrow">{t("manual.title")}</span>
-            <h2>实际题面预览</h2>
-          </div>
-          <span class="lv-chip lv-chip--acc">同步预览</span>
-        </div>
-        <div class="lv-preview-face">
-          <span class="lv-chip lv-chip--acc">{t("qtype." + mType)}</span>
-          <h3>{@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(mStem.trim() || t("manual.stemPlaceholder"))))}</h3>
-          {#if mType === "single" || mType === "multiple"}
-            <div class="lv-preview-options">
-              {#each mOptions as option, i (i)}
-                <div class="lv-preview-option" class:selected={mAnswer.includes(String.fromCharCode(65 + i))}>
-                  <span class="lv-preview-key">{String.fromCharCode(65 + i)}</span>
-                  <span>{@html sanitizeRichHtml(renderMathInText(option.trim() || "待填写选项"))}</span>
-                </div>
-              {/each}
-            </div>
-          {:else if mType === "judge"}
-            <div class="lv-preview-options">
-              {#each ["对", "错"] as option (option)}
-                <div class="lv-preview-option" class:selected={mAnswer === option}>
-                  <span class="lv-preview-key">{option}</span><span>{option === "对" ? "正确" : "错误"}</span>
-                </div>
-              {/each}
-            </div>
-          {:else if mType === "fill"}
-            {@const isMulti = mAnswer.includes(";;")}
-            {@const blanks = isMulti ? mAnswer.split(";;").map((b) => b.trim()).filter(Boolean) : [mAnswer.trim()]}
-            <div class="lv-preview-fill">
-              {#if isMulti}
-                <div class="lv-preview-blanks">
-                  {#each blanks as _blank, bi (bi)}
-                    <div class="lv-preview-blank-row">
-                      <span class="lv-preview-key">{bi + 1}</span>
-                      <input class="lv-input" placeholder={`空 ${bi + 1}`} disabled />
-                    </div>
-                  {/each}
-                </div>
-                <div class="lv-preview-spec-hint">逐空判分 · {blanks.length} 个空，按题目顺序分别核对</div>
-              {:else}
-                <div class="lv-preview-blank-row">
-                  <input class="lv-input" placeholder={mStem.includes("____") ? "填写划线处内容" : "填写答案"} disabled />
-                  {#if mSpecUnit}<span class="lv-chip num">{mSpecUnit}</span>{/if}
-                </div>
-                {#if mSpecOpen || mSpecUnit || mSpecAbsTol || mSpecRelPct}
-                  <div class="lv-preview-spec-hint">
-                    数值判分 · 单位：{mSpecUnit || "无"} · 绝对容差：±{mSpecAbsTol || "0"} · 相对容差：{mSpecRelPct ? `${mSpecRelPct}%` : "无"}
-                  </div>
-                {/if}
-              {/if}
-            </div>
-          {:else if mType === "short"}
-            <div class="lv-preview-short">
-              <textarea class="lv-input lv-textarea" rows="3" placeholder="考生作答文本框（解答题提交后进入自评）" disabled></textarea>
-            </div>
-          {/if}
-          <div class="lv-preview-answer">
-            <strong>{mType === "short" ? "参考要点" : "参考答案"}</strong>
-            <p>{mType === "single" || mType === "multiple" ? mAnswer.split("").map((letter) => `${letter}. ${mOptions[letter.charCodeAt(0) - 65] ?? ""}`).join("；") || t("manual.answerHint") : mAnswer.trim() || t("manual.answerHint")}</p>
-            {#if mAnalysis.trim()}<small>{mAnalysis}</small>{/if}
-          </div>
-          {#if mKp.trim() || mSource.trim()}<div class="lv-preview-meta"><span>{mKp.trim() || t("manual.kp")}</span><span>{mSource.trim() || t("manual.source")}</span></div>{/if}
-        </div>
-        <p class="lv-muted lv-preview-note">编辑左侧内容，右侧会同步展示用户实际看到的题面。</p>
-      </section>
-      </div>
-    </div>
+    <ManualStudioView
+      bind:mType
+      bind:mStem
+      bind:mOptions
+      bind:mAnswer
+      bind:mAnalysis
+      bind:mKp
+      bind:mSource
+      bind:mGroup
+      bind:mSpecOpen
+      bind:mSpecUnit
+      bind:mSpecAbsTol
+      bind:mSpecRelPct
+      bind:mSpecAltUnits
+      bind:mRubricOpen
+      bind:mRubricText
+      {authorRubricPreview}
+      bind:mStatus
+      bind:mStudyLang
+      bind:mStudyPhonetic
+      {mSaving}
+      {mSaved}
+      {manualErrorMsg}
+      {manualErrorField}
+      bind:manualSymbolTab
+      {draftRestored}
+      bind:ocrModalOpen
+      bind:ocrInputText
+      {ocrUploadBusy}
+      {t}
+      {sanitizeRichHtml}
+      {renderMathInText}
+      {renderMathDiagramsInText}
+      {removeChoiceOption}
+      onback={() => view = "entry"}
+      onchangeView={(v) => (view = v)}
+      onmanualPaste={onManualPaste}
+      onopenOcrModal={openOcrModal}
+      onnormalizeFormulas={normalizeManualFormulas}
+      oninsertMathSnippet={insertMathSnippet}
+      onapplyOcrFill={applyOcrFill}
+      onfileInputChange={onFileInputChange}
+      onswitchManualType={(tt) => void switchManualType(tt)}
+      onclearManualValidation={clearManualValidation}
+      onsetCorrectOption={(i) => setCorrectOption(i)}
+      onsaveManual={(st) => void saveManual(st)}
+      onblankManualDraft={blankManualDraft}
+      onshowChartMessage={() => showMessage("已在题干插入图表模板", 2500, "info")}
+    />
   {:else if view === "ai"}
-    <!-- ===== S11 AI 出题（Inbox 式：永不直接入库） ===== -->
-    <div class="lv-pad">
-      <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.ai.eyebrow")}</span><h1 class="lv-h1">{t("head.ai.title")}</h1><p>{t("head.ai.desc")}</p></div>
-      {@render studioNav()}
-      {#if aiError}<div class="lv-error" role="alert">{aiError}</div>{/if}
-      <div class="lv-row">
-        <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={() => view = "entry"}>← {t("mode.practice")}</button>
-        <span class="lv-chip"><Icon name="sparkles" size={12} /> {t("ai.title")}</span>
-        <span class="fn__flex-1"></span>
-        {#if aiCustomEndpointSet}
-          <span class="lv-chip lv-chip--amb" title={t("ai.endpointTitle") + " · " + t("setting.aiEndpoint.desc")}>{t("ai.channel.openai")}</span>
-        {:else}
-          <span class="lv-chip lv-chip--grn" title={t("ai.endpointTitle")}>{t("ai.channel.siyuan")}</span>
-        {/if}
-      </div>
-      <p class="lv-muted">{t("report.aiSetupHint", "AI 需要先配置：可使用思源设置中的可用模型，或在本插件设置中填写兼容端点、模型与密钥。统计和手动练习无需 AI。")}</p>
-      <div class="lv-studio-grid lv-studio-grid--ai">
-      <div class="lv-card lv-pad-card lv-ai-source-card">
-        <div class="lv-section-head">
-          <div><span class="lv-eyebrow">材料</span><h2>{t("ai.source")}</h2></div>
-          <span class="lv-chip">{aiSource.length} 字</span>
-        </div>
-        <div class="lv-field"><span class="lv-muted">{t("ai.source")}</span>
-          <button class="lv-chip" title={t("ai.fromDocTitle")} onclick={aiSourceFromCurrentDoc}><Icon name="file-text" size={13} /> {t("ai.fromDoc")}</button>
-          {#if aiSourceOrigin}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:4px 0" aria-live="polite">{aiSourceOrigin}</div>{/if}
-          <textarea class="lv-input lv-textarea" rows="7" bind:value={aiSource} oninput={() => aiSourceOrigin = ""} placeholder={t("ai.sourcePlaceholder")} aria-label={t("ai.source")}></textarea>
-          {#if gleanAvailable}
-            <!-- 60-01 lite：拾遗稍后读 → 出题素材（只读；不写拾遗状态） -->
-            <div class="lv-row" style="margin:4px 0 0">
-                <button class="lv-btn sm lv-btn--ghost" disabled={gleanBusy} aria-busy={gleanBusy} onclick={() => void importGleanClips()}>
-                  <Icon name="book" size={14} /> {gleanBusy ? "…" : t("ai.gleanLater")}
-                </button>
-              <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("ai.gleanHint")}</span>
-            </div>
-            {#if gleanError}
-              <div class="lv-error" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-relaxed);overflow-wrap:anywhere">
-                <span>{gleanError}</span>
-                <button class="lv-btn sm" disabled={gleanBusy || gleanDoneBusy} onclick={() => gleanErrorAction === "mark" ? void markGleanDone() : void importGleanClips()}>{t("ai.gleanRetry")}</button>
-              </div>
-            {/if}
-            {#if gleanPendingDone.length && aiQueue.length}
-              <!-- 60-01 写方向：出题成功后一键标记素材已读（需拾遗侧开启协同写入） -->
-              <div class="lv-row" style="margin:6px 0 0">
-                <button class="lv-btn sm" disabled={gleanDoneBusy} aria-busy={gleanDoneBusy} onclick={() => void markGleanDone()}>
-                  ✓ {gleanDoneBusy ? "…" : t("ai.gleanMarkDone").replace("{n}", String(gleanPendingDone.length))}
-                </button>
-                {#if gleanDoneNote}<span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{gleanDoneNote}</span>{/if}
-              </div>
-            {/if}
-          {/if}
-        </div>
-        <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
-          <div class="lv-session-dock" role="group" aria-label={t("ai.count")}>
-            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.count")}</span>
-            {#each [3, 5, 10, 20] as n, _i (_i)}
-              <button type="button" class="lv-chip" class:acc={aiCount === n} onclick={() => aiCount = n}>{n}</button>
-            {/each}
-          </div>
-          <div class="lv-session-dock" role="group" aria-label={t("ai.difficulty")}>
-            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.difficulty")}</span>
-            {#each (["easy", "medium", "hard", "mixed"] as const) as d, _i (_i)}
-              <button type="button" class="lv-chip" class:acc={aiDifficulty === d} onclick={() => aiDifficulty = d}>{t("ai.diff." + d)}</button>
-            {/each}
-          </div>
-        </div>
-        <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
-          <div class="lv-session-dock" role="group" aria-label={t("ai.preset")}>
-            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.preset")}</span>
-            {#each ["default", "medical", "legal", "exam_cn"] as p, _i (_i)}
-              <button type="button" class="lv-chip" class:acc={aiPreset === p} onclick={() => aiPreset = p}>{t("ai.preset." + p)}</button>
-            {/each}
-          </div>
-          <div class="lv-session-dock" role="group" aria-label={t("ai.quality")}>
-            <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.quality")}</span>
-            <button type="button" class="lv-chip" class:acc={aiQuality === "standard"} onclick={() => aiQuality = "standard"}>{t("ai.quality.standard")}</button>
-            <button type="button" class="lv-chip" class:acc={aiQuality === "economy"} onclick={() => aiQuality = "economy"}>{t("ai.quality.economy")}</button>
-          </div>
-        </div>
-        <div class="lv-row">
-          <span class="lv-chip">{t("manual.kp")}</span>
-          <input class="lv-input" style="max-width:200px" bind:value={aiKp} placeholder={t("ai.kpHint")} />
-        </div>
-        <div class="lv-row">
-          <span class="lv-chip">{t("ai.customHint")}</span>
-          <input class="lv-input" style="flex:1;min-width:200px" bind:value={aiCustomHint} placeholder={t("ai.customHintHint")} />
-        </div>
-        <div class="lv-row">
-        <button class="lv-btn lv-btn--primary" onclick={runAiGenerate} disabled={aiMutationBusy || !aiSource.trim() || !hasBank} title={!hasBank ? t("guard.needBankFirst") : t("ai.generate")}>
-          {aiBusy ? t("ai.generating") : t("ai.generate")}
-        </button>
-        {#if aiBusy || aiRegenBusy}
-          <button class="lv-btn sm" onclick={cancelAiGenerate}>✕ {t("ai.cancel")}</button>
-        {/if}
-          <span class="lv-muted">{t("ai.pipelineNote")}</span>
-          {#if aiUsageTotal}<span class="lv-chip num" title={t("ai.usageTitle")}>Σ ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
-        </div>
-      </div>
-      <section class="lv-ai-review">
-        <div class="lv-section-head">
-          <div><span class="lv-eyebrow">审核工作区</span><h2>{t("ai.queue")}</h2></div>
-          {#if aiQueue.length}<span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审核</span>{/if}
-        </div>
-        {#if aiQueueBankId && (aiQueue.length || aiRejected.length)}
-          <p class="lv-muted" role="status">{t("ai.queueTarget").replace("{name}", banks.find((b) => b.id === aiQueueBankId)?.name ?? aiQueueBankId)}</p>
-          {#if aiQueueBankId !== activeBankId}<div class="lv-error">{t("ai.queueWrongBank")}</div>{/if}
-        {/if}
-        {#if aiQueue.length || aiRejected.length || aiDuplicates || aiCost}
-        <div class="lv-row" style="margin-top:14px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <div class="lv-row" style="margin:0;gap:6px;align-items:center">
-            <b style="font-size:var(--lv-font-size-md)">{t("ai.queue")}</b>
-            <span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审</span>
-            {#if aiRejected.length}<span class="lv-chip lv-chip--red num">✕ {aiRejected.length}</span>{/if}
-            {#if aiDuplicates}<span class="lv-chip lv-chip--amb num">⧉ {aiDuplicates}</span>{/if}
-            {#if aiCost}<span class="lv-chip num">{aiCost}</span>{/if}
-          </div>
-          <div class="lv-row" style="margin:0;gap:6px">
-            {#if aiRejected.length}
-              <button class="lv-btn sm" onclick={retryRejected} disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} title={t("ai.retryTitle")}><Icon name="rotate" size={13} /> {t("ai.retryRejected")}（{aiRejected.length}）</button>
-            {/if}
-            {#if aiQueue.length}
-              <button class="lv-btn lv-btn--primary sm" onclick={approveAllAi} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)}>✓ {t("ai.approveAll")}（{aiQueue.length}）</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { aiQueue = []; void persistAiQueue(); }} disabled={aiMutationBusy} title="清空当前待审核候选池">清空队列</button>
-            {/if}
-          </div>
-        </div>
-        {#if aiSaved}<div class="lv-success num">✓ {t("ai.saved")} {aiSaved}</div>{/if}
-        {#each aiQueue as q (q.id)}
-          <div class="lv-card lv-qrow">
-            <div class="lv-qrow-head">
-              <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
-              {#if q.kp}<span class="lv-chip">{q.kp}</span>{/if}
-              <span class="lv-muted lv-qrow-src">{t("ai.pendingBadge")}</span>
-            </div>
-            {#if editingAiId === q.id && aiEditDraft}
-              <div class="lv-row" style="margin:6px 0 0"><input class="lv-input" bind:value={aiEditDraft.stem} placeholder={t("manual.stem")} /></div>
-              {#each aiEditDraft.options as _opt, i (i)}
-                <div class="lv-row" style="margin:4px 0 0">
-                  <span class="lv-chip num">{String.fromCharCode(65 + i)}</span>
-                  <input class="lv-input" bind:value={aiEditDraft.options[i]} />
-                  <button class="lv-btn sm lv-btn--ghost" title={t("manual.setCorrect")} onclick={() => { aiEditDraft.answer = String.fromCharCode(65 + i); }}>✓</button>
-                </div>
-              {/each}
-              <div class="lv-row" style="margin:4px 0 0">
-                <span class="lv-chip">{t("browse.answer")}</span>
-                <input class="lv-input" style="max-width:120px" bind:value={aiEditDraft.answer} />
-                <input class="lv-input" style="flex:1" bind:value={aiEditDraft.analysis} placeholder={t("manual.analysis")} />
-              </div>
-              {#if aiEditError}<div class="lv-error">{aiEditError}</div>{/if}
-              <div class="lv-row" style="margin:8px 0 0">
-                <button class="lv-btn sm lv-btn--primary" onclick={() => saveEditAi(q)}>✓ {t("ai.editSave")}</button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={cancelEditAi}>{t("ai.editCancel")}</button>
-              </div>
-            {:else}
-              <div class="lv-qrow-stem">{q.stem}</div>
-              {#if q.options.length}
-                <div class="lv-muted" style="margin-top:4px">{q.options.map((o, i) => String.fromCharCode(65 + i) + ". " + o).join("　")}</div>
-              {/if}
-              <div class="lv-row" style="margin:6px 0;align-items:center;gap:var(--lv-space-compact);flex-wrap:wrap">
-                <span class="lv-chip lv-chip--acc num"><b>{t("browse.answer")}:</b> {q.answer}</span>
-                {#if q.difficulty}<span class="lv-chip num">★ {q.difficulty}</span>{/if}
-              </div>
-              <div class="lv-analysis" style="margin:8px 0 0">{q.analysis}</div>
-              <div class="lv-row" style="margin:8px 0 0">
-                <button class="lv-btn sm lv-btn--primary" onclick={() => approveAi(q)} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)}>✓ {t("ai.approve")}</button>
-                <button class="lv-btn sm" onclick={() => startEditAi(q)} disabled={aiMutationBusy}>✎ {t("ai.edit")}</button>
-                <button class="lv-btn sm" disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} onclick={() => regenOneAi(q)}><Icon name="rotate" size={13} /> {aiRegenBusy === q.id ? "…" : t("ai.regen")}</button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => dropAi(q)} disabled={aiMutationBusy}>✕ {t("ai.drop")}</button>
-              </div>
-            {/if}
-          </div>
-        {/each}
-        {#each aiRejected.slice(0, 10) as rj, _i (_i)}
-          <div class="lv-error-row"><b class="num">#{rj.index}</b> {rj.reason}</div>
-        {/each}
-        {#if aiTaskLog.length}
-          <details class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);margin-top:14px">
-            <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold)">✚ {t("ai.taskLog")}（{aiTaskLog.length}）</summary>
-            <p class="lv-muted" style="margin:6px 0 0">{t("ai.taskLogHint")}</p>
-            {#each [...aiTaskLog].reverse().slice(0, 5) as e, _i (_i)}
-              <div class="lv-row" style="margin:8px 0 0">
-                <span class="lv-chip num">{new Date(e.at).toLocaleTimeString()}</span>
-                <span class="lv-chip num">{e.templateId}</span>
-                <span class="lv-chip num" class:lv-chip--red={e.status !== "ok"}>{e.status}</span>
-                <span class="lv-chip num">≈{e.tokens} tok</span>
-              </div>
-              <details style="margin:2px 0 0 8px">
-                <summary class="lv-muted" style="cursor:pointer;font-size:var(--lv-font-size-caption)">{t("ai.taskLogPayload")}</summary>
-                {#each e.messages as m, _i (_i)}
-                  <pre class="lv-muted num" style="white-space:pre-wrap;font-size:var(--lv-font-size-label);margin:4px 0">[{m.role}] {m.content.slice(0, 400)}{m.content.length > 400 ? "…" : ""}</pre>
-                {/each}
-              </details>
-            {/each}
-          </details>
-        {/if}
-        {:else}
-          <div class="lv-card lv-ai-empty">
-            <div class="lv-empty-icon"><Icon name="sparkles" size={22} /></div>
-            <b>{aiBusy ? t("ai.generating") : "候选题会显示在这里"}</b>
-            <p class="lv-muted">先整理本次材料并设置题型、数量和难度；生成结果需要逐题审核后才会写入题库。</p>
-          </div>
-      {/if}
-      </section>
-      </div>
-    </div>
+    <AiStudioView
+      {hasBank}
+      {activeBankId}
+      {banks}
+      {aiCustomEndpointSet}
+      {aiError}
+      bind:aiSource
+      bind:aiSourceOrigin
+      {gleanAvailable}
+      {gleanBusy}
+      {gleanError}
+      {gleanErrorAction}
+      {gleanPendingDone}
+      {gleanDoneBusy}
+      {gleanDoneNote}
+      bind:aiCount
+      bind:aiDifficulty
+      bind:aiPreset
+      bind:aiQuality
+      bind:aiKp
+      bind:aiCustomHint
+      {aiBusy}
+      {aiRegenBusy}
+      {aiMutationBusy}
+      {aiUsageTotal}
+      bind:aiQueue
+      {aiRejected}
+      {aiDuplicates}
+      {aiCost}
+      {aiQueueBankId}
+      {aiSaved}
+      {editingAiId}
+      {aiEditDraft}
+      {aiEditError}
+      {aiTaskLog}
+      {t}
+      onback={() => view = "entry"}
+      onchangeView={(v) => (view = v)}
+      onfromDoc={aiSourceFromCurrentDoc}
+      onimportGlean={() => void importGleanClips()}
+      onmarkGleanDone={() => void markGleanDone()}
+      ongenerate={runAiGenerate}
+      oncancel={cancelAiGenerate}
+      onretryRejected={retryRejected}
+      onapproveAll={approveAllAi}
+      onclearQueue={() => { aiQueue = []; void persistAiQueue(); }}
+      onstartEdit={(q) => startEditAi(q)}
+      onsaveEdit={(q) => saveEditAi(q)}
+      oncancelEdit={cancelEditAi}
+      onapproveOne={(q) => approveAi(q)}
+      onregenOne={(q) => regenOneAi(q)}
+      ondropOne={(q) => dropAi(q)}
+    />
   {:else if view === "materials"}
-    <!-- ===== 学习资料（120-01/02/06 lite）：登记 / 列表 / 最低查看 ===== -->
-    <div class="lv-pad">
-      <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.materials.eyebrow")}</span><h1 class="lv-h1">{t("head.materials.title")}</h1><p>{t("head.materials.desc")}</p></div>
-      {@render studioNav()}
-      <div class="lv-row">
-        <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={() => view = "entry"}>← {t("import.back")}</button>
-        <b><Icon name="book" size={15} /> {t("materials.title")}</b>
-        {#if app.materialsReadonly}<span class="lv-chip lv-chip--amb">{t("materials.readonly")}</span>{/if}
-        <span class="lv-chip num">{materialsList.length}</span>
-      </div>
-      <div class="lv-card" style="margin-top:10px">
-        <div class="lv-row">
-          <button type="button" class="lv-btn" disabled={materialsBusy || offline || app.materialsReadonly} title={app.materialsReadonly ? t("materials.readonly") : offline ? t("state.offlineHint") : ""} onclick={() => materialFileInput?.click()}>
-            <Icon name="paperclip" size={14} /> {t("materials.pickFile")}
-          </button>
-          <input bind:this={materialFileInput} type="file" accept=".pdf,.mp4,.webm,.m4v,.mp3,.m4a,.wav,.ogg,.png,.jpg,.jpeg,.gif,.webp,.md,.txt,.docx,.epub" hidden onchange={onMaterialFile} disabled={materialsBusy || offline || app.materialsReadonly} />
-          <span class="lv-muted">{t("materials.copyHint")}</span>
-        </div>
-        <div class="lv-row">
-          <span class="lv-chip"><Icon name="link" size={12} /> {t("materials.link")}</span>
-          <input class="lv-input" style="flex:1;min-width:200px" placeholder="https://…" bind:value={matLink} disabled={materialsBusy} />
-          <input class="lv-input" style="max-width:150px" placeholder={t("materials.linkTitle")} bind:value={matLinkTitle} disabled={materialsBusy} />
-          <button class="lv-btn" onclick={registerMaterialLink} disabled={materialsBusy || offline || app.materialsReadonly || !matLink.trim()} title={app.materialsReadonly ? t("materials.readonly") : ""}>{t("materials.register")}</button>
-        </div>
-        <div class="lv-row lv-muted" style="font-size:var(--lv-font-size-label)">
-          <span>{t("materials.meta")}</span>
-          <input class="lv-input" style="max-width:150px" placeholder={t("materials.subject")} bind:value={matSubject} disabled={materialsBusy || app.materialsReadonly} />
-          <input class="lv-input" style="max-width:150px" placeholder={t("materials.chapter")} bind:value={matChapter} disabled={materialsBusy || app.materialsReadonly} />
-          <span class="fn__flex-1"></span>
-          <!-- 六七批：资料搜索（标题/科目/章节/位置） -->
-          <input class="lv-input" style="max-width:200px" placeholder={t("materials.search")} bind:value={materialsSearch} disabled={materialsBusy} />
-        </div>
-        {#if offline}<div class="lv-muted">⚠ {t("materials.offlineNote")}</div>{/if}
-        {#if materialsNote}<div class="lv-row"><span class="lv-chip">{materialsNote}</span></div>{/if}
-      </div>
-      {#if materialsList.length === 0}
-        <div class="lv-empty"><div class="lv-empty-icon"><Icon name="book" size={24} /></div><b>{t("materials.title")}</b><p class="lv-muted">{t("materials.empty")}</p></div>
-      {:else if materialsFiltered.length === 0}
-        <div class="lv-empty">{t("materials.noMatch")}</div>
-      {:else}
-        <div class="lv-materials-workspace">
-          <aside class="lv-card lv-material-list" aria-label={t("materials.title")}>
-            <div class="lv-section-head"><div><span class="lv-eyebrow">资料库</span><h2>{t("materials.title")}</h2></div><span class="lv-chip num">{materialsFiltered.length}</span></div>
-            {#each materialsFiltered as m (m.id)}
-              <button class="lv-material-item" class:selected={selectedMaterial?.id === m.id} aria-current={selectedMaterial?.id === m.id ? "true" : undefined} disabled={materialsBusy} aria-disabled={materialsBusy} onclick={() => { if (!materialsBusy) selectedMaterialId = m.id; }}>
-                <span class="lv-material-icon"><Icon name={matIconName(m.kind)} size={15} /></span>
-                <span class="lv-material-copy"><b>{m.title}</b><small>{[m.subject, m.chapter, t("mkind." + m.kind)].filter(Boolean).join(" · ")}</small></span>
-                <span class="lv-material-count num">{materialNoteCounts.get(m.id) ?? 0}</span>
-              </button>
-            {/each}
-          </aside>
-          {#if selectedMaterial}
-            {@const m = selectedMaterial}
-            <section class="lv-card lv-material-detail" aria-busy={materialsBusy}>
-              <div class="lv-section-head">
-                <div><span class="lv-eyebrow">资料详情</span><h2>{m.title}</h2></div>
-                <span class="lv-chip">{t("mkind." + m.kind)}</span>
-              </div>
-              <div class="lv-row lv-material-tags">
-                {#if m.subject}<span class="lv-chip">{m.subject}</span>{/if}
-                {#if m.chapter}<span class="lv-chip">{m.chapter}</span>{/if}
-                <span class="lv-chip num">v{m.revision}</span>
-                {#if materialQuestionCounts.get(m.id)}<span class="lv-chip num" title={t("qref.linkedTip")}><Icon name="link" size={11} /> {t("qref.linkedCount").replace("{n}", String(materialQuestionCounts.get(m.id) ?? 0))}</span>{/if}
-              </div>
-              <div class="lv-material-locations">
-                <b>{t("materials.meta")}</b>
-                {#each m.locations as l, _li (_li)}
-                  <div class="lv-material-location"><Icon name={l.kind === "assets" ? matIconName(m.kind) : "link"} size={13} /><span>{l.path}</span></div>
-                {/each}
-              </div>
-              <div class="lv-row lv-material-actions">
-                <button class="lv-btn lv-btn--primary sm" onclick={() => openMaterial(m)}><Icon name="external-link" size={13} /> {t("materials.open")}</button>
-                <button class="lv-btn sm" aria-expanded={notesOpenId === m.id} onclick={() => toggleNotes(m)} disabled={materialsBusy}><Icon name="pencil" size={13} /> {t("materials.notes")}（<span class="num">{materialNoteCounts.get(m.id) ?? 0}</span>）</button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => bridgeMaterialToManual(m)} title="把当前资料来源带入手工录题"><Icon name="edit" size={13} /> {t("materials.toManual", "带入录题")}</button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => bridgeMaterialToAi(m)} title="把当前资料与笔记带入 AI 出题"><Icon name="sparkles" size={13} /> {t("materials.toAi", "带入 AI")}</button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => void removeMaterialEntry(m)} disabled={materialsBusy || app.materialsReadonly} title={app.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")}><Icon name="trash" size={13} /></button>
-              </div>
-              {#if notesOpenId === m.id}
-                <div class="lv-material-notes">
-                  <div class="lv-section-head"><div><span class="lv-eyebrow">整理与回忆</span><h2>{t("materials.notes")}</h2></div></div>
-                  {#each notesCache as n (n.id)}
-                    <div class="lv-material-note">
-                      <div class="lv-row" style="margin:0;gap:var(--lv-space-1);flex-wrap:wrap">
-                        {#if n.locator}<span class="lv-chip num">{locatorLabel(n.locator)}</span>{/if}
-                        {#if needsRelocate(n, m.revision)}<span class="lv-chip lv-chip--amb" title={t("materials.relocateTip")}>{t("materials.relocate")}</span>{/if}
-                        {#each n.tags as tg (tg)}<span class="lv-chip num" style="font-size:10px">#{tg}</span>{/each}
-                      </div>
-                      {#if n.locator}<button class="lv-btn sm lv-btn--ghost" onclick={() => openMaterialAt(m, n)}><Icon name="external-link" size={12} /> {t("materials.openAt")}</button>{/if}
-                      <div class="lv-material-note-text">{n.text}</div>
-                      <div class="lv-row">
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => bridgeMaterialToManual(m, n.text)} title="用本条笔记作为题干草稿"><Icon name="edit" size={12} /> {t("materials.noteToQuestion", "用此笔记出题")}</button>
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => void startEditNote(n)} disabled={materialsBusy || app.materialsReadonly}><Icon name="pencil" size={12} /> {t("materials.noteEdit")}</button>
-                        <button class="lv-btn sm lv-btn--ghost" onclick={() => void removeNoteEntry(m, n)} disabled={materialsBusy || app.materialsReadonly}><Icon name="trash" size={13} /> {t("materials.removeTitle")}</button>
-                      </div>
-                    </div>
-                  {/each}
-                  {#if !notesCache.length}<div class="lv-muted lv-material-note-empty">{t("materials.noteEmpty")}</div>{/if}
-                  <div class="lv-row" style="margin:12px 0 4px"><b class="lv-muted" style="font-size:var(--lv-font-size-sm)">{noteEditingId ? t("materials.noteEdit") : t("materials.noteAdd")}</b></div>
-                  <div class="lv-row" style="flex-wrap:wrap">
-                    {#if m.kind === "pdf"}<input class="lv-input" style="max-width:90px" placeholder={t("materials.page")} bind:value={notePage} disabled={materialsBusy || app.materialsReadonly} />{:else if m.kind === "video" || m.kind === "audio"}<input class="lv-input" style="max-width:110px" placeholder="mm:ss" bind:value={noteTime} disabled={materialsBusy || app.materialsReadonly} />{/if}
-                    <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("materials.quote")} bind:value={noteQuote} disabled={materialsBusy || app.materialsReadonly} />
-                  </div>
-                  <textarea class="lv-input lv-textarea" rows="3" placeholder={t("materials.notePlaceholder")} bind:value={noteText} disabled={materialsBusy || app.materialsReadonly}></textarea>
-                  <div class="lv-row"><input class="lv-input" style="flex:1;min-width:160px" placeholder={t("materials.tagsPlaceholder")} bind:value={noteTags} disabled={materialsBusy || app.materialsReadonly} /><button class="lv-btn lv-btn--primary sm" onclick={() => void saveNote(m)} disabled={!noteText.trim() || materialsBusy || app.materialsReadonly}>{noteEditingId ? t("materials.noteUpdate") : t("materials.noteAddBtn")}</button>{#if noteEditingId}<button class="lv-btn sm lv-btn--ghost" onclick={resetNoteForm} disabled={materialsBusy}>{t("edit.cancel")}</button>{/if}</div>
-                  {#if noteDirty}<p class="lv-muted" role="status">{t("materials.noteDraftHint")}</p>{/if}
-                  {#if noteFormError}<div class="lv-error">{noteFormError}</div>{/if}
-                </div>
-              {/if}
-            </section>
-          {/if}
-        </div>
-      {/if}
-    </div>
+    <MaterialsView
+      {app}
+      {offline}
+      {materialsList}
+      {materialsFiltered}
+      {selectedMaterial}
+      {materialsBusy}
+      {materialsNote}
+      bind:materialsSearch
+      bind:matLink
+      bind:matLinkTitle
+      bind:matSubject
+      bind:matChapter
+      {notesOpenId}
+      {notesCache}
+      {noteEditingId}
+      bind:notePage
+      bind:noteTime
+      bind:noteQuote
+      bind:noteText
+      bind:noteTags
+      {noteDirty}
+      {noteFormError}
+      {materialNoteCounts}
+      {materialQuestionCounts}
+      {t}
+      {matIconName}
+      {locatorLabel}
+      {needsRelocate}
+      onback={() => view = "entry"}
+      onchangeView={(v) => (view = v)}
+      onpickFile={() => materialFileInput?.click()}
+      onfileChange={onMaterialFile}
+      onregisterLink={registerMaterialLink}
+      onselectMaterial={(id) => { selectedMaterialId = id; }}
+      onopenMaterial={openMaterial}
+      ontoggleNotes={toggleNotes}
+      onbridgeToManual={bridgeMaterialToManual}
+      onbridgeToAi={bridgeMaterialToAi}
+      onremoveMaterial={(m) => void removeMaterialEntry(m)}
+      onopenMaterialAt={openMaterialAt}
+      onstartEditNote={(n) => void startEditNote(n)}
+      onremoveNote={(m, n) => void removeNoteEntry(m, n)}
+      onsaveNote={(m) => void saveNote(m)}
+      onresetNoteForm={resetNoteForm}
+    />
   {:else if view === "browse"}
     <!-- ===== S3 浏览 ===== -->
     <div class="lv-pad">
@@ -9432,7 +8920,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     <!-- ===== S9 导入 ===== -->
     <div class="lv-pad">
       <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.import.eyebrow")}</span><h1 class="lv-h1">{t("head.import.title")}</h1><p>{t("head.import.desc")}</p></div>
-      {@render studioNav()}
+      <StudioSubNav currentView="import" {t} onchangeView={(v) => (view = v)} />
       <div class="lv-row">
         <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={() => view = hasBank ? "entry" : "entry"}>← {t("import.back")}</button>
         <span class="lv-chip">{t("import.title")}</span>
@@ -9887,74 +9375,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
   .lv-import-card.dragover { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); }
-  /* —— 出题工作区（与 R54 原型保持编辑/预览并置；窄屏自然回落单列） —— */
-  .lv-studio-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(300px, .92fr); gap: var(--lv-space-panel); align-items: start; }
-  .lv-studio-grid > * { min-width: 0; }
-  .lv-studio-form { margin: 8px 0; }
-  .lv-preview-card { margin: 8px 0; position: sticky; top: 10px; }
-  .lv-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--lv-space-3); margin-bottom: 16px; }
-  .lv-section-head h2 { margin: 2px 0 0; font-size: 17px; line-height: 1.4; }
-  .lv-section-head .lv-eyebrow { display: block; font-size: 10px; letter-spacing: 1.4px; color: var(--lv-accent); font-weight: var(--lv-font-weight-semibold); }
-  .lv-preview-face { border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); padding: 20px; }
-  .lv-preview-face h3 { margin: 14px 0 18px; font-size: 18px; line-height: 1.7; font-weight: var(--lv-font-weight-semibold); white-space: pre-wrap; overflow-wrap: anywhere; }
-  .lv-preview-options { display: grid; gap: var(--lv-space-2); }
-  .lv-preview-option { display: flex; align-items: flex-start; gap: var(--lv-space-relaxed); min-height: 42px; padding: var(--lv-space-relaxed) var(--lv-space-3); border: 1px solid var(--lv-ctl-border); border-radius: 10px; background: var(--lv-surface); color: var(--lv-text-2); line-height: 1.55; }
-  .lv-preview-option.selected { border-color: var(--lv-accent); background: var(--lv-accent-soft); color: var(--lv-text); }
-  .lv-preview-key { display: grid; place-items: center; width: 23px; height: 23px; flex: none; border-radius: 7px; border: 1px solid var(--lv-ctl-border); color: var(--lv-text-2); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-semibold); }
-  .lv-preview-option.selected .lv-preview-key { border-color: transparent; color: var(--lv-accent); background: var(--lv-surface); }
-  .lv-preview-answer { margin-top: 16px; padding: 13px 15px; border-left: 3px solid var(--lv-accent); border-radius: 0 9px 9px 0; background: var(--lv-surface); color: var(--lv-text-2); }
-  .lv-preview-answer strong { color: var(--lv-text); font-size: var(--lv-font-size-sm); }
-  .lv-preview-answer p { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
-  .lv-preview-answer small { display: block; margin-top: 8px; color: var(--lv-text-3); white-space: pre-wrap; line-height: 1.55; }
-  .lv-preview-fill, .lv-preview-short { margin: 12px 0; display: grid; gap: 8px; }
-  .lv-preview-blanks { display: grid; gap: 8px; }
-  .lv-preview-blank-row { display: flex; align-items: center; gap: 8px; }
-  .lv-preview-blank-row .lv-input { flex: 1; cursor: default; }
-  .lv-preview-spec-hint { font-size: var(--lv-font-size-caption, 12px); color: var(--lv-accent); background: var(--lv-accent-soft); padding: 4px 10px; border-radius: 6px; display: inline-block; }
-  .lv-preview-meta { display: flex; flex-wrap: wrap; gap: var(--lv-space-compact); margin-top: 15px; color: var(--lv-text-3); font-size: var(--lv-font-size-caption); }
-  .lv-preview-meta span { padding: 3px 8px; border-radius: 6px; background: var(--lv-surface); border: 1px solid var(--lv-border); }
-  .lv-preview-note { margin: 12px 2px 0; line-height: 1.55; }
-  .lv-studio-grid--ai { grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr); }
-  .lv-ai-source-card { margin: 8px 0; box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
-  .lv-ai-review { min-width: 0; }
-  .lv-ai-review > .lv-card { margin: 8px 0; }
-  .lv-ai-review .lv-qrow { margin-bottom: 12px; border: 1px solid var(--lv-border-subtle, var(--lv-border)); box-shadow: var(--lv-sh-1), var(--lv-inset-subtle, inset 0 1px 0 transparent); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-ai-review .lv-qrow:hover { transform: translateY(-2px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-2); }
-  .lv-ai-empty { min-height: 220px; display: grid; place-items: center; align-content: center; text-align: center; padding: 36px 24px; border-radius: var(--lv-r-3); border: 1.5px dashed var(--lv-border); background: color-mix(in srgb, var(--lv-surface-2) 40%, var(--lv-surface)); }
-  .lv-ai-empty b { margin-top: 14px; font-size: var(--lv-font-size-h3); font-weight: var(--lv-font-weight-bold); color: var(--lv-text); }
-  .lv-ai-empty p { max-width: 400px; margin: 8px auto 0; line-height: 1.65; color: var(--lv-text-3); }
-  .lv-materials-workspace { display: grid; grid-template-columns: minmax(220px, .36fr) minmax(0, .64fr); gap: var(--lv-space-panel); align-items: start; margin-top: 14px; }
-  .lv-material-list, .lv-material-detail { min-width: 0; }
-  .lv-material-list { padding: 16px 12px; }
-  .lv-material-list .lv-section-head { padding: 0 4px; margin-bottom: 10px; }
-  .lv-material-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px 9px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--lv-text); text-align: left; font: inherit; cursor: pointer; transition: background-color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-material-item:hover { background: var(--lv-surface-2); border-color: var(--lv-border); }
-  .lv-material-item.selected { background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); border-color: var(--lv-accent); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 4px 12px color-mix(in srgb, var(--lv-accent) 15%, transparent); }
-  .lv-material-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; background: var(--lv-surface-2); color: var(--lv-accent); }
-  .lv-material-item.selected .lv-material-icon { background: var(--lv-surface); }
-  .lv-material-copy { min-width: 0; flex: 1; display: grid; gap: 3px; }
-  .lv-material-copy b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--lv-font-size-body-compact); font-weight: 600; }
-  .lv-material-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lv-text-3); font-size: var(--lv-font-size-label); }
-  .lv-material-count { color: var(--lv-text-3); font-size: var(--lv-font-size-label); }
-  .lv-material-detail { padding: 20px 22px; }
-  .lv-material-detail .lv-section-head h2 { overflow-wrap: anywhere; }
-  .lv-material-tags { margin: -4px 0 14px; }
-  .lv-material-locations { padding: 12px 14px; border: 1px solid var(--lv-border); border-radius: 10px; background: var(--lv-surface-2); }
-  .lv-material-locations > b { display: block; margin-bottom: 8px; font-size: var(--lv-font-size-sm); }
-  .lv-material-location { display: flex; align-items: flex-start; gap: 7px; padding: 5px 0; color: var(--lv-text-3); font-size: var(--lv-font-size-sm); line-height: 1.5; overflow-wrap: anywhere; }
-  .lv-material-location + .lv-material-location { border-top: 1px dashed var(--lv-border); }
-  .lv-material-actions { margin-top: 14px; }
-  .lv-material-notes { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--lv-border); }
-  .lv-material-notes .lv-section-head { margin-bottom: 10px; }
-  .lv-material-note { padding: 11px 12px; border: 1px solid var(--lv-border); border-radius: var(--lv-radius-control-sm); background: var(--lv-surface-2); }
-  .lv-material-note + .lv-material-note { margin-top: 8px; }
-  .lv-material-note-text { margin: 8px 0; color: var(--lv-text); font-size: var(--lv-font-size-body-compact); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .lv-material-note-empty { padding: 12px 0; }
-  @container lv-exam (max-width: 820px) { .lv-materials-workspace { grid-template-columns: minmax(0, 1fr); } .lv-material-list { padding: 12px; } .lv-material-item { min-width: 0; } }
-  @container lv-exam (max-width: 820px) {
-    .lv-studio-grid, .lv-studio-grid--ai { grid-template-columns: minmax(0, 1fr); }
-    .lv-preview-card { position: static; }
-  }
   /* —— 会话屏右栏（原型 practice 布局：主纸面 + 条件卡） —— */
   .lv-session-grid { display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: var(--lv-space-5); align-items: start; max-width: 1040px; }
   .lv-session-grid .lv-session-head { grid-column: 1 / -1; }
@@ -10184,12 +9604,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
   @container lv-exam (max-width: 960px) { .lv-modes { grid-template-columns: repeat(2, 1fr); } }
   @container lv-exam (max-width: 480px) { .lv-modes { grid-template-columns: 1fr; } }
   /* —— R54 原型高级交互：题目浏览 Peek 抽屉 (Desktop 右侧抽屉 / Mobile 底部 Sheet) —— */
-  .lv-studio-nav { display: inline-flex; align-items: center; gap: 4px; padding: 4px; margin: 6px 0 14px; background: var(--lv-surface-2); border: 1px solid var(--lv-border); border-radius: var(--lv-r-card, 12px); max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-shadow: var(--lv-inset-subtle, inset 0 1px 0 transparent); }
-  .lv-studio-nav::-webkit-scrollbar { display: none; }
-  .lv-studio-tab { display: inline-flex; align-items: center; gap: 6px; min-height: var(--lv-control-height-md, 44px); padding: 6px 14px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--lv-text-2); font: inherit; font-size: var(--lv-font-size-body-compact, 13px); font-weight: var(--lv-font-weight-medium, 500); cursor: pointer; white-space: nowrap; transition: background-color var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-studio-tab:focus-visible { outline: 2px solid var(--lv-accent); outline-offset: 2px; }
-  .lv-studio-tab:hover { color: var(--lv-text); background: color-mix(in srgb, var(--lv-surface) 60%, transparent); }
-  .lv-studio-tab.active { background: var(--lv-surface); color: var(--lv-accent); border-color: var(--lv-border); box-shadow: var(--lv-sh-1), var(--lv-inset-highlight, inset 0 1px 0 transparent); font-weight: var(--lv-font-weight-semibold, 600); }
   .lv-qrow.active-peek { border-color: var(--lv-accent); border-left: 3.5px solid var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); box-shadow: 0 4px 16px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
   .lv-peek-backdrop { position: fixed; inset: 0; background: var(--lv-overlay); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 120; animation: lv-fade-in var(--lv-dur-fast, 0.18s) ease-out; }
   .lv-peek-sheet-handle { display: none; width: 36px; height: 4px; border-radius: 2px; background: var(--lv-border); margin: 8px auto 2px; }
