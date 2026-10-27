@@ -172,13 +172,40 @@
     function emitMockSessionEnded() {
       if (!session || !score) return;
       const answers = [...session.answers.values()];
+      const total = session.state.qids.length;
+      const correct = answers.filter((a) => a.verdict === "correct").length;
+      const wrong = answers.filter((a) => a.verdict === "wrong").length;
+
       emitExamEvent("session-ended", {
         sessionId: runId,
         mode: "mock",
-        total: session.state.qids.length,
-        correct: answers.filter((a) => a.verdict === "correct").length,
-        wrong: answers.filter((a) => a.verdict === "wrong").length,
+        total,
+        correct,
+        wrong,
       });
+
+      // Epoch 6：小驴生态联邦标准事件广播 lv-exam:session-ended
+      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(
+          new CustomEvent("lv-exam:session-ended", {
+            detail: {
+              v: 1,
+              source: "siyuan-exam",
+              type: "lv-exam:session-ended",
+              eventId: `ev-exam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+              at: new Date().toISOString(),
+              idempotencyKey: `exam-mock-session:${runId}`,
+              payload: {
+                sessionId: runId,
+                mode: "mock",
+                total,
+                correct,
+                wrong,
+              },
+            },
+          }),
+        );
+      }
     }
     const startDisabledReason = $derived(
       !bp.sections.length ? t("mock.needSec")

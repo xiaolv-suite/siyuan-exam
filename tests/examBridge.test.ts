@@ -170,4 +170,33 @@ describe("小驴考试 · 服务桥与生态集成契约 (Epoch 6)", () => {
     expect(probeGlean({ lvGlean: fakeGlean })).toBe(fakeGlean);
     expect(probeGlean({ LvGlean: fakeGlean })).toBe(fakeGlean);
   });
+
+  it("lv-exam:session-ended 联邦事件信封符合生态规范且杜绝题干泄密", () => {
+    const detail = {
+      v: 1,
+      source: "siyuan-exam",
+      type: "lv-exam:session-ended",
+      eventId: "ev-exam-test-123",
+      at: new Date().toISOString(),
+      idempotencyKey: "exam-mock-session:run-1",
+      payload: {
+        sessionId: "run-1",
+        mode: "mock",
+        total: 20,
+        correct: 18,
+        wrong: 2,
+      },
+    };
+
+    expect(detail.v).toBe(1);
+    expect(detail.source).toBe("siyuan-exam");
+    expect(detail.type).toBe("lv-exam:session-ended");
+    expect(detail.payload.total).toBe(20);
+    expect(detail.payload.correct).toBe(18);
+    expect(detail.payload.wrong).toBe(2);
+    // 严禁泄密：信封载荷中不得包含任何题干内容字段
+    expect((detail.payload as any).stem).toBeUndefined();
+    expect((detail.payload as any).content).toBeUndefined();
+    expect((detail.payload as any).questions).toBeUndefined();
+  });
 });
