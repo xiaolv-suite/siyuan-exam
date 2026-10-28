@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import {
   fetchVariantDrillQuestions,
   fetchFoundationMotherQuestion,
+  pickSameKpDrillQuestions,
+  executeVariantDrillLookup,
+  executeMotherQuestionLookup,
 } from "@/ui/practice/services/variantDrillService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -44,5 +47,63 @@ describe("变式题训练与母题溯源服务 (variantDrillService)", () => {
     expect(mockApp.findFoundationMotherQuestion).toHaveBeenCalledWith(fakeQuestion);
     expect(res.motherQuestion?.id).toBe("q-1");
     expect(res.reason).toContain("母题");
+  });
+
+  it("3. pickSameKpDrillQuestions：从错题或种子提炼同考点题目", () => {
+    const mockApp = {
+      sameKpDrill: vi.fn().mockReturnValue([fakeQuestion]),
+    };
+
+    const res = pickSameKpDrillQuestions(mockApp, [fakeQuestion], {
+      answered: [{ qid: "q-1", grade: { verdict: "wrong" } }],
+      state: { qids: [] },
+    });
+
+    expect(res.questions).toHaveLength(1);
+    expect(res.errorKey).toBeUndefined();
+
+    // 无法命中考点题时返回 errorKey
+    mockApp.sameKpDrill.mockReturnValueOnce([]);
+    const emptyRes = pickSameKpDrillQuestions(mockApp, [fakeQuestion], null);
+    expect(emptyRes.errorKey).toBe("state.noSameKp");
+  });
+
+  it("4. executeVariantDrillLookup：变式题钻研流程提示", async () => {
+    const mockApp = {
+      pickVariantQuestions: vi.fn().mockResolvedValue({
+        questions: [fakeQuestion],
+        reason: "同考点二次函数变式",
+      }),
+    };
+
+    const res = await executeVariantDrillLookup(mockApp, fakeQuestion, 5);
+    expect(res.questions).toHaveLength(1);
+    expect(res.toastMessage).toContain("同考点二次函数变式");
+
+    mockApp.pickVariantQuestions.mockResolvedValueOnce({ questions: [], reason: "" });
+    const emptyRes = await executeVariantDrillLookup(mockApp, fakeQuestion, 5);
+    expect(emptyRes.questions).toHaveLength(0);
+    expect(emptyRes.emptyNotice).toContain("未检索到相关考点");
+  });
+
+  it("5. executeMotherQuestionLookup：基础母题溯源流程提示", async () => {
+    const mockApp = {
+      findFoundationMotherQuestion: vi.fn().mockResolvedValue({
+        motherQuestion: fakeQuestion,
+        reason: "溯源至概念母题",
+      }),
+    };
+
+    const res = await executeMotherQuestionLookup(mockApp, fakeQuestion);
+    expect(res.motherQuestion?.id).toBe("q-1");
+    expect(res.toastMessage).toContain("溯源至概念母题");
+
+    mockApp.findFoundationMotherQuestion.mockResolvedValueOnce({
+      motherQuestion: null,
+      reason: "该题已是基础概念",
+    });
+    const emptyRes = await executeMotherQuestionLookup(mockApp, fakeQuestion);
+    expect(emptyRes.motherQuestion).toBeNull();
+    expect(emptyRes.emptyNotice).toBe("该题已是基础概念");
   });
 });

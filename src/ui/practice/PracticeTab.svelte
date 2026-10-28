@@ -156,8 +156,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       assembleAndLaunchWrongMock,
     } from "./services/wrongbookEcosystemService";
     import {
-      fetchVariantDrillQuestions,
-      fetchFoundationMotherQuestion,
+      pickSameKpDrillQuestions,
+      executeVariantDrillLookup,
+      executeMotherQuestionLookup,
     } from "./services/variantDrillService";
     import {
       updateCorrectOptionIndex,
@@ -3175,13 +3176,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     // ---------- 举一反三 ----------
     async function sameKpSession() {
-      const wrongs = session?.answered?.filter((a) => a.grade.verdict === "wrong") ?? [];
       const all = await loadQuestions();
-      const exclude = new Set<string>(session?.state?.qids ?? []);
-      const seed = all.find((q) => q.id === wrongs[0]?.qid) ?? session?.current ?? all[0];
-      const picked = app.sameKpDrill(all, seed, 10, exclude);
-      if (!picked.length) { errorMsg = t("state.noSameKp"); return; }
-      await safeStart(picked, "special", () => {
+      const res = pickSameKpDrillQuestions(app, all, session, 10);
+      if (res.errorKey) { errorMsg = t(res.errorKey); return; }
+      await safeStart(res.questions, "special", () => {
         feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
         view = "session";
       });
@@ -3701,16 +3699,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function drillVariantFor(q: Question) {
       if (!q) return;
       try {
-        const res = await fetchVariantDrillQuestions(app, q, 5);
-        if (!res.questions.length) {
-          showMessage("未检索到相关考点或同族的变式题", 2500, "info");
-          return;
-        }
+        const res = await executeVariantDrillLookup(app, q, 5);
+        if (res.emptyNotice) { showMessage(res.emptyNotice, 2500, "info"); return; }
         await safeStart(res.questions, "quick", () => {
           feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
           view = "session";
           restoreQuestionControls();
-          showMessage(`⚡ ${res.reason}`, 3000, "info");
+          if (res.toastMessage) showMessage(res.toastMessage, 3000, "info");
         });
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
@@ -3720,17 +3715,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function traceMotherQuestion(target: Question) {
       if (!target || !app) return;
       try {
-        const res = await fetchFoundationMotherQuestion(app, target);
-        if (!res.motherQuestion) {
-          showMessage(res.reason, 3000, "info");
-          return;
-        }
-        const mq = res.motherQuestion;
-        showMessage(`🌱 ${res.reason}`, 4000, "info");
-        await safeStart([mq], "quick", () => {
+        const res = await executeMotherQuestionLookup(app, target);
+        if (res.emptyNotice) { showMessage(res.emptyNotice, 3000, "info"); return; }
+        await safeStart([res.motherQuestion!], "quick", () => {
           feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
           view = "session";
           restoreQuestionControls();
+          if (res.toastMessage) showMessage(res.toastMessage, 4000, "info");
         });
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
