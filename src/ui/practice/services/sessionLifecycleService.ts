@@ -148,3 +148,59 @@ export function flushAbandonedSessionExposures(
     }
   }
 }
+
+/**
+ * 44-09 撤销作答：在会话与 App 流水层同步撤销上一题提交并恢复原草稿
+ */
+export function executeUndoLastAttempt(
+  session: PracticeSession,
+  app: ExamApp,
+): { undone: boolean; restoredAnswer?: string; qid?: string } {
+  const undone = session.undoLastSubmit();
+  if (!undone) return { undone: false };
+  app.undoLastAttempt(session.id, undone.qid);
+  return {
+    undone: true,
+    restoredAnswer: undone.restoredAnswer,
+    qid: undone.qid,
+  };
+}
+
+/**
+ * 提取结算页错题列表并确保具备思源块级坐标
+ */
+export function extractSessionWrongQuestions(
+  session: PracticeSession,
+  questionMap: Map<string, Question>,
+): Array<Question & { blockId: string; rootId: string }> {
+  return session.answered
+    .filter((a) => a.grade.verdict === "wrong")
+    .map((a) => questionMap.get(a.qid))
+    .filter((q): q is Question & { blockId: string; rootId: string } => !!q && !!q.blockId && !!q.rootId);
+}
+
+export interface QuestionRestoredState {
+  feedback: { verdict: string; myAnswer: string } | null;
+  selected: string;
+  draftLive: string;
+}
+
+/**
+ * 切题或恢复时计算题目控件草稿与已作答反馈状态
+ */
+export function resolveQuestionRestorationState(
+  session: PracticeSession | null,
+  q: Question | undefined,
+  isChoice: boolean,
+): QuestionRestoredState {
+  const saved = session?.state.answered?.find((a) => a.pos === session.state.cursor);
+  const feedback = saved ? { verdict: saved.verdict, myAnswer: saved.myAnswer } : null;
+  const draft = q && session ? session.getDraft(q.id) : "";
+  const existingAnswer = saved?.myAnswer ?? draft;
+
+  return {
+    feedback,
+    selected: isChoice ? existingAnswer : "",
+    draftLive: !isChoice ? existingAnswer : "",
+  };
+}

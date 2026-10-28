@@ -216,6 +216,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       calculateSessionDoneSummary,
       broadcastSessionEnded,
       flushAbandonedSessionExposures,
+      executeUndoLastAttempt,
+      extractSessionWrongQuestions,
+      resolveQuestionRestorationState,
     } from "./services/sessionLifecycleService";
     import {
       getMaterialIconName as matIconName,
@@ -3374,10 +3377,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     function restoreQuestionControls() {
       const q = session?.current;
-      const saved = session?.state.answered?.find((a) => a.pos === session.state.cursor);
-      feedback = saved ? { verdict: saved.verdict, myAnswer: saved.myAnswer } : null;
-      selected = q && isChoiceQuestion(q) ? (saved?.myAnswer ?? session.getDraft(q.id)) : "";
-      draftLive = q && !isChoiceQuestion(q) ? (saved?.myAnswer ?? session.getDraft(q.id)) : "";
+      const restored = resolveQuestionRestorationState(session, q, !!q && isChoiceQuestion(q));
+      feedback = restored.feedback;
+      selected = restored.selected;
+      draftLive = restored.draftLive;
       confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
       hideOptions = false; recallDraft = ""; leakPending = null;
       speechEvalResult = null; speechRecording = false;
@@ -3494,18 +3497,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     /** 44-09 撤销作答：在反馈态下撤回刚才误触的提交，恢复原草稿并安全回滚作答流水 */
     async function undoRecentSubmit() {
       if (!session || !app) return;
-      const undone = session.undoLastSubmit();
-      if (!undone) return;
-      app.undoLastAttempt(session.id, undone.qid);
+      const res = executeUndoLastAttempt(session, app);
+      if (!res.undone) return;
       clearReciteSubmitTimer();
       feedback = null;
       const q = session.current;
       if (q) {
-        if (isChoiceQuestion(q)) {
-          selected = undone.restoredAnswer ?? "";
-        } else {
-          draftLive = undone.restoredAnswer ?? "";
-        }
+        if (isChoiceQuestion(q)) selected = res.restoredAnswer ?? "";
+        else draftLive = res.restoredAnswer ?? "";
         restoreQuestionControls();
       }
       sessionRev++;
@@ -3516,10 +3515,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     /** 结算页错题批量转卡（LeetFlash 零成本化）：一次点击入 FSRS 队列（按块幂等，重复转卡自动跳过） */
     async function wrongsToCard() {
       if (!session || !activeBankId) return;
-      const wrongQs = session.answered
-        .filter((a) => a.grade.verdict === "wrong")
-        .map((a) => questionMap.get(a.qid))
-        .filter((q): q is Question & { blockId: string; rootId: string } => !!q);
+      const wrongQs = extractSessionWrongQuestions(session, questionMap);
       await pushWrongsToCards(app, activeBankId, bankName, wrongQs, true, showMessage);
     }
 

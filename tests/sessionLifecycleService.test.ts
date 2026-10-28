@@ -4,6 +4,9 @@ import {
   calculateSessionDoneSummary,
   broadcastSessionEnded,
   flushAbandonedSessionExposures,
+  executeUndoLastAttempt,
+  extractSessionWrongQuestions,
+  resolveQuestionRestorationState,
 } from "@/ui/practice/services/sessionLifecycleService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -129,5 +132,58 @@ describe("练习会话生命周期与结算广播服务 (sessionLifecycleService
         verdict: "not_attempted",
       }),
     );
+  });
+
+  it("5. executeUndoLastAttempt：撤销上一题作答与流水回滚", () => {
+    const mockApp = {
+      undoLastAttempt: vi.fn(),
+    } as unknown as ExamApp;
+
+    const mockSession = {
+      id: "sess-1",
+      undoLastSubmit: vi.fn().mockReturnValue({ qid: "q-1", restoredAnswer: "A" }),
+    } as unknown as PracticeSession;
+
+    const res = executeUndoLastAttempt(mockSession, mockApp);
+    expect(res.undone).toBe(true);
+    expect(res.restoredAnswer).toBe("A");
+    expect(mockApp.undoLastAttempt).toHaveBeenCalledWith("sess-1", "q-1");
+
+    // 无法撤回时返回 false
+    const failSession = {
+      id: "sess-1",
+      undoLastSubmit: vi.fn().mockReturnValue(null),
+    } as unknown as PracticeSession;
+    expect(executeUndoLastAttempt(failSession, mockApp).undone).toBe(false);
+  });
+
+  it("6. extractSessionWrongQuestions：过滤错题并筛选带有效块ID的对象", () => {
+    const mockSession = {
+      answered: [
+        { qid: "q-1", grade: { verdict: "correct" } },
+        { qid: "q-2", grade: { verdict: "wrong" } },
+        { qid: "q-3", grade: { verdict: "wrong" } },
+      ],
+    } as unknown as PracticeSession;
+
+    const qMap = new Map<string, Question>([
+      ["q-2", { id: "q-2", blockId: "b-2", rootId: "doc-2" } as any],
+      ["q-3", { id: "q-3" } as any], // 缺少 blockId
+    ]);
+
+    const wrongs = extractSessionWrongQuestions(mockSession, qMap);
+    expect(wrongs).toHaveLength(1);
+    expect(wrongs[0].id).toBe("q-2");
+  });
+
+  it("7. resolveQuestionRestorationState：计算切题恢复时的草稿与反馈", () => {
+    const mockSession = {
+      state: { cursor: 1, answered: [{ pos: 1, myAnswer: "B", verdict: "correct" }] },
+      getDraft: vi.fn().mockReturnValue("B"),
+    } as unknown as PracticeSession;
+
+    const state = resolveQuestionRestorationState(mockSession, { id: "q-1" } as any, true);
+    expect(state.selected).toBe("B");
+    expect(state.feedback?.verdict).toBe("correct");
   });
 });
