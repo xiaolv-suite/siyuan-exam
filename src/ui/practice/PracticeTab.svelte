@@ -112,6 +112,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       readClipboardImportText,
       makeFileEventProxy,
     } from "./services/bankImportService";
+    import {
+      executeAiExplain,
+      executeAiHint,
+      executeAiFollowUp,
+      formatEnvStatusLine,
+      getHintButtonLabel,
+    } from "./services/aiWorkflowService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -120,7 +127,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { SvelteMap, SvelteSet } from "svelte/reactivity";
     import Rail from "../shared/Rail.svelte";
     import { escapeHtml, renderInlineText } from "../../libs/sanitize";
-    import { questionFingerprint } from "@/ai/task";
     import { summarizeLoad } from "@/ai/flashCandidates";
     import { resolveAiKey } from "@/ai/secrets";
     import SaveStatus from "../shared/SaveStatus.svelte";
@@ -2991,73 +2997,50 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let explainSaveError = $state("");
     let explainSaveErrorQid = $state("");
 
+    function aiSettings() {
+      return {
+        endpoint: String(plugin.settingUtils?.get?.("aiEndpoint") ?? ""),
+        apiKey: resolveAiKey(plugin),
+        model: String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini"),
+      };
+    }
+
     async function explainCurrent(mode: "explain" | "hint" | "socratic" = "explain") {
       const q = session?.current;
       if (!q || explainBusy || !feedback) return;
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
-      if (!app.kernelOnline) { explainText = t("state.offlineHint"); return; }   // 离线早退（兜底）
+      if (!app.kernelOnline) { explainText = t("state.offlineHint"); return; }
       explainBusy = true; explainText = ""; explainQid = q.id;
-      // G1 任务身份：模板+题面指纹+作答快照+提交状态（ai/task.ts 信封契约）
-      const reqCtx: import("@/ai/task").AiTaskContext = {
-        templateId: mode === "explain" ? "practice.explain" : mode === "hint" ? "practice.hint" : "practice.socratic",
-        templateVersion: 2, // 五八批模板修订（T07 分层/T06 单问题）
-        qid: q.id,
-        questionRevision: questionFingerprint(q),
-        learnerAnswer: feedback.myAnswer,
-        submitted: true,
-        mode: "practice",
-        sessionId: session?.id ?? "",
-      };
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
-        const { buildExplainMessages } = await import("@/ai/explain");
-        const { AiTaskRunner } = await import("@/ai/task");
-        const endpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
-        const key = resolveAiKey(plugin);
-        const model = String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key
-          ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
-        const messages = buildExplainMessages(q, feedback.myAnswer, mode);
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
-        void logAiTask({ templateId: env.templateId, qid: reqCtx.qid, status: env.status, tokens: env.tokens, messages });
-        if (env.status === "ok" && env.data.text) {
-          explainText = env.data.text;
-          explainHistory[q.id] = [...messages, { role: "assistant", content: env.data.text }];
+        const res = await executeAiExplain({
+          q,
+          mode,
+          learnerAnswer: feedback.myAnswer,
+          sessionId: session?.id ?? "",
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+        });
+        void logAiTask({ templateId: res.env.templateId, qid: res.reqCtx.qid, status: res.env.status, tokens: res.env.tokens, messages: res.messages });
+        if (res.env.status === "ok" && res.env.data.text) {
+          explainText = res.env.data.text;
+          explainHistory[q.id] = [...res.messages, { role: "assistant", content: res.env.data.text }];
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
-          void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
-          helpShown.set(q.id, mode); // 114-01：受助标记——同题再答（重排队）时随 attempt 落 help 字段
+          void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
+          helpShown.set(q.id, mode);
         } else {
-          // 有类型失败（G6 闸门/预算/通道错误）：显示信封摘要，不裸抛异常栈
-          explainText = envStatusLine(env);
+          explainText = formatEnvStatusLine(res.env, t);
         }
-        // G2：响应期间切题时，explainQid 门控使旧讲解不占当前题展示；历史已按 q.id 留草稿
       } catch (e) {
         explainText = String(e instanceof Error ? e.message : e);
       } finally { explainBusy = false; }
     }
 
-    /** 信封 summary 是 zh 审计口径；展示层按状态本地化，错误详情原样附后 */
     function envStatusLine(env: { status: string; summary: string; error?: string }): string {
-      const line =
-        env.status === "ok" ? t("ai.emptyResponse") : env.status === "unsupported" ? t("ai.taskUnsupported") : t("ai.taskFailed");
-      return line + (env.error ? ": " + env.error : "");
+      return formatEnvStatusLine(env, t);
     }
 
-    /** 提示按钮文案：随已展示层级推进（114-01 一次一层） */
     function hintButtonLabel(q: { id: string; options: string[] }): string {
-      const step = nextHintStepSync(hintLevels.get(q.id) ?? 0, q.options.length);
-      if (step.kind === "reveal") return t("explain.hintTop");
-      if (step.level === 1) return t("explain.hint");
-      return t("explain.hintNext").replace("{n}", String(step.level));
-    }
-    /** 同步版推进判定（UI 文案用；请求路径用 ai/hint 的异步同名逻辑） */
-    function nextHintStepSync(shown: 0 | 1 | 2 | 3, optionCount: number): { kind: "hint"; level: 1 | 2 | 3 } | { kind: "reveal" } {
-      if (shown === 0) return { kind: "hint", level: 1 };
-      if (shown === 1) return { kind: "hint", level: 2 };
-      if (shown === 2 && optionCount <= 2) return { kind: "reveal" };
-      if (shown === 2) return { kind: "hint", level: 3 };
-      return { kind: "reveal" };
+      return getHintButtonLabel(hintLevels.get(q.id) ?? 0, q.options.length, t);
     }
 
     /** 114-01 一次一层提示：提交前后均可逐层申请；≤2 选项题型 L2 后转正式揭示；泄露守卫拦截疑似泄题层 */
@@ -3067,59 +3050,45 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
       explainQid = q.id; leakPending = null;
       if (!app.kernelOnline) { explainText = t("state.offlineHint"); return; }
-      const shown = hintLevels.get(q.id) ?? 0;
-      const step = nextHintStepSync(shown, q.options.length);
-      if (step.kind === "reveal") {
-        // G6 正式揭示：不冒充提示——提交作答由判定揭示答案，帮助事件随 attempt 如实落
-        explainText = t("explain.hintReveal");
-        return;
-      }
       explainBusy = true; explainText = "";
       const submitted = !!feedback;
-      // G1 任务身份：提交前提示携当前草稿（有草稿如实带出，无草稿=未作答）
-      const reqCtx: import("@/ai/task").AiTaskContext = {
-        templateId: "practice.hint",
-        templateVersion: 2, // 一次一层模板修订（docs/18 T05）
-        qid: q.id,
-        questionRevision: questionFingerprint(q),
-        learnerAnswer: feedback?.myAnswer ?? session?.getDraft(q.id) ?? null,
-        submitted,
-        mode: "practice",
-        sessionId: session?.id ?? "",
-      };
+      const shown = hintLevels.get(q.id) ?? 0;
+      const shownTexts = hintTexts.get(q.id) ?? [];
+
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
-        const { buildHintMessages, findHintLeaks } = await import("@/ai/hint");
-        const { AiTaskRunner } = await import("@/ai/task");
-        const endpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
-        const key = resolveAiKey(plugin);
-        const model = String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key
-          ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
-        const shownTexts = hintTexts.get(q.id) ?? [];
-        const messages = buildHintMessages(q, reqCtx.learnerAnswer, step.level, shownTexts);
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
-        void logAiTask({ templateId: env.templateId, qid: reqCtx.qid, status: env.status, tokens: env.tokens, messages });
-        if (env.status === "ok" && env.data.text) {
-          if (!submitted) {
-            // 揭示前（答案未上屏）：确定性泄露守卫——命中即隐藏，用户明确揭示才展示
-            const leaks = findHintLeaks(env.data.text, q);
-            if (leaks.length) {
-              leakPending = { level: step.level, text: env.data.text, reasons: leaks.map((l) => l.detail).join("、") };
-              return;
-            }
+        const res = await executeAiHint({
+          q,
+          learnerAnswer: feedback?.myAnswer ?? session?.getDraft(q.id) ?? null,
+          submitted,
+          sessionId: session?.id ?? "",
+          shownLevel: shown,
+          shownTexts,
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+        });
+
+        if (res.kind === "reveal") {
+          explainText = t("explain.hintReveal");
+          return;
+        }
+
+        void logAiTask({ templateId: res.env.templateId, qid: res.reqCtx.qid, status: res.env.status, tokens: res.env.tokens, messages: res.messages });
+
+        if (res.env.status === "ok" && res.env.data.text) {
+          if (!submitted && res.leakReasons) {
+            leakPending = { level: res.step.level, text: res.env.data.text, reasons: res.leakReasons };
+            return;
           }
-          hintLevels.set(q.id, step.level);
-          hintTexts.set(q.id, [...shownTexts, env.data.text]);
+          hintLevels.set(q.id, res.step.level);
+          hintTexts.set(q.id, [...shownTexts, res.env.data.text]);
           explainText = hintTexts
             .get(q.id)!
             .map((s, i) => `${t("explain.hintLayer").replace("{n}", String(i + 1))}：${s}`)
             .join("\n");
-          helpShown.set(q.id, "hint"); // 受助标记：本题后续作答（含本次提交）随 attempt 落 help
-          void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
+          helpShown.set(q.id, "hint");
+          void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
         } else {
-          explainText = envStatusLine(env);
+          explainText = formatEnvStatusLine(res.env, t);
         }
       } catch (e) {
         explainText = String(e instanceof Error ? e.message : e);
@@ -3147,39 +3116,30 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!q || !history?.length || explainBusy || !explainFollowUp.trim()) return;
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
       explainBusy = true;
-      // 追问沿用苏格拉底模板身份；揭示状态随当前题提交事实
-      const reqCtx: import("@/ai/task").AiTaskContext = {
-        templateId: "practice.socratic",
-        templateVersion: 2, // 五八批模板修订（T06 单问题）
-        qid: q.id,
-        questionRevision: questionFingerprint(q),
-        learnerAnswer: feedback?.myAnswer ?? null,
-        submitted: !!feedback,
-        mode: "practice",
-        sessionId: session?.id ?? "",
-      };
+
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
-        const { continueExplainMessages } = await import("@/ai/explain");
-        const { AiTaskRunner } = await import("@/ai/task");
-        const endpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
-        const key = resolveAiKey(plugin);
-        const model = String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key
-          ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
-        const messages = continueExplainMessages(history, explainFollowUp.trim());
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
-        void logAiTask({ templateId: env.templateId, qid: reqCtx.qid, status: env.status, tokens: env.tokens, messages });
-        if (env.status === "ok" && env.data.text) {
-          const reply = env.data.text;
-          explainHistory[q.id] = [...messages, { role: "assistant", content: reply }];
+        const prompt = explainFollowUp.trim();
+        const res = await executeAiFollowUp({
+          q,
+          learnerAnswer: feedback?.myAnswer ?? null,
+          submitted: !!feedback,
+          sessionId: session?.id ?? "",
+          history,
+          prompt,
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+        });
+        void logAiTask({ templateId: res.env.templateId, qid: res.reqCtx.qid, status: res.env.status, tokens: res.env.tokens, messages: res.messages });
+
+        if (res.env.status === "ok" && res.env.data.text) {
+          const reply = res.env.data.text;
+          explainHistory[q.id] = [...res.messages, { role: "assistant", content: reply }];
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
-          explainText = (explainText.endsWith(reply) ? explainText : explainText + "\n\n") + t("ai.followupTag") + explainFollowUp.trim() + "\n" + reply;
+          explainText = (explainText.endsWith(reply) ? explainText : explainText + "\n\n") + t("ai.followupTag") + prompt + "\n" + reply;
           explainFollowUp = "";
-          void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
+          void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
         } else {
-          explainText = (explainText ? explainText + "\n\n" : "") + envStatusLine(env);
+          explainText = (explainText ? explainText + "\n\n" : "") + formatEnvStatusLine(res.env, t);
         }
       } catch (e) {
         explainText = String(e instanceof Error ? e.message : e);
