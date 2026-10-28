@@ -1,7 +1,9 @@
 import type { Question } from "@/core/types";
 import type { ExamApp } from "@/app";
-import { gapsToCsv } from "@/core/syllabus";
-import { errataTemplateCsv } from "@/core/errata";
+import { gapsToCsv, type SyllabusNode, type SyllabusMeta } from "@/core/syllabus";
+import { errataTemplateCsv, parseErrataCsv, planErrata, type ErrataPlan } from "@/core/errata";
+import type { BatchPlan } from "@/core/batchEdit";
+import { planKpMerge, planEmptyKpFill } from "@/core/kpGovernance";
 import { buildQuestionSheet, buildAnswerSheet, buildAnswerCardSheet } from "@/core/printSheet";
 import type { PaperGradeItem } from "@/core/paperRecall";
 import { createQuestionVersionSnapshot } from "@/core/revision";
@@ -119,3 +121,95 @@ export function recordPaperRecallAttempts(
   }
   return graded.length;
 }
+
+/**
+ * 考纲文本语法解析预览
+ */
+export function previewSyllabusText(
+  app: ExamApp,
+  text: string,
+  t: (key: string) => string,
+): { roots: SyllabusNode[] | null; error: string } {
+  try {
+    const roots = app.previewSyllabus(text);
+    if (!roots.length) {
+      return { roots: null, error: t("syl.empty") };
+    }
+    return { roots, error: "" };
+  } catch (e) {
+    return { roots: null, error: String(e instanceof Error ? e.message : e) };
+  }
+}
+
+/**
+ * 导入并保存考纲大纲树
+ */
+export async function importSyllabusToApp(
+  app: ExamApp,
+  roots: SyllabusNode[],
+  meta: SyllabusMeta,
+  t: (key: string) => string,
+): Promise<{ note: string; error: string }> {
+  try {
+    await app.setSyllabusDoc(meta, roots);
+    const count = countSyllabusNodes(roots);
+    return {
+      note: t("syl.imported").replace("{n}", String(count)),
+      error: "",
+    };
+  } catch (e) {
+    return {
+      note: "",
+      error: String(e instanceof Error ? e.message : e),
+    };
+  }
+}
+
+/**
+ * 解析并生成题库勘误变更计划
+ */
+export function planErrataFromText(
+  text: string,
+  questions: (Question & { blockId?: string })[],
+): { plan: ErrataPlan | null; errors: { row: number; reason: string }[] } {
+  try {
+    const { rows, errors } = parseErrataCsv(text);
+    const plan = rows.length ? planErrata(rows, questions) : null;
+    return { plan, errors };
+  } catch (err) {
+    return {
+      plan: null,
+      errors: [{ row: 0, reason: String(err instanceof Error ? err.message : err) }],
+    };
+  }
+}
+
+/**
+ * 预览考点合并计划
+ */
+export function previewKpMergePlan(
+  questions: Question[],
+  from: string,
+  to: string,
+  t: (key: string) => string,
+): { plan: BatchPlan | null; note: string } {
+  const f = from.trim();
+  const tgt = to.trim();
+  if (!f || !tgt) return { plan: null, note: t("kp.needBoth") };
+  if (f === tgt) return { plan: null, note: t("kp.sameValue") };
+  return { plan: planKpMerge(questions, f, tgt).plan, note: "" };
+}
+
+/**
+ * 预览空考点回填计划
+ */
+export function previewKpFillPlan(
+  questions: Question[],
+  fillKp: string,
+  t: (key: string) => string,
+): { plan: BatchPlan | null; note: string } {
+  const kp = fillKp.trim();
+  if (!kp) return { plan: null, note: t("kp.needBoth") };
+  return { plan: planEmptyKpFill(questions, kp).plan, note: "" };
+}
+

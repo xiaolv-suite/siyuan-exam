@@ -192,6 +192,16 @@ import {
   type SyllabusMeta,
   type SyllabusNode,
 } from "./core/syllabus";
+import {
+  parseRelations,
+  serializeRelations,
+  addRelation,
+  removeRelation,
+  EMPTY_RELATIONS,
+  type KpRelation,
+  type KpRelationsDoc,
+} from "./core/kpRelations";
+import { getStandardMathTaxonomyPreset } from "./core/taxonomyAdapter";
 
 /** ArrayBuffer → base64（分块拼接，避免大文件 String.fromCharCode 展开栈溢出） */
 function arrayBufferToBase64(buf: ArrayBuffer): string {
@@ -282,6 +292,7 @@ const MATERIAL_NOTES_KEY = "materials/notes";
 const MATERIAL_QREFS_KEY = "materials/qrefs";
 const MISDIAGNOSIS_KEY = "ai/misdiagnosis";
 const SYLLABUS_KEY = "syllabus/tree";
+const KP_RELATIONS_KEY = "kp/relations";
 /** 39-03：待确认评级队列（结果不明/失败保留，核对后再决定是否重写） */
 const PENDING_RATING_KEY = "riff/pending-ratings";
 
@@ -332,6 +343,8 @@ export class ExamApp {
   private misdiagnosisStore: MisdiagnosisStore = EMPTY_MISDIAGNOSIS;
   private syllabus: SyllabusDoc = EMPTY_SYLLABUS;
   private syllabusTooNew = false;
+  private kpRelations: KpRelationsDoc = EMPTY_RELATIONS;
+  private kpRelationsTooNew = false;
   private activeSession: PracticeSession | null = null;
   private mockRunSaveTail: Promise<void> = Promise.resolve();
   /** 本地存储按键串行化：读改写操作不能互相覆盖（双击/多窗口同步时保留最后一次完整快照）。 */
@@ -503,6 +516,14 @@ export class ExamApp {
       this.syllabusTooNew = parsedSyl.versionTooNew;
     } catch (e) {
       this.noteStorageReadError(SYLLABUS_KEY, e);
+    }
+    // 考点先修图谱与关系网络（51-04）
+    try {
+      const parsedKpRel = parseRelations(await this.deps.storage.load(KP_RELATIONS_KEY));
+      this.kpRelations = parsedKpRel.doc;
+      this.kpRelationsTooNew = parsedKpRel.versionTooNew;
+    } catch (e) {
+      this.noteStorageReadError(KP_RELATIONS_KEY, e);
     }
   }
 
@@ -2165,6 +2186,96 @@ export class ExamApp {
     }
   }
 
+  kpRelationsDoc(): KpRelationsDoc {
+    return this.kpRelations;
+  }
+
+  get kpRelationsReadonly(): boolean {
+    return this.kpRelationsTooNew;
+  }
+
+  /** 批量更新考点先修关系集合（51-04） */
+  async setKpRelations(relations: KpRelation[]): Promise<void> {
+    this.assertStorageWritable();
+    if (this.kpRelationsTooNew) throw new Error("考点关系存储版本较新：只读（降级回滚场景），写入已拒绝");
+    const previous = this.kpRelations;
+    this.kpRelations = { v: 1, relations: [...relations] };
+    try {
+      await this.saves.runLatest(KP_RELATIONS_KEY, () =>
+        this.deps.storage.save(KP_RELATIONS_KEY, serializeRelations(this.kpRelations)),
+      );
+    } catch (e) {
+      this.kpRelations = previous;
+      throw e;
+    }
+  }
+
+  /** 新增考点先修依赖边（自动去重与保存） */
+  async addKpRelation(rel: KpRelation): Promise<void> {
+    this.assertStorageWritable();
+    if (this.kpRelationsTooNew) throw new Error("考点关系存储版本较新：只读，写入已拒绝");
+    const previous = this.kpRelations;
+    this.kpRelations = addRelation(this.kpRelations, rel);
+    try {
+      await this.saves.runLatest(KP_RELATIONS_KEY, () =>
+        this.deps.storage.save(KP_RELATIONS_KEY, serializeRelations(this.kpRelations)),
+      );
+    } catch (e) {
+      this.kpRelations = previous;
+      throw e;
+    }
+  }
+
+  /** 移除指定考点关系 */
+  async removeKpRelation(rel: Pick<KpRelation, "from" | "to" | "kind">): Promise<void> {
+    this.assertStorageWritable();
+    if (this.kpRelationsTooNew) throw new Error("考点关系存储版本较新：只读，写入已拒绝");
+    const previous = this.kpRelations;
+    this.kpRelations = removeRelation(this.kpRelations, rel);
+    try {
+      await this.saves.runLatest(KP_RELATIONS_KEY, () =>
+        this.deps.storage.save(KP_RELATIONS_KEY, serializeRelations(this.kpRelations)),
+      );
+    } catch (e) {
+      this.kpRelations = previous;
+      throw e;
+    }
+  }
+
+  /** 一键植入/加载国家新课标学科图谱标准预设（大纲树 + 先修关系网） */
+  async applyTaxonomyPreset(options: { overwriteSyllabus?: boolean; mergeRelations?: boolean } = {}): Promise<{
+    roots: SyllabusNode[];
+    relations: KpRelation[];
+  }> {
+    const preset = getStandardMathTaxonomyPreset();
+
+    // 1. 设置大纲树
+    if (options.overwriteSyllabus !== false) {
+      await this.setSyllabusDoc(
+        {
+          publisher: "教育部新课标",
+          year: "2025",
+          source: "cn-math-taxonomy 开源学科知识图谱",
+        },
+        preset.syllabusRoots,
+      );
+    }
+
+    // 2. 设置先修关系
+    let finalRelations = preset.relations;
+    if (options.mergeRelations) {
+      const existingKeys = new Set(this.kpRelations.relations.map((r) => `${r.from}\0${r.to}\0${r.kind}`));
+      const newItems = preset.relations.filter((r) => !existingKeys.has(`${r.from}\0${r.to}\0${r.kind}`));
+      finalRelations = [...this.kpRelations.relations, ...newItems];
+    }
+    await this.setKpRelations(finalRelations);
+
+    return {
+      roots: preset.syllabusRoots,
+      relations: finalRelations,
+    };
+  }
+
   /** 清除插件数据（58-03 lite）：逐键置空并返回逐对象回执（不冒充全部删除）。
    *  边界：思源笔记本/题块本体不动；内存态重载后归零；已外发 AI 数据无法撤回（UI 说明）。 */
   async purgeAllData(): Promise<{ key: string; ok: boolean }[]> {
@@ -2186,6 +2297,7 @@ export class ExamApp {
     if (cleared.has(MATERIAL_QREFS_KEY)) this.materialLinkStore = EMPTY_LINK_STORE;
     if (cleared.has(MISDIAGNOSIS_KEY)) this.misdiagnosisStore = EMPTY_MISDIAGNOSIS;
     if (cleared.has(SYLLABUS_KEY)) this.syllabus = EMPTY_SYLLABUS;
+    if (cleared.has(KP_RELATIONS_KEY)) this.kpRelations = EMPTY_RELATIONS;
     if (cleared.has("wrongbook/overlays")) this.wrongOverlay = new Map();
     if (cleared.has(WRONG_REASON_KEY)) this.wrongReasons = new Map();
     if (cleared.has("wrongbook/reflections")) this.wrongReflections = {};

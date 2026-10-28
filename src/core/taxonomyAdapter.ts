@@ -248,3 +248,231 @@ export function convertTaxonomyQuestions(
 
   return questions;
 }
+
+/**
+ * ============================================================
+ * 国家新课标中国初高中数学知识图谱核心预设 (cn-math-taxonomy 精选)
+ * 遵循 2022/2025 义务教育与普通高中新课标架构
+ * 拓扑图：无环 DAG，覆盖代数、方程、几何、函数四大模块先修链
+ * ============================================================
+ */
+export const STANDARD_MATH_TAXONOMY_TOPICS: readonly TaxonomyTopic[] = [
+  {
+    id: "cnm_num_rational",
+    name: "有理数概念与四则运算法则",
+    domain: "数与代数",
+    grade: 7,
+    semester: "七上",
+    chapter: "第一章 有理数",
+    mastery_criteria: ["能熟练进行正负数、绝对值与有理数加减乘除乘方运算"],
+  },
+  {
+    id: "cnm_alg_factor",
+    name: "整式乘除与提公因式平方差十字相乘分解",
+    domain: "数与代数",
+    grade: 8,
+    semester: "八上",
+    chapter: "第十四章 整式的乘法与因式分解",
+    mastery_criteria: ["熟练应用完全平方公式、平方差公式与十字相乘进行因式分解"],
+  },
+  {
+    id: "cnm_eq_linear",
+    name: "一元一次方程的解法与应用题模型",
+    domain: "方程与不等式",
+    grade: 7,
+    semester: "七上",
+    chapter: "第三章 一元一次方程",
+    mastery_criteria: ["掌握去分母、去括号、移项、合并同类项求解一元一次方程"],
+  },
+  {
+    id: "cnm_eq_quadratic",
+    name: "一元二次方程根的判别式与配方法解法",
+    domain: "方程与不等式",
+    grade: 9,
+    semester: "九上",
+    chapter: "第二十一章 一元二次方程",
+    mastery_criteria: ["掌握配方法、公式法求根及利用判别式判断根的分布"],
+  },
+  {
+    id: "cnm_fn_linear",
+    name: "一次函数的图像性质与待定系数法",
+    domain: "函数与分析",
+    grade: 8,
+    semester: "八下",
+    chapter: "第十九章 一次函数",
+    mastery_criteria: ["理解斜率k与截距b的几何意义，能用待定系数法求解析式"],
+  },
+  {
+    id: "cnm_fn_quadratic",
+    name: "二次函数的图像性质极值与最值应用",
+    domain: "函数与分析",
+    grade: 9,
+    semester: "九上",
+    chapter: "第二十二章 二次函数",
+    mastery_criteria: ["熟练求对称轴、顶点坐标及闭区间二次函数的最值"],
+  },
+  {
+    id: "cnm_geo_triangle",
+    name: "全等三角形的判定公理与性质",
+    domain: "图形与几何",
+    grade: 8,
+    semester: "八上",
+    chapter: "第十二章 全等三角形",
+    mastery_criteria: ["掌握SSS/SAS/ASA/AAS公理判定全等并进行几何推导证明"],
+  },
+  {
+    id: "cnm_geo_pythagoras",
+    name: "勾股定理与其逆定理的综合运用",
+    domain: "图形与几何",
+    grade: 8,
+    semester: "八下",
+    chapter: "第十七章 勾股定理",
+    mastery_criteria: ["掌握直角三角形三边关系a^2+b^2=c^2及折叠几何计算"],
+  },
+  {
+    id: "cnm_geo_similar",
+    name: "相似三角形的判定定理与相似比性质",
+    domain: "图形与几何",
+    grade: 9,
+    semester: "九下",
+    chapter: "第二十七章 相似",
+    mastery_criteria: ["理解相似三角形边长比例关系，面积比等于相似比的平方"],
+  },
+  {
+    id: "cnm_geo_trig",
+    name: "锐角三角函数定义与特殊角函数值计算",
+    domain: "图形与几何",
+    grade: 9,
+    semester: "九下",
+    chapter: "第二十八章 锐角三角函数",
+    mastery_criteria: ["掌握正弦sin、余弦cos、正切tan的边比定义与30°/45°/60°特值"],
+  },
+  {
+    id: "cnm_hs_derivative",
+    name: "导数的概念切线几何意义与单调极值分析",
+    domain: "函数与分析",
+    grade: 11,
+    semester: "高二选必二",
+    chapter: "第四章 一元函数的导数及其应用",
+    mastery_criteria: ["能对初等函数求导，根据导数正负判断原函数单调区间与极值"],
+  },
+];
+
+export const STANDARD_MATH_TAXONOMY_DEPENDENCIES: readonly TaxonomyDependency[] = [
+  // 代数方程链：有理数 -> 因式分解 -> 一元二次方程 (hard)
+  { topicId: "cnm_alg_factor", prerequisiteId: "cnm_num_rational", strength: "hard", reason: "因式分解建立在有理数运算法则基础上" },
+  { topicId: "cnm_eq_quadratic", prerequisiteId: "cnm_alg_factor", strength: "hard", reason: "配方法与十字相乘解方程依赖因式分解基础" },
+  { topicId: "cnm_eq_quadratic", prerequisiteId: "cnm_eq_linear", strength: "hard", reason: "一元二次方程降次后转化为一元一次方程" },
+
+  // 函数链：一次函数 -> 二次函数 -> 高中导数 (hard)
+  { topicId: "cnm_fn_quadratic", prerequisiteId: "cnm_eq_quadratic", strength: "hard", reason: "二次函数与坐标轴交点即对应一元二次方程根" },
+  { topicId: "cnm_fn_quadratic", prerequisiteId: "cnm_fn_linear", strength: "soft", reason: "一次函数的单调性认知辅助二次函数学习" },
+  { topicId: "cnm_hs_derivative", prerequisiteId: "cnm_fn_quadratic", strength: "hard", reason: "二次函数切线斜率与极值是导数理论的核心直观依托" },
+
+  // 几何链：全等三角形 -> 勾股定理 / 相似三角形 -> 锐角三角函数 (hard)
+  { topicId: "cnm_geo_pythagoras", prerequisiteId: "cnm_geo_triangle", strength: "hard", reason: "勾股定理建立在直角三角形基础性质上" },
+  { topicId: "cnm_geo_similar", prerequisiteId: "cnm_geo_triangle", strength: "hard", reason: "相似三角形是全等三角形的比例推广" },
+  { topicId: "cnm_geo_trig", prerequisiteId: "cnm_geo_similar", strength: "hard", reason: "三角函数的边长比值固定基于直角三角形相似原理" },
+];
+
+export const STANDARD_MATH_TAXONOMY_QUESTIONS: readonly TaxonomyQuestionItem[] = [
+  {
+    topicId: "cnm_num_rational",
+    stem: "计算：-3 + 5 - (-2) 的结果是？",
+    type: "single",
+    options: ["4", "0", "2", "-6"],
+    answer: "A",
+    analysis: "-3 + 5 - (-2) = 2 + 2 = 4。",
+    difficulty: "basic",
+  },
+  {
+    topicId: "cnm_alg_factor",
+    stem: "因式分解 x^2 - 4x + 4 的结果为？",
+    type: "single",
+    options: ["(x - 2)^2", "(x + 2)^2", "(x - 4)(x + 1)", "(x - 2)(x + 2)"],
+    answer: "A",
+    analysis: "由完全平方公式 a^2 - 2ab + b^2 = (a - b)^2 可得结果为 (x - 2)^2。",
+    difficulty: "basic",
+  },
+  {
+    topicId: "cnm_eq_quadratic",
+    stem: "已知关于 x 的一元二次方程 x^2 - 2x + m = 0 有两个相等的实数根，则实数 m 的值为？",
+    type: "single",
+    options: ["1", "-1", "4", "0"],
+    answer: "A",
+    analysis: "方程有两相等实根，则判别式 Δ = b^2 - 4ac = (-2)^2 - 4(1)(m) = 4 - 4m = 0，解得 m = 1。",
+    difficulty: "standard",
+  },
+  {
+    topicId: "cnm_fn_quadratic",
+    stem: "抛物线 y = (x - 1)^2 + 3 的对称轴与顶点坐标分别为？",
+    type: "single",
+    options: [
+      "直线 x = 1，顶点为 (1, 3)",
+      "直线 x = -1，顶点为 (-1, 3)",
+      "直线 x = 1，顶点为 (1, -3)",
+      "直线 x = 3，顶点为 (3, 1)",
+    ],
+    answer: "A",
+    analysis: "顶点式 y = a(x - h)^2 + k 中，对称轴为直线 x = h，顶点坐标为 (h, k)。",
+    difficulty: "standard",
+  },
+  {
+    topicId: "cnm_geo_similar",
+    stem: "若 △ABC 与 △DEF 相似且相似比为 1:2，则 △ABC 与 △DEF 的面积之比为？",
+    type: "single",
+    options: ["1:4", "1:2", "1:根号2", "2:1"],
+    answer: "A",
+    analysis: "相似三角形的面积比等于相似比的平方，故 (1/2)^2 = 1/4。",
+    difficulty: "basic",
+  },
+  {
+    topicId: "cnm_geo_trig",
+    stem: "在 Rt△ABC 中，∠C = 90°，AC = 3，BC = 4，则 sin A 的值为？",
+    type: "single",
+    options: ["4/5", "3/5", "3/4", "4/3"],
+    answer: "A",
+    analysis: "根据勾股定理斜边 AB = 5，sin A = 对边 / 斜边 = BC / AB = 4/5。",
+    difficulty: "standard",
+  },
+  {
+    topicId: "cnm_hs_derivative",
+    stem: "已知函数 f(x) = x^3 - 3x，则 f'(1) 的值为？",
+    type: "single",
+    options: ["0", "3", "-3", "1"],
+    answer: "A",
+    analysis: "求导得 f'(x) = 3x^2 - 3，代入 x = 1 得 f'(1) = 3(1)^2 - 3 = 0。",
+    difficulty: "standard",
+  },
+];
+
+/**
+ * 获取开箱即用的标准国家新课标学科图谱预设套装
+ * 包含：标准大纲树 (roots)、先修依赖拓扑 (relations)、示范试题 (sampleQuestions)
+ */
+export function getStandardMathTaxonomyPreset(): {
+  topics: readonly TaxonomyTopic[];
+  dependencies: readonly TaxonomyDependency[];
+  syllabusRoots: SyllabusNode[];
+  relations: KpRelation[];
+  sampleQuestions: Question[];
+} {
+  const kpMap = buildTaxonomyKpMap(STANDARD_MATH_TAXONOMY_TOPICS);
+  const syllabusRoots = convertTaxonomyToSyllabus(STANDARD_MATH_TAXONOMY_TOPICS);
+  const relations = convertTaxonomyDependencies(STANDARD_MATH_TAXONOMY_DEPENDENCIES, kpMap, {
+    nowMs: 1761600000000,
+  });
+  const sampleQuestions = convertTaxonomyQuestions(STANDARD_MATH_TAXONOMY_QUESTIONS, kpMap, {
+    source: "国家新课标中国学科图谱(cn-math-taxonomy)",
+    defaultScore: 3,
+  });
+
+  return {
+    topics: STANDARD_MATH_TAXONOMY_TOPICS,
+    dependencies: STANDARD_MATH_TAXONOMY_DEPENDENCIES,
+    syllabusRoots,
+    relations,
+    sampleQuestions,
+  };
+}
+

@@ -4,6 +4,10 @@ import {
   buildTaxonomyKpMap,
   convertTaxonomyDependencies,
   convertTaxonomyQuestions,
+  getStandardMathTaxonomyPreset,
+  STANDARD_MATH_TAXONOMY_TOPICS,
+  STANDARD_MATH_TAXONOMY_DEPENDENCIES,
+  STANDARD_MATH_TAXONOMY_QUESTIONS,
   type TaxonomyTopic,
   type TaxonomyDependency,
   type TaxonomyQuestionItem,
@@ -158,5 +162,37 @@ describe("中国学科知识图谱与课程标准适配器 (taxonomyAdapter)", (
     expect(q2.stem).toContain("数轴的三要素");
     expect(q2.answer).toBe("单位长度");
     expect(q2.kp).toBe("数与代数/七上 第一章 有理数/数轴");
+  });
+
+  it("5. getStandardMathTaxonomyPreset：提供开箱即用的国家新课标初高中图谱套件", () => {
+    expect(STANDARD_MATH_TAXONOMY_TOPICS.length).toBeGreaterThan(0);
+    expect(STANDARD_MATH_TAXONOMY_DEPENDENCIES.length).toBeGreaterThan(0);
+    expect(STANDARD_MATH_TAXONOMY_QUESTIONS.length).toBeGreaterThan(0);
+
+    const preset = getStandardMathTaxonomyPreset();
+
+    // 1. 考点与树状大纲
+    expect(preset.topics.length).toBeGreaterThanOrEqual(10);
+    expect(preset.syllabusRoots.length).toBeGreaterThan(0);
+    const domainTitles = preset.syllabusRoots.map((r) => r.title);
+    expect(domainTitles).toContain("数与代数");
+    expect(domainTitles).toContain("方程与不等式");
+    expect(domainTitles).toContain("函数与分析");
+    expect(domainTitles).toContain("图形与几何");
+
+    // 2. 先修边与拓扑检环
+    expect(preset.dependencies.length).toBeGreaterThanOrEqual(8);
+    expect(preset.relations.length).toBeGreaterThanOrEqual(8);
+    const cycles = detectPrereqCycles(preset.relations);
+    expect(cycles).toEqual([]); // 严格 DAG 无环
+
+    // 3. 示范题目
+    expect(preset.sampleQuestions.length).toBeGreaterThanOrEqual(5);
+    for (const q of preset.sampleQuestions) {
+      expect(q.kp).toBeTruthy();
+      expect(q.stem).toBeTruthy();
+      expect(q.answer).toBeTruthy();
+      expect(q.status).toBe("published");
+    }
   });
 });

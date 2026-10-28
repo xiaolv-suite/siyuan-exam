@@ -52,8 +52,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { RatingGuard, ratingAttemptKey, type RatingOutcomeView } from "../../core/ratingOutcome";
     import { upsertView, viewBankMismatch } from "@/core/smartViews";
     import { avgMsByType, estimatePlanMinutes } from "@/core/timeBudget";
-    import { kpAudit, planKpMerge, planEmptyKpFill } from "@/core/kpGovernance";
-    import { parseErrataCsv, planErrata } from "@/core/errata";
+    import { kpAudit } from "@/core/kpGovernance";
     import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
     import { probeCheckinApi, syncCheckin, localDateKeyOf, bridgeEnabled, fetchStreak } from "@/core/checkinBridge";
     import { probeGlean, listLaterClips, formatClipsForSource, markClipDone, type GleanClip } from "@/core/gleanBridge";
@@ -80,14 +79,27 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       printSelectedHomeworkSheet as servicePrintSelectedHomeworkSheet,
     } from "./services/printPaperService";
     import {
-      countSyllabusNodes,
       exportSyllabusGapsCsv,
       exportErrataTemplateCsv,
       printFilteredQuestionSheet,
       printFilteredAnswerSheet,
       printFilteredAnswerCard,
       recordPaperRecallAttempts,
+      previewSyllabusText,
+      importSyllabusToApp,
+      planErrataFromText,
+      previewKpMergePlan,
+      previewKpFillPlan,
     } from "./services/bankGovernanceService";
+    import {
+      exportCheatSheet as serviceExportCheatSheet,
+      exportItemQualityReport as serviceExportItemQualityReport,
+      exportGiftFormat as serviceExportGiftFormat,
+      exportAnkiFormat as serviceExportAnkiFormat,
+      exportMdDocFormat as serviceExportMdDocFormat,
+      exportSyllabusAudit as serviceExportSyllabusAudit,
+      printWrongSheet as servicePrintWrongSheet,
+    } from "./services/bankExportService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -1007,28 +1019,24 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     });
 
     function previewSyllabus() {
-      sylError = "";
-      try {
-        const roots = app.previewSyllabus(sylText);
-        if (!roots.length) { sylError = t("syl.empty"); sylPreviewRoots = null; return; }
-        sylPreviewRoots = roots;
-      } catch (e) {
-        sylError = String(e instanceof Error ? e.message : e);
-      }
+      const res = previewSyllabusText(app, sylText, t);
+      sylPreviewRoots = res.roots;
+      sylError = res.error;
     }
 
     async function importSyllabus() {
       if (!sylPreviewRoots?.length) return;
-      try {
-        await app.setSyllabusDoc(
-          { publisher: sylPublisher.trim() || undefined, year: sylYear.trim() || undefined, source: sylSource.trim() || undefined },
-          sylPreviewRoots,
-        );
-        sylNote = t("syl.imported").replace("{n}", String(countSyllabusNodes(sylPreviewRoots)));
+      const res = await importSyllabusToApp(
+        app,
+        sylPreviewRoots,
+        { publisher: sylPublisher.trim() || undefined, year: sylYear.trim() || undefined, source: sylSource.trim() || undefined },
+        t,
+      );
+      sylNote = res.note;
+      sylError = res.error;
+      if (!res.error) {
         sylPreviewRoots = null;
         sylText = "";
-      } catch (e) {
-        sylError = String(e instanceof Error ? e.message : e);
       }
     }
 
@@ -1055,11 +1063,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       errataBusy = true; errataNote = "";
       try {
         const text = await file.text();
-        const { rows, errors } = parseErrataCsv(text);
-        errataErrors = errors;
-        errataPlan = rows.length ? planErrata(rows, questions as (Question & { blockId?: string })[]) : null;
-      } catch (err) {
-        errataErrors = [{ row: 0, reason: String(err instanceof Error ? err.message : err) }];
+        const res = planErrataFromText(text, questions as (Question & { blockId?: string })[]);
+        errataErrors = res.errors;
+        errataPlan = res.plan;
       } finally { errataBusy = false; }
     }
 
@@ -1119,17 +1125,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function previewKpMerge() {
-      kpNote = "";
-      const from = kpMergeFrom.trim();
-      const to = kpMergeTo.trim();
-      if (!from || !to) { kpNote = t("kp.needBoth"); return; }
-      if (from === to) { kpNote = t("kp.sameValue"); return; }
-      kpMergePlan = planKpMerge(questions, from, to).plan;
+      const res = previewKpMergePlan(questions, kpMergeFrom, kpMergeTo, t);
+      kpNote = res.note;
+      kpMergePlan = res.plan;
     }
     function previewKpFill() {
-      kpNote = "";
-      if (!kpFillKp.trim()) { kpNote = t("kp.needBoth"); return; }
-      kpFillPlan = planEmptyKpFill(questions, kpFillKp.trim()).plan;
+      const res = previewKpFillPlan(questions, kpFillKp, t);
+      kpNote = res.note;
+      kpFillPlan = res.plan;
     }
     /** 应用治理变更：与批量编辑共用 SaveGate 闸与撤销基线（撤销走同一 batchedit/last） */
     async function applyKpPlan(plan: import("@/core/batchEdit").BatchPlan) {
@@ -4033,101 +4036,30 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (cheatSheetBusy || !app) return;
       cheatSheetBusy = true;
       try {
-        const md = await app.exportCramCheatSheetMarkdown(activeBankId);
-        const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `考前核心高频错题急救小抄-${new Date().toISOString().slice(0, 10)}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showMessage("考前急救小抄已导出 ✓", 3000, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
+        await serviceExportCheatSheet(app, activeBankId, showMessage);
       } finally {
         cheatSheetBusy = false;
       }
     }
 
     async function exportItemQualityReport() {
-      if (!activeBankId || !app) return;
-      try {
-        const md = await app.exportItemQualityAuditMarkdown(activeBankId);
-        const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `题库试题质量CTT与干扰项诊断报告-${new Date().toISOString().slice(0, 10)}.md`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showMessage("试题质量 CTT 诊断报告已导出 ✓", 3000, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
-      }
+      await serviceExportItemQualityReport(app, activeBankId, showMessage);
     }
 
     async function exportGiftFormat() {
-      if (!activeBankId || !app) return;
-      try {
-        const text = await app.exportQuestionsToGift(activeBankId);
-        const blob = new Blob([text], { type: "text/plain;charset=utf-8;" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${bankName || "题库"}.gift.txt`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        showMessage("已导出为 GIFT 格式 ✓", 3000, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
-      }
+      await serviceExportGiftFormat(app, activeBankId, bankName, showMessage);
     }
 
     async function exportAnkiFormat() {
-      if (!activeBankId || !app) return;
-      try {
-        const text = await app.exportQuestionsToAnkiTsv(activeBankId);
-        const blob = new Blob([text], { type: "text/tab-separated-values;charset=utf-8;" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${bankName || "题库"}.anki.tsv`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        showMessage("已导出为 Anki 卡包 TSV ✓", 3000, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
-      }
+      await serviceExportAnkiFormat(app, activeBankId, bankName, showMessage);
     }
 
     async function exportMdDocFormat() {
-      if (!activeBankId || !app) return;
-      try {
-        const text = await app.exportQuestionsToExamDocMarkdown(activeBankId);
-        const blob = new Blob([text], { type: "text/markdown;charset=utf-8;" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `${bankName || "题库"}-试题精选手册.md`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        showMessage("已导出为 Markdown 题册 ✓", 3000, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
-      }
+      await serviceExportMdDocFormat(app, activeBankId, bankName, showMessage);
     }
 
     async function exportSyllabusAudit() {
-      if (!activeBankId || !app) return;
-      try {
-        const md = await app.exportSyllabusAuditMarkdown(activeBankId);
-        const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `考纲知识点出题缺口体检报告-${new Date().toISOString().slice(0, 10)}.md`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-        showMessage("考纲出题缺口报告已导出 ✓", 3000, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
-      }
+      await serviceExportSyllabusAudit(app, activeBankId, showMessage);
     }
 
     async function drillVariantFor(q: Question) {
@@ -4173,36 +4105,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (printWrongBusy || !activeBankId || !filteredWrongQueue.length) return;
       printWrongBusy = true;
       try {
-        const qids = filteredWrongQueue.map((w) => w.qid);
-        const qs = questions.filter((q) => qids.includes(q.id));
-        if (!qs.length) {
-          showMessage("当前筛选条件下无可用题目", 3000, "info");
-          return;
-        }
-        const title = `${bankName || "小驴学习"} · 错题攻坚特训卷（共${qs.length}题）`;
-        const { buildCompactQuestionSheetPro, buildCompactAnswerSheetPro, buildWrongbookRetestSheetPro } = await import("../../core/printPro");
-        const html = type === "retest"
-          ? buildWrongbookRetestSheetPro(title, qs, { headerTitle: "错题清零纯净重测卷 · A4双栏", columns: "double" })
-          : type === "question"
-          ? buildCompactQuestionSheetPro(title, qs, { headerTitle: "错题攻坚特训卷 · A4双栏", columns: "double" })
-          : buildCompactAnswerSheetPro(title, qs, { headerTitle: "错题攻坚详解答案册", columns: "double" });
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${title}-${type === "retest" ? "错题重测卷" : type === "question" ? "试卷" : "答案册"}.html`;
-          a.click();
-          URL.revokeObjectURL(url);
-          showMessage("已生成双栏排版文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`打印生成失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        await servicePrintWrongSheet({
+          type,
+          activeBankId,
+          bankName,
+          wrongQids: filteredWrongQueue.map((w) => w.qid),
+          allQuestions: questions,
+          showMessage,
+        });
       } finally {
         printWrongBusy = false;
       }
