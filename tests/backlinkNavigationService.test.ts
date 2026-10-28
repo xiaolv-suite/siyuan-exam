@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   fetchBlockBacklinks,
   openSiYuanTarget,
+  applyBacklinkFetchResult,
 } from "@/ui/practice/services/backlinkNavigationService";
 
 describe("backlinkNavigationService", () => {
@@ -67,6 +68,27 @@ describe("backlinkNavigationService", () => {
 
       openSiYuanTarget({}, "doc-1", "block-2026");
       expect(openMock).toHaveBeenCalledWith("siyuan://blocks/block-2026");
+    });
+  });
+
+  describe("applyBacklinkFetchResult", () => {
+    it("updates backlink cache when links are present", () => {
+      const cache = new Map();
+      const error = {};
+      const links = [{ docId: "d1", title: "标题", content: "引用内容" }];
+
+      const res = applyBacklinkFetchResult(cache, error, "b1", { links });
+      expect(res.nextCache.get("b1")).toEqual(links);
+      expect(res.nextError.b1).toBe("");
+    });
+
+    it("updates error record when fetch fails", () => {
+      const cache = new Map();
+      const error = {};
+
+      const res = applyBacklinkFetchResult(cache, error, "b1", { error: "网络中断" });
+      expect(res.nextCache.has("b1")).toBe(false);
+      expect(res.nextError.b1).toBe("网络中断");
     });
   });
 });

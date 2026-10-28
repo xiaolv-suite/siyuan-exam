@@ -277,6 +277,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       computeSessionKpBreakdown,
       executeSessionResume,
       executeSessionFinish,
+      recordExposureFact,
     } from "./services/sessionLifecycleService";
     import {
       getMaterialIconName as matIconName,
@@ -291,14 +292,14 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     } from "./services/materialManagementService";
     import {
       loadSmartViewsAux,
-      saveSmartViewsAux,
-      createNamedSmartView,
       isViewBankMismatched,
-      removeNamedSmartView,
       loadExcelMappingsAux,
       saveExcelMappingAux,
       cloneQuestionToManualDraft,
       getNeighborQuestionId,
+      createEmptyBrowseFilters,
+      executeSaveNamedViewWithPrompt,
+      executeDeleteNamedViewWithConfirm,
     } from "./services/smartViewManagementService";
     import {
       searchSiyuanDocCandidates,
@@ -328,6 +329,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import {
       fetchBlockBacklinks,
       openSiYuanTarget,
+      applyBacklinkFetchResult,
     } from "./services/backlinkNavigationService";
     import {
       executeCommitImport,
@@ -3181,11 +3183,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 114-01：本会话受助标记（qid → 讲解模式；reveal=查看被拦泄露提示）；同题再答时随 attempt 落 help 字段 */
     // 63-02：暴露集合（同题多暴露保全；help 字段由 helpFromExposure 派生，向后兼容）
     const exposures = new SvelteMap<string, SvelteSet<string>>();
-    function addExposure(qid: string, node: string) {
-      let set = exposures.get(qid);
-      if (!set) { set = new SvelteSet(); exposures.set(qid, set); }
-      set.add(node);
-    }
+    const addExposure = (qid: string, node: string) => recordExposureFact(exposures as any, qid, node);
     /** 114-01 兼容读法：本题是否有受助暴露（提示/讲解/揭示任一） */
     const helpShown = {
       set(qid: string, mode: "explain" | "hint" | "socratic" | "reveal") { addExposure(qid, mode); },
@@ -4538,24 +4536,20 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         smartViewError = res.error;
       } finally { smartViewLoadBusy = false; }
     }
-    async function saveSmartViews(next: import("@/core/smartViews").SmartView[]) {
-      const res = await saveSmartViewsAux(app, next, t);
-      smartViewError = res.error;
-      return res.success;
-    }
     /** 当前过滤态 → 视图快照（43-05：过滤条件+题库身份+schema 版本一起存） */
     async function saveCurrentView() {
       if (!activeBankId || smartViewBusy || smartViewLoadBusy || smartViewLoadFailed) return;
       smartViewBusy = true; smartViewError = "";
       try {
         const { inputDialogSync } = await import("../../libs/dialog");
-        const name = (await inputDialogSync({ title: t("view.saveTitle"), placeholder: t("view.namePlaceholder") }))?.trim();
-        if (!name) return;
-        const next = createNamedSmartView(smartViews, activeBankId, name, searchText, favOnly, sectionSel);
-        if (!(await saveSmartViews(next))) return;
-        smartViews = next;
-        selectedView = name;
-        showMessage(t("view.saved"), 2400, "info");
+        const res = await executeSaveNamedViewWithPrompt(app, smartViews, activeBankId, { search: searchText, favOnly, sectionSel }, inputDialogSync, t);
+        if (res?.savedName) {
+          smartViews = res.nextViews;
+          selectedView = res.savedName;
+          if (res.toast) showMessage(res.toast, 2400, "info");
+        } else if (res?.error) {
+          smartViewError = res.error;
+        }
       } finally { smartViewBusy = false; }
     }
     /** 应用视图：跨库视图显式确认（不静默改变含义）；应用后过滤三件套整体切换 */
@@ -4576,29 +4570,31 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
     /** 一键放宽：清空全部浏览筛选（搜索/题型/来源/仅错题/仅受助/时间/收藏/章节/命名视图） */
     function clearBrowseFilters() {
-      setSearch("");
-      favOnly = false;
-      filterType = "";
-      filterSource = "";
-      filterWrong = false;
-      filterHelp = false;
-      filterUserTag = "";
-      filterDays = 0;
-      sectionSel = null;
-      selectedView = "";
+      const e = createEmptyBrowseFilters();
+      setSearch(e.search);
+      favOnly = e.favOnly;
+      filterType = e.filterType;
+      filterSource = e.filterSource;
+      filterWrong = e.filterWrong;
+      filterHelp = e.filterHelp;
+      filterUserTag = e.filterUserTag;
+      filterDays = e.filterDays;
+      sectionSel = e.sectionSel;
+      selectedView = e.selectedView;
     }
     async function deleteNamedView() {
       if (!selectedView || smartViewBusy || smartViewLoadBusy || smartViewLoadFailed) return;
       smartViewBusy = true; smartViewError = "";
       try {
-        const name = selectedView;
         const { confirmDialogSync } = await import("../../libs/dialog");
-        if (!(await confirmDialogSync({ title: t("view.deleteTitle"), content: t("view.deleteConfirm").replace("{name}", escapeHtml(name)) }))) return;
-        const next = removeNamedSmartView(smartViews, name);
-        if (!(await saveSmartViews(next))) return;
-        smartViews = next;
-        selectedView = "";
-        showMessage(t("view.deleted"), 2200, "info");
+        const res = await executeDeleteNamedViewWithConfirm(app, smartViews, selectedView, confirmDialogSync, t);
+        if (res.deleted) {
+          smartViews = res.nextViews;
+          selectedView = "";
+          if (res.toast) showMessage(res.toast, 2200, "info");
+        } else if (res.error) {
+          smartViewError = res.error;
+        }
       } finally { smartViewBusy = false; }
     }
 
@@ -4720,20 +4716,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       backlinkError = { ...backlinkError, [blockId]: "" };
       try {
         const res = await fetchBlockBacklinks(app, blockId, t);
-        if (res.links) {
-          // eslint-disable-next-line svelte/prefer-svelte-reactivity
-          const next = new Map(backlinkCache);
-          next.set(blockId, res.links);
-          backlinkCache = next;
-        } else if (res.error) {
-          backlinkError = { ...backlinkError, [blockId]: res.error };
-        }
+        const next = applyBacklinkFetchResult(backlinkCache, backlinkError, blockId, res);
+        backlinkCache = next.nextCache;
+        backlinkError = next.nextError;
       } finally { backlinkBusyFor = ""; }
     }
 
-    function openInSiYuan(rootId: string, blockId?: string) {
-      openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
-    }
+    const openInSiYuan = (rootId: string, blockId?: string) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
 
     // ---------- 题面富文本（md2html；离线回退纯文本） ----------
     let stemHtml = $state("");

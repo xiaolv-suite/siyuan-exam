@@ -172,3 +172,80 @@ export function getNeighborQuestionId(
   return null;
 }
 
+export interface BrowseFilterResetState {
+  search: string;
+  favOnly: boolean;
+  filterType: string;
+  filterSource: string;
+  filterWrong: boolean;
+  filterHelp: boolean;
+  filterUserTag: string;
+  filterDays: number;
+  sectionSel: null;
+  selectedView: string;
+}
+
+/**
+ * 构造全量浏览过滤清空重置状态
+ */
+export function createEmptyBrowseFilters(): BrowseFilterResetState {
+  return {
+    search: "",
+    favOnly: false,
+    filterType: "",
+    filterSource: "",
+    filterWrong: false,
+    filterHelp: false,
+    filterUserTag: "",
+    filterDays: 0,
+    sectionSel: null,
+    selectedView: "",
+  };
+}
+
+/**
+ * 经由输入弹窗保存当前命名智能视图快照
+ */
+export async function executeSaveNamedViewWithPrompt(
+  app: any,
+  smartViews: SmartView[],
+  activeBankId: string,
+  criteria: { search: string; favOnly: boolean; sectionSel: any },
+  promptFn: (opts: { title: string; placeholder: string }) => Promise<string | undefined>,
+  t: (k: string) => string,
+): Promise<{ nextViews: SmartView[]; savedName: string; toast?: string; error?: string } | null> {
+  const name = (await promptFn({ title: t("view.saveTitle"), placeholder: t("view.namePlaceholder") }))?.trim();
+  if (!name) return null;
+  const next = createNamedSmartView(smartViews, activeBankId, name, criteria.search, criteria.favOnly, criteria.sectionSel);
+  const saveRes = await saveSmartViewsAux(app, next, t);
+  if (!saveRes.success) {
+    return { nextViews: smartViews, savedName: "", error: saveRes.error };
+  }
+  return { nextViews: next, savedName: name, toast: t("view.saved") };
+}
+
+/**
+ * 经由确认弹窗删除指定智能视图
+ */
+export async function executeDeleteNamedViewWithConfirm(
+  app: any,
+  smartViews: SmartView[],
+  viewName: string,
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
+  t: (k: string) => string,
+): Promise<{ nextViews: SmartView[]; deleted: boolean; toast?: string; error?: string }> {
+  const { escapeHtml } = await import("@/libs/sanitize");
+  const ok = await confirmFn({
+    title: t("view.deleteTitle"),
+    content: t("view.deleteConfirm").replace("{name}", escapeHtml(viewName)),
+  });
+  if (!ok) return { nextViews: smartViews, deleted: false };
+  const next = removeNamedSmartView(smartViews, viewName);
+  const saveRes = await saveSmartViewsAux(app, next, t);
+  if (!saveRes.success) {
+    return { nextViews: smartViews, deleted: false, error: saveRes.error };
+  }
+  return { nextViews: next, deleted: true, toast: t("view.deleted") };
+}
+
+

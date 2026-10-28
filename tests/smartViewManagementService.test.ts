@@ -9,6 +9,9 @@ import {
   saveExcelMappingAux,
   cloneQuestionToManualDraft,
   getNeighborQuestionId,
+  createEmptyBrowseFilters,
+  executeSaveNamedViewWithPrompt,
+  executeDeleteNamedViewWithConfirm,
 } from "@/ui/practice/services/smartViewManagementService";
 import type { SmartView } from "@/core/smartViews";
 import type { Question } from "@/core/types";
@@ -184,6 +187,54 @@ describe("smartViewManagementService", () => {
       expect(getNeighborQuestionId(list, 1, 1)).toBe("q-3");
       expect(getNeighborQuestionId(list, 0, -1)).toBeNull();
       expect(getNeighborQuestionId(list, 2, 1)).toBeNull();
+    });
+  });
+
+  describe("createEmptyBrowseFilters, executeSaveNamedViewWithPrompt, executeDeleteNamedViewWithConfirm", () => {
+    it("returns clean empty browse filter state", () => {
+      const empty = createEmptyBrowseFilters();
+      expect(empty.search).toBe("");
+      expect(empty.favOnly).toBe(false);
+      expect(empty.filterDays).toBe(0);
+      expect(empty.sectionSel).toBeNull();
+      expect(empty.selectedView).toBe("");
+    });
+
+    it("saves named view via prompt dialog", async () => {
+      const mockApp = { saveAux: vi.fn().mockResolvedValue(undefined) };
+      const promptOk = vi.fn().mockResolvedValue("高考压轴题");
+
+      const res = await executeSaveNamedViewWithPrompt(
+        mockApp,
+        [],
+        "b-math",
+        { search: "导数", favOnly: true, sectionSel: null },
+        promptOk,
+        dummyT,
+      );
+
+      expect(res).not.toBeNull();
+      expect(res?.savedName).toBe("高考压轴题");
+      expect(res?.nextViews[0].search).toBe("导数");
+      expect(mockApp.saveAux).toHaveBeenCalled();
+    });
+
+    it("deletes named view with confirm dialog", async () => {
+      const mockApp = { saveAux: vi.fn().mockResolvedValue(undefined) };
+      const current = [{ name: "待删除视图", v: 1, bankId: "b1", favOnly: false, createdAt: 100 }] as any;
+      const confirmOk = vi.fn().mockResolvedValue(true);
+
+      const res = await executeDeleteNamedViewWithConfirm(
+        mockApp,
+        current,
+        "待删除视图",
+        confirmOk,
+        dummyT,
+      );
+
+      expect(res.deleted).toBe(true);
+      expect(res.nextViews).toHaveLength(0);
+      expect(mockApp.saveAux).toHaveBeenCalled();
     });
   });
 });

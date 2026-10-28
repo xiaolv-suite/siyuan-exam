@@ -75,3 +75,24 @@ export function openSiYuanTarget(
       }
     });
 }
+
+/**
+ * 更新反链缓存与错误字典
+ */
+export function applyBacklinkFetchResult(
+  currentCache: Map<string, BacklinkItem[]>,
+  currentError: Record<string, string>,
+  blockId: string,
+  res: BacklinkFetchResult,
+): { nextCache: Map<string, BacklinkItem[]>; nextError: Record<string, string> } {
+  if (res.links) {
+    const nextCache = new Map(currentCache);
+    nextCache.set(blockId, res.links);
+    return { nextCache, nextError: { ...currentError, [blockId]: "" } };
+  }
+  return {
+    nextCache: currentCache,
+    nextError: { ...currentError, [blockId]: res.error || "" },
+  };
+}
+
