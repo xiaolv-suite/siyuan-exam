@@ -6,7 +6,7 @@
 
 import type { MaterialDoc } from "@/core/materials";
 import type { MaterialNote, NoteLocator } from "@/core/materialNotes";
-import { parseTimeToSec } from "@/core/materialNotes";
+import { parseTimeToSec, formatSecToTime } from "@/core/materialNotes";
 import { locatedUrl } from "@/core/materialNotes";
 import { escapeHtml } from "@/libs/sanitize";
 
@@ -213,3 +213,74 @@ export function bridgeMaterialToAi(
     toast: `已将资料《${material.title}》带入 AI 出题工作台！`,
   };
 }
+
+export interface BlankNoteFormState {
+  editingId: string;
+  text: string;
+  page: string;
+  time: string;
+  quote: string;
+  tags: string;
+  formError: string;
+}
+
+/** 构造初始空白笔记表单状态 */
+export function createBlankNoteFormState(): BlankNoteFormState {
+  return {
+    editingId: "",
+    text: "",
+    page: "",
+    time: "",
+    quote: "",
+    tags: "",
+    formError: "",
+  };
+}
+
+/** 计算笔记表单草稿指纹签名 */
+export function getNoteDraftSignature(form: {
+  editingId: string;
+  text: string;
+  page: string;
+  time: string;
+  quote: string;
+  tags: string;
+}): string {
+  return JSON.stringify([form.editingId, form.text, form.page, form.time, form.quote, form.tags]);
+}
+
+/** 判定笔记表单是否发生了未保存的修改 */
+export function isNoteFormDirty(
+  form: {
+    editingId: string;
+    text: string;
+    page: string;
+    time: string;
+    quote: string;
+    tags: string;
+  },
+  baseline: string,
+): boolean {
+  const sig = getNoteDraftSignature(form);
+  return sig !== baseline && Boolean(form.text || form.page || form.time || form.quote || form.tags);
+}
+
+/** 从笔记对象提取用于编辑表单的值 */
+export function extractNoteEditValues(n: MaterialNote): {
+  editingId: string;
+  text: string;
+  page: string;
+  time: string;
+  quote: string;
+  tags: string;
+} {
+  return {
+    editingId: n.id,
+    text: n.text,
+    page: n.locator?.page != null ? String(n.locator.page) : "",
+    time: n.locator?.tSec != null ? formatSecToTime(n.locator.tSec) : "",
+    quote: n.locator?.quote ?? "",
+    tags: (n.tags ?? []).join("，"),
+  };
+}
+

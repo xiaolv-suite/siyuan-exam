@@ -9,6 +9,10 @@ import {
   resolveMaterialLocatedUrl,
   bridgeMaterialToManual,
   bridgeMaterialToAi,
+  createBlankNoteFormState,
+  getNoteDraftSignature,
+  isNoteFormDirty,
+  extractNoteEditValues,
 } from "@/ui/practice/services/materialManagementService";
 import type { MaterialDoc } from "@/core/materials";
 import type { MaterialNote } from "@/core/materialNotes";
@@ -292,6 +296,50 @@ describe("materialManagementService", () => {
       expect(res.content).toContain("【资料出处】高等数学 / 导数与微分 / 微积分基础");
       expect(res.content).toContain("【重点笔记】\n重点突破极限计算");
       expect(res.toast).toContain("微积分基础");
+    });
+  });
+
+  describe("createBlankNoteFormState, isNoteFormDirty, extractNoteEditValues", () => {
+    it("creates blank note form state correctly", () => {
+      const blank = createBlankNoteFormState();
+      expect(blank.editingId).toBe("");
+      expect(blank.text).toBe("");
+      expect(blank.page).toBe("");
+    });
+
+    it("evaluates isNoteFormDirty correctly against baseline", () => {
+      const form = {
+        editingId: "",
+        text: "新输入笔记",
+        page: "",
+        time: "",
+        quote: "",
+        tags: "",
+      };
+      const baseline = getNoteDraftSignature(createBlankNoteFormState());
+      expect(isNoteFormDirty(form, baseline)).toBe(true);
+      expect(isNoteFormDirty(createBlankNoteFormState(), baseline)).toBe(false);
+    });
+
+    it("extracts edit values from existing note", () => {
+      const note: MaterialNote = {
+        id: "note-123",
+        materialId: "m-1",
+        revision: 1,
+        locator: { page: 5, tSec: 65, quote: "引理" },
+        text: "这是一段解析笔记",
+        tags: ["重点", "常考"],
+        createdAt: 100,
+        updatedAt: 100,
+      };
+
+      const extracted = extractNoteEditValues(note);
+      expect(extracted.editingId).toBe("note-123");
+      expect(extracted.text).toBe("这是一段解析笔记");
+      expect(extracted.page).toBe("5");
+      expect(extracted.time).toBe("1:05");
+      expect(extracted.quote).toBe("引理");
+      expect(extracted.tags).toBe("重点，常考");
     });
   });
 });

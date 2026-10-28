@@ -14,7 +14,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import type { Question } from "../../core/types";
     import { parseText, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
     import { columnLabel, emptyAssignment, type MapAssignment } from "../../importer/mapping";
-    import { formatSecToTime, locatorLabel, needsRelocate } from "@/core/materialNotes";
+    import { locatorLabel, needsRelocate } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
     import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
     import {
@@ -289,6 +289,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       resolveMaterialLocatedUrl as serviceResolveMaterialLocatedUrl,
       bridgeMaterialToManual as serviceBridgeMaterialToManual,
       bridgeMaterialToAi as serviceBridgeMaterialToAi,
+      createBlankNoteFormState,
+      getNoteDraftSignature,
+      isNoteFormDirty,
+      extractNoteEditValues,
     } from "./services/materialManagementService";
     import {
       loadSmartViewsAux,
@@ -4331,12 +4335,14 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let noteFormError = $state("");
     let noteBaseline = $state("");
     const noteDrafts = new SvelteMap<string, { editingId: string; text: string; page: string; time: string; quote: string; tags: string; baseline: string }>();
-    function noteSignature() { return JSON.stringify([noteEditingId, noteText, notePage, noteTime, noteQuote, noteTags]); }
-    const noteDirty = $derived(noteSignature() !== noteBaseline && !!(noteText || notePage || noteTime || noteQuote || noteTags));
+    function currentNoteFormValues() {
+      return { editingId: noteEditingId, text: noteText, page: notePage, time: noteTime, quote: noteQuote, tags: noteTags };
+    }
+    const noteDirty = $derived(isNoteFormDirty(currentNoteFormValues(), noteBaseline));
 
     function toggleNotes(m: import("../../core/materials").MaterialDoc) {
       if (materialsBusy) return;
-      if (notesOpenId) noteDrafts.set(notesOpenId, { editingId: noteEditingId, text: noteText, page: notePage, time: noteTime, quote: noteQuote, tags: noteTags, baseline: noteBaseline });
+      if (notesOpenId) noteDrafts.set(notesOpenId, { ...currentNoteFormValues(), baseline: noteBaseline });
       notesOpenId = notesOpenId === m.id ? "" : m.id;
       if (notesOpenId) {
         refreshNotes(m); resetNoteForm();
@@ -4358,8 +4364,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       notesCache = refreshMaterialNoteCount(m.id);
     }
     function resetNoteForm() {
-      noteEditingId = ""; noteText = ""; notePage = ""; noteTime = ""; noteQuote = ""; noteTags = ""; noteFormError = "";
-      noteBaseline = noteSignature();
+      const b = createBlankNoteFormState();
+      noteEditingId = b.editingId; noteText = b.text; notePage = b.page; noteTime = b.time; noteQuote = b.quote; noteTags = b.tags; noteFormError = b.formError;
+      noteBaseline = getNoteDraftSignature(currentNoteFormValues());
     }
     async function startEditNote(n: import("../../core/materialNotes").MaterialNote) {
       if (materialsBusy || noteEditingId === n.id) return;
@@ -4368,18 +4375,14 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         if (!(await confirmDialogSync({ title: t("materials.replaceDraftTitle"), content: t("materials.replaceDraftConfirm") }))) return;
       }
       if (materialsBusy) return;
-      noteEditingId = n.id;
-      noteText = n.text;
-      notePage = n.locator?.page != null ? String(n.locator.page) : "";
-      noteTime = n.locator?.tSec != null ? formatSecToTime(n.locator.tSec) : "";
-      noteQuote = n.locator?.quote ?? "";
-      noteTags = (n.tags ?? []).join("，");
+      const v = extractNoteEditValues(n);
+      noteEditingId = v.editingId; noteText = v.text; notePage = v.page; noteTime = v.time; noteQuote = v.quote; noteTags = v.tags;
       noteFormError = "";
-      noteBaseline = noteSignature();
+      noteBaseline = getNoteDraftSignature(currentNoteFormValues());
     }
     async function saveNote(m: import("../../core/materials").MaterialDoc) {
       if (!noteText.trim() || materialsBusy) return;
-      const signature = noteSignature();
+      const signature = getNoteDraftSignature(currentNoteFormValues());
       noteFormError = ""; materialsBusy = true;
       try {
         const res = await serviceSaveMaterialNoteItem(app, m, {
@@ -4393,7 +4396,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         const savedNotes = refreshMaterialNoteCount(m.id);
         if (notesOpenId === m.id) {
           notesCache = savedNotes;
-          if (signature === noteSignature()) { resetNoteForm(); noteDrafts.delete(m.id); }
+          if (signature === getNoteDraftSignature(currentNoteFormValues())) { resetNoteForm(); noteDrafts.delete(m.id); }
         }
         materialsNote = res.message;
       } catch (err) {
@@ -4916,21 +4919,17 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       const q = session?.current;
       if (!q) return;
       const res = updateScratchpadText(scratchpadStore, q.id, text, scratchpadMode, scratchpadShared);
-      scratchpadStore = res.store;
-      scratchpadShared = res.sharedText;
+      scratchpadStore = res.store; scratchpadShared = res.sharedText;
     }
 
     function clearScratchpad() {
       const q = session?.current;
       if (!q) return;
       const res = clearCurrentScratchpad(scratchpadStore, q.id, scratchpadMode, scratchpadShared);
-      scratchpadStore = res.store;
-      scratchpadShared = res.sharedText;
+      scratchpadStore = res.store; scratchpadShared = res.sharedText;
     }
 
-    async function copyScratchpad() {
-      await copyScratchpadText(currentScratchpadText, showMessage, t);
-    }
+    const copyScratchpad = () => copyScratchpadText(currentScratchpadText, showMessage, t);
 
     // ---------- 52-09 正文划重点挖空出题（Cloze Generator） ----------
     let importSubTab = $state<"standard" | "cloze" | "siyuan">("standard");
