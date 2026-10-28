@@ -193,7 +193,7 @@
                 {t("wrongbook.filterTrap")} ({reasonCounts.trap})
               </button>
               <button class="lv-chip" class:acc={wbFilterStubborn} class:lv-chip--amb={wbFilterStubborn} onclick={() => wbFilterStubborn = !wbFilterStubborn} title={t("wrongbook.filterStubbornTip")}>
-                🔥 {t("wrongbook.filterStubborn")}
+                <Icon name="flame" size={12} /> {t("wrongbook.filterStubborn")}
               </button>
               {#if wbKpOptions.length > 0}
                 <select class="lv-select" style="max-width:140px;height:28px" bind:value={wbKpFilter}>
@@ -234,7 +234,7 @@
                     <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
                     {#if stubborn}
                       <span class="lv-chip lv-chip--amb sm" title={getStubbornRemediation(w).reasonText}>
-                        🔥 {t("wrongbook.stubbornBadge")}
+                        <Icon name="flame" size={11} /> {t("wrongbook.stubbornBadge")}
                       </span>
                     {/if}
                     {#if w.streakCorrect > 0}<span class="lv-chip lv-chip--grn num">{t("wrongbook.reClear").replace("{n}", String(effectiveEliminateStreak - w.streakCorrect))}</span>{/if}

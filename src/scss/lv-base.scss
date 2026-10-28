@@ -1763,6 +1763,23 @@ input[type="range"] {
 .lv-btn--ghost.acc-btn { color: var(--lv-accent); background: var(--lv-accent-soft); border-color: transparent; }
 .lv-error-row { font-size: var(--lv-font-size-meta); color: var(--lv-red); padding: 4px 2px; border-bottom: 1px dashed var(--lv-border); }
 
+/* —— 浏览列表与更多弹出菜单 (Browse list & More popover) —— */
+.lv-qrow { padding: 15px 18px; margin-bottom: 10px; border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); background: var(--lv-surface); box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), background-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
+.lv-qrow:hover { transform: translateY(-1.5px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-card); }
+.lv-qrow-head { display: flex; gap: var(--lv-space-2); align-items: center; width: calc(100% + 16px); margin: -4px -8px 4px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; flex-wrap: wrap; transition: background-color var(--lv-dur-micro) var(--lv-ease-out); }
+.lv-qrow-head:hover { background: var(--lv-surface-2); }
+.lv-qrow.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 80%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 4px 14px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
+.lv-qrow-src { margin-left: auto; font-size: var(--lv-font-size-caption); color: var(--lv-text-3); }
+.lv-qrow-stem { font-size: var(--lv-font-size-body); font-weight: var(--lv-font-weight-medium); color: var(--lv-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-more { position: relative; display: inline-flex; }
+.lv-more-dot { display: inline-block; width: 6px; height: 6px; margin-left: 5px; border-radius: var(--lv-radius-round); background: var(--lv-accent); }
+.lv-more-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 216px; padding: 6px; background: color-mix(in srgb, var(--lv-surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-2); box-shadow: var(--lv-sh-pop), var(--lv-inset-highlight, inset 0 1px 0 transparent); display: grid; gap: 3px; animation: lv-pop-in var(--lv-dur-view) var(--lv-ease-out) both; }
+.lv-more-pop button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 7px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--lv-text); font: inherit; font-size: var(--lv-font-size-body-compact); text-align: left; cursor: pointer; transition: background-color var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out); }
+.lv-more-pop button:hover { background: var(--lv-accent-soft); color: var(--lv-accent); transform: translateX(2px); }
+.lv-more-pop button[aria-checked="true"] { color: var(--lv-accent); font-weight: 600; background: color-mix(in srgb, var(--lv-accent-soft) 80%, transparent); }
+.lv-more-sep { height: 1px; margin: 4px 6px; background: var(--lv-border); }
+.lv-qrow.active-peek { border-color: var(--lv-accent); border-left: 3.5px solid var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); box-shadow: 0 4px 16px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
+
 /* —— 动效兜底 —— */
 @media (prefers-reduced-motion: reduce) {
   *,

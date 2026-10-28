@@ -1592,7 +1592,7 @@
               <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-2)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
                   <b style="color:var(--lv-red);font-size:13px;display:flex;align-items:center;gap:6px">
-                    <Icon name="alert-triangle" size={13} /> 🚨 核心阻断溯源关键链（前修考点薄弱阻断了后续进阶）
+                    <Icon name="alert-triangle" size={13} /> 核心阻断溯源关键链（前修考点薄弱阻断了后续进阶）
                   </b>
                   <span class="lv-chip sm num lv-chip--red">{clearancePlan.criticalChain.length} 个考点</span>
                 </div>

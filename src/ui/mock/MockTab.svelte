@@ -1378,7 +1378,7 @@
     let showWrongDetail = $state(false);
     async function copyExamSummaryMarkdown() {
       if (!score) return;
-      const passText = score.pass ? "🎉 及格" : "⚠️ 未及格";
+      const passText = score.pass ? "及格" : "未及格";
       const lines = [
         `### 📝 小驴学习 · 全真模考战报`,
         `- **考试科目**：${bp.name || "全真模拟卷"}`,
@@ -2216,21 +2216,21 @@
     <div class="lv-card lv-score-card" style="margin-bottom:14px;border-top:3.5px solid var(--lv-brand);box-shadow:var(--lv-sh-pop)">
       <div class="lv-guard-title" style="color:var(--lv-brand);display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <Icon name="trophy" size={20} />
-        <span>{score.percent === 100 ? "🎉 满分通关 · 金榜题名！" : score.pass ? "🎉 模考达标 · 战绩优异！" : "💪 查漏补缺 · 再接再厉！"}</span>
+        <span>{score.percent === 100 ? "满分通关 · 金榜题名！" : score.pass ? "模考达标 · 战绩优异！" : "查漏补缺 · 再接再厉！"}</span>
       </div>
       <div class="lv-row" style="gap:6px;margin:4px 0 10px;flex-wrap:wrap">
         <span class="lv-achievement-pill">
-          🎯 得分率 {score.percent}%
+          <Icon name="target" size={13} /> 得分率 {score.percent}%
         </span>
         <span class="lv-achievement-pill {score.pass ? '' : 'lv-achievement-pill--seal'}">
           {score.pass ? "✓ 达到合格线" : "✕ 距离及格线 " + (bp.passLine - score.percent) + "%"}
         </span>
         <span class="lv-achievement-pill">
-          ⏱️ 题量 {score.sections.reduce((acc, s) => acc + s.total, 0)} 题
+          <Icon name="clock" size={13} /> 题量 {score.sections.reduce((acc, s) => acc + s.total, 0)} 题
         </span>
         {#if wrongList.length > 0}
           <span class="lv-achievement-pill lv-achievement-pill--seal">
-            ❌ 错题 {wrongList.length} 道
+            <Icon name="xcircle" size={13} /> 错题 {wrongList.length} 道
           </span>
         {/if}
       </div>

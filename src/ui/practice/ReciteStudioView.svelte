@@ -143,7 +143,9 @@
         </div>
       {:else}
         <div class="lv-card" style="margin:10px 0 12px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);text-align:center">
-          <b style="color:var(--lv-green);font-size:14px;display:block;margin-bottom:8px">🎉 完美记忆，本轮全部熟练通关！</b>
+          <b style="color:var(--lv-green);font-size:14px;display:inline-flex;align-items:center;gap:6px;margin-bottom:8px">
+            <Icon name="trophy" size={16} /> 完美记忆，本轮全部熟练通关！
+          </b>
           <div class="lv-row" style="margin:0;gap:8px;justify-content:center">
             <button class="lv-btn sm lv-btn--primary" onclick={onstartNextRecite}>
               <Icon name="rotate" size={14} /> 开启下一轮背诵

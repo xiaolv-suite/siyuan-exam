@@ -378,7 +378,13 @@
       {/if}
     </nav>
   </div>
-  <div class="lv-rail-note">{t("rail.note", "")}</div>
+  <div class="lv-rail-note">
+    <div class="lv-rail-note-head">
+      <Icon name="lock" size={12} />
+      <span>{t("rail.securityTitle", "本地数据所有权")}</span>
+    </div>
+    <div class="lv-rail-note-desc">{t("rail.note", "")}</div>
+  </div>
   </div>
     {#if launcherOpen}
       <div class="lv-quick-popover" id={launcherId} bind:this={launcherMenu} role="menu" aria-label={t("rail.quickActions", "快捷行动")}
@@ -869,14 +875,30 @@
     margin-top: auto;
     margin-left: 8px;
     margin-right: 8px;
-    padding: 13px 12px;
-    border-radius: 14px;
-    background: var(--lv-amber-soft);
-    color: var(--lv-amber);
-    border: 1px solid color-mix(in srgb, var(--lv-amber) 20%, transparent);
-    box-shadow: var(--lv-sh-1), var(--lv-inset-subtle, inset 0 1px 0 transparent);
-    font-size: var(--lv-font-size-sm);
-    line-height: 1.65;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--lv-brand-soft, rgba(2, 132, 199, 0.08)) 70%, var(--lv-surface));
+    color: var(--lv-text-2);
+    border: 1px solid color-mix(in srgb, var(--lv-brand) 18%, var(--lv-border));
+    box-shadow: var(--lv-sh-1), var(--lv-inset-card, inset 0 1px 0 rgba(255, 255, 255, 0.7));
+    font-size: var(--lv-font-size-caption, 11px);
+    line-height: 1.5;
+    transition: border-color var(--lv-dur-micro, 0.15s) ease, background-color var(--lv-dur-micro) ease;
+  }
+  .lv-rail-note-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--lv-brand);
+    margin-bottom: 4px;
+    letter-spacing: 0.2px;
+  }
+  .lv-rail-note-desc {
+    color: var(--lv-text-3);
+    font-size: 11px;
+    line-height: 1.45;
   }
   /* V04 抽屉件：遮罩 + 关闭钮（窄屏） */
   .lv-nav-backdrop {

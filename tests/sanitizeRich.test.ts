@@ -225,12 +225,13 @@ describe("renderStem 源头净化（ExamApp 边界）", () => {
   });
 });
 
-describe("PracticeTab 富文本回退边界", () => {
+describe("富文本回退与转义边界", () => {
   it("材料和抽查的 {@html} 回退必须先转义纯文本", () => {
-    const source = readFileSync(resolve(process.cwd(), "src/ui/practice/PracticeTab.svelte"), "utf8");
-    expect(source).toContain("escapeHtml(materialShown)");
-    expect(source).toContain("escapeHtml(sq.stem)");
-    expect(source).not.toMatch(/\{@html\s+[^}]*\?\s*[^:]+:\s*materialShown\s*\}/);
-    expect(source).not.toMatch(/\{@html\s+spotHtml\[sid\]\s*\?\?\s*sq\.stem\s*\}/);
+    const matSource = readFileSync(resolve(process.cwd(), "src/ui/practice/MaterialGroupContextCard.svelte"), "utf8");
+    const importSource = readFileSync(resolve(process.cwd(), "src/ui/practice/ImportStudioView.svelte"), "utf8");
+    expect(matSource).toContain("escapeHtml(shownText)");
+    expect(matSource).not.toMatch(/\{@html\s+isLong\s*&&\s*!materialExpanded\s*\?\s*shownText/);
+    expect(importSource).toContain("escapeHtml(sq.stem)");
+    expect(importSource).not.toMatch(/\{@html\s+spotHtml\[sid\]\s*\|\|\s*sq\.stem\s*\}/);
   });
 });

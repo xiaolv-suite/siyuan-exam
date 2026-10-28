@@ -32,7 +32,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { randomSeedId } from "../../core/random";
     import { newBatchId } from "../../core/ids";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
-    import { countWordsAndCharacters, generatePaperGrid } from "../../core/wordCount";
     import { recentlySeen } from "../../core/exposure";
     import { validate } from "../../importer/pipeline";
     import {
@@ -63,21 +62,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
     import { onExamEvent, emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
-    import PracticeDoneCard from "./PracticeDoneCard.svelte";
+    import PracticeSessionView from "./PracticeSessionView.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
     import SessionSheetModal from "./SessionSheetModal.svelte";
-    import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
-    import SpeechEvalCapsule from "./SpeechEvalCapsule.svelte";
-    import GroupBatchSummaryCard from "./GroupBatchSummaryCard.svelte";
-    import MaterialGroupContextCard from "./MaterialGroupContextCard.svelte";
     import ReciteStudioView from "./ReciteStudioView.svelte";
     import WrongbookStudioView from "./WrongbookStudioView.svelte";
     import ImportStudioView from "./ImportStudioView.svelte";
-    import QuestionPeekDrawer from "./QuestionPeekDrawer.svelte";
     import BrowseBatchActionBar from "./BrowseBatchActionBar.svelte";
-    import BrowseMaintenanceDrawers from "./BrowseMaintenanceDrawers.svelte";
-    import TeacherWorkspaceView from "./TeacherWorkspaceView.svelte";
+    import BrowseStudioView from "./BrowseStudioView.svelte";
+    import EntryStudioView from "./EntryStudioView.svelte";
     import MaterialsView from "./MaterialsView.svelte";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
@@ -6350,7 +6344,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         <!-- 48-04 lite：打卡→考试只读投影（连续数由打卡单一实现计算，考试侧不自算） -->
         <span class="lv-chip num lv-focus-context" title={t("entry.checkinStreakTip")}><Icon name="flame" size={12} /> {t("entry.checkinStreak").replace("{n}", String(checkinStreak))}</span>
       {/if}
-      <div class="lv-row lv-focus-context" style="margin:0;gap:6px;align-items:center">
+      <div class="lv-row lv-focus-context lv-bank-picker-group" style="margin:0;gap:6px;align-items:center">
         {#if banks.length > 1}
           <!-- 多库切换：紧凑圆角下拉框 -->
           <select class="lv-select" style="max-width:160px;height:28px;font-size:12px;padding:2px 8px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")}>
@@ -6359,7 +6353,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         {:else if hasBank}
           <span class="lv-chip sm">{bankName}</span>
         {/if}
-        {#if hasBank}<button class="lv-chip" title={t("bank.removeTitle")} aria-label={t("bank.removeTitle")} onclick={removeActiveBank} disabled={importBusy || mSaving || aiMutationBusy}>✕</button>{/if}
         <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} title={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
       </div>
       <div class="lv-role-segmented lv-focus-context" role="radiogroup" aria-label="身份模式切换">
@@ -6444,927 +6437,243 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       {/if}
     </div>
   {:else if view === "entry"}
-    <!-- ===== S1 入口 / 守卫 ===== -->
-    {#if !hasBank}
-      <div class="lv-pad lv-center">
-        <div class="lv-card lv-guard lv-guard--welcome">
-          <div class="lv-guard-kicker"><Icon name="compass" size={15} /> {t("onboard.title")}</div>
-          <div class="lv-guard-title">{t("guard.welcomeTitle")}</div>
-          <p class="lv-muted">{t("guard.welcomeDesc")}</p>
-          <div class="lv-guard-steps">
-            <div class="lv-guard-step"><span class="lv-onboard-no num">01</span><span class="lv-tile-icon"><Icon name="book" size={16} /></span><b>{t("guard.step1")}</b><span>{t("guard.step1Desc")}</span></div>
-            <div class="lv-guard-step"><span class="lv-onboard-no num">02</span><span class="lv-tile-icon"><Icon name="import" size={16} /></span><b>{t("guard.step2")}</b><span>{t("guard.step2Desc")}</span></div>
-            <div class="lv-guard-step"><span class="lv-onboard-no num">03</span><span class="lv-tile-icon"><Icon name="play" size={16} /></span><b>{t("guard.step3")}</b><span>{t("guard.step3Desc")}</span></div>
-          </div>
-          <div class="lv-row" style="margin-top:20px">
-            <button class="lv-btn lv-btn--primary" onclick={createSampleBank} disabled={creating || offline} aria-busy={creatingSample} title={offline ? t("state.offlineHint") : ""}>
-              <Icon name="book" size={16} /> {creatingSample ? t("guard.sampleCreating") : t("guard.createSample").replace("{n}", String(SAMPLE_QUESTION_COUNT))}
-            </button>
-          </div>
-          <p class="lv-hint">{t("guard.demoDesc")}</p>
-          {#if bankCreateError}<div class="lv-error" role="alert">{bankCreateError}</div>{/if}
-          <div class="lv-guard-title" style="margin-top:20px">{t("guard.title")}</div>
-          <p class="lv-muted">{t("guard.desc")}</p>
-          <div class="lv-row">
-            <input class="lv-input" placeholder={t("guard.namePlaceholder")} bind:value={newBankName} disabled={creating}
-              onkeydown={(e) => !e.isComposing && e.keyCode !== 229 && e.key === "Enter" && createBank()} />
-            <button class="lv-btn lv-btn--primary" onclick={createBank} disabled={creating || !newBankName.trim()}>
-              {creating && !creatingSample ? "…" : t("guard.create")}
-            </button>
-          </div>
-          <!-- 25-P1 首用三路入口：示例题建库即练 / 模板先行 / 直接导入 -->
-          <p class="lv-hint"><Icon name="compass" size={13} /> {t("guard.sampleHint")}</p>
-          <p class="lv-hint lv-guard-sample-detail">{t("guard.sampleDetail")}</p>
-          <div class="lv-row lv-center-text"><span class="lv-muted">{t("guard.or")}</span></div>
-          <div class="lv-row">
-            <button class="lv-btn" style="flex:1" onclick={downloadTemplate}><Icon name="import" size={15} /> {t("import.template")}</button>
-            <button class="lv-btn" style="flex:1" disabled={creating || !newBankName.trim()} onclick={async () => { if (await createBank()) view = "import"; }}><Icon name="import" size={15} /> {t("guard.createAndImport")}</button>
-          </div>
-          <p class="lv-hint">{t("guard.needBankFirst")}</p>
-        </div>
-      </div>
-    {:else}
-      {#if session && session.phase === "running"}
-        <div class="lv-pad">
-          <div class="lv-card lv-resume">
-            <div>
-              <b>{t("resume.title")}</b>
-              <div class="lv-muted">{t("resume.progress")}: {session.progress.done}/{session.progress.total}</div>
-            </div>
-            <button class="lv-btn lv-btn--primary" onclick={resume} disabled={resumeBusy || exitBusy}>{resumeBusy ? "…" : t("resume.continue")}</button>
-            <button class="lv-btn lv-btn--ghost" disabled={resumeBusy || exitBusy} onclick={async () => {
-          if (session) {
-            for (const input of abandonedExposureInputs(
-              session.answered.map((a) => a.qid), exposures,
-              { kind: "practice", mode: session.state.mode, sessionId: session.id },
-            )) {
-              try { app.recordAttempt(input); } catch { /* 尽力而为 */ }
-            }
+    <EntryStudioView
+      {hasBank}
+      {creating}
+      {offline}
+      {creatingSample}
+      {SAMPLE_QUESTION_COUNT}
+      {bankCreateError}
+      bind:newBankName
+      {session}
+      {resumeBusy}
+      {exitBusy}
+      {resumeError}
+      {onboarding}
+      {practiceQuestions}
+      {questionsError}
+      {questionsLoaded}
+      {bankCategory}
+      {bankName}
+      bind:sampleNotice
+      {loading}
+      {userRole}
+      {teacherPrintBusy}
+      {syncDocsBusy}
+      {banks}
+      {plan}
+      {criticalForgettingKps}
+      {planTime}
+      {todayQueue}
+      {weekAttemptTotal}
+      {weekTrend}
+      {weekAttemptMax}
+      {goalPct}
+      {todayDone}
+      {dailyGoalN}
+      {streakDays}
+      {wrongList}
+      {cramCount}
+      {favoriteCount}
+      bind:expKp
+      {expKpRoots}
+      bind:expReason
+      bind:expDays
+      bind:bankFileInput
+      {t}
+      {planReasonText}
+      {weekDayLabel}
+      oncreateSampleBank={(kind) => void createSampleBank(kind)}
+      oncreateBank={() => void createBank()}
+      ondownloadTemplate={() => void downloadTemplate()}
+      oncreateAndImport={async () => { if (await createBank()) view = "import"; }}
+      onResume={() => void resume()}
+      ondiscardSession={async () => {
+        if (session) {
+          for (const input of abandonedExposureInputs(
+            session.answered.map((a) => a.qid), exposures,
+            { kind: "practice", mode: session.state.mode, sessionId: session.id },
+          )) {
+            try { app?.recordAttempt(input); } catch { /* 尽力而为 */ }
           }
-          await app.discardSession();
-          session = null;
-          resumeError = "";
-        }}>{t("resume.discard")}</button>
-          </div>
-          {#if resumeError}<div class="lv-error" role="alert" style="margin-top:8px">{resumeError}</div>{/if}
-        </div>
-      {/if}
-      {#if onboarding}
-        <!-- 47-02 lite：首次五分钟任务引导（无作答记录时显示；可跳过，有作答自动消失） -->
-        <div class="lv-pad">
-          <div class="lv-card lv-resume lv-onboard">
-            <div>
-              <b class="lv-onboard-title"><Icon name="compass" size={16} /> {t("onboard.title")}</b>
-              <div class="lv-muted">{t("onboard.desc")}</div>
-              <ol class="lv-onboard-steps" aria-label={t("onboard.title")}>
-                <li class="lv-onboard-step"><span class="lv-onboard-no num">01</span><span class="lv-tile-icon"><Icon name="import" size={17} /></span><b>{t("onboard.step1Title")}</b>
-                  <div class="lv-muted lv-onboard-step-desc">{t("onboard.step1Desc")}</div>
-                  <div class="lv-row" style="gap:var(--lv-space-compact);margin:8px 0 0">
-                    <button class="lv-btn sm" onclick={() => { view = "import"; }}>{t("onboard.step1")}</button>
-                    <button class="lv-btn sm" onclick={() => { view = "manual"; }}>{t("onboard.step1b")}</button>
-                    <button class="lv-btn sm" onclick={() => { view = "ai"; }}>{t("onboard.step1c")}</button>
-                  </div>
-                </li>
-                <li class="lv-onboard-step"><span class="lv-onboard-no num">02</span><span class="lv-tile-icon"><Icon name="zap" size={17} /></span><b>{t("onboard.step2")}</b>
-                  <div class="lv-muted lv-onboard-step-desc">{t("onboard.step2Desc")}</div>
-                  <div class="lv-row" style="gap:var(--lv-space-compact);margin:8px 0 0">
-                    <button class="lv-btn sm lv-btn--primary" onclick={() => void startDrill("quick")} disabled={!practiceQuestions.length || !!questionsError} title={!practiceQuestions.length ? t("state.emptyBank") : questionsError ? t("entry.loadError") : ""}>{t("onboard.step2")}</button>
-                  </div>
-                </li>
-                <li class="lv-onboard-step"><span class="lv-onboard-no num">03</span><span class="lv-tile-icon"><Icon name="chart" size={17} /></span><b>{t("onboard.step3")}</b>
-                  <div class="lv-muted lv-onboard-step-desc">{t("onboard.step3Desc")}</div>
-                  <div class="lv-row" style="gap:var(--lv-space-compact);margin:8px 0 0">
-                    <button class="lv-btn sm" onclick={() => plugin.openReport?.()}>{t("onboard.step3")}</button>
-                  </div>
-                </li>
-              </ol>
-            </div>
-            <div class="lv-row" style="margin:6px 0 0">
-              <span class="fn__flex-1"></span>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { onboardingDismissed = true; writeLocal("lv-exam-onboarded", "1"); }}>{t("onboard.skip")}</button>
-            </div>
-          </div>
-        </div>
-      {/if}
-      <div class="lv-pad">
-        <div class="lv-screen-head">
-          <span class="lv-eyebrow">{hasBank ? `${getBankCategoryMeta(bankCategory).badge} · 研学空间` : t("head.entry.eyebrow")}</span>
-          <h1 class="lv-h1">{hasBank ? bankName : t("head.entry.title")}</h1>
-          <p>先输入理解，再背诵内化；既有日常沉浸自测，亦有全真限时模考。</p>
-        </div>
-        {#if bankCreateError}<div class="lv-error" role="alert" style="margin-bottom:14px">{bankCreateError}</div>{/if}
-        {#if sampleNotice}
-          <div class="lv-card" style="padding:16px 20px;margin-bottom:14px" role="status">
-            <b>{sampleNotice}</b>
-            <p class="lv-muted">{t("guard.demoGuide")}</p>
-            <div class="lv-row">
-              <button class="lv-btn lv-btn--primary sm" onclick={() => void startDrill("quick")} disabled={!practiceQuestions.length || !!questionsError}><Icon name="play" size={15} /> {t("mode.quick")}</button>
-              <button class="lv-btn sm" onclick={() => void retryEntryLoad()} disabled={loading || creating}><Icon name="rotate" size={15} /> {t("entry.loadRetry")}</button>
-            </div>
-          </div>
-        {/if}
-        {#if questionsError}
-          <div class="lv-card lv-empty lv-entry-empty" role="alert">
-            <div class="lv-empty-icon"><Icon name="xcircle" size={28} /></div>
-            <b>{t("entry.loadError")}</b>
-            <p class="lv-muted">{questionsError}</p>
-            <div class="lv-row" style="justify-content:center;margin-top:14px">
-              <button class="lv-btn lv-btn--primary" onclick={() => void retryEntryLoad()} disabled={loading}><Icon name="rotate" size={15} /> {t("entry.loadRetry")}</button>
-              <button class="lv-btn" onclick={() => { view = "import"; }}><Icon name="import" size={15} /> {t("import.title")}</button>
-            </div>
-          </div>
-        {:else if questionsLoaded && !practiceQuestions.length}
-          <!-- 空库全学段研学导航中心（彻底避免 0 题仪表盘视觉混乱，提供宏观融合与具体分类选择） -->
-          <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:36px 28px;border-radius:var(--lv-r-4, 22px);background:var(--lv-surface);border:1px solid var(--lv-border);max-width:920px;margin:16px auto 36px">
-            <div style="text-align:center;margin-bottom:24px">
-              <div class="lv-empty-icon" style="width:54px;height:54px;border-radius:16px;background:var(--lv-brand-soft);color:var(--lv-brand);display:grid;place-items:center;margin:0 auto 12px;box-shadow:0 4px 14px color-mix(in srgb, var(--lv-brand) 18%, transparent)">
-                <Icon name="book" size={26} />
-              </div>
-              <h2 style="font-size:20px;font-weight:700;color:var(--lv-text);margin:0 0 6px">小驴学习 · 全场景自主研学启程</h2>
-              <p class="lv-muted" style="max-width:540px;margin:0 auto;line-height:1.6;font-size:13px">
-                考试是检验能力的手段，学习是终身成长的基石。当前题库暂无题目，请选择你的研学方向一键开练，或导入自己的笔记知识库。
-              </p>
-            </div>
-
-            <!-- 四大研学支柱选择漏斗（横向四列 Bento 矩阵） -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:12px;margin-bottom:20px">
-              <!-- 1. 职业与考证 -->
-              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
-                <div>
-                  <b style="font-size:14px;color:var(--lv-brand);display:flex;align-items:center;gap:6px">
-                    <Icon name="badge" size={15} /> 职业考证
-                  </b>
-                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                    教师资格证(教资)、基金从业资格、中级会计职称等国家专业证书
-                  </p>
-                </div>
-                <button class="lv-btn sm lv-btn--primary" style="width:100%" onclick={() => void createSampleBank("qualification")} disabled={creating || offline} title="体验教资与基金从业资格真题">
-                  体验考证题库
-                </button>
-              </div>
-
-              <!-- 2. 大学与硕博 -->
-              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
-                <div>
-                  <b style="font-size:14px;color:var(--lv-accent);display:flex;align-items:center;gap:6px">
-                    <Icon name="academic" size={15} /> 大学与硕博
-                  </b>
-                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                    高等数学微积分、线性代数、考研政治专业课、四六级长难句
-                  </p>
-                </div>
-                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("higher")} disabled={creating || offline} title="体验大学高数与考研真题">
-                  体验高数题库
-                </button>
-              </div>
-
-              <!-- 3. 多语言研学 (英语+粤语) -->
-              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
-                <div>
-                  <b style="font-size:14px;color:var(--lv-scene-language, var(--lv-accent));display:flex;align-items:center;gap:6px">
-                    <Icon name="volume" size={15} /> 多语言研学
-                  </b>
-                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                    雅思核心学术词(IPA音标/en-US发音)与地道粤语日常口语
-                  </p>
-                </div>
-                <div class="lv-row" style="margin:0;gap:4px">
-                  <button class="lv-btn sm" style="flex:1" onclick={() => void createSampleBank("english")} disabled={creating || offline}>
-                    英语
-                  </button>
-                  <button class="lv-btn sm" style="flex:1" onclick={() => void createSampleBank("cantonese")} disabled={creating || offline}>
-                    粤语
-                  </button>
-                </div>
-              </div>
-
-              <!-- 4. K12基础教育与通识 -->
-              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
-                <div>
-                  <b style="font-size:14px;color:var(--lv-green);display:flex;align-items:center;gap:6px">
-                    <Icon name="book" size={15} /> K12基础通识
-                  </b>
-                  <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                    小学/初中/高中全科基础、中高考物理数学公式与古诗文
-                  </p>
-                </div>
-                <button class="lv-btn sm" style="width:100%" onclick={() => void createSampleBank("k12")} disabled={creating || offline} title="体验K12初高中全科题库">
-                  体验基础题库
-                </button>
-              </div>
-            </div>
-
-            <!-- 下方：载入笔记与出题通道 -->
-            <div class="lv-row" style="justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 0;padding-top:16px;border-top:1px solid var(--lv-border-subtle)">
-              <button class="lv-btn lv-btn--primary" onclick={() => { view = "import"; importSubTab = "siyuan"; }}>
-                <Icon name="file" size={15} /> 从思源笔记智能提取试题
-              </button>
-              <button class="lv-btn lv-btn--ghost" onclick={() => { view = "import"; importSubTab = "standard"; }}>
-                <Icon name="import" size={15} /> 批量导入 (Excel / CSV / Aiken)
-              </button>
-              <button class="lv-btn lv-btn--ghost" onclick={() => { view = "manual"; }}>
-                <Icon name="clipboard" size={15} /> 手工录题工坊
-              </button>
-              {#if banks.length > 1}
-                <button class="lv-btn lv-btn--ghost" onclick={() => { bankHubOpen = true; }}>
-                  <Icon name="folder" size={15} /> 切换其他已有题库 ({banks.length})
-                </button>
-              {/if}
-            </div>
-          </div>
-        {:else if userRole === "teacher"}
-          <TeacherWorkspaceView
-            practiceQuestionsCount={practiceQuestions.length}
-            {teacherPrintBusy}
-            {syncDocsBusy}
-            {offline}
-            {hasBank}
-            {t}
-            onprintPaper={printBankDoubleColumnPaper}
-            onexportTeacherPaper={exportBankTeacherPaper}
-            onprintHomework={printBankHomeworkSheet}
-            onopenReport={() => plugin.openReport?.()}
-            onopenMock={() => plugin.openMock?.()}
-            onnavManual={() => { view = "manual"; }}
-            onnavImport={() => { view = "import"; }}
-            onnavAi={() => { view = "ai"; }}
-            onnavMaterials={() => { view = "materials"; loadMaterials(); }}
-            onnavBrowse={() => { switchView("browse"); void loadQuestions(); }}
-            onsyncBankDocs={syncBankDocs}
-            oncopyChallengeCode={copyChallengeCode}
-            onimportChallengeCode={importChallengeCode}
-            onexportBank={exportBank}
-          />
-        {:else}
-          <!-- ===== 👨‍🎓 备考学员与自主研学空间 ===== -->
-        {#if plan}
-          <div class="lv-entry-overview">
-          {#if criticalForgettingKps.length > 0}
-            <div class="lv-card" style="margin-bottom:12px;padding:12px 16px;border-left:4px solid var(--lv-accent-seal);background:var(--lv-surface);box-shadow:var(--lv-sh-1)">
-              <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span class="lv-achievement-pill lv-achievement-pill--seal">
-                    🚨 艾宾浩斯记忆急救
-                  </span>
-                  <span style="font-size:var(--lv-font-size-body-compact);font-weight:600;color:var(--lv-text)">
-                    检测到 {criticalForgettingKps.length} 个核心考点记忆留存已跌破 35% 临界线！
-                  </span>
-                </div>
-                <div class="lv-row" style="margin:0;gap:6px">
-                  <button class="lv-btn sm lv-btn--primary" onclick={rescueEbbinghausNow}>
-                    <Icon name="play" size={13} /> 立即做题抢救（{criticalForgettingKps[0].kp} 等 5 题）
-                  </button>
-                  <button class="lv-btn sm lv-btn--ghost" onclick={rescueEbbinghausRecite} title="不看答案先回忆，以纸面背题模式进行记忆抢救">
-                    <Icon name="rotate" size={13} /> 背诵抢救
-                  </button>
-                </div>
-              </div>
-            </div>
-          {/if}
-          <div class="lv-card lv-hero lv-entry-hero">
-            <div class="lv-entry-main">
-              <span class="lv-focus-label">{t("entry.today")}</span>
-              <div class="lv-entry-reason">{planReasonText(plan)}</div>
-              {#if planTime}
-                <span class="lv-chip num" title={planTime.sourced ? t("entry.timeSourced") : t("entry.timeDefault")}>
-                  <Icon name="hourglass" size={13} /> ~{planTime.minutes} {t("entry.minutes")}（{planTime.low}-{planTime.high}）
-                </span>
-              {/if}
-              <!-- 原型：主操作在 hero 卡内部，与上下文成组；空队列禁用防无效点击 -->
-              <div class="lv-hero-actions">
-                <button class="lv-btn lv-btn--primary" onclick={startToday} disabled={!todayQueue.length} title={todayQueue.length ? "" : t("state.emptyBank")}><Icon name="play" size={16} /> {t("entry.startToday")}</button>
-                <button class="lv-btn lv-btn--ghost" onclick={copyTodayReportMarkdown} title={t("entry.copyReportTip")}><Icon name="copy" size={15} /> {t("entry.copyReport")}</button>
-                {#if !plan.queue.length && todayQueue.length}<span class="lv-muted" role="status">{t("entry.queueFallback")}</span>{/if}
-              </div>
-            </div>
-            <div class="lv-entry-num">
-              <div class="lv-entry-countwrap">
-                <span class="num lv-entry-count">{todayQueue.length}</span>
-                <span class="lv-entry-unit">{t("browse.count")}</span>
-              </div>
-              <div class="lv-entry-label">{t("entry.queueLabel")}</div>
-            </div>
-          </div>
-          <section class="lv-card lv-entry-week" aria-label={t("entry.weekTitle")}>
-            <div class="lv-entry-week-head"><b>{t("entry.weekTitle")}</b><span class="lv-chip num">{t("entry.weekCount").replace("{n}", String(weekAttemptTotal))}</span></div>
-            <div class="lv-week-strip" role="img" aria-label={t("entry.weekAria").replace("{days}", weekTrend.map((day) => `${weekDayLabel(day.date)} ${day.attempts} ${t("browse.count")}`).join("，"))}>
-              {#each weekTrend as day (day.date)}
-                {@const isToday = day.date === localDate(Date.now())}
-                <div class="lv-week-day" class:is-today={isToday} title={`${day.date}${isToday ? "（今天）" : ""} · ${day.attempts} 题`}>
-                  <span class="lv-week-count" class:has-attempts={day.attempts > 0} style="--lv-week-fill:{Math.round((day.attempts / weekAttemptMax) * 100)}%">{day.attempts || "·"}</span>
-                  <span class:today-text={isToday}>{isToday ? "今" : weekDayLabel(day.date)}</span>
-                </div>
-              {/each}
-            </div>
-            <p class="lv-muted">{weekAttemptTotal ? t("entry.weekScope") : t("entry.weekEmpty")}</p>
-          </section>
-          </div>
-        {/if}
-        <!-- 驾驶舱 widgets（规范 v6 §5.3）：目标环 / 连胜 / 待消灭 / 考期倒计时；数据全部来自本地流水 -->
-        <div class="lv-widgets">
-          {#if plan && plan.daysToExam != null}
-            <div class="lv-card lv-widget">
-              <span class="lv-streak-flame lv-streak-flame--clock"><Icon name="clock" size={22} /></span>
-              <div class="lv-widget-body">
-                <div class="lv-widget-title">{plan.mode === "sprint" ? t("entry.sprint") : t("entry.examCountdown")}</div>
-                <strong class="num">{plan.daysToExam} {t("entry.days")}</strong>
-                <span class="lv-muted">{plan.mode === "sprint" ? t("entry.sprintModeHint") : t("entry.steadyModeHint")}</span>
-              </div>
-            </div>
-          {/if}
-          <div class="lv-card lv-widget">
-            <span class="lv-goal-wrap" role="img" aria-label={t("widget.goal.aria").replace("{p}", String(goalPct))}>
-              <span class="lv-goal-ring" class:data-tone={goalPct >= 100 ? "good" : undefined} style="--pct:{goalPct}"></span>
-              <span class="lv-goal-center num">{goalPct}%</span>
-            </span>
-            <div class="lv-widget-body">
-              <div class="lv-widget-title">{goalPct >= 100 ? t("widget.goal.achieved") : t("widget.goal")}</div>
-              <strong class="num">{todayDone} / {dailyGoalN} {t("browse.count")}</strong>
-              <span class="lv-muted">{goalPct >= 100 ? t("widget.goal.done") : t("widget.goal.left").replace("{n}", String(Math.max(0, dailyGoalN - todayDone)))}</span>
-            </div>
-          </div>
-          <div class="lv-card lv-widget">
-            <span class="lv-streak-flame"><Icon name="flame" size={22} /></span>
-            <div class="lv-widget-body">
-              <div class="lv-widget-title">{t("widget.streak")}</div>
-              <strong class="num">{streakDays} {t("entry.days")}</strong>
-              <span class="lv-muted">{t("widget.streak.note")}</span>
-            </div>
-          </div>
-          <button class="lv-card lv-widget lv-widget--click" style="text-align:left;font:inherit;color:inherit" onclick={() => { view = "wrongbook"; void loadQuestions(); }}>
-            <span class="lv-streak-flame lv-streak-flame--wrong"><Icon name="target" size={22} /></span>
-            <div class="lv-widget-body">
-              <div class="lv-widget-title">{t("widget.wrong")}</div>
-              <strong class="num">{wrongList.length} {t("mode.wrong.unit")}</strong>
-              <span class="lv-muted">{t("widget.wrong.note")}</span>
-            </div>
-          </button>
-        </div>
-        <div class="lv-section-title">
-          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="zap" size={14} /> 阶段一：日常自测与靶向精练</span>
-          <span class="lv-muted" style="font-size:12px;font-weight:400">边学边练 · 查漏补缺 · 即时反馈</span>
-        </div>
-        <!-- 核心练习主跑道：队列驱动三模式（快速/每日/错题）为一级 accent 键帽 -->
-        <div class="lv-modes">
-          <button class="lv-mode" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => startDrill("quick")}>
-            <span class="lv-mode-icon lv-mode-icon--quick"><Icon name="zap" /></span><span class="lv-mode-body"><b>{t("mode.quick")}</b><span class="lv-muted">{t("mode.quick.desc")}</span></span>
-          </button>
-          <button class="lv-mode" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => startDrill("daily")}>
-            <span class="lv-mode-icon lv-mode-icon--daily"><Icon name="calendar" /></span><span class="lv-mode-body"><b>{t("mode.daily")}</b><span class="lv-muted">{t("mode.daily.desc")}</span></span>
-          </button>
-          <button class="lv-mode" disabled={!wrongList.length} title={!wrongList.length ? t("state.noWrong") : ""} onclick={() => startDrill("wrong")}>
-            <span class="lv-mode-icon lv-mode-icon--wrong"><Icon name="xcircle" /></span><span class="lv-mode-body"><b>{t("mode.wrong")}</b><span class="lv-muted num">{wrongList.length} {t("mode.wrong.unit")}</span></span>
-          </button>
-        </div>
-
-        <div class="lv-section-title" style="margin-top:20px">
-          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="rotate" size={14} /> 阶段二：概念内化与纸面背诵</span>
-          <span class="lv-muted" style="font-size:12px;font-weight:400">主动回忆 · 遮盖自评 · 听音伴读</span>
-        </div>
-        <div class="lv-modes">
-          <button class="lv-mode lv-mode--minor" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => startRecite()}>
-            <span class="lv-mode-icon lv-mode-icon--recite"><Icon name="rotate" /></span><span class="lv-mode-body"><b>{t("mode.recite")}</b><span class="lv-muted">{t("mode.recite.desc")}</span></span>
-          </button>
-          <button class="lv-mode lv-mode--minor" disabled={!cramCount} title={!cramCount ? t("state.noCram") : ""} onclick={() => startDrill("cram")}>
-            <span class="lv-mode-icon lv-mode-icon--cram"><Icon name="flame" /></span><span class="lv-mode-body"><b>{t("mode.cram")}</b><span class="lv-muted">{t("mode.cram.desc")}</span></span>
-          </button>
-          <button class="lv-mode lv-mode--minor" disabled={!favoriteCount} title={!favoriteCount ? t("state.noFav") : ""} onclick={() => startDrill("fav")}>
-            <span class="lv-mode-icon lv-mode-icon--fav"><Icon name="star" /></span><span class="lv-mode-body"><b>{t("mode.fav")}</b><span class="lv-muted">{t("mode.fav.desc")}（<span class="num">{favoriteCount}</span> {t("mode.wrong.unit")}）</span></span>
-          </button>
-          {#if practiceQuestions.filter((q) => (q.userTags || []).includes("star")).length > 0}
-            {@const count = practiceQuestions.filter((q) => (q.userTags || []).includes("star")).length}
-            <button class="lv-mode lv-mode--minor" onclick={() => void startDrill("tag:star")}>
-              <span class="lv-mode-icon lv-mode-icon--fav">⭐️</span><span class="lv-mode-body"><b>好题特训</b><span class="lv-muted">必背好题专项（<span class="num">{count}</span> {t("mode.wrong.unit")}）</span></span>
-            </button>
-          {/if}
-          {#if practiceQuestions.filter((q) => (q.userTags || []).includes("trap")).length > 0}
-            {@const count = practiceQuestions.filter((q) => (q.userTags || []).includes("trap")).length}
-            <button class="lv-mode lv-mode--minor" onclick={() => void startDrill("tag:trap")}>
-              <span class="lv-mode-icon lv-mode-icon--wrong">⚠️</span><span class="lv-mode-body"><b>陷阱排雷</b><span class="lv-muted">易混陷阱攻坚（<span class="num">{count}</span> {t("mode.wrong.unit")}）</span></span>
-            </button>
-          {/if}
-        </div>
-
-        <!-- 阶段三：全真模考与实战检验（保留并强化大考主打功能） -->
-        <div class="lv-card" style="margin-top:22px;padding:16px 20px;border-radius:var(--lv-r-3);background:var(--lv-surface);border:1px solid var(--lv-border);box-shadow:var(--lv-sh-card)">
-          <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-            <div>
-              <span class="lv-eyebrow" style="color:var(--lv-brand);font-weight:600">阶段三：全真模考与实战检验</span>
-              <h3 style="margin:4px 0 2px;font-size:16px;color:var(--lv-text)">标准化机考沙盘 · 出版级试卷印刷</h3>
-              <p class="lv-muted" style="margin:0;font-size:12px">考试是检验能力的试金石。支持标准限时模考、CBT 答题卡、防漏答强校验与双栏纸笔试卷。</p>
-            </div>
-            <div class="lv-row" style="margin:0;gap:8px">
-              <button class="lv-btn lv-btn--primary" onclick={() => plugin.openMock?.()} title="进入全真模拟考场">
-                <Icon name="clock" size={15} /> 进入全真模考场
-              </button>
-              <button class="lv-btn" onclick={() => plugin.openReport?.()} title="查看学情诊断报告">
-                <Icon name="chart" size={15} /> 查看学情报告
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="lv-section-title" style="margin-top:22px">
-          <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="compass" size={14} /> {t("entry.tools")}</span>
-          <span class="lv-muted" style="font-size:12px;font-weight:400">题库导入、AI出题与资料整理</span>
-        </div>
-        <div class="lv-row" style="margin-top:0">
-          <button class="lv-btn lv-btn--ghost" onclick={createSampleBank} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}><Icon name="book" size={16} /> {creatingSample ? t("guard.sampleCreating") : t("guard.sampleOpen")}</button>
-          <button class="lv-btn lv-btn--ghost" onclick={() => view = "import"}><Icon name="import" size={16} /> {t("import.title")}</button>
-          <button class="lv-btn lv-btn--ghost" onclick={() => view = "ai"}><Icon name="sparkles" size={16} /> {t("ai.title")}</button>
-          <button class="lv-btn lv-btn--ghost" onclick={() => view = "manual"}><Icon name="pencil" size={16} /> {t("entry.manual")}</button>
-          <button class="lv-btn lv-btn--ghost" onclick={() => { view = "materials"; loadMaterials(); }}><Icon name="book" size={16} /> {t("materials.title")}</button>
-          <button class="lv-btn" onclick={copyChallengeCode}><Icon name="target" size={16} /> {t("challenge.copy")}</button>
-          <button class="lv-btn" onclick={importChallengeCode}><Icon name="import" size={16} /> {t("challenge.import")}</button>
-          <button class="lv-btn" onclick={syncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}><Icon name="save" size={16} /> {syncDocsBusy ? "…" : t("sync.docsBtn")}</button>
-          <details class="lv-export-fold">
-            <summary class="lv-btn"><Icon name="export" size={16} /> {t("export.wrongbook")}</summary>
-            <div class="lv-card" style="padding: var(--lv-space-relaxed) var(--lv-space-3);margin-top:6px">
-              <div class="lv-row" style="margin:4px 0">
-                <span class="lv-chip">{t("manual.kp")}</span>
-                <select class="lv-select" bind:value={expKp}>
-                  <option value="">{t("filter.all")}</option>
-                  {#each expKpRoots as k, _i (_i)}<option value={k}>{k}</option>{/each}
-                </select>
-                <span class="lv-chip">{t("session.reason")}</span>
-                <select class="lv-select" bind:value={expReason}>
-                  <option value="">{t("filter.all")}</option>
-                  <option value="careless">{t("reason.careless")}</option>
-                  <option value="unknown">{t("reason.unknown")}</option>
-                  <option value="trap">{t("reason.trap")}</option>
-                </select>
-                <span class="lv-chip">{t("export.range")}</span>
-                <select class="lv-select" bind:value={expDays}>
-                  <option value={0}>{t("export.allTime")}</option>
-                  <option value={7}>7{t("entry.days")}</option>
-                  <option value={30}>30{t("entry.days")}</option>
-                </select>
-              </div>
-              <button class="lv-btn sm lv-btn--primary" onclick={exportWrong}><Icon name="export" size={14} /> {t("export.run")}</button>
-              <div class="lv-row" style="margin:6px 0 0">
-                <button class="lv-btn sm" disabled={offline} onclick={exportBank}><Icon name="export" size={14} /> {t("share.export")}</button>
-                <button type="button" class="lv-btn sm" disabled={offline} onclick={() => bankFileInput?.click()}><Icon name="import" size={14} /> {t("share.import")}</button>
-                <input bind:this={bankFileInput} type="file" accept=".sy.zip,.zip" hidden onchange={importBank} disabled={offline} />
-                <span class="lv-muted">{t("share.desktopOnly")}</span>
-              </div>
-            </div>
-          </details>
-        </div>
-        {/if}
-      </div>
-    {/if}
+        }
+        await app?.discardSession();
+        session = null;
+        resumeError = "";
+      }}
+      onstartDrill={(mode) => void startDrill(mode)}
+      onopenReport={() => plugin.openReport?.()}
+      onopenMock={() => plugin.openMock?.()}
+      onskipOnboarding={() => { onboardingDismissed = true; writeLocal("lv-exam-onboarded", "1"); }}
+      onretryEntryLoad={() => void retryEntryLoad()}
+      onnavView={(v, subTab) => {
+        view = v;
+        if (subTab) importSubTab = subTab as any;
+        if (v === "browse") void loadQuestions();
+      }}
+      onopenBankHub={() => { bankHubOpen = true; }}
+      onrescueEbbinghausNow={rescueEbbinghausNow}
+      onrescueEbbinghausRecite={rescueEbbinghausRecite}
+      onstartToday={() => void startToday()}
+      oncopyTodayReport={copyTodayReportMarkdown}
+      onstartRecite={() => startRecite()}
+      oncopyChallengeCode={copyChallengeCode}
+      onimportChallengeCode={importChallengeCode}
+      onsyncBankDocs={() => void syncBankDocs()}
+      onexportBank={() => void exportBank()}
+      onimportBank={(e) => void importBank(e)}
+      onexportWrong={exportWrong}
+      onloadMaterials={() => void loadMaterials()}
+      onprintBankDoubleColumnPaper={printBankDoubleColumnPaper}
+      onexportBankTeacherPaper={exportBankTeacherPaper}
+      onprintBankHomeworkSheet={printBankHomeworkSheet}
+    />
   {:else if view === "session" && session}
-    <!-- ===== S2 会话 ===== -->
-    {#if sessionDone}
-      <PracticeDoneCard
-        {sessionDone}
-        {streakDays}
-        {kpBreakdown}
-        {checkinStatus}
-        {checkinNote}
-        {settleMode}
-        {session}
-        {questionMap}
-        {reviewOpen}
-        {reflections}
-        {misdiagnosisBusy}
-        {misdiagnosisText}
-        {helpShown}
-        {actionBusy}
-        {actionNote}
-        {exitBusy}
-        {t}
-        {queueSemantics}
-        {writeBackReceipt}
-        ontoggleReview={() => { reviewOpen = !reviewOpen; if (reviewOpen) void loadReflections(); }}
-        onsameKpSession={sameKpSession}
-        onwrongsToCard={wrongsToCard}
-        onwrongsToActions={wrongsToActions}
-        onopenReport={() => plugin.openReport?.()}
-        onstartNextDrill={() => void startDrill("quick")}
-        oneditReflection={(qid) => void editReflection(qid)}
-        onrunMisdiagnosis={(a) => void runMisdiagnosis(a)}
-        onadoptMisdiagnosis={(qid) => void adoptMisdiagnosis(qid)}
-        onexitSession={exitSession}
-      />
-    {:else}
-      {@const q = curQ}
-      {#if q}
-        <div class="lv-pad lv-session-grid">
-          <div class="lv-row lv-session-head">
-            <button class="lv-btn lv-btn--ghost" onclick={exitSession} disabled={exitBusy}>← {exitBusy ? "…" : t("session.exit")}</button>
-            <div class="lv-row" style="flex:1;min-width:120px;gap:var(--lv-space-2)">
-              <div class="lv-progress" style="flex:1" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={curProgress.total} aria-valuenow={curProgress.done}><i style="width:{curProgress.total ? Math.round((curProgress.done / curProgress.total) * 100) : 0}%"></i></div>
-              <span class="num lv-muted">{curProgress.done}/{curProgress.total}</span>
-            </div>
-            <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
-            {#if session.isDelayedReviewAtCurrent()}
-              <span class="lv-chip lv-chip--amb" title={t("session.delayedRetestTip")}>
-                🔄 {t("session.delayedRetest")}
-              </span>
-            {/if}
-            {#if q.group}
-              {@const sibs = questions.filter((x) => x.group === q.group)}
-              {@const pos = sibs.findIndex((x) => x.id === q.id) + 1}
-              <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")} {pos}/{sibs.length}</span>
-            {/if}
-            <div class="lv-session-dock" role="group" aria-label="核心学习操作">
-              <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => ttsSpeak([q.stem, ...q.options].join(" "), { lang: q.studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 })}><Icon name="volume" size={13} /></button>
-              <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
-                {ttsSlowRate ? "0.8x" : "1.0x"}
-              </button>
-              <button type="button" class="lv-chip num sm" onclick={cycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
-                A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
-              </button>
-              <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => startSpeechRecognition(q.answer || q.stem, q.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
-                <Icon name="mic" size={13} /> {speechRecording ? "跟读中…" : "跟读测评"}
-              </button>
-              <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={toggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
-              <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={() => toggleFavCurrent()}><Icon name="star" size={13} /></button>
-            </div>
-            <div class="lv-session-dock" role="group" aria-label="辅助工具坞">
-              <button class="lv-chip" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-pressed={scratchpadOpen} onclick={() => scratchpadOpen = !scratchpadOpen}><Icon name="pencil" size={13} /></button>
-              <button class="lv-chip" class:acc={speedDrillEnabled} title={t("session.speedDrillTip")} aria-pressed={speedDrillEnabled} onclick={() => { speedDrillEnabled = !speedDrillEnabled; writeLocal("lv-exam/speed-drill", speedDrillEnabled ? "1" : "0"); }}><Icon name="zap" size={13} /></button>
-              <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={togglePureListen}><Icon name="eyeoff" size={13} /></button>
-              <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} onclick={() => { soundEnabled = !soundEnabled; writeLocal("lv-exam/sound", soundEnabled ? "1" : "0"); }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
-              <button class="lv-chip" class:acc={hotkeysHelpOpen} title={t("hotkeys.tip")} onclick={() => hotkeysHelpOpen = !hotkeysHelpOpen}><Icon name="activity" size={13} /></button>
-            </div>
-            <span class="lv-chip" style="gap:2px;padding:2px 4px">
-              <button class="lv-btn sm lv-btn--ghost" style="padding:1px 3px;font-size:11px" class:acc={(q.userTags || []).includes("star")} title={t("session.tagStar")} onclick={() => void toggleUserTag("star")}>⭐️</button>
-              <button class="lv-btn sm lv-btn--ghost" style="padding:1px 3px;font-size:11px" class:acc={(q.userTags || []).includes("trap")} title={t("session.tagTrap")} onclick={() => void toggleUserTag("trap")}>⚠️</button>
-              <button class="lv-btn sm lv-btn--ghost" style="padding:1px 3px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} onclick={() => void toggleUserTag("doubt")}>❓</button>
-              <button class="lv-btn sm lv-btn--ghost" style="padding:1px 3px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} onclick={() => void toggleUserTag("key")}>💡</button>
-            </span>
-          </div>
-          <div class="lv-session-main">
-          <ScratchpadDrawer
-            open={scratchpadOpen}
-            mode={scratchpadMode}
-            text={currentScratchpadText}
-            {t}
-            onmodeChange={(m) => (scratchpadMode = m)}
-            oninput={onScratchpadInput}
-            onclear={clearScratchpad}
-            oncopy={copyScratchpad}
-            onclose={() => (scratchpadOpen = false)}
-          />
-          {#if groupBatchModal}
-            <GroupBatchSummaryCard
-              modal={groupBatchModal}
-              {questionMap}
-              {t}
-              oncontinue={() => {
-                groupBatchModal = null;
-                nextQuestion();
-              }}
-            />
-          {/if}
-          <div class="lv-card lv-question" class:lv-pure={pureListen} role="region" aria-label={t("session.card")} ontouchstart={onTouchStart} ontouchend={onTouchEnd}>
-            <MaterialGroupContextCard
-              {materialContext}
-              {materialHtml}
-              {groupContext}
-              {materialExpanded}
-              {t}
-              {escapeHtml}
-              {formatMaterialGroupHeader}
-              ontoggleExpand={() => {
-                materialExpanded = !materialExpanded;
-                if (materialExpanded && !feedback && session?.current) {
-                  addExposure(session.current.id, "material");
-                }
-              }}
-              onjumpSibling={jumpToSibling}
-            />
-            {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
-            <SpeechEvalCapsule result={speechEvalResult} ondismiss={() => speechEvalResult = null} />
-            {#if q.studyMeta?.phonetic}
-              <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
-                <Icon name="volume" size={12} />
-                <span>注音 / 粤拼：{q.studyMeta.phonetic}</span>
-              </div>
-            {/if}
-            <p class="lv-muted" style="margin:8px 0 14px" role="note">{t("session.guide." + q.type)}</p>
-            {#key session.id + ":" + curProgress.done}
-            {#if isChoiceQuestion(q)}
-              {@const choices = answerChoices(q)}
-              {#if !choices.length}
-                <div class="lv-error" role="alert">{t("session.missingOptions")}</div>
-              {:else}
-              <!-- 52-02 lite：先回忆后显示选项——藏选项 + 独立回忆草稿（与作答草稿分离，不入正式答案） -->
-              <div class="lv-row" style="margin:0 0 4px">
-                <button class="lv-chip" class:acc={hideOptions} onclick={() => { hideOptions = !hideOptions; if (hideOptions) recallDraft = ""; }}>
-                  {hideOptions ? t("session.recallOn") : t("session.recallOff")}
-                </button>
-                {#if hideOptions}<span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("session.recallHint")}</span>{/if}
-              </div>
-              {#if hideOptions}
-                <textarea class="lv-input lv-textarea" rows="2" bind:value={recallDraft}
-                  placeholder={t("session.recallPlaceholder")} aria-label={t("session.recallPlaceholder")}></textarea>
-                <div class="lv-row" style="margin:6px 0">
-                  <button class="lv-btn lv-btn--primary sm" onclick={() => { if (q) recallUsed.add(q.id); hideOptions = false; }}>{t("session.revealOptions")}</button>
-                </div>
-              {:else}
-              <!-- 45-03：多选用 checkbox/group 语义而非 radio；读屏可感知选中态 -->
-              <div role={q.type === "multiple" ? "group" : "radiogroup"} aria-label={t("session.options")}>
-                {#each choices as choice (choice.value)}
-                  <button class="lv-opt" class:sel={q.type === "multiple" ? selected.includes(choice.value) : selected === choice.value}
-                    role={q.type === "multiple" ? "checkbox" : "radio"}
-                    aria-checked={q.type === "multiple" ? selected.includes(choice.value) : selected === choice.value}
-                    class:right={feedback && feedback.verdict !== "not_attempted" && (q.type === "multiple" ? q.answer.includes(choice.value) : q.answer === choice.value)}
-                    class:wrong={feedback?.verdict === "wrong" && (q.type === "multiple" ? (feedback.myAnswer ?? "").includes(choice.value) && !q.answer.includes(choice.value) : feedback.myAnswer === choice.value)}
-                    disabled={!!feedback}
-                    onclick={() => pickPracticeChoice(choice.value)}>
-                    <span class="lv-opt-check" class:box={q.type === "multiple"} aria-hidden="true"></span>
-                    <span class="key">{choice.letter}</span>
-                    <span class="lv-opt-text">{@html renderInlineText(choice.text)}</span>
-                  </button>
-                {/each}
-              </div>
-              {#if q.type === "multiple" && !feedback}
-                {@const selLetters = selected ? [...selected].sort().join(", ") : ""}
-                <div class="lv-row lv-multi-indicator" style="margin:8px 0 4px;align-items:center;gap:var(--lv-space-2)">
-                  <span class="lv-chip num" class:lv-chip--acc={selected.length > 0}>
-                    {selected.length > 0 ? t("session.multiSelected").replace("{items}", selLetters).replace("{n}", String(selected.length)) : t("session.multiEmpty")}
-                  </span>
-                </div>
-              {/if}
-              {/if}
-              {/if}
-            {:else}
-              {#if curSpec?.kind === "numeric"}
-                <!-- 54 第三刀：数值题专用作答框（单行 + 单位提示；宽容解析/容差判分在引擎） -->
-                <input class="lv-input lv-answer-num" type="text" inputmode="decimal"
-                  placeholder={curSpec.unit ? t("session.numericUnit").replace("{u}", curSpec.unit) : t("session.numericPlain")}
-                  value={feedback?.myAnswer ?? currentDraft}
-                  oninput={(e) => { draftLive = (e.target as HTMLInputElement).value; session.setDraft(q.id, draftLive); }}
-                  onchange={(e) => trailInput(q.id, (e.target as HTMLInputElement).value)}
-                  disabled={!!feedback} />
-                {#if curSpec.unit}<div class="lv-row" style="margin:6px 0 0"><span class="lv-chip num">{t("session.unitLabel")}：{curSpec.unit}</span></div>{/if}
-              {:else if curSpec?.kind === "multiBlank"}
-                <!-- 54 第三刀：多空题逐空作答框（草稿按 ";;" 拼接，判分按位置对应） -->
-                <div class="lv-row" style="margin:0 0 6px"><span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("session.blankHint")}</span></div>
-                {#each blankParts as _p, i (i)}
-                  <input class="lv-input lv-answer-blank" placeholder={t("session.blankN").replace("{n}", String(i + 1))}
-                    value={blankParts[i]}
-                    oninput={(e) => setBlank(i, (e.target as HTMLInputElement).value)}
-                  onchange={() => trailInput(q.id, joinBlanks(blankParts))}
-                    disabled={!!feedback} />
-                {/each}
-              {:else}
-                <textarea class="lv-input lv-textarea" class:lv-textarea--ruled={shortLinedPaper} placeholder={q.type === "short" ? t("session.shortPlaceholder") : t("session.fillPlaceholder")} aria-label={t("session.guide." + q.type)}
-                  value={feedback?.myAnswer ?? currentDraft}
-                  oninput={(e) => { draftLive = (e.target as HTMLTextAreaElement).value; session.setDraft(q.id, draftLive); }}
-                onchange={(e) => trailInput(q.id, (e.target as HTMLTextAreaElement).value)}
-                  disabled={!!feedback}></textarea>
-                {#if q.type === "short"}
-                  {@const words = countWordsAndCharacters(feedback?.myAnswer ?? currentDraft ?? "")}
-                  <div class="lv-row" style="margin:4px 0 0;font-size:var(--lv-font-size-caption);justify-content:space-between;align-items:center">
-                    <span class="lv-muted">
-                      字数统计：<strong class="num">{words.examWords}</strong> 字（中文 {words.chineseChars} · 英文 {words.englishWords} · {words.paragraphs} 段）
-                    </span>
-                    <div class="lv-row" style="margin:0;gap:6px">
-                      <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" class:acc={shortLinedPaper} onclick={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }} title="切换横线稿纸视觉背景">
-                        <Icon name="file-text" size={11} /> {shortLinedPaper ? "纯白底" : "横线纸"}
-                      </button>
-                      <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" onclick={() => (paperGridModalOpen = !paperGridModalOpen)} title={t("session.gridPreview")}>
-                        <Icon name="grid" size={11} /> {t("session.gridPreview")}
-                      </button>
-                      {#if words.examWords >= 200}
-                        <span class="lv-chip sm lv-chip--grn num">字数充足</span>
-                      {:else if words.examWords > 0}
-                        <span class="lv-chip sm num">作答中</span>
-                      {/if}
-                    </div>
-                  </div>
-                  {#if paperGridModalOpen}
-                    {@const gridModel = generatePaperGrid(feedback?.myAnswer ?? currentDraft ?? "", { columns: 20 })}
-                    <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent)">
-                      <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
-                        <b style="font-size:12px">📝 考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）</b>
-                        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (paperGridModalOpen = false)}>✕</button>
-                      </div>
-                      <div style="display:flex;flex-direction:column;gap:2px;overflow-x:auto;padding:4px;background:var(--lv-surface);border:1px solid var(--lv-border);max-height:200px">
-                        {#each gridModel.rows as r (r.rowNumber)}
-                          <div style="display:flex;gap:2px;align-items:center">
-                            <span class="lv-muted num" style="width:24px;font-size:9px;text-align:right;flex-shrink:0">{r.rowNumber * 20}</span>
-                            {#each r.cells as c (c.cellIndex)}
-                              <div style="width:18px;height:20px;border:1px solid color-mix(in srgb, var(--lv-red) 30%, transparent);display:flex;align-items:center;justify-content:center;font-size:12px;font-family:serif;background:var(--lv-surface)">
-                                {c.char || ""}
-                              </div>
-                            {/each}
-                          </div>
-                        {/each}
-                      </div>
-                    </div>
-                  {/if}
-                {/if}
-              {/if}
-            {/if}
-            {/key}
-
-            {#if feedback}
-              <div class="lv-feedback" role="status" aria-live="polite" class:good={feedback.verdict === "correct"}>
-                <div class="lv-row" style="margin:0;gap:var(--lv-space-2);align-items:center;flex-wrap:wrap">
-                  <span>
-                    {q.type === "short" && feedback.myAnswer ? t("session.shortSaved") : feedback.verdict === "correct" ? t("session.correct") : feedback.verdict === "wrong" ? t("session.wrongAns") : t("session.skipped")}
-                  </span>
-                  {#if feedback.verdict === "wrong"}
-                    <span class="lv-chip lv-chip--acc num" style="font-weight:var(--lv-font-weight-bold);font-size:var(--lv-font-size-md)">{q.answer}</span>
-                    {#if feedback.myAnswer}
-                      <span class="lv-muted" style="margin-left:4px">（{t("session.myAnswer")}: <b class="num" style="color:var(--lv-red)">{feedback.myAnswer}</b>）</span>
-                    {/if}
-                  {/if}
-                  <!-- 44-09：撤销作答小胶囊（支持快捷键 Ctrl+Z 或 u） -->
-                  <button type="button" class="lv-btn sm lv-btn--ghost" style="margin-left:auto" onclick={undoRecentSubmit} title={t("session.undoTip")}>
-                    <Icon name="rotate" size={11} /> {t("session.undo")}
-                  </button>
-                  {#if confidenceSel}<span class="lv-chip num">{t("confidence.recorded")}{t("confidence." + confidenceSel)}</span>{/if}
-                </div>
-              </div>
-              {#if q.type === "short"}<div class="lv-analysis"><b>{t("session.referenceAnswer")}</b><div>{q.answer}</div></div>{/if}
-              {#if q.type === "short" && currentRubric && rubricScore}
-                <!-- 55-05 主观题逐采分点自评：未评项不计入分母、不折成 0；全部评完才给最终自评分 -->
-                <div class="lv-card" style="margin:10px 0;padding:var(--lv-space-3) var(--lv-space-4)">
-                  <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap;gap:var(--lv-space-2)">
-                    <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="target" size={13} /> {t("rubric.title")}</b>
-                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={autoAlignRubric} title="比对学员输入内容智能识别采分点，一键预填自评分">
-                      <Icon name="sparkles" size={12} /> {t("rubric.autoAlign")}
-                    </button>
-                    <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("rubric.notOfficial")}</span>
-                  </div>
-                  {#if currentRubricDrifted}
-                    <!-- 作者改 rubric 后历史自评分如实标注漂移，不静默重算 -->
-                    <p class="lv-chip lv-chip--amb num" role="status" style="margin:0 0 8px"><Icon name="pencil" size={11} /> {t("rubric.driftNote")}</p>
-                  {/if}
-                  {#each currentRubric.criteria as c (c.id)}
-                    <div class="lv-row" style="margin:6px 0;align-items:flex-start;flex-wrap:wrap;gap:var(--lv-space-2)">
-                      <span class="lv-chip num" style="flex:0 0 auto">{Math.round(c.weight * 100)}%</span>
-                      <span style="flex:1;min-width:140px;font-size:var(--lv-font-size-sm)">{c.label}{#if c.example}<span class="lv-muted"> · {c.example}</span>{/if}</span>
-                      <div class="lv-row" style="margin:0;gap:var(--lv-space-1)">
-                        {#each DEFAULT_RUBRIC_LEVELS as lvl (lvl.key)}
-                          <button type="button" class="lv-chip" class:acc={rubricRatings[c.id] === lvl.key}
-                            aria-pressed={rubricRatings[c.id] === lvl.key}
-                            onclick={() => { rubricRatings = { ...rubricRatings, [c.id]: lvl.key }; rubricSaved = false; }}>
-                            {t("rubric.level." + lvl.key)}
-                          </button>
-                        {/each}
-                        <button type="button" class="lv-chip" class:amb={rubricRatings[c.id] === "unknown"}
-                          aria-pressed={rubricRatings[c.id] === "unknown"}
-                          title={t("rubric.unknownTip")}
-                          onclick={() => { rubricRatings = { ...rubricRatings, [c.id]: "unknown" }; rubricSaved = false; }}>
-                          {t("rubric.level.unknown")}
-                        </button>
-                      </div>
-                    </div>
-                  {/each}
-                  <div class="lv-row" style="margin:8px 0 0;align-items:center;gap:var(--lv-space-2);flex-wrap:wrap">
-                    {#if rubricScore.complete}
-                      <span class="lv-chip lv-chip--acc num" style="font-weight:700">{t("rubric.finalScore").replace("{s}", String(rubricScore.finalScore)).replace("{f}", String(rubricScore.fullScore))}</span>
-                    {:else}
-                      <span class="lv-chip lv-chip--amb num">{t("rubric.partialScore").replace("{e}", String(rubricScore.earned)).replace("{m}", String(rubricScore.ratedMax)).replace("{n}", String(rubricScore.unratedCount))}</span>
-                    {/if}
-                    {#if rubricEvalResult}
-                      <span class="lv-chip lv-chip--grn num" title="智能识别预估分">AI 对齐: {rubricEvalResult.estimatedScore}/{rubricEvalResult.fullScore} ({rubricEvalResult.matchRatio}%)</span>
-                    {/if}
-                    <button type="button" class="lv-btn sm lv-btn--ghost" disabled={rubricSaveBusy || rubricSaved} onclick={() => void recordRubricAssessment()} aria-busy={rubricSaveBusy}>
-                      <Icon name="save" size={12} /> {rubricSaveBusy ? "…" : rubricSaved ? t("rubric.recorded") : t("rubric.record")}
-                    </button>
-                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={exportCurrentRubricCsv}><Icon name="export" size={12} /> CSV</button>
-                    {#if recordedRubricSnapshot && !currentRubricDrifted}
-                      <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{recordedRubricSnapshot.complete ? t("rubric.hasRecordedFinal").replace("{s}", String(recordedRubricSnapshot.finalScore ?? 0)).replace("{f}", String(recordedRubricSnapshot.fullScore)) : t("rubric.hasRecordedPartial").replace("{n}", String(recordedRubricSnapshot.unratedCount))}</span>
-                    {/if}
-                  </div>
-                </div>
-              {/if}
-              {#if q.analysis}<div class="lv-analysis">{q.analysis}</div>{/if}
-              {#if feedback.verdict === "wrong"}
-                <div class="lv-row lv-session-reason-row" style="margin:10px 0;gap:var(--lv-space-compact);align-items:center;flex-wrap:wrap">
-                  <div class="lv-session-dock" role="group" aria-label={t("session.reason")}>
-                    <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("session.reason")}:</span>
-                    {#each ["careless", "unknown", "trap"] as r, ri (ri)}
-                      <button
-                        type="button"
-                        class="lv-chip lv-reason-btn"
-                        class:acc={savedReason === r}
-                        aria-pressed={savedReason === r}
-                        title={t("entry.days") === "天" ? `快捷键 ${ri + 1}` : `Key ${ri + 1}`}
-                        onclick={async () => { await app?.saveWrongReason(q.id, r as any); savedReason = r; }}
-                      >
-                        <span class="lv-reason-key">{ri + 1}</span>
-                        {savedReason === r ? "✓ " : ""}{t("reason." + r)}
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            {/if}
-            {#if !feedback}
-              <div class="lv-row" style="margin:6px 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-                <div class="lv-session-dock" role="group" aria-label={t("confidence.before")}>
-                  <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("confidence.before")}</span>
-                  {#each ["sure", "fuzzy", "guess"] as c, _i (_i)}
-                    <button type="button" class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={`Key ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => confidenceSel = c as "sure" | "fuzzy" | "guess"}>
-                      <span class="lv-reason-key">{_i + 1}</span> {t("confidence." + c)}
-                    </button>
-                  {/each}
-                </div>
-                <span class="lv-chip num" class:lv-chip--amb={qTimeoutS > 0 && qElapsedS >= qTimeoutS * 0.8 && qElapsedS < qTimeoutS} class:lv-chip--red={qTimeoutS > 0 && qElapsedS >= qTimeoutS} class:lv-pulse={qTimeoutS > 0 && qElapsedS >= qTimeoutS} title={qTimeoutS > 0 ? t("session.timeoutHint").replace("{n}", String(qTimeoutS)) : ""}>
-                  <Icon name="clock" size={12} /> {qElapsedS}s
-                </span>
-              </div>
-            {/if}
-
-            <div class="lv-row lv-answer-actions">
-              {#if !feedback}
-                <button class="lv-btn lv-btn--primary" onclick={submitAnswer} disabled={!canSubmitAnswer}>
-                  {q.type === "multiple" && selected.length > 0 ? t("session.submitSelected").replace("{n}", String(selected.length)) : t("session.submit")}
-                </button>
-                <button class="lv-btn lv-btn--ghost" onclick={requestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-                {#if q.type === "fill" || q.type === "short"}
-                  <button class="lv-btn lv-btn--ghost" onclick={() => { submitAnswer(); }}>{t("session.skip")}</button>
-                {/if}
-              {:else}
-                <button class="lv-btn lv-btn--primary" onclick={nextQuestion}>{t("session.next")} →</button>
-                {#if feedback.verdict === "wrong"}
-                  <button class="lv-btn" onclick={() => void drillVariantFor(q)} title={t("session.drillVariantTip")}><Icon name="layers" size={15} /> {t("session.drillVariant")}</button>
-                  <button class="lv-btn" onclick={() => void traceMotherQuestion(q)} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
-                  <button class="lv-btn" onclick={toCard}><Icon name="layers" size={16} /> {t("memory.toCard")}</button>
-                  {#if cardResult}<span class="lv-muted">{cardResult}</span>{/if}
-                  <button class="lv-btn" onclick={() => explainCurrent("explain")} disabled={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
-                  <button class="lv-btn" onclick={requestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-                  <button class="lv-btn" onclick={() => explainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
-                {/if}
-              {/if}
-              {#if leakPending && session?.current && explainQid === session.current.id}
-                <div class="lv-analysis lv-explain">
-                  ⚠ {t("explain.hintLeak").replace("{r}", leakPending.reasons)}
-                  <div class="lv-row">
-                    <button class="lv-btn sm" onclick={viewLeakedHint}>{t("explain.hintLeakView")}</button>
-                    <button class="lv-btn sm" onclick={() => (leakPending = null)}>{t("explain.hintLeakDismiss")}</button>
-                  </div>
-                </div>
-              {/if}
-              {#if explainText && session?.current && explainQid === session.current.id}
-                <div class="lv-analysis lv-explain">{explainText}</div>
-                <div class="lv-row">
-                  {#if explainSavedQid === q.id}
-                    <span class="lv-muted" role="status">✓ {t("explain.saved")}</span>
-                  {:else}
-                    <button class="lv-btn sm" onclick={saveExplain} disabled={explainSaveBusy} aria-busy={explainSaveBusy}><Icon name="pin" size={13} /> {explainSaveBusy ? "…" : explainSaveError ? t("explain.retrySave") : t("explain.save")}</button>
-                  {/if}
-                  <button class="lv-btn sm" onclick={requestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-                  <button class="lv-btn sm" onclick={() => explainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
-                </div>
-                {#if explainSaveErrorQid === q.id && explainSaveError}<div class="lv-error" role="alert">{t("explain.saveFailed").replace("{message}", explainSaveError)}</div>{/if}
-                <div class="lv-row">
-                  <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("explain.followUp")}
-                    bind:value={explainFollowUp}
-                    onkeydown={(e) => !e.isComposing && e.keyCode !== 229 && e.key === "Enter" && sendFollowUp()} />
-                  <button class="lv-btn sm" onclick={sendFollowUp} disabled={explainBusy || !explainFollowUp.trim()}>{t("explain.send")}</button>
-                </div>
-              {/if}
-            </div>
-            {#if reasonPromptQid === q.id && !feedback}
-              <div class="lv-row lv-reason" role="group" aria-label={t("trail.reasonTitle")}>
-                <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("trail.reasonTitle")}</span>
-                <button class="lv-chip" onclick={() => setEditReason(q.id, "unsure")}>{t("trail.reason.unsure")}</button>
-                <button class="lv-chip" onclick={() => setEditReason(q.id, "evidence")}>{t("trail.reason.evidence")}</button>
-                <button class="lv-chip" onclick={() => setEditReason(q.id, "misclick")}>{t("trail.reason.misclick")}</button>
-                <button class="lv-chip lv-btn--ghost" onclick={() => (reasonPromptQid = "")}>{t("trail.reason.skip")}</button>
-              </div>
-            {/if}
-          </div>
-          </div>
-          <aside class="lv-session-side">
-            <div class="lv-card lv-side-card">
-              <b class="lv-side-title">{t("session.side.q")}</b>
-              <div class="lv-side-rows">
-                {#if q.kp}<span class="lv-chip"><Icon name="layers" size={11} /> {q.kp}</span>{/if}
-                {#if q.source}<span class="lv-chip num" title={t("manual.source")}>{q.source}</span>{/if}
-                {#if q.difficulty}<span class="lv-chip num">★ {q.difficulty}</span>{/if}
-                {#if q.score}<span class="lv-chip num">{t("manual.score")} {q.score}</span>{/if}
-                {#if curQStats && curQStats.attempts > 0}
-                  <span class="lv-chip num" title={t("browse.usage").replace("{a}", String(curQStats.attempts)).replace("{c}", String(Math.round((curQStats.correct / curQStats.attempts) * 100)))}>
-                    <Icon name="chart" size={11} /> {curQStats.attempts} · {Math.round((curQStats.correct / curQStats.attempts) * 100)}%
-                  </span>
-                {/if}
-              </div>
-            </div>
-            <div class="lv-card lv-side-card">
-              <b class="lv-side-title">{t("session.side.kbd")}</b>
-              <div class="lv-row lv-muted" style="font-size:var(--lv-font-size-label);gap:var(--lv-space-compact);flex-wrap:wrap;margin:0">
-                <span class="lv-kbd">A</span>-<span class="lv-kbd">J</span> {t("session.choose")} ·
-                <span class="lv-kbd">1</span>-<span class="lv-kbd">3</span> {t("confidence.shortcut")} ·
-                <span class="lv-kbd">Enter</span> {t("session.submit")} ·
-                <span class="lv-kbd">J</span>/<span class="lv-kbd">K</span> {t("session.next")}/{t("session.kbdPrev")} ·
-                <span class="lv-kbd">E</span> {t("session.kbdFav")} ·
-                <span class="lv-kbd">Esc</span> {t("session.exit")}
-              </div>
-            </div>
-          </aside>
-        </div>
-      {/if}
-    {/if}
+    <PracticeSessionView
+      {session}
+      {sessionDone}
+      {curQ}
+      {curProgress}
+      {questions}
+      {questionMap}
+      {curSpec}
+      {stemHtml}
+      {materialHtml}
+      {materialContext}
+      {groupContext}
+      bind:materialExpanded
+      bind:selected
+      {feedback}
+      {currentDraft}
+      {blankParts}
+      bind:hideOptions
+      bind:recallDraft
+      {currentRubric}
+      {currentRubricDrifted}
+      {rubricScore}
+      bind:rubricRatings
+      bind:rubricSaved
+      {rubricSaveBusy}
+      {rubricEvalResult}
+      {recordedRubricSnapshot}
+      {DEFAULT_RUBRIC_LEVELS}
+      bind:confidenceSel
+      {qElapsedS}
+      {qTimeoutS}
+      bind:savedReason
+      {canSubmitAnswer}
+      {explainBusy}
+      {explainText}
+      {explainQid}
+      {explainSavedQid}
+      {explainSaveBusy}
+      {explainSaveError}
+      {explainSaveErrorQid}
+      bind:explainFollowUp
+      bind:leakPending
+      bind:reasonPromptQid
+      {curQStats}
+      bind:scratchpadOpen
+      bind:scratchpadMode
+      {currentScratchpadText}
+      bind:groupBatchModal
+      bind:speechEvalResult
+      {speechRecording}
+      {reciteToggle}
+      bind:speedDrillEnabled
+      {pureListen}
+      bind:soundEnabled
+      bind:hotkeysHelpOpen
+      bind:ttsSlowRate
+      {studyFontSize}
+      bind:shortLinedPaper
+      bind:paperGridModalOpen
+      {cardResult}
+      {favBusy}
+      {exitBusy}
+      {streakDays}
+      {kpBreakdown}
+      {checkinStatus}
+      {checkinNote}
+      {settleMode}
+      bind:reviewOpen
+      {reflections}
+      {misdiagnosisBusy}
+      {misdiagnosisText}
+      {helpShown}
+      {actionBusy}
+      {actionNote}
+      {t}
+      {queueSemantics}
+      {writeBackReceipt}
+      {ttsSupported}
+      {renderInlineText}
+      {isChoiceQuestion}
+      {answerChoices}
+      {escapeHtml}
+      {formatMaterialGroupHeader}
+      {hintButtonLabel}
+      onexitSession={exitSession}
+      ontoggleReview={() => { reviewOpen = !reviewOpen; if (reviewOpen) void loadReflections(); }}
+      onsameKpSession={sameKpSession}
+      onwrongsToCard={wrongsToCard}
+      onwrongsToActions={wrongsToActions}
+      onopenReport={() => plugin.openReport?.()}
+      onstartNextDrill={() => void startDrill("quick")}
+      oneditReflection={(qid) => void editReflection(qid)}
+      onrunMisdiagnosis={(a) => void runMisdiagnosis(a)}
+      onadoptMisdiagnosis={(qid) => void adoptMisdiagnosis(qid)}
+      onttsSpeak={(text, opt) => ttsSpeak(text, opt)}
+      ontoggleTtsSlow={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }}
+      oncycleStudyFontSize={cycleStudyFontSize}
+      onstartSpeech={(target, lang) => startSpeechRecognition(target, lang)}
+      ontoggleRecite={toggleRecite}
+      ontogglePureListen={togglePureListen}
+      ontoggleFavCurrent={() => void toggleFavCurrent()}
+      ontoggleUserTag={(tag) => void toggleUserTag(tag)}
+      ontoggleScratchpad={() => (scratchpadOpen = !scratchpadOpen)}
+      onscratchpadModeChange={(m) => (scratchpadMode = m)}
+      onscratchpadInput={onScratchpadInput}
+      onclearScratchpad={clearScratchpad}
+      oncopyScratchpad={copyScratchpad}
+      oncloseScratchpad={() => (scratchpadOpen = false)}
+      ongroupBatchContinue={() => { groupBatchModal = null; nextQuestion(); }}
+      ontoggleMaterialExpand={() => { materialExpanded = !materialExpanded; if (materialExpanded && !feedback && session?.current) addExposure(session.current.id, "material"); }}
+      onjumpSibling={jumpToSibling}
+      ondismissSpeechEval={() => (speechEvalResult = null)}
+      ontoggleHideOptions={() => { hideOptions = !hideOptions; if (hideOptions) recallDraft = ""; }}
+      onrecallDraftInput={(val) => { recallDraft = val; }}
+      onrevealOptions={() => { if (curQ) recallUsed.add(curQ.id); hideOptions = false; }}
+      onpickChoice={pickPracticeChoice}
+      ondraftInput={(val) => { draftLive = val; if (curQ) session.setDraft(curQ.id, draftLive); }}
+      ondraftChange={(val) => { if (curQ) trailInput(curQ.id, val); }}
+      onsetBlank={(idx, val) => setBlank(idx, val)}
+      onblankChange={() => { if (curQ) trailInput(curQ.id, joinBlanks(blankParts)); }}
+      ontoggleLinedPaper={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }}
+      ontogglePaperGridModal={() => (paperGridModalOpen = !paperGridModalOpen)}
+      onundoRecentSubmit={undoRecentSubmit}
+      onautoAlignRubric={autoAlignRubric}
+      onrubricRatingChange={(critId, lvl) => { rubricRatings = { ...rubricRatings, [critId]: lvl }; rubricSaved = false; }}
+      onrecordRubricAssessment={() => void recordRubricAssessment()}
+      onexportRubricCsv={exportCurrentRubricCsv}
+      onsaveWrongReason={async (r) => { if (curQ) { await app?.saveWrongReason(curQ.id, r as any); savedReason = r; } }}
+      onconfidenceSelect={(c) => { confidenceSel = c; }}
+      onsubmitAnswer={submitAnswer}
+      onrequestHint={requestHint}
+      onnextQuestion={nextQuestion}
+      ondrillVariant={() => { if (curQ) void drillVariantFor(curQ); }}
+      ontraceMother={() => { if (curQ) void traceMotherQuestion(curQ); }}
+      ontoCard={toCard}
+      onexplainCurrent={(m) => explainCurrent(m)}
+      onviewLeakedHint={viewLeakedHint}
+      ondismissLeakedHint={() => (leakPending = null)}
+      onsaveExplain={saveExplain}
+      onsendFollowUp={sendFollowUp}
+      onsetEditReason={(qid, r) => setEditReason(qid, r)}
+      ondismissReasonPrompt={() => (reasonPromptQid = "")}
+      ontouchStart={onTouchStart}
+      ontouchEnd={onTouchEnd}
+    />
   {:else if view === "recite"}
     <ReciteStudioView
       {reciteQueue}
@@ -7606,362 +6915,240 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       onresetNoteForm={resetNoteForm}
     />
   {:else if view === "browse"}
-    <!-- ===== S3 浏览 ===== -->
-    <div class="lv-pad">
-      <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.browse.eyebrow")}</span><h1 class="lv-h1">{t("head.browse.title")}</h1><p>{t("head.browse.desc")}</p></div>
-      <!-- 工具条分行（原型密度规则）：筛选行（搜索/结构化筛选）与工具行（动作 chip）分离，高度节奏一致 -->
-      <div class="lv-row" style="margin:0 0 8px;gap:8px">
-        <input class="lv-input" style="flex:1;min-width:180px" placeholder={t("browse.searchPlaceholder")} bind:value={searchText} />
-        <!-- 65-01 lite：结构化筛选（题型/来源/仅错题），与搜索词叠加 -->
-        <select class="lv-select" style="max-width:115px" bind:value={filterType} onchange={() => (browseLimit = 200)}>
-          <option value="">{t("browse.fAnyType")}</option>
-          {#each ["single", "multiple", "judge", "fill", "short", "material"] as tp, _i (_i)}
-            <option value={tp}>{t("qtype." + tp)}</option>
-          {/each}
-        </select>
-        <select class="lv-select" style="max-width:115px" bind:value={filterStatus} onchange={() => (browseLimit = 200)} title={t("browse.filterStatus")}>
-          <option value="">{t("browse.filterStatusAll")}</option>
-          <option value="published">{t("lifecycle.published")}</option>
-          <option value="review">{t("lifecycle.review")}</option>
-          <option value="draft">{t("lifecycle.draft")}</option>
-          <option value="deprecated">{t("lifecycle.deprecated")}</option>
-        </select>
-        {#if sourceOptions.length}
-          <select class="lv-select" style="max-width:130px" bind:value={filterSource} onchange={() => (browseLimit = 200)} title={t("browse.fSource")}>
-            <option value="">{t("browse.fAnySource")}</option>
-            {#each sourceOptions as src, _i (_i)}<option value={src}>{src}</option>{/each}
-          </select>
-        {/if}
-        <select class="lv-select" style="max-width:115px" bind:value={filterDays} title={t("browse.fDaysTip")}>
-          <option value={0}>{t("browse.fAnyDay")}</option>
-          <option value={1}>{t("browse.fToday")}</option>
-          <option value={7}>{t("browse.f7")}</option>
-          <option value={30}>{t("browse.f30")}</option>
-        </select>
-      </div>
-      <div class="lv-row" style="margin:0 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
-          <div class="lv-session-dock" role="group" aria-label="状态快速过滤">
-            <button class="lv-chip" class:acc={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")}>✕ {t("browse.fWrong")}</button>
-            <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
-            <button class="lv-chip" class:acc={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
-            <button class="lv-chip" class:acc={favOnly} onclick={() => favOnly = !favOnly}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
-          </div>
-          <div class="lv-session-dock" role="group" aria-label="考点标签过滤">
-            <button class="lv-chip" class:acc={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}>⭐️ {t("session.tagStar")}</button>
-            <button class="lv-chip" class:acc={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}>⚠️ {t("session.tagTrap")}</button>
-            <button class="lv-chip" class:acc={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}>❓ {t("session.tagDoubt")}</button>
-          </div>
-        </div>
-        <div class="lv-row" style="margin:0;gap:6px">
-          {#if smartViews.length}
-            <select class="lv-select" style="max-width:140px" bind:value={selectedView} onchange={() => void applyNamedView(selectedView)} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed}>
-              <option value="">{t("view.pick")}</option>
-              {#each smartViews as v, _i (_i)}<option value={v.name}>{v.name}</option>{/each}
-            </select>
-            <button class="lv-btn sm lv-btn--ghost" title={t("view.delete")} aria-label={t("view.delete")} aria-busy={smartViewBusy} disabled={!selectedView || smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} onclick={() => void deleteNamedView()}><Icon name="trash" size={13} /></button>
-          {/if}
-          <button class="lv-btn sm lv-btn--ghost" title={t("view.saveTitle")} aria-busy={smartViewBusy} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed || !activeBankId} onclick={() => void saveCurrentView()}><Icon name="save" size={13} /> {smartViewBusy ? "…" : t("view.save")}</button>
-        </div>
-      </div>
-          {#if smartViewError}<div class="lv-error" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-relaxed);overflow-wrap:anywhere"><span>{smartViewError}</span>{#if smartViewLoadFailed}<button class="lv-btn sm" disabled={smartViewLoadBusy} aria-busy={smartViewLoadBusy} onclick={() => void loadSmartViews()}>{smartViewLoadBusy ? "…" : t("view.retryLoad")}</button>{/if}</div>{/if}
-      <!-- 工具行收敛：高频（章节树/批量编辑）内联，维护面板与导出打印入「更多」菜单；面板开启时按钮出点标 -->
-      <div class="lv-row" style="margin:0 0 10px;gap:var(--lv-space-2) 8px">
-        <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={() => view = "entry"}>← {t("mode.practice")}</button>
-        <span class="lv-chip num">{shownQuestions.length}/{questions.length} {t("browse.count")}</span>
-        {#if shownQuestions.length > 0}
-          <button class="lv-btn sm lv-btn--primary" onclick={startFilteredFocusDrill} title="将当前筛选出的这批题目直接发起专注特训">
-            <Icon name="play" size={13} /> {t("browse.drillFiltered").replace("{n}", String(shownQuestions.length))}
-          </button>
-        {/if}
-        <button class="lv-chip" class:acc={sectionOpen} onclick={() => void toggleSectionTree()}><Icon name="file-text" size={13} /> {t("browse.sectionTree")}</button>
-        <button class="lv-chip" class:acc={batchMode} onclick={() => { batchMode = !batchMode; if (!batchMode) selectedIds = {}; }}>{t("batch.mode")}</button>
-        <div class="lv-more" bind:this={moreRoot}>
-          <button class="lv-chip" class:acc={kpOpen || healthOpen || errataOpen || paperOpen} aria-haspopup="menu" aria-expanded={moreOpen}
-            onclick={() => toggleMore()}>
-            <Icon name="menu" size={13} /> {t("browse.more")}{#if kpOpen || healthOpen || errataOpen || paperOpen}<i class="lv-more-dot" aria-hidden="true"></i>{/if}
-          </button>
-          {#if moreOpen}
-            <div class="lv-more-pop" role="menu" tabindex="-1" bind:this={morePop}
-              onkeydown={(e) => { if (e.key === "Escape") { e.stopPropagation(); moreOpen = false; } }}>
-              <button role="menuitemcheckbox" aria-checked={kpOpen} onclick={() => { kpOpen = !kpOpen; moreOpen = false; }}><Icon name="compass" size={14} /> {t("kp.title")}</button>
-              <button role="menuitemcheckbox" aria-checked={healthOpen} onclick={() => { healthOpen = !healthOpen; moreOpen = false; }}><Icon name="activity" size={14} /> {t("health.title")}</button>
-              <button role="menuitemcheckbox" aria-checked={errataOpen} onclick={() => { errataOpen = !errataOpen; moreOpen = false; }}><Icon name="file-text" size={14} /> {t("errata.title")}</button>
-              <button role="menuitemcheckbox" aria-checked={paperOpen} onclick={() => { paperOpen = !paperOpen; moreOpen = false; }}><Icon name="paperclip" size={14} /> {t("paper.title")}</button>
-              <div class="lv-more-sep" role="separator"></div>
-              <button role="menuitem" title={t("browse.exportCsvTitle")} onclick={() => { exportBankCsv(); moreOpen = false; }}><Icon name="export" size={14} /> CSV</button>
-              <button role="menuitem" title={t("print.qSheetTip")} onclick={() => { printQuestionSheet(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.qSheet")}</button>
-              <button role="menuitem" title={t("print.aSheetTip")} onclick={() => { printAnswerSheet(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.aSheet")}</button>
-              <button role="menuitem" title={t("print.cardTip")} onclick={() => { printAnswerCard(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.card")}</button>
-              <button role="menuitem" title="导出包含题目、答案、考点、难度、采分点与破题教学点拨的教师讲义卷" onclick={() => { void printTeacherLectureSheet(); moreOpen = false; }}><Icon name="book" size={14} /> {t("mock.printTeacher")}</button>
-              <button role="menuitem" title="导出全库试题实测难度、区分度与死干扰项诊断报告" onclick={() => { void exportItemQualityReport(); moreOpen = false; }}><Icon name="chart" size={14} /> {t("health.itemQualityAudit")}</button>
-              <div class="lv-more-sep" role="separator"></div>
-              <button role="menuitem" title="导出为 Moodle/学习通标准试题格式" onclick={() => { void exportGiftFormat(); moreOpen = false; }}><Icon name="export" size={14} /> {t("format.exportGift")}</button>
-              <button role="menuitem" title="导出为 Anki / FSRS 问答闪卡卡包" onclick={() => { void exportAnkiFormat(); moreOpen = false; }}><Icon name="layers" size={14} /> {t("format.exportAnki")}</button>
-              <button role="menuitem" title="导出为标准排版 Markdown 试题手册" onclick={() => { void exportMdDocFormat(); moreOpen = false; }}><Icon name="file-text" size={14} /> {t("format.exportMdDoc")}</button>
-            </div>
-          {/if}
-        </div>
-      </div>
-      {#if sectionSel}
-        <div class="lv-row" style="margin:4px 0">
-          <span class="lv-chip acc"><Icon name="file-text" size={12} /> {sectionLabel}</span>
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { sectionSel = null; }}>{t("browse.sectionClear")}</button>
-        </div>
-      {/if}
-      <BrowseMaintenanceDrawers
-        {t}
-        {app}
-        {questionMap}
-        {sectionOpen}
-        {sectionBusy}
-        {sectionTree}
-        bind:sectionSel
-        bind:kpOpen
-        {kpData}
-        bind:kpMergeFrom
-        bind:kpMergeTo
-        bind:kpMergePlan
-        bind:kpFillKp
-        bind:kpFillPlan
-        {kpBusy}
-        {kpNote}
-        {sylDoc}
-        {sylKpStats}
-        bind:sylPublisher
-        bind:sylYear
-        bind:sylSource
-        bind:sylText
-        {sylPreviewRoots}
-        {sylError}
-        {sylNote}
-        {paperOpen}
-        bind:paperText
-        {paperPreview}
-        {paperBusy}
-        {paperNote}
-        {errataOpen}
-        {errataBusy}
-        {errataErrors}
-        {errataPlan}
-        {errataNote}
-        {batchMode}
-        {selectedIds}
-        {selectedCount}
-        {batchCardBusy}
-        bind:batchField
-        bind:batchValue
-        {batchBusy}
-        {batchPreview}
-        {batchUndoHere}
-        {appliedChanges}
-        {batchUndo}
-        {batchNote}
-        {health}
-        {answerDist}
-        {unreviewed}
-        {coverage}
-        bind:filterType
-        onsetFilterSource={(s) => { filterSource = s; }}
-        bind:activeClusterIndex
-        {mergeBusy}
-        {orphanDiag}
-        {filterOrphanKind}
-        {batchList}
-        {rollbackBusy}
-        onsearchKp={(kp) => setSearch(kp)}
-        onpreviewKpMerge={previewKpMerge}
-        onpreviewKpFill={previewKpFill}
-        onapplyKpPlan={(plan) => void applyKpPlan(plan)}
-        ondownloadSyllabusGaps={downloadSyllabusGaps}
-        onexportSyllabusAudit={exportSyllabusAudit}
-        onpreviewSyllabus={previewSyllabus}
-        onimportSyllabus={() => void importSyllabus()}
-        onapplyPaperRecall={() => void applyPaperRecall()}
-        onexportErrataTemplate={exportErrataTemplate}
-        onerrataFile={onErrataFile}
-        onapplyErrata={() => void applyErrata()}
-        onselectAllCurrentPage={selectAllCurrentPage}
-        onclearSelection={clearSelection}
-        onbatchConvertToCards={() => void batchConvertToCards()}
-        onprintSelectedQuestions={printSelectedQuestions}
-        onprintSelectedTeacherPaper={printSelectedTeacherPaper}
-        onprintSelectedHomeworkSheet={printSelectedHomeworkSheet}
-        onapplyBatch={(isUndo) => applyBatch(isUndo)}
-        onpreviewBatch={previewBatch}
-        ontoggleCluster={(idx) => toggleCluster(idx)}
-        onmergeClusterToTarget={(q, ids) => mergeClusterToTarget(q as Question & { blockId: string }, ids)}
-        ondrillOrphanKind={(k) => drillOrphanKind(k)}
-        ondownloadHealthCsv={downloadHealthCsv}
-        onundoBatch={(batch) => undoBatch(batch)}
-      />
-
-      {#if questionsError}
-        <div class="lv-error">{questionsError}</div>
-      {:else if !questions.length}
-        <div class="lv-empty"><div class="lv-empty-icon"><Icon name="file" size={24} /></div><b>{t("browse.title")}</b><p class="lv-muted">{t("browse.empty")}</p></div>
-      {:else if !shownQuestions.length}
-        <!-- 筛选无结果的独立空态：给原因与出路，不留空白区（规范 v6 状态完备） -->
-        <div class="lv-empty">
-          <div class="lv-empty-icon"><Icon name="search" size={24} /></div>
-          <b>{t("browse.noMatch")}</b>
-          <p class="lv-muted">{t("browse.noMatch.desc")}</p>
-          <div class="lv-row" style="justify-content:center;margin-top:14px">
-            <button class="lv-btn lv-btn--primary sm" onclick={clearBrowseFilters}>{t("browse.clearFilters")}</button>
-          </div>
-        </div>
-      {:else}
-        {#if filterOrphanKind}
-          <div class="lv-row" style="margin:6px 0;align-items:center">
-            <span class="lv-chip lv-chip--red">
-              <Icon name="alert-triangle" size={12} />
-              {t("health.orphanFilter").replace("{label}", t("health.orphan." + filterOrphanKind)).replace("{n}", String(filteredQuestions.length))}
-            </span>
-            <button class="lv-btn sm lv-btn--ghost" onclick={clearOrphanFilter}>{t("health.orphanClear")}</button>
-          </div>
-        {/if}
-        {#each shownQuestions as q (q.id)}
-          <div class="lv-card lv-qrow" class:sel={batchMode && !!selectedIds[q.id]} class:active-peek={!batchMode && expandedId === q.id}>
-            <button type="button" class="lv-qrow-head"
-              aria-pressed={batchMode ? !!selectedIds[q.id] : undefined}
-              aria-expanded={!batchMode ? expandedId === q.id : undefined}
-              aria-describedby={`lv-qrow-stem-${q.id}`}
-              onclick={() => toggleBrowseQuestion(q.id)}>
-              {#if batchMode}
-                <span class="lv-chip num" class:acc={!!selectedIds[q.id]}>{selectedIds[q.id] ? "☑" : "☐"}</span>
-              {/if}
-              <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
-              {#if q.kp}<span class="lv-chip">{q.kp}</span>{/if}
-              {#if q.source}<span class="lv-muted lv-qrow-src">{q.source}</span>{/if}
-              {#if q.status && q.status !== "published"}
-                <span class="lv-chip sm" class:lv-chip--amb={q.status === "draft"} class:lv-chip--acc={q.status === "review"} style={q.status === "deprecated" ? "opacity:0.6" : undefined}>
-                  {t("lifecycle." + q.status, LIFECYCLE_LABELS[q.status])}
-                </span>
-              {/if}
-              {#if isQuestionDisputed(q)}
-                <span class="lv-chip lv-chip--red sm" title={q.dispute?.note ?? ""}>
-                  ⚠️ {t("dispute.badge")} · {t("dispute.reason." + q.dispute?.reason)}
-                </span>
-              {/if}
-              {#if !batchMode && expandedId === q.id}
-                <span class="lv-chip lv-chip--acc num" style="margin-left:auto">{t("browse.viewing", "查看中 ▾")}</span>
-              {/if}
-            </button>
-            <div class="lv-qrow-stem" id={`lv-qrow-stem-${q.id}`}>{q.stem}</div>
-          </div>
-        {/each}
-        {#if activePeekQuestion && activePeekQuestion.blockId}
-          <QuestionPeekDrawer
-            q={activePeekQuestion as Question & { blockId: string }}
-            bind:drawerEl={peekDrawerEl}
-            status={getQuestionLifecycle(activePeekQuestion)}
-            links={app?.kernelOnline ? backlinkCache.get(activePeekQuestion.blockId) : undefined}
-            {currentPeekIndex}
-            shownQuestionsCount={shownQuestions.length}
-            {hasPrevPeek}
-            {hasNextPeek}
-            {favBusy}
-            {editingId}
-            bind:editDraft
-            bind:editSpecOpen
-            bind:editSpecUnit
-            bind:editSpecAbsTol
-            bind:editSpecRelPct
-            bind:editSpecAltUnits
-            {editBusy}
-            {offline}
-            {editError}
-            {peekHideAnswer}
-            {app}
-            {itemAnalysisOpenFor}
-            {itemAnalysisReport}
-            {revOpenFor}
-            {revLoadingFor}
-            {revRestoreKey}
-            {revRestoreFailedKey}
-            {revLoaded}
-            {revLoadError}
-            {revRestoreError}
-            {revList}
-            {disputeFormOpenFor}
-            bind:disputeReason
-            bind:disputeNote
-            bind:disputeResolution
-            {disputeBusy}
-            {disputeError}
-            {peekLifecycleBusy}
-            {peekLifecycleError}
-            {backlinkBusyFor}
-            {backlinkError}
-            {qrefView}
-            {qrefActionError}
-            {qrefBusyFor}
-            bind:qrefFormFor
-            bind:qrefMatId
-            bind:qrefPage
-            bind:qrefTime
-            {qrefError}
-            {receiptOpenFor}
-            {receiptStored}
-            {receiptCache}
-            {receiptBusy}
-            {receiptMisdiagnosis}
-            {flashError}
-            {flashBusy}
-            bind:flashCandidates
-            {t}
-            {LIFECYCLE_LABELS}
-            {isQuestionDisputed}
-            {isStubbornWrong}
-            {getStubbornRemediation}
-            {isAttemptVersionDrifted}
-            {removeChoiceOption}
-            {summarizeLoad}
-            onclose={closePeekDrawer}
-            onkeydown={onPeekDrawerKeydown}
-            onprev={prevPeekQuestion}
-            onnext={nextPeekQuestion}
-            ontoggleFav={(q) => void toggleFavQuestion(q)}
-            onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
-            onttsSpeak={(text, opt) => ttsSpeak(text, opt)}
-            onsaveEdit={(q) => void saveEdit(q)}
-            oncloseEdit={closeEditForm}
-            ontoggleHideAnswer={() => (peekHideAnswer = !peekHideAnswer)}
-            onsnoozeWrong={(qid, days) => void snoozeWrong(qid, days)}
-            onarchiveWrong={(qid) => void archiveWrong(qid)}
-            onunarchiveWrong={(qid) => void unarchiveWrong(qid)}
-            ontoggleItemAnalysis={(q) => toggleItemAnalysis(q)}
-            ondownloadItemAnalysisCsv={(rep) => downloadItemAnalysisCsv(rep)}
-            ontoggleRevisions={(qid) => void toggleRevisions(qid)}
-            onloadRevisions={(qid) => void loadRevisions(qid)}
-            onrestoreRevision={(q, r) => void restoreRevision(q, r)}
-            ondrillSingle={(q) => void drillSingleQuestion(q)}
-            onopenEditForm={(q) => openEditForm(q)}
-            oncloneToManualStudio={(q) => cloneToManualStudio(q)}
-            ontoggleDisputeForm={(q) => toggleDisputeForm(q)}
-            onchangeLifecycle={(q, st) => void changePeekLifecycle(q, st)}
-            onloadBacklinks={(bid) => void loadBacklinks(bid)}
-            onopenQref={(qid) => openQref(qid)}
-            onstartQrefForm={(qid) => startQrefForm(qid)}
-            onremoveQref={(qid) => void removeQref(qid)}
-            onsaveQref={(qid) => void saveQref(qid)}
-            ontoggleReceipts={(qid) => toggleReceipts(qid)}
-            onrunReceiptMisdiagnosis={(q, e) => void runReceiptMisdiagnosis(q, e)}
-            onmakeFlashCandidates={(q) => void makeFlashCandidates(q)}
-            onconfirmFlashCards={(q) => void confirmFlashCards(q)}
-            onstartSingleById={(qid) => void startSingleById(qid)}
-            onsubmitResolveDispute={(q) => void submitResolveDispute(q)}
-            onsubmitClearDispute={(q) => void submitClearDispute(q)}
-            onsubmitFlagDispute={(q) => void submitFlagDispute(q)}
-          />
-        {/if}
-        {#if hasMore}
-          <button class="lv-btn" style="width:100%" onclick={() => (browseLimit += 200)}>
-            {t("browse.loadMore")}（{shownQuestions.length}/{questions.length}）
-          </button>
-        {/if}
-      {/if}
-    </div>
+    <BrowseStudioView
+      bind:searchText
+      bind:filterType
+      bind:filterStatus
+      bind:filterSource
+      bind:filterDays
+      {sourceOptions}
+      bind:filterWrong
+      bind:filterDispute
+      bind:filterHelp
+      bind:favOnly
+      bind:filterUserTag
+      {smartViews}
+      bind:selectedView
+      {smartViewBusy}
+      {smartViewLoadBusy}
+      {smartViewLoadFailed}
+      {smartViewError}
+      {activeBankId}
+      {shownQuestions}
+      {questions}
+      {sectionOpen}
+      bind:batchMode
+      bind:selectedIds
+      bind:moreOpen
+      bind:kpOpen
+      bind:healthOpen
+      bind:errataOpen
+      bind:paperOpen
+      bind:sectionSel
+      {sectionLabel}
+      bind:moreRoot
+      bind:morePop
+      {app}
+      {questionMap}
+      {sectionBusy}
+      {sectionTree}
+      {kpData}
+      bind:kpMergeFrom
+      bind:kpMergeTo
+      bind:kpMergePlan
+      bind:kpFillKp
+      bind:kpFillPlan
+      {kpBusy}
+      {kpNote}
+      {sylDoc}
+      {sylKpStats}
+      bind:sylPublisher
+      bind:sylYear
+      bind:sylSource
+      bind:sylText
+      {sylPreviewRoots}
+      {sylError}
+      {sylNote}
+      bind:paperText
+      {paperPreview}
+      {paperBusy}
+      {paperNote}
+      {errataBusy}
+      {errataErrors}
+      {errataPlan}
+      {errataNote}
+      {selectedCount}
+      {batchCardBusy}
+      bind:batchField
+      bind:batchValue
+      {batchBusy}
+      {batchPreview}
+      {batchUndoHere}
+      {appliedChanges}
+      {batchUndo}
+      {batchNote}
+      {health}
+      {answerDist}
+      {unreviewed}
+      {coverage}
+      bind:activeClusterIndex
+      {mergeBusy}
+      {orphanDiag}
+      {filterOrphanKind}
+      {batchList}
+      {rollbackBusy}
+      {questionsError}
+      {filteredQuestions}
+      {expandedId}
+      {LIFECYCLE_LABELS}
+      {isQuestionDisputed}
+      activePeekQuestion={activePeekQuestion && activePeekQuestion.blockId ? activePeekQuestion as Question & { blockId: string } : null}
+      bind:peekDrawerEl
+      {backlinkCache}
+      {currentPeekIndex}
+      {hasPrevPeek}
+      {hasNextPeek}
+      {favBusy}
+      {editingId}
+      bind:editDraft
+      bind:editSpecOpen
+      bind:editSpecUnit
+      bind:editSpecAbsTol
+      bind:editSpecRelPct
+      bind:editSpecAltUnits
+      {editBusy}
+      {offline}
+      {editError}
+      bind:peekHideAnswer
+      {itemAnalysisOpenFor}
+      {itemAnalysisReport}
+      {revOpenFor}
+      {revLoadingFor}
+      {revRestoreKey}
+      {revRestoreFailedKey}
+      {revLoaded}
+      {revLoadError}
+      {revRestoreError}
+      {revList}
+      {disputeFormOpenFor}
+      bind:disputeReason
+      bind:disputeNote
+      bind:disputeResolution
+      {disputeBusy}
+      {disputeError}
+      {peekLifecycleBusy}
+      {peekLifecycleError}
+      {backlinkBusyFor}
+      {backlinkError}
+      {qrefView}
+      {qrefActionError}
+      {qrefBusyFor}
+      bind:qrefFormFor
+      bind:qrefMatId
+      bind:qrefPage
+      bind:qrefTime
+      {qrefError}
+      {receiptOpenFor}
+      {receiptStored}
+      {receiptCache}
+      {receiptBusy}
+      {receiptMisdiagnosis}
+      {flashError}
+      {flashBusy}
+      bind:flashCandidates
+      {t}
+      {isStubbornWrong}
+      {getStubbornRemediation}
+      {isAttemptVersionDrifted}
+      {removeChoiceOption}
+      {summarizeLoad}
+      {getQuestionLifecycle}
+      {hasMore}
+      onbrowseLimit200={() => (browseLimit = 200)}
+      onapplyNamedView={(v) => void applyNamedView(v)}
+      ondeleteNamedView={() => void deleteNamedView()}
+      onsaveCurrentView={() => void saveCurrentView()}
+      onloadSmartViews={() => void loadSmartViews()}
+      onbackToEntry={() => { view = "entry"; }}
+      onstartFilteredFocusDrill={startFilteredFocusDrill}
+      ontoggleSectionTree={() => void toggleSectionTree()}
+      ontoggleBatchMode={() => { batchMode = !batchMode; if (!batchMode) selectedIds = {}; }}
+      ontoggleMore={() => toggleMore()}
+      onexportBankCsv={exportBankCsv}
+      onprintQuestionSheet={printQuestionSheet}
+      onprintAnswerSheet={printAnswerSheet}
+      onprintAnswerCard={printAnswerCard}
+      onprintTeacherLectureSheet={() => void printTeacherLectureSheet()}
+      onexportItemQualityReport={() => void exportItemQualityReport()}
+      onexportGiftFormat={() => void exportGiftFormat()}
+      onexportAnkiFormat={() => void exportAnkiFormat()}
+      onexportMdDocFormat={() => void exportMdDocFormat()}
+      onclearSectionSel={() => { sectionSel = null; }}
+      onsearchKp={(kp) => setSearch(kp)}
+      onpreviewKpMerge={previewKpMerge}
+      onpreviewKpFill={previewKpFill}
+      onapplyKpPlan={(plan) => void applyKpPlan(plan)}
+      ondownloadSyllabusGaps={downloadSyllabusGaps}
+      onexportSyllabusAudit={exportSyllabusAudit}
+      onpreviewSyllabus={previewSyllabus}
+      onimportSyllabus={() => void importSyllabus()}
+      onapplyPaperRecall={() => void applyPaperRecall()}
+      onexportErrataTemplate={exportErrataTemplate}
+      onerrataFile={onErrataFile}
+      onapplyErrata={() => void applyErrata()}
+      onselectAllCurrentPage={selectAllCurrentPage}
+      onclearSelection={clearSelection}
+      onbatchConvertToCards={() => void batchConvertToCards()}
+      onprintSelectedQuestions={printSelectedQuestions}
+      onprintSelectedTeacherPaper={printSelectedTeacherPaper}
+      onprintSelectedHomeworkSheet={printSelectedHomeworkSheet}
+      onapplyBatch={(isUndo) => applyBatch(isUndo)}
+      onpreviewBatch={previewBatch}
+      ontoggleCluster={(idx) => toggleCluster(idx)}
+      onmergeClusterToTarget={(q, ids) => mergeClusterToTarget(q, ids)}
+      ondrillOrphanKind={(k) => drillOrphanKind(k)}
+      ondownloadHealthCsv={downloadHealthCsv}
+      onundoBatch={(batch) => undoBatch(batch)}
+      onclearBrowseFilters={clearBrowseFilters}
+      onclearOrphanFilter={clearOrphanFilter}
+      ontoggleBrowseQuestion={(id) => toggleBrowseQuestion(id)}
+      onclosePeekDrawer={closePeekDrawer}
+      onpeekDrawerKeydown={onPeekDrawerKeydown}
+      onprevPeek={prevPeekQuestion}
+      onnextPeek={nextPeekQuestion}
+      ontoggleFavQuestion={(q) => void toggleFavQuestion(q)}
+      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+      onttsSpeak={(text, opt) => ttsSpeak(text, opt)}
+      onsaveEdit={(q) => void saveEdit(q)}
+      oncloseEditForm={closeEditForm}
+      onsnoozeWrong={(qid, days) => void snoozeWrong(qid, days)}
+      onarchiveWrong={(qid) => void archiveWrong(qid)}
+      onunarchiveWrong={(qid) => void unarchiveWrong(qid)}
+      ontoggleItemAnalysis={(q) => toggleItemAnalysis(q)}
+      ondownloadItemAnalysisCsv={(rep) => downloadItemAnalysisCsv(rep)}
+      ontoggleRevisions={(qid) => void toggleRevisions(qid)}
+      onloadRevisions={(qid) => void loadRevisions(qid)}
+      onrestoreRevision={(q, r) => void restoreRevision(q, r)}
+      ondrillSingleQuestion={(q) => void drillSingleQuestion(q)}
+      onopenEditForm={(q) => openEditForm(q)}
+      oncloneToManualStudio={(q) => cloneToManualStudio(q)}
+      ontoggleDisputeForm={(q) => toggleDisputeForm(q)}
+      onchangePeekLifecycle={(q, st) => void changePeekLifecycle(q, st)}
+      onloadBacklinks={(bid) => void loadBacklinks(bid)}
+      onopenQref={(qid) => openQref(qid)}
+      onstartQrefForm={(qid) => startQrefForm(qid)}
+      onremoveQref={(qid) => void removeQref(qid)}
+      onsaveQref={(qid) => void saveQref(qid)}
+      ontoggleReceipts={(qid) => toggleReceipts(qid)}
+      onrunReceiptMisdiagnosis={(q, e) => void runReceiptMisdiagnosis(q, e)}
+      onmakeFlashCandidates={(q) => void makeFlashCandidates(q)}
+      onconfirmFlashCards={(q) => void confirmFlashCards(q)}
+      onstartSingleById={(qid) => void startSingleById(qid)}
+      onsubmitResolveDispute={(q) => void submitResolveDispute(q)}
+      onsubmitClearDispute={(q) => void submitClearDispute(q)}
+      onsubmitFlagDispute={(q) => void submitFlagDispute(q)}
+      onloadMore={() => (browseLimit += 200)}
+    />
   {:else if view === "import"}
     <ImportStudioView
       {hasBank}
@@ -8132,190 +7319,4 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
-  /* —— 会话屏右栏（原型 practice 布局：主纸面 + 条件卡） —— */
-  .lv-session-grid { display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: var(--lv-space-5); align-items: start; max-width: 1040px; }
-  .lv-session-grid .lv-session-head { grid-column: 1 / -1; }
-  .lv-session-main { min-width: 0; }
-  .lv-session-main .lv-card { max-width: 660px; box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
-  .lv-side-card { padding: var(--lv-space-4) var(--lv-space-panel); margin-bottom: 14px; }
-  .lv-side-title { display: block; font-size: var(--lv-font-size-md); font-weight: var(--lv-font-weight-semibold); margin-bottom: 10px; }
-  .lv-side-rows { display: flex; flex-wrap: wrap; gap: var(--lv-space-compact); }
-  @container lv-exam (max-width: 960px) { .lv-session-grid { grid-template-columns: minmax(0, 1fr); } .lv-session-side { order: 2; } }
-  /* —— 入口 hero 卡（对齐原型 home 首屏；600px 下折叠单列） —— */
-  .lv-entry-overview { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: var(--lv-space-loose); align-items: stretch; margin-bottom: 18px; }
-  .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 26px 28px; position: relative; overflow: hidden; background: linear-gradient(135deg, color-mix(in srgb, var(--lv-brand-soft) 35%, var(--lv-surface)) 0%, var(--lv-surface) 100%); border-color: color-mix(in srgb, var(--lv-brand) 20%, var(--lv-border)); border-radius: var(--lv-r-3); box-shadow: var(--lv-sh-card); }
-  .lv-entry-hero::after { content: ''; position: absolute; right: -80px; top: -80px; width: 260px; height: 260px; border-radius: var(--lv-radius-round); background: radial-gradient(closest-side, color-mix(in srgb, var(--lv-accent) 12%, transparent), transparent); pointer-events: none; }
-  .lv-entry-main { min-width: 0; }
-  .lv-entry-reason { font-size: 22px; font-weight: var(--lv-font-weight-semibold); letter-spacing: -.4px; line-height: 1.5; margin: 10px 0; overflow-wrap: anywhere; }
-  .lv-entry-num { border-left: 1px solid var(--lv-border); padding: 5px 0 5px 28px; display: flex; flex-direction: column; gap: 7px; align-self: stretch; justify-content: center; }
-  .lv-entry-countwrap { display: flex; align-items: baseline; gap: var(--lv-space-2); }
-  .lv-entry-count { font-size: var(--lv-font-size-display); font-weight: var(--lv-font-weight-semibold); letter-spacing: -2px; line-height: 1.05; font-variant-numeric: tabular-nums; }
-  .lv-entry-unit { font-size: var(--lv-font-size-sm); color: var(--lv-text-3); }
-  .lv-entry-label { font-size: var(--lv-font-size-label); letter-spacing: 0.6px; color: var(--lv-text-3); }
-  .lv-entry-week { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 20px 18px; border-radius: var(--lv-r-3); background: var(--lv-surface); border: 1px solid var(--lv-border); box-shadow: var(--lv-sh-card); }
-  .lv-entry-week-head { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); font-size: var(--lv-font-size-body-compact); }
-  .lv-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--lv-space-1); margin: 16px 0 12px; }
-  .lv-week-day { min-width: 0; display: grid; justify-items: center; gap: 5px; color: var(--lv-text-3); font-size: 10px; }
-  .lv-week-count { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--lv-radius-round); background: var(--lv-surface-2); color: var(--lv-text-2); font-size: 10px; font-variant-numeric: tabular-nums; }
-  .lv-week-count.has-attempts { background: color-mix(in srgb, var(--lv-accent) var(--lv-week-fill), var(--lv-accent-soft)); color: var(--lv-accent-deep); }
-  .lv-week-day.is-today .lv-week-count { box-shadow: 0 0 0 1.5px var(--lv-accent), 0 2px 6px color-mix(in srgb, var(--lv-accent) 24%, transparent); }
-  .lv-week-day .today-text { color: var(--lv-accent); font-weight: 700; }
-  .lv-entry-week p { margin: 0; font-size: var(--lv-font-size-label); line-height: 1.5; }
-  @container lv-exam (max-width: 960px) { .lv-entry-overview { grid-template-columns: minmax(0, 1fr); } }
-  /* 原型 .hero-actions：主操作在 hero 卡内部 */
-  .lv-hero-actions { margin-top: 18px; }
-  .lv-hero-actions .lv-btn--primary { box-shadow: var(--lv-btn-primary-shadow); }
-  @container lv-exam (max-width: 600px) {
-    .lv-entry-hero { grid-template-columns: minmax(0,1fr); padding: 18px; }
-    .lv-entry-num { border-left: 0; border-top: 1px solid var(--lv-border); padding: 12px 0 0; flex-direction: row; align-items: baseline; gap: var(--lv-space-relaxed); justify-content: flex-start; }
-  }
-  .lv-center { display: flex; align-items: center; justify-content: center; min-height: 60%; }
-  /* —— 视图切换（对齐原型 .subnav：文字 + 底部 2px 指示条，非按钮块） —— */
-  .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) 22px; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-highlight, inset 0 1px 0 transparent); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-guard { max-width: 460px; width: 100%; }
-  .lv-guard--welcome { max-width: 760px; }
-  .lv-guard-kicker { display: inline-flex; align-items: center; gap: 7px; color: var(--lv-accent); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-semibold); margin-bottom: 8px; }
-  .lv-guard-title { font-size: 16px; font-weight: var(--lv-font-weight-bold); margin-bottom: 8px; }
-  .lv-guard p { margin: 6px 0; }
-  .lv-center-text { justify-content: center; }
-  .lv-hint { font-size: var(--lv-font-size-sm); color: var(--lv-text-3); text-align: center; }
-  .lv-guard-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--lv-space-relaxed); margin: 16px 0 4px; }
-  .lv-guard-step { position: relative; min-width: 0; padding: 12px 13px; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); }
-  .lv-guard-step .lv-tile-icon { width: 30px; height: 30px; }
-  .lv-guard-step b { display: block; margin-top: 8px; font-size: var(--lv-font-size-body-compact); }
-  .lv-guard-step > span:last-child { display: block; margin-top: 4px; color: var(--lv-text-3); font-size: var(--lv-font-size-caption); line-height: 1.55; }
-  .lv-guard-sample-detail { max-width: 620px; margin: 2px auto 0; line-height: 1.55; }
-  .lv-input { min-height: var(--lv-control-height-md); padding: var(--lv-component-pad-md); border-radius: var(--lv-r-2); border: 1px solid var(--lv-ctl-border); background: var(--lv-surface); color: var(--lv-text); font: inherit; font-size: var(--lv-font-size-body); flex: 1; min-width: 140px; box-shadow: var(--lv-sh-1), var(--lv-inset-subtle, inset 0 1px 0 transparent); transition: border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-input:hover:not(:disabled) { border-color: var(--lv-border-hover, var(--lv-accent)); }
-  .lv-input:focus { border-color: var(--lv-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv-accent) 18%, transparent), var(--lv-inset-subtle, inset 0 1px 0 transparent); outline: none; }
-  .lv-textarea { width: 100%; min-height: 90px; resize: vertical; line-height: 1.8; padding: 12px; margin: 6px 0; }
-  .lv-onboard-title { display: inline-flex; align-items: center; gap: var(--lv-space-2); }
-  /* —— 首用引导三步卡（规范 v6 onboard-steps） —— */
-  .lv-onboard { flex-direction: column; align-items: stretch; }
-  .lv-onboard-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--lv-space-loose); margin: 14px 0 0; padding: 0; list-style: none; }
-  @container lv-exam (max-width: 960px) { .lv-onboard-steps { grid-template-columns: minmax(0, 1fr); } }
-  .lv-onboard-step { position: relative; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); padding: 14px 16px; background: var(--lv-surface-2); }
-  .lv-onboard-no { position: absolute; right: 12px; top: 8px; font-size: 26px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; color: color-mix(in srgb, var(--lv-accent) 26%, transparent); }
-  .lv-onboard-step b { display: block; font-size: var(--lv-font-size-body); margin: 8px 0 0; }
-  .lv-onboard-step-desc { margin-top: 5px; font-size: var(--lv-font-size-caption); line-height: 1.5; }
-  @container lv-exam (max-width: 760px) { .lv-guard-steps { grid-template-columns: minmax(0, 1fr); } }
-  .lv-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--lv-space-loose); }
-  .lv-mode { color: var(--lv-text); font: inherit; padding: 18px 20px; border-radius: var(--lv-r-3); text-align: left; background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); cursor: pointer; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-highlight, inset 0 1px 0 transparent); transition: background-color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out); display: flex; align-items: flex-start; gap: var(--lv-space-3); }
-  .lv-mode:hover:not(:disabled) { box-shadow: 0 6px 20px color-mix(in srgb, var(--lv-brand) 16%, transparent); border-color: var(--lv-brand); background: color-mix(in srgb, var(--lv-brand-soft) 25%, var(--lv-surface)); transform: translateY(-2px); }
-  .lv-mode:active:not(:disabled) { transform: translateY(-0.5px) scale(0.985); }
-  .lv-mode .lv-mode-icon { color: var(--lv-accent); display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--lv-r-2); background: var(--lv-accent-soft); flex-shrink: 0; font-size: var(--lv-font-size-stat); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 18%, transparent); transition: transform var(--lv-dur-micro) var(--lv-ease-out), background-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-mode-icon--quick { background: var(--lv-amber-soft) !important; color: var(--lv-amber) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-amber) 22%, transparent) !important; }
-  .lv-mode-icon--daily { background: var(--lv-accent-soft) !important; color: var(--lv-accent) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 22%, transparent) !important; }
-  .lv-mode-icon--wrong { background: var(--lv-red-soft) !important; color: var(--lv-red) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-red) 22%, transparent) !important; }
-  .lv-mode-icon--recite { background: color-mix(in srgb, var(--lv-accent) 15%, transparent) !important; color: var(--lv-accent) !important; box-shadow: var(--lv-sh-1) !important; }
-  .lv-mode-icon--cram { background: color-mix(in srgb, var(--lv-amber) 24%, var(--lv-red-soft)) !important; color: var(--lv-red) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-red) 16%, transparent) !important; }
-  .lv-mode-icon--fav { background: color-mix(in srgb, var(--lv-amber) 20%, transparent) !important; color: var(--lv-amber) !important; box-shadow: var(--lv-sh-1) !important; }
-  .lv-mode:hover:not(:disabled) .lv-mode-icon { transform: scale(1.06); background: color-mix(in srgb, var(--lv-accent) 16%, var(--lv-surface)); }
-  .lv-mode .lv-mode-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .lv-mode b { font-size: var(--lv-font-size-md); font-weight: var(--lv-font-weight-semibold); letter-spacing: -0.01em; }
-  .lv-mode:disabled { opacity: .62; cursor: not-allowed; }
-  /* 低频模式降噪：中性键帽 + 收紧字号，与一级队列模式拉开层级 */
-  .lv-mode--minor .lv-mode-icon { background: var(--lv-surface-2); color: var(--lv-text-2); box-shadow: var(--lv-sh-1); }
-  .lv-mode--minor:hover:not(:disabled) .lv-mode-icon { background: color-mix(in srgb, var(--lv-text) 8%, var(--lv-surface-2)); }
-  .lv-mode--minor b { font-size: var(--lv-font-size-body-compact); font-weight: 600; }
-  .lv-resume { display: flex; gap: var(--lv-space-loose); align-items: center; padding: 18px 22px; border-radius: var(--lv-r-3); border-left: 4px solid var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 40%, var(--lv-surface)); box-shadow: var(--lv-sh-1), var(--lv-inset-highlight, inset 0 1px 0 transparent); }
-  .lv-resume > div:first-child { flex: 1; }
-  .lv-session-head { justify-content: flex-start; }
-  @container lv-exam (max-width: 600px) {
-    .lv-pad { padding: 12px 14px 36px; }
-    .lv-session-head { gap: var(--lv-space-compact); align-items: center; }
-    .lv-session-head .lv-progress { min-width: 56px; }
-    .lv-session-head > .lv-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .lv-answer-actions { align-items: stretch; }
-    .lv-answer-actions > .lv-btn { flex: 1 1 auto; min-width: 0; }
-  }
-  .lv-pure .lv-stem, .lv-pure .lv-opt > span:not(.key) { display: none; }
-  .lv-pure .lv-opt .key { filter: none; }
-  .lv-pure .lv-opt { justify-content: center; }
-  .lv-question { margin-top: 10px; }
-  .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; }
-  .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
-  .lv-opt:hover:not([disabled]) { border-color: var(--lv-border-hover, var(--lv-accent)); background: color-mix(in srgb, var(--lv-accent) 4.5%, var(--lv-surface)); transform: translateY(-1.5px) translateX(2px); box-shadow: var(--lv-sh-card); }
-  .lv-opt:active:not([disabled]) { transform: scale(0.985); }
-  .lv-opt .key { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 13px; font-weight: var(--lv-font-weight-bold, 700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--lv-surface-2); color: var(--lv-text-2); border: 1px solid var(--lv-border); box-shadow: var(--lv-keycap-shadow); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
-  /* —— 选项圆点指示（规范 v6 .option：radio 圆 / checkbox 方；随四态着色） —— */
-  .lv-opt-check { width: 18px; height: 18px; border-radius: var(--lv-radius-round); border: 1.5px solid var(--lv-ctl-border); background: var(--lv-surface); flex: none; display: grid; place-items: center; transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease; }
-  .lv-opt-check.box { border-radius: 5px; }
-  .lv-opt-check::after { content: ""; width: 8px; height: 8px; border-radius: var(--lv-radius-round); background: var(--lv-on-accent, #fff); transform: scale(0); transition: transform var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-opt-check.box::after { border-radius: 1.5px; }
-  .lv-opt.sel .lv-opt-check, .lv-opt.right .lv-opt-check, .lv-opt.wrong .lv-opt-check { border-color: transparent; }
-  .lv-opt.sel .lv-opt-check { background: var(--lv-accent); }
-  .lv-opt.right .lv-opt-check { background: var(--lv-green); }
-  .lv-opt.wrong .lv-opt-check { background: var(--lv-red); }
-  .lv-opt.sel .lv-opt-check::after, .lv-opt.right .lv-opt-check::after, .lv-opt.wrong .lv-opt-check::after { transform: scale(1); }
-  .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 6px 18px -2px color-mix(in srgb, var(--lv-accent) 24%, transparent); }
-  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
-  .lv-opt.right { border-color: var(--lv-green); background: var(--lv-green-soft); box-shadow: 0 0 0 1px var(--lv-green), 0 4px 14px color-mix(in srgb, var(--lv-green) 18%, transparent); }
-  .lv-opt.right .key { background: var(--lv-green); border-color: var(--lv-green); color: var(--lv-on-green, #fff); }
-  .lv-opt.wrong { border-color: var(--lv-red); background: var(--lv-red-soft); box-shadow: 0 0 0 1px var(--lv-red), 0 4px 14px color-mix(in srgb, var(--lv-red) 18%, transparent); }
-  .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, #fff); }
-  .lv-feedback { margin: 16px 0 12px; padding: 16px 20px; border: 1px solid color-mix(in srgb, var(--lv-red) 26%, var(--lv-border)); border-left: 4px solid var(--lv-red); border-radius: var(--lv-r-3); font-weight: var(--lv-font-weight-semibold); font-size: var(--lv-font-size-md); background: color-mix(in srgb, var(--lv-red-soft) 85%, var(--lv-surface)); color: var(--lv-red); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-red) 12%, transparent); animation: lv-appear var(--lv-dur-view) var(--lv-ease-out); }
-  .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-green) 12%, transparent); }
-  /* —— 作答动作区（吸收小驴闪卡 Floating Dock 浮岛悬浮底座质感：圆角聚拢 + 毛玻璃 + 微微弹性） —— */
-  .lv-answer-actions {
-    margin-top: 18px;
-    padding: 12px 18px;
-    border-radius: var(--lv-r-4, 20px);
-    background: color-mix(in srgb, var(--lv-surface-2) 75%, var(--lv-surface));
-    border: 1px solid var(--lv-border);
-    box-shadow: var(--lv-sh-card), var(--lv-inset-card);
-    backdrop-filter: blur(10px);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    transition: box-shadow var(--lv-dur-view, 0.2s) ease;
-  }
-  .lv-answer-actions > .lv-btn {
-    min-height: 38px;
-    border-radius: 9999px;
-    font-weight: var(--lv-font-weight-semibold, 600);
-    padding: 0 18px;
-    transition: transform var(--lv-dur-micro, 0.15s) ease, background-color var(--lv-dur-micro) ease;
-  }
-  .lv-answer-actions > .lv-btn:active {
-    transform: scale(0.97);
-  }
-  /* —— 改答原因弹层（63-03：轻量内联，不阻断作答） —— */
-  .lv-reason { margin: 10px 0 0; padding: 12px 16px; border-radius: var(--lv-r-3); border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface)); box-shadow: var(--lv-sh-1), var(--lv-inset-card); }
-  /* —— 结构化作答框（54 第三刀：数值单行 / 多空逐空） —— */
-  .lv-answer-num { min-height: 48px; font-size: 16px; font-variant-numeric: tabular-nums; }
-  .lv-answer-blank { min-height: 44px; margin-bottom: 10px; }
-  .lv-analysis { border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-accent); background: var(--lv-surface-2); border-radius: var(--lv-r-2); padding: 14px 18px; font-size: var(--lv-font-size-body); color: var(--lv-text-2); margin-bottom: 12px; white-space: pre-wrap; box-shadow: var(--lv-sh-1); }
-  .lv-empty { border-radius: var(--lv-r-3); padding: 52px 24px; text-align: center; color: var(--lv-text-3); font-size: var(--lv-font-size-body); background: color-mix(in srgb, var(--lv-surface-2) 40%, var(--lv-surface)); border: 1.5px dashed var(--lv-border); }
-  .lv-empty-icon { display: grid; place-items: center; width: 60px; height: 60px; margin: 0 auto; border-radius: 18px; background: var(--lv-accent-soft); color: var(--lv-accent); box-shadow: 0 4px 16px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
-  .lv-empty b { display: block; font-size: 18px; font-weight: var(--lv-font-weight-bold); color: var(--lv-text); margin: 16px 0 8px; letter-spacing: -0.01em; }
-  .lv-empty .lv-muted { max-width: 440px; margin: 0 auto; line-height: 1.65; }
-  .lv-skeleton { height: 180px; border-radius: var(--lv-r-3); background: linear-gradient(100deg, var(--lv-surface-2) 40%, var(--lv-surface) 50%, var(--lv-surface-2) 60%); background-size: 200% 100%; animation: lv-shimmer 1.4s infinite; border: 1px solid var(--lv-border); }
-  @keyframes lv-shimmer { to { background-position: -200% 0; } }
-  .lv-qrow { padding: 15px 18px; margin-bottom: 10px; border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); background: var(--lv-surface); box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), background-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-qrow:hover { transform: translateY(-1.5px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-card); }
-  /* 行头可点可供养：hover 浅底 + 手型；批量模式选中行 accent 描边 */
-  .lv-qrow-head { display: flex; gap: var(--lv-space-2); align-items: center; width: calc(100% + 16px); margin: -4px -8px 4px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; flex-wrap: wrap; transition: background-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-qrow-head:hover { background: var(--lv-surface-2); }
-  .lv-qrow.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 80%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 4px 14px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
-  .lv-qrow-src { margin-left: auto; font-size: var(--lv-font-size-caption); color: var(--lv-text-3); }
-  .lv-qrow-stem { font-size: var(--lv-font-size-body); font-weight: var(--lv-font-weight-medium); color: var(--lv-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* —— 工具行「更多」菜单（浮层走卡片语言：surface + pop 阴影 + 38px 行） —— */
-  .lv-more { position: relative; display: inline-flex; }
-  .lv-more-dot { display: inline-block; width: 6px; height: 6px; margin-left: 5px; border-radius: var(--lv-radius-round); background: var(--lv-accent); }
-  .lv-more-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 216px; padding: 6px; background: color-mix(in srgb, var(--lv-surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-2); box-shadow: var(--lv-sh-pop), var(--lv-inset-highlight, inset 0 1px 0 transparent); display: grid; gap: 3px; animation: lv-pop-in var(--lv-dur-view) var(--lv-ease-out) both; }
-  .lv-more-pop button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 7px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--lv-text); font: inherit; font-size: var(--lv-font-size-body-compact); text-align: left; cursor: pointer; transition: background-color var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-more-pop button:hover { background: var(--lv-accent-soft); color: var(--lv-accent); transform: translateX(2px); }
-  .lv-more-pop button[aria-checked="true"] { color: var(--lv-accent); font-weight: 600; background: color-mix(in srgb, var(--lv-accent-soft) 80%, transparent); }
-  .lv-more-sep { height: 1px; margin: 4px 6px; background: var(--lv-border); }
-  .lv-reason-btn { padding: 4px 10px; border-radius: var(--lv-r-1); cursor: pointer; touch-action: manipulation; transition: transform var(--lv-dur-micro) ease, background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease; }
-  .lv-reason-btn:hover { transform: translateY(-1px); border-color: var(--lv-accent); }
-  .lv-reason-btn:active { transform: scale(0.96); }
-  .lv-reason-key { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; margin-right: 4px; font-size: 10px; font-weight: 700; font-family: ui-monospace, monospace; background: color-mix(in srgb, var(--lv-text) 10%, transparent); color: var(--lv-text-2); }
-  @container lv-exam (max-width: 960px) { .lv-modes { grid-template-columns: repeat(2, 1fr); } }
-  @container lv-exam (max-width: 480px) { .lv-modes { grid-template-columns: 1fr; } }
-  /* —— R54 原型高级交互：题目浏览 Peek 抽屉 (Desktop 右侧抽屉 / Mobile 底部 Sheet) —— */
-  .lv-qrow.active-peek { border-color: var(--lv-accent); border-left: 3.5px solid var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 35%, var(--lv-surface)); box-shadow: 0 4px 16px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
-  @media (prefers-reduced-motion: reduce) { .lv-skeleton { animation: none; } .lv-mode, .lv-btn, .lv-opt { transition: none; animation: none; } }
 </style>

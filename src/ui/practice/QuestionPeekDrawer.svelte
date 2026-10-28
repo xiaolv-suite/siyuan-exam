@@ -129,7 +129,7 @@
     editBusy,
     offline,
     editError,
-    peekHideAnswer,
+    peekHideAnswer = $bindable(),
     app,
     itemAnalysisOpenFor,
     itemAnalysisReport,
@@ -227,7 +227,7 @@
       </span>
       {#if isQuestionDisputed(q)}
         <span class="lv-chip lv-chip--red sm" title={q.dispute?.note ?? ""}>
-          ⚠️ {t("dispute.badge")} · {t("dispute.reason." + q.dispute?.reason)}
+          <Icon name="alert-triangle" size={11} /> {t("dispute.badge")} · {t("dispute.reason." + q.dispute?.reason)}
         </span>
       {:else if q.dispute?.resolved}
         <span class="lv-chip lv-chip--grn sm" title={q.dispute.resolution ?? ""}>
@@ -357,7 +357,7 @@
               <Icon name="chart" size={11} /> {t("browse.usage").replace("{a}", String(st.attempts)).replace("{c}", String(Math.round((st.correct / st.attempts) * 100)))}{#if wr} · {t("browse.wrongCount").replace("{n}", String(wr.wrongCount))}{/if} · {new Date(st.lastAt).toLocaleDateString()}
               {#if stubborn}
                 <span class="lv-chip lv-chip--amb sm" style="margin-left:6px" title={wr ? getStubbornRemediation(wr).reasonText : ""}>
-                  🔥 {t("wrongbook.stubbornBadge")}
+                  <Icon name="flame" size={11} /> {t("wrongbook.stubbornBadge")}
                 </span>
               {/if}
               {#if isArchived}
@@ -392,7 +392,7 @@
               </div>
               {#if itemAnalysisReport.isLowSample}
                 <div class="lv-chip lv-chip--amb sm" style="margin:4px 0" role="status">
-                  ⚠️ {t("browse.lowSample")}
+                  <Icon name="alert-triangle" size={11} /> {t("browse.lowSample")}
                 </div>
               {/if}
               <div class="lv-row num" style="margin:4px 0;gap:8px;font-size:var(--lv-font-size-caption)">

@@ -88,15 +88,15 @@
     <!-- 战报成就胶囊矩阵（9999px） -->
     <div class="lv-row" style="justify-content:center;gap:6px;margin:8px 0 14px;flex-wrap:wrap">
       <span class="lv-achievement-pill">
-        🎯 {sessionDone.total > 0 ? Math.round((sessionDone.correct / sessionDone.total) * 100) : 0}% 正确率
+        <Icon name="target" size={13} /> {sessionDone.total > 0 ? Math.round((sessionDone.correct / sessionDone.total) * 100) : 0}% 正确率
       </span>
       {#if streakDays > 0}
         <span class="lv-achievement-pill lv-achievement-pill--seal">
-          🔥 连续 {streakDays} 天自律打卡
+          <Icon name="flame" size={13} /> 连续 {streakDays} 天自律打卡
         </span>
       {/if}
       <span class="lv-achievement-pill">
-        ⏱️ 累计用时 {sessionDone.totalTimeS || 0}s
+        <Icon name="clock" size={13} /> 累计用时 {sessionDone.totalTimeS || 0}s
       </span>
     </div>
     <div class="lv-done-stats num">
@@ -111,7 +111,7 @@
         </span>
         {#if (sessionDone.delayedTotal ?? 0) > 0}
           <span class="lv-chip lv-chip--grn num" title={t("session.delayedRecoveredTip")}>
-            🔄 {t("session.delayedRecovered")}: {sessionDone.delayedRecovered}/{sessionDone.delayedTotal}
+            <Icon name="rotate" size={11} /> {t("session.delayedRecovered")}: {sessionDone.delayedRecovered}/{sessionDone.delayedTotal}
           </span>
         {/if}
       </div>
@@ -231,7 +231,9 @@
       {/if}
     {:else}
       <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);text-align:center">
-        <b style="color:var(--lv-green);font-size:14px;display:block;margin-bottom:8px">🎉 全部正确，达成全对通关！</b>
+        <b style="color:var(--lv-green);font-size:14px;display:inline-flex;align-items:center;gap:6px;margin-bottom:8px">
+          <Icon name="trophy" size={16} /> 全部正确，达成全对通关！
+        </b>
         <div class="lv-row" style="margin:0;gap:8px;justify-content:center">
           <button class="lv-btn sm lv-btn--primary" onclick={onstartNextDrill}>
             <Icon name="zap" size={14} /> 开启下一轮练习
