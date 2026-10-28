@@ -1,0 +1,163 @@
+import type { Question, QuestionType, QuestionLifecycleStatus } from "@/core/types";
+import type { ExamApp } from "@/app";
+import type { NumericAnswerSpec } from "@/core/structuredAnswer";
+import { parseRubricFromText, validateRubric, type RubricSpec } from "@/core/rubric";
+import { makeQuestion } from "@/core/blockTemplate";
+import { parseOcrQuestionText } from "@/core/ocr";
+
+export interface NumericSpecParams {
+  unit?: string;
+  absTol?: string;
+  relPct?: string;
+  altUnits?: string;
+}
+
+/**
+ * 构造数值填空题的容差与单位规格规范（54-02）
+ */
+export function buildNumericAnswerSpec(params: NumericSpecParams): NumericAnswerSpec | undefined {
+  const abs = parseFloat(params.absTol ?? "");
+  const rel = parseFloat(params.relPct ?? "") / 100;
+  const unit = (params.unit ?? "").trim();
+  const alts = (params.altUnits ?? "").split(/[，,;；]/).map((x) => x.trim()).filter(Boolean);
+  if (!Number.isFinite(abs) && !Number.isFinite(rel) && !unit && !alts.length) return undefined;
+
+  const spec: NumericAnswerSpec = { v: 1, kind: "numeric" };
+  if (Number.isFinite(abs) && abs > 0) spec.absTol = abs;
+  if (Number.isFinite(rel) && rel > 0) spec.relTolerance = rel;
+  if (unit) spec.unit = unit;
+  if (alts.length > 0) {
+    spec.altUnits = alts.map((u) => ({ unit: u, factor: 1 }));
+  }
+  return spec;
+}
+
+/**
+ * 校验并解析作者简答题采分点量规（55-05）
+ */
+export function buildAuthorRubricSpec(
+  rubricText: string,
+  revision = 0,
+): { rubric?: RubricSpec; error?: string } {
+  if (!rubricText || !rubricText.trim()) return {};
+  const parsed = parseRubricFromText(rubricText, 0, revision);
+  if (parsed === null) {
+    return { error: "采分点量规格式解析失败，请检查采分点行格式" };
+  }
+  const issues = validateRubric(parsed);
+  const blocking = issues.filter((x) => !x.includes("满分必须为正数"));
+  if (blocking.length > 0) {
+    return { error: blocking.join("；") };
+  }
+  return { rubric: parsed };
+}
+
+/**
+ * 根据保存校验错误信息定位对应的表单字段
+ */
+export function locateManualErrorField(q: Question, message: string, options: string[]): string {
+  if (message.includes("题干")) return "stem";
+  if (message.includes("空选项")) {
+    const emptyIndex = options.findIndex((opt) => !opt.trim());
+    return `option-${Math.max(0, emptyIndex)}`;
+  }
+  if (message.includes("选项内容重复")) {
+    const duplicateIndex = options.findIndex((opt, idx) => options.findIndex((other) => other.trim() === opt.trim()) !== idx);
+    return `option-${Math.max(0, duplicateIndex)}`;
+  }
+  if (message.includes("答案") || message.includes("越界")) return "answer";
+  if (message.includes("选项")) return "option-0";
+  if (q.type === "single" || q.type === "multiple") return "answer";
+  return "stem";
+}
+
+/**
+ * 快捷设置或切换单选/多选答案选项
+ */
+export function updateCorrectOptionIndex(currentAnswer: string, index: number, isMultiple: boolean): string {
+  const letter = String.fromCharCode(65 + index);
+  if (!isMultiple) return letter;
+  return currentAnswer.includes(letter)
+    ? currentAnswer.replace(letter, "")
+    : (currentAnswer + letter).split("").sort().join("");
+}
+
+export interface ManualQuestionFormData {
+  type: QuestionType;
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  kp: string;
+  source: string;
+  group?: string;
+  status: QuestionLifecycleStatus;
+  numericSpec?: NumericSpecParams;
+  rubricText?: string;
+  studyLang?: string;
+  studyPhonetic?: string;
+}
+
+/**
+ * 组装并保存手工录入的题目到题库
+ */
+export async function saveManualQuestion(
+  app: ExamApp,
+  bankId: string,
+  data: ManualQuestionFormData,
+): Promise<Question> {
+  let answerSpec: NumericAnswerSpec | undefined;
+  if (data.type === "fill" && data.numericSpec) {
+    answerSpec = buildNumericAnswerSpec(data.numericSpec);
+  }
+
+  let rubric: RubricSpec | undefined;
+  if (data.type === "short" && data.rubricText?.trim()) {
+    const res = buildAuthorRubricSpec(data.rubricText);
+    if (res.error) throw new Error(res.error);
+    rubric = res.rubric;
+  }
+
+  const q = makeQuestion({
+    type: data.type,
+    stem: data.stem,
+    options: data.type === "single" || data.type === "multiple" ? data.options.map((o) => o.trim()) : [],
+    answer: data.answer,
+    analysis: data.analysis,
+    kp: data.kp,
+    source: data.source,
+    group: data.group?.trim() || undefined,
+    status: data.status,
+    ...(answerSpec ? { answerSpec } : {}),
+    ...(rubric ? { rubric } : {}),
+    ...(data.studyPhonetic?.trim() || (data.studyLang && data.studyLang !== "zh-CN")
+      ? { studyMeta: { lang: data.studyLang || "zh-CN", phonetic: data.studyPhonetic?.trim() || undefined } }
+      : {}),
+  });
+
+  await app.writeManualQuestion(bankId, q);
+  return q;
+}
+
+/**
+ * 将 OCR 文本解析并转化为录题表单字段
+ */
+export function parseOcrTextToForm(text: string): {
+  type: "single" | "multiple" | "judge" | "fill" | "short";
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis?: string;
+  kp?: string;
+} {
+  const parsed = parseOcrQuestionText(text);
+  const safeType = parsed.type === "material" ? "single" : parsed.type;
+  return {
+    type: safeType,
+    stem: parsed.stem,
+    options: parsed.options.length >= 2 ? parsed.options : ["", ""],
+    answer: parsed.answer,
+    analysis: parsed.analysis,
+    kp: parsed.kp,
+  };
+}

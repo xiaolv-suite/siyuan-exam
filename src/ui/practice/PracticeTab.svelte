@@ -21,7 +21,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { normalizeAnswer, questionHash } from "../../core/answer";
     import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
     import {
-      parseRubricFromText, validateRubric, scoreRubric,
+      parseRubricFromText, scoreRubric,
       createRubricAssessmentSnapshot, isRubricDrifted, exportRubricBreakdownCsv,
       DEFAULT_RUBRIC_LEVELS, type RubricSpec, type CriterionRating, type CriterionAssessment,
       type RubricAssessmentSnapshot,
@@ -166,6 +166,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       fetchVariantDrillQuestions,
       fetchFoundationMotherQuestion,
     } from "./services/variantDrillService";
+    import {
+      buildNumericAnswerSpec,
+      buildAuthorRubricSpec,
+      locateManualErrorField,
+      updateCorrectOptionIndex,
+      parseOcrTextToForm,
+    } from "./services/manualStudioService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -3722,23 +3729,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function manualFieldForError(q: Question, message: string): string {
-      if (message.includes("题干")) return "stem";
-      if (message.includes("空选项")) return `option-${mOptions.findIndex((option) => !option.trim())}`;
-      if (message.includes("选项内容重复")) {
-        const duplicateIndex = mOptions.findIndex((option, index) => mOptions.findIndex((other) => other.trim() === option.trim()) !== index);
-        return `option-${Math.max(0, duplicateIndex)}`;
-      }
-      if (message.includes("答案") || message.includes("越界")) return "answer";
-      if (message.includes("选项")) return "option-0";
-      if (q.type === "single" || q.type === "multiple") return "answer";
-      return "stem";
+      return locateManualErrorField(q, message, mOptions);
     }
 
     function setCorrectOption(i: number) {
-      const L = String.fromCharCode(65 + i);
-      mAnswer = mType === "multiple"
-        ? (mAnswer.includes(L) ? mAnswer.replace(L, "") : (mAnswer + L).split("").sort().join(""))
-        : L;
+      mAnswer = updateCorrectOptionIndex(mAnswer, i, mType === "multiple");
     }
 
     let manualSymbolTab = $state<"math" | "pinyin" | "phonetic">("math");
@@ -3755,13 +3750,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       ocrModalOpen = true;
     }
 
-    async function applyOcrFill() {
+    function applyOcrFill() {
       if (!ocrInputText.trim()) return;
-      const { parseOcrQuestionText } = await import("../../core/ocr");
-      const parsed = parseOcrQuestionText(ocrInputText);
-      mType = parsed.type === "material" ? "single" : parsed.type;
+      const parsed = parseOcrTextToForm(ocrInputText);
+      mType = parsed.type;
       mStem = parsed.stem;
-      mOptions = parsed.options.length >= 2 ? parsed.options : ["", ""];
+      mOptions = parsed.options;
       mAnswer = parsed.answer;
       if (parsed.analysis) mAnalysis = parsed.analysis;
       if (parsed.kp) mKp = parsed.kp;
@@ -3968,31 +3962,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       return () => { if (draftTimer) clearTimeout(draftTimer); };
     });
 
-    /** 54-02 作者设置：表单字段 → 判分规格（abs 与 rel 可并用取更宽；无任何容差=exact 口径） */
-    function buildAuthorSpec(): import("../../core/structuredAnswer").NumericAnswerSpec | undefined {
-      const abs = parseFloat(mSpecAbsTol);
-      const rel = parseFloat(mSpecRelPct) / 100;
-      const unit = mSpecUnit.trim();
-      const alts = mSpecAltUnits.split(/[，,;；]/).map((x) => x.trim()).filter(Boolean);
-      if (!Number.isFinite(abs) && !Number.isFinite(rel) && !unit && !alts.length) return undefined; // 全空=自动识别
-      const spec: import("../../core/structuredAnswer").NumericAnswerSpec = { v: 1, kind: "numeric" };
-      if (Number.isFinite(abs) && abs > 0) spec.absTol = abs;
-      if (Number.isFinite(rel) && rel > 0) spec.relTolerance = rel;
-      if (unit) spec.unit = unit;
-      if (alts.length) {
-        const factor = 1; // 作者换算表 lite：等价单位同值换算（倍率编辑待完整面），按同值处理
-        spec.altUnits = alts.map((u) => ({ unit: u, factor }));
-      }
-      return spec;
-    }
-
-    /** 55-05 作者设置：表单文本 → rubric 规格（每行一个采分点）。
-     *  文本非空但解析失败 → null，由调用方如实报错而非静默丢弃作者输入。 */
-    function buildAuthorRubric(): RubricSpec | null | undefined {
-      if (!mRubricOpen) return undefined;
-      if (!mRubricText.trim()) return undefined; // 未填写 = 无 rubric（纯展示题）
-      return parseRubricFromText(mRubricText, 0, mRubricRevision);
-    }
     /** 55-05：录题时的采分点预览（解析失败为 null，界面如实提示而非假装成功） */
     const authorRubricPreview = $derived(
       mType === "short" && mRubricOpen && mRubricText.trim() ? parseRubricFromText(mRubricText, 0, mRubricRevision) : null,
@@ -4007,33 +3976,30 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const signature = draftSignature();
       mSaving = true; mSaved = ""; errorMsg = ""; clearManualValidation();
       try {
-        // 55-05：rubric 仅在简答题开放；文本非空但解析失败 → 如实报错，不静默丢弃作者输入
-        const authorRubric = mType === "short" ? buildAuthorRubric() : undefined;
-        if (authorRubric === null) {
-          manualErrorMsg = t("manual.rubricParseFailed");
-          manualErrorField = "rubric";
-          await tick();
-          document.querySelector<HTMLElement>(`[data-manual-field="rubric"]`)?.focus();
-          return;
-        }
-        if (authorRubric) {
-          const issues = validateRubric(authorRubric);
-          const blocking = issues.filter((x) => !x.includes("满分必须为正数")); // fullScore=0 由 q.score 兜底
-          if (blocking.length) {
-            manualErrorMsg = blocking.join("；");
+        let authorRubric: RubricSpec | undefined;
+        if (mType === "short" && mRubricOpen && mRubricText.trim()) {
+          const res = buildAuthorRubricSpec(mRubricText, mRubricRevision);
+          if (res.error) {
+            manualErrorMsg = res.error;
             manualErrorField = "rubric";
             await tick();
             document.querySelector<HTMLElement>(`[data-manual-field="rubric"]`)?.focus();
             return;
           }
+          authorRubric = res.rubric;
         }
+
+        const answerSpec = mType === "fill" && mSpecOpen
+          ? buildNumericAnswerSpec({ unit: mSpecUnit, absTol: mSpecAbsTol, relPct: mSpecRelPct, altUnits: mSpecAltUnits })
+          : undefined;
+
         const q = makeQuestion({
           type: mType, stem: mStem,
           options: mType === "single" || mType === "multiple" ? mOptions.map((o) => o.trim()) : [],
           answer: mAnswer, analysis: mAnalysis, kp: mKp, source: mSource,
           group: mGroup.trim() || undefined,
           status: statusToSave,
-          ...(mType === "fill" && mSpecOpen ? { answerSpec: buildAuthorSpec() } : {}),
+          ...(answerSpec ? { answerSpec } : {}),
           ...(authorRubric ? { rubric: authorRubric } : {}),
           ...(mStudyPhonetic.trim() || mStudyLang !== "zh-CN"
             ? { studyMeta: { lang: mStudyLang || "zh-CN", phonetic: mStudyPhonetic.trim() || undefined } }
