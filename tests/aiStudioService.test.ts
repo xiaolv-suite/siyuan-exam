@@ -8,6 +8,8 @@ import {
   fetchCurrentEditorDocContent,
   validateAndApplyCandidateEdit,
   verifyQueueBankMatch,
+  ensureAiEndpointConsent,
+  buildGenOptionsSnapshot,
   type AiReviewQueueState,
 } from "@/ui/practice/services/aiStudioService";
 import type { ExamApp } from "@/app";
@@ -140,5 +142,48 @@ describe("AI 出题工作台队列与审批服务 (aiStudioService)", () => {
     const mismatch = verifyQueueBankMatch("bank-1", "bank-2", t);
     expect(mismatch.matched).toBe(false);
     expect(mismatch.errorMessage).toBe("[ai.queueWrongBank]");
+  });
+
+  it("6. ensureAiEndpointConsent：端点隐私授权与绑定", async () => {
+    const t = (k: string) => `[${k}]`;
+    const storage = new Map<string, string>();
+    const readLocal = (k: string) => storage.get(k) ?? null;
+    const writeLocal = (k: string, v: string) => { storage.set(k, v); };
+
+    // 1. 首次调用弹出确认，用户同意
+    const confirmAgree = vi.fn().mockResolvedValue(true);
+    const ok = await ensureAiEndpointConsent("https://api.openai.com/v1", confirmAgree, readLocal, writeLocal, t);
+    expect(ok).toBe(true);
+    expect(confirmAgree).toHaveBeenCalled();
+    expect(storage.get("lv-exam-ai-consent")).toContain("https://api.openai.com/v1");
+
+    // 2. 相同端点再次调用不弹窗
+    const confirmIgnore = vi.fn().mockResolvedValue(true);
+    const ok2 = await ensureAiEndpointConsent("https://api.openai.com/v1", confirmIgnore, readLocal, writeLocal, t);
+    expect(ok2).toBe(true);
+    expect(confirmIgnore).not.toHaveBeenCalled();
+
+    // 3. 切换端点重新弹窗，用户拒绝
+    const confirmReject = vi.fn().mockResolvedValue(false);
+    const ok3 = await ensureAiEndpointConsent("https://api.deepseek.com", confirmReject, readLocal, writeLocal, t);
+    expect(ok3).toBe(false);
+    expect(confirmReject).toHaveBeenCalled();
+  });
+
+  it("7. buildGenOptionsSnapshot：组装出题参数快照", () => {
+    const opts = buildGenOptionsSnapshot({
+      count: 10,
+      difficulty: "hard",
+      kp: "高中数学",
+      sourceTitle: "课本第3章",
+      preset: "default",
+      quality: "standard",
+      pluginCustomHint: "避免多重否定句",
+      userCustomHint: "多出综合分析题",
+    });
+
+    expect(opts.count).toBe(10);
+    expect(opts.difficulty).toBe("hard");
+    expect(opts.customHint).toContain("避免多重否定句\n多出综合分析题");
   });
 });

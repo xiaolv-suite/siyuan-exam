@@ -7,6 +7,8 @@ import { CountingChannel } from "@/ai/counting";
 import { createAiChannel, type AiChannelConfig } from "./aiWorkflowService";
 import { normalizeAnswer, questionHash } from "@/core/answer";
 import { validate } from "@/importer/pipeline";
+import { escapeHtml } from "@/libs/sanitize";
+import { redactUrlForDisplay } from "@/core/urlRedaction";
 
 export const REVIEW_QUEUE_KEY = "ai/review-queue";
 
@@ -195,4 +197,81 @@ export function verifyQueueBankMatch(
   }
   return { matched: true };
 }
+
+export const AI_CONSENT_KEY = "lv-exam-ai-consent";
+
+/**
+ * 首次调用 AI 数据流确认与端点绑定隐私闸（26.2 P0 / 41-06）
+ */
+export async function ensureAiEndpointConsent(
+  rawEndpoint: string,
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
+  readLocal: (k: string) => string | null,
+  writeLocal: (k: string, v: string) => void,
+  t: (k: string) => string,
+): Promise<boolean> {
+  const currentEndpoint = rawEndpoint.trim() || "(内置)";
+  let consented = readLocal(AI_CONSENT_KEY);
+
+  try {
+    const parsed = JSON.parse(consented ?? "") as { endpoint?: string } | null;
+    if (parsed?.endpoint) consented = parsed.endpoint;
+    else consented = null;
+  } catch {
+    if (consented !== null && consented !== "1") consented = null;
+    else if (consented === "1") consented = "(legacy)";
+  }
+
+  if (consented !== currentEndpoint) {
+    const ep = rawEndpoint.trim();
+    const msg = ep
+      ? `${t("ai.consentTitle")}<br>${t("ai.consentCustom")} ${escapeHtml(redactUrlForDisplay(ep))}`
+      : `${t("ai.consentTitle")}<br>${t("ai.consentSiyuan")}`;
+
+    const ok = await confirmFn({
+      title: t("ai.consentTitle"),
+      content: `${msg}<br><br>${t("ai.consentScope")}`,
+    });
+
+    if (!ok) return false;
+    writeLocal(AI_CONSENT_KEY, JSON.stringify({ endpoint: currentEndpoint }));
+  }
+
+  return true;
+}
+
+export interface GenOptionsSnapshotParams {
+  count: number;
+  difficulty: "easy" | "medium" | "hard" | "mixed";
+  kp: string;
+  sourceTitle: string;
+  preset: any;
+  quality: "standard" | "economy";
+  pluginCustomHint?: string;
+  userCustomHint?: string;
+}
+
+/**
+ * 构建出题参数快照
+ */
+export function buildGenOptionsSnapshot(params: GenOptionsSnapshotParams): GenOptions {
+  const customHint = [
+    (params.pluginCustomHint ?? "").trim(),
+    (params.userCustomHint ?? "").trim(),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return {
+    types: ["single", "multiple", "judge"],
+    count: params.count,
+    difficulty: params.difficulty,
+    kp: params.kp,
+    sourceTitle: params.sourceTitle,
+    preset: params.preset,
+    quality: params.quality,
+    customHint: customHint || undefined,
+  };
+}
+
 
