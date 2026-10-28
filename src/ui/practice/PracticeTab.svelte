@@ -308,6 +308,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       assembleClozeImportReport,
       checkImportCheckpointAux,
       discardImportCheckpointAux,
+      buildResumeCheckpointReport,
     } from "./services/docImportClozeService";
     import {
       pickRandomSpotCheckQuestions,
@@ -2583,10 +2584,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 跳回源笔记精确位置（iDoRecall 范式 lite：doc zoomIn 到题目块） */
     function jumpToSource() {
       const q = reciteQueue[reciteCursor] as Question & { blockId?: string; rootId?: string };
-      if (!q?.blockId || !q?.rootId) return;
-      void import("siyuan").then(({ openTab }) => {
-        openTab({ app: ((plugin.app ?? plugin) as import("siyuan").App), doc: { id: q.rootId, zoomIn: Boolean(q.blockId) } });
-      });
+      if (q?.rootId) openSiYuanTarget(plugin, q.rootId, q.blockId, showMessage, t);
     }
     async function startRecite() { void 0;
       const all = (questions.length ? questions : await loadQuestions()).filter((q) => q.type !== "material");
@@ -5075,14 +5073,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function resumeCheckpoint() {
       if (!importCheckpoint || importBusy) return;
-      const cp = importCheckpoint;
-      const report: import("../../importer/pipeline").ImportReport = {
-        ok: cp.pendingQuestions,
-        errors: [],
-        duplicates: 0,
-        batch: cp.batch,
-      };
-      trialConfirmed = [...cp.confirmedIds];
+      const { report, confirmedIds } = buildResumeCheckpointReport(importCheckpoint);
+      trialConfirmed = confirmedIds;
       importCheckpoint = null;
       await runCommit(report);
     }

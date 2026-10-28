@@ -7,6 +7,7 @@ import {
   assembleClozeImportReport,
   checkImportCheckpointAux,
   discardImportCheckpointAux,
+  buildResumeCheckpointReport,
 } from "@/ui/practice/services/docImportClozeService";
 import type { ImportReport, ImportCheckpoint } from "@/importer/pipeline";
 
@@ -152,6 +153,20 @@ describe("docImportClozeService", () => {
       const mockApp = { clearImportCheckpoint: vi.fn().mockResolvedValue(undefined) };
       await discardImportCheckpointAux(mockApp);
       expect(mockApp.clearImportCheckpoint).toHaveBeenCalled();
+    });
+
+    it("builds resume checkpoint report accurately", () => {
+      const mockCp: ImportCheckpoint = {
+        batch: "b-cp",
+        bankId: "b1",
+        pendingQuestions: [{ id: "q-1" } as any],
+        confirmedIds: ["q-0"],
+        timestamp: 1000,
+      };
+      const res = buildResumeCheckpointReport(mockCp);
+      expect(res.report.ok).toEqual([{ id: "q-1" }]);
+      expect(res.report.batch).toBe("b-cp");
+      expect(res.confirmedIds).toEqual(["q-0"]);
     });
   });
 });

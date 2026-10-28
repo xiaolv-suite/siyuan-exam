@@ -128,3 +128,20 @@ export async function discardImportCheckpointAux(app: any): Promise<void> {
     // 容错静默
   }
 }
+
+/** 将检查点快照还原为恢复导入报告与已确认ID */
+export function buildResumeCheckpointReport(cp: ImportCheckpoint): {
+  report: ImportReport;
+  confirmedIds: string[];
+} {
+  return {
+    report: {
+      ok: cp.pendingQuestions,
+      errors: [],
+      duplicates: 0,
+      batch: cp.batch,
+    },
+    confirmedIds: [...cp.confirmedIds],
+  };
+}
+
