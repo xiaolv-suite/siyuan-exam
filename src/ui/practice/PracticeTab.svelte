@@ -31,7 +31,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { randomSeedId } from "../../core/random";
     import { newBatchId } from "../../core/ids";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
-    import { recentlySeen } from "../../core/exposure";
     import { validate } from "../../importer/pipeline";
     import {
       bankHealthReport,
@@ -196,6 +195,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       syncBankQuestionsToDoc,
       copyTodayStudyReport,
     } from "./services/bankDocSyncService";
+    import {
+      pickDrillQuestions,
+      pickSingleWrongQuestion,
+      pickSameKpQuestions,
+      toggleQuestionFavorite,
+      executeMasterAllWrong,
+    } from "./services/drillLauncherService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -2387,39 +2393,26 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function startDrill(mode: string) {
       errorMsg = "";
-      sessionSeed = randomSeedId(); // 65-05：抽题与卷序共用同一种子
-      const qs = (await loadQuestions()).filter((q) => q.type !== "material");
+      sessionSeed = randomSeedId();
+      const qs = await loadQuestions();
       if (questionsError) {
         errorMsg = questionsError;
         showMessage(t("entry.loadError"), 2800, "error");
         return;
       }
-      if (!qs.length) { showMessage(t("state.emptyBank"), 2800, "info"); return; }
-      let picked: Question[];
-      if (mode.startsWith("tag:")) {
-        const targetTag = mode.slice(4);
-        picked = qs.filter((q) => (q.userTags || []).includes(targetTag));
-        if (!picked.length) { showMessage("当前标签下暂无题目", 2800, "info"); return; }
-      } else if (mode === "wrong") {
-        picked = app.wrongDrill(qs);
-        if (!picked.length) { showMessage(t("state.noWrong"), 2800, "info"); return; }
-      } else if (mode === "cram") {
-        picked = app.cramDrill(qs);
-        if (!picked.length) { showMessage(t("state.noCram"), 2800, "info"); return; }
-      } else if (mode === "fav") {
-        picked = app.favDrill(qs);
-        if (!picked.length) { showMessage(t("state.noFav"), 2800, "info"); return; }
-      } else if (mode === "daily") {
-        const goal = Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10);
-        picked = app.dailyDrill(qs, [], Number.isFinite(goal) && goal > 0 ? goal : 10);
-        if (!picked.length) { errorMsg = t("state.emptyBank"); return; }
-      } else {
-        // 65-06 lite：去重窗口走设置（默认 3 天，0=关闭）；跨模式；池不足回退全量
-        const avoidDays = Number(plugin.settingUtils?.get?.("quickAvoidDays") ?? 3);
-        const seen = avoidDays > 0 ? recentlySeen(app.attempts.all(), avoidDays * 86_400_000, Date.now()) : undefined;
-        picked = seen ? app.quickDrill(qs, 20, sessionSeed, { avoid: seen }) : app.quickDrill(qs, 20, sessionSeed);
-      }
-      await safeStart(groupAdjacent(picked), mode, () => {
+      const res = pickDrillQuestions({
+        app,
+        questions: qs,
+        mode,
+        sessionSeed,
+        dailyGoal: Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10),
+        quickAvoidDays: Number(plugin.settingUtils?.get?.("quickAvoidDays") ?? 3),
+      });
+      if (res.info) { showMessage(t(res.info, res.info), 2800, "info"); return; }
+      if (res.error) { errorMsg = t(res.error, res.error); return; }
+      if (!res.picked.length) return;
+
+      await safeStart(groupAdjacent(res.picked), mode, () => {
         feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
         view = "session";
         restoreQuestionControls();
@@ -2430,7 +2423,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function startWrongFor(qid: string) {
       errorMsg = "";
       const all = questions.length ? questions : await loadQuestions();
-      const q = all.find((x) => x.id === qid);
+      const q = pickSingleWrongQuestion(all, qid);
       if (!q) { showMessage(t("query.empty"), 3200, "info"); return; }
       await safeStart(groupAdjacent([q]), "wrong", () => {
         feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
@@ -2442,9 +2435,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function startSameKpFor(qid: string) {
       errorMsg = "";
       const all = questions.length ? questions : await loadQuestions();
-      const q = all.find((x) => x.id === qid);
-      if (!q?.kp) { showMessage(t("state.noSameKp"), 2800, "info"); return; }
-      const related = all.filter((x) => x.id !== qid && x.kp === q.kp);
+      const related = pickSameKpQuestions(all, qid);
       if (!related.length) { showMessage(t("state.noSameKp"), 2800, "info"); return; }
       await safeStart(groupAdjacent(related), "same-kp", () => {
         feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
@@ -2503,17 +2494,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const { confirmDialogSync } = await import("../../libs/dialog");
       if (!(await confirmDialogSync({ title: t("wrongbook.masterAllTitle"), content: t("wrongbook.masterAllConfirm").replace("{n}", String(wrongList.length)) }))) return;
       bulkMasterBusy = true;
-      let ok = 0;
-      let failed = 0;
       try {
-        for (const w of wrongList) {
-          try { await app.setWrongStatus(w.qid, "mastered"); ok++; } catch { failed++; }
-        }
+        await executeMasterAllWrong(app, wrongList, showMessage, t);
         dataRev++;
-        const message = failed
-          ? t("wrongbook.masterAllPartial").replace("{ok}", String(ok)).replace("{failed}", String(failed))
-          : t("wrongbook.masterAllDone").replace("{n}", String(ok));
-        showMessage(message, 4200, failed ? "error" : "info");
       } finally { bulkMasterBusy = false; }
     }
 
@@ -2523,12 +2506,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!q || !app || favBusy) return;
       favBusy = true;
       try {
-        const nextFav = await app.toggleFav(q);
+        const nextFav = await toggleQuestionFavorite(app, q, showMessage, offline, t);
         questions = questions.map((item) => (item.id === q.id ? { ...item, fav: nextFav } : item));
         dataRev++;
-        showMessage(nextFav ? t("session.favAdded") : t("session.favRemoved"), 2000, "info");
-      } catch (e) {
-        showMessage(t("session.favFailed").replace("{message}", offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e)), 4200, "error");
       } finally { favBusy = false; }
     }
     async function toggleFavCurrent() {
