@@ -12,7 +12,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 import { ttsSpeak, ttsSupported } from "@/core/tts";
     import type { ExamApp, BankInfo } from "../../app";
     import type { Question } from "../../core/types";
-    import { parseText, parseExcelRows, autoMapExcel, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
+    import { parseText, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
     import { columnLabel, autoAssignment, assignmentFromMap, assignmentToMap, assignmentErrors, emptyAssignment, type MapAssignment } from "../../importer/mapping";
     import { formatSecToTime, locatorLabel, needsRelocate } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
@@ -250,6 +250,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       reparseFixedTextRow,
       applyReparsedResultToReport,
     } from "./services/importRepairService";
+    import {
+      parseSheetRowsWithStrategy,
+    } from "./services/excelParseWorkflowService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -4314,44 +4317,30 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!rows?.length) { importError = t("import.emptyFile"); return; }
       // 回灌去重（2.3）：与题库已有题比对；并存模式（重合并策略 lite）置空 → 重复行照常入库
       const existing = dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash));
-      // 手动映射（38-02）优先；列越界（换文件/切 Sheet 后）→ 提示并回退自动映射
-      if (manualMap) {
-        const width = rows[0].length;
-        const idxs = [manualMap.type, manualMap.stem, manualMap.answer, manualMap.analysis, manualMap.difficulty, manualMap.kp, manualMap.score, manualMap.source, ...(manualMap.options ?? [])];
-        if (idxs.some((i) => i != null && i >= width)) {
-          importError = t("import.mappingMismatch");
-          manualMap = null;
-          return;
-        }
-        lastMap = manualMap;
-        importReport = parseExcelRows(rows.slice(1), manualMap, { existingHashes: existing, duplicateStrategy: dupeStrategy });
-        return;
-      }
-      // 映射复用（2.3/38-02）：已保存映射优先；列越界守卫 → 提示并回退自动映射
       const saved = savedMappings.find((m) => m.name === selectedMapping);
-      if (saved) {
-        const width = rows[0].length;
-        const idxs = [saved.map.type, saved.map.stem, saved.map.answer, saved.map.analysis, saved.map.difficulty, saved.map.kp, saved.map.score, saved.map.source, ...(saved.map.options ?? [])];
-        if (idxs.some((i) => i != null && i >= width)) {
-          importError = t("import.mappingMismatch");
-          selectedMapping = "";
-          return;
-        }
-        lastMap = saved.map;
-        importReport = parseExcelRows(rows.slice(1), saved.map, { existingHashes: existing, duplicateStrategy: dupeStrategy });
-        return;
+
+      const res = parseSheetRowsWithStrategy({
+        rows,
+        manualMap,
+        savedMap: saved?.map,
+        dupeStrategy,
+        existingHashes: existing,
+        t,
+      });
+
+      if (res.error) importError = res.error;
+      if (res.mismatchFallback) {
+        if (manualMap) manualMap = null;
+        else if (selectedMapping) selectedMapping = "";
       }
-      const { map, missing } = autoMapExcel(rows[0].map(String));
-      if (missing.length) {
-        importError = t("import.missingColumns") + missing.join("、");
-        // 38-02：自动映射失败 → 直接展开手动映射编辑器（预填最优猜测，异名列/乱序表可手动指派）
-        mapAssign = autoAssignment(rows[0].map(String));
+      if (res.needManualEdit) {
+        mapAssign = res.initialAssignment ?? emptyAssignment();
         mapErrors = [];
         mapEditorOpen = true;
         return;
       }
-      lastMap = map;
-      importReport = parseExcelRows(rows.slice(1), map, { existingHashes: existing, duplicateStrategy: dupeStrategy });
+      if (res.usedMap) lastMap = res.usedMap;
+      if (res.report) importReport = res.report;
     }
 
     // ---------- 手动列映射（38-02）：自动失败/异名列/乱序表可手动指派列↔字段 ----------
