@@ -48,7 +48,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { buildSectionTree } from "../../core/sectionTree";
     import { matchesBrowseFilter } from "../../core/browseFilter";
     import { queueKindOf, queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
-    import { RatingGuard, ratingAttemptKey, type RatingOutcomeView } from "../../core/ratingOutcome";
+    import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
     import { upsertView, viewBankMismatch } from "@/core/smartViews";
     import { remainingPlan } from "@/core/planner";
     import { kpAudit } from "@/core/kpGovernance";
@@ -184,6 +184,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       buildDailyPlanSchedule,
       updateDailyPlanTrace,
     } from "./services/dailyPlanService";
+    import {
+      assembleReciteQueue,
+      executeReciteRating,
+      extractForgotReciteQuestions,
+      pushForgotReciteToCards,
+      pushForgotReciteToActions,
+    } from "./services/reciteStudioService";
+    import {
+      exportWrongbookToDoc,
+      syncBankQuestionsToDoc,
+      copyTodayStudyReport,
+    } from "./services/bankDocSyncService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -2632,20 +2644,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         openTab({ app: ((plugin.app ?? plugin) as import("siyuan").App), doc: { id: q.rootId, zoomIn: Boolean(q.blockId) } });
       });
     }
-    async function startRecite() { void 0; // 背诵朗读按钮在视图内直接调用 ttsSpeak
-      // 首次进入时 questions 可能尚未加载（模式卡直达）——与 startDrill 同路径先拉取
+    async function startRecite() { void 0;
       const all = (questions.length ? questions : await loadQuestions()).filter((q) => q.type !== "material");
       if (questionsError) {
         errorMsg = questionsError;
         showMessage(t("entry.loadError"), 2800, "error");
         return;
       }
-      const qs = app.wrongDrill(all);
-      const pool = qs.length ? qs : all;
-      if (!pool.length) { errorMsg = t("state.emptyBank"); return; }
-      // 背诵组大小可配（TODO 13 组）：设置 reciteGroupSize，夹在 5–50
-      const size = Math.max(5, Math.min(50, Number(plugin.settingUtils?.get?.("reciteGroupSize") ?? 15) || 15));
-      reciteQueue = app.quickDrill(pool, size);
+      const groupSize = Number(plugin.settingUtils?.get?.("reciteGroupSize") ?? 15) || 15;
+      reciteQueue = assembleReciteQueue(app, all, groupSize);
+      if (!reciteQueue.length) { errorMsg = t("state.emptyBank"); return; }
       reciteCursor = 0; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
       reciteSessionId = `s-recite-${Date.now().toString(36)}`;
       view = "recite";
@@ -2667,16 +2675,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (reciteSaving) return;
       const q = reciteQueue[reciteCursor];
       if (!q) return;
-      // 39-03：防双击与重复提交——同会话同题同评级只允许写一次
-      const attemptKey = ratingAttemptKey(reciteSessionId, q.id, rating);
-      if (!reciteGuard.tryAcquire(attemptKey)) return;
       reciteSaving = true;
       reciteError = "";
       try {
-        // 39-03：返回评级结果状态（未转卡/已写回/待确认/失败/离线），不再静默吞失败
-        const outcome = await app.reciteAnswer(bankName, q as Question & { blockId?: string }, rating, reciteSessionId, 0);
-        reciteGuard.settle(attemptKey, outcome.terminal);
-        reciteOutcome = outcome;
+        const res = await executeReciteRating({
+          app,
+          bankName,
+          q: q as Question & { blockId?: string },
+          rating,
+          sessionId: reciteSessionId,
+          guard: reciteGuard,
+        });
+        if (!res) return;
+        reciteOutcome = res.outcome;
         reciteRatings.push(rating);
         reciteHint = 0;
         if (reciteCursor < reciteQueue.length - 1) {
@@ -2688,7 +2699,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           reciteDone = true;
         }
       } catch (e) {
-        reciteGuard.settle(attemptKey, false); // 失败：允许重试
         reciteError = String(e instanceof Error ? e.message : e);
         reciteOutcome = null;
       } finally {
@@ -2726,24 +2736,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     async function exportWrong() {
-      if (!activeBankId) { errorMsg = t("state.emptyBank"); return; }
-      try {
-        const docId = await app.exportWrongbook(activeBankId, bankName, {
-          kpRoot: expKp || undefined,
-          reason: expReason || undefined,
-          sinceDays: expDays || undefined,
-        });
-        void docId;
-        showMessage(t("export.done"), 3600, "info");
-      } catch (e) {
-        showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await exportWrongbookToDoc(app, activeBankId, bankName, { kpRoot: expKp || undefined, reason: expReason || undefined, sinceDays: expDays || undefined }, showMessage, offline, t);
     }
 
     let syncDocsBusy = $state(false);
     function retryForgotRecite() {
-      const forgotIndices = reciteRatings.map((r, i) => (r === 1 ? i : -1)).filter((i) => i >= 0);
-      const forgotQueue = forgotIndices.map((i) => reciteQueue[i]).filter(Boolean);
+      const forgotQueue = extractForgotReciteQuestions(reciteQueue, reciteRatings);
       if (!forgotQueue.length) return;
       reciteQueue = forgotQueue;
       reciteCursor = 0;
@@ -2758,29 +2756,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function reciteForgotToCard() {
       if (!activeBankId || !app) return;
-      const forgotIndices = reciteRatings.map((r, i) => (r === 1 ? i : -1)).filter((i) => i >= 0);
-      const forgotQs = forgotIndices.map((i) => reciteQueue[i]).filter(Boolean);
-      if (!forgotQs.length) return;
-      try {
-        const n = await app.convertToCards(activeBankId, bankName, forgotQs);
-        showMessage(n ? `${t("memory.toCardDone")} (${n})` : t("memory.toCardMissing"), 3200, n ? "info" : "error");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      const forgot = extractForgotReciteQuestions(reciteQueue, reciteRatings);
+      await pushForgotReciteToCards(app, activeBankId, bankName, forgot, showMessage, t);
     }
 
     async function reciteForgotToActions() {
       if (!app) return;
-      const forgotIndices = reciteRatings.map((r, i) => (r === 1 ? i : -1)).filter((i) => i >= 0);
-      const forgotQs = forgotIndices.map((i) => reciteQueue[i]).filter(Boolean);
-      if (!forgotQs.length) return;
+      const forgot = extractForgotReciteQuestions(reciteQueue, reciteRatings);
+      if (!forgot.length) return;
       try {
-        const r = await app.addActions(forgotQs.map((q) => ({
-          kind: "redo" as const,
-          qid: q.id,
-          sessionId: reciteSessionId,
-          detail: `背诵忘却重练：${(q.kp ?? q.stem ?? q.id).slice(0, 40)}`,
-        })));
+        const r = await pushForgotReciteToActions(app, forgot, reciteSessionId, t);
         showMessage(`已成功添加 ${r.added} 条背诵重练待办（跳过重复 ${r.skipped} 条）`, 3200, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
@@ -2788,35 +2773,28 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     async function copyTodayReportMarkdown() {
-      const todayStr = localDate(Date.now());
-      const lines = [
-        `### 📅 小驴学习 · 今日研学打卡`,
-        `- **学习日期**：${todayStr}`,
-        `- **当前题库**：${bankName || "默认题库"}`,
-        `- **今日作答**：**${todayDone} 题**（今日目标：${dailyGoalN} 题 · 达成率 ${goalPct}%）`,
-        `- **连续学习**：🔥 **${streakDays} 天连胜**`,
-        `- **错题动态**：当前在册错题 ${wrongList.length} 道 · 累计消灭 ${eliminatedCount} 道（消灭率 ${clearPct}%）`,
-      ];
-      if (plan) {
-        lines.push(`- **备考建议**：${planReasonText(plan)}`);
-      }
-      lines.push(`\n> 坚持就是胜利，每天进步一点点！💪`);
-      try {
-        await navigator.clipboard.writeText(lines.join("\n"));
-        showMessage(t("entry.reportCopied"), 3200, "info");
-      } catch {
-        showMessage(t("mock.summaryCopyFailed"), 3200, "error");
-      }
+      await copyTodayStudyReport(
+        {
+          bankName,
+          todayDone,
+          dailyGoal: dailyGoalN,
+          goalPct,
+          streakDays,
+          wrongCount: wrongList.length,
+          eliminatedCount,
+          clearPct,
+          planAdvice: plan ? planReasonText(plan) : undefined,
+        },
+        showMessage,
+        t,
+      );
     }
 
     async function syncBankDocs() {
       if (!activeBankId || syncDocsBusy) return;
       syncDocsBusy = true;
       try {
-        await app?.syncBankToLocalDocs(activeBankId, bankName);
-        showMessage(t("sync.docsDone"), 3600, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+        await syncBankQuestionsToDoc(app, activeBankId, bankName, showMessage, t);
       } finally {
         syncDocsBusy = false;
       }
