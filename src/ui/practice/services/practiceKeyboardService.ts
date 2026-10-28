@@ -73,6 +73,38 @@ export function shouldIgnoreKeyEvent(e: KeyboardEventLike): boolean {
   return false;
 }
 
+/**
+ * 判定事件目标是否属于输入性交互控件（应避免快捷键劫持）
+ */
+export function isInputTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+  if (target.closest('input, textarea, select, [contenteditable="true"]') || target.isContentEditable) return true;
+  return false;
+}
+
+/**
+ * 判定当前页面焦点或模态状态是否应该拦截全局快捷键
+ */
+export function shouldBlockGlobalHotkeys(options: {
+  tabRoot: HTMLElement | null;
+  target: EventTarget | null;
+  defaultPrevented?: boolean;
+  paletteOpen?: boolean;
+  railOpen?: boolean;
+  hasModalDialog?: boolean;
+}): boolean {
+  const { tabRoot, target, defaultPrevented, paletteOpen, railOpen, hasModalDialog } = options;
+  if (!tabRoot?.getClientRects().length || defaultPrevented || paletteOpen || railOpen || hasModalDialog) {
+    return true;
+  }
+  if (target instanceof HTMLElement) {
+    if (target !== document.body && !tabRoot.contains(target)) return true;
+    if (isInputTarget(target)) return true;
+  }
+  return false;
+}
+
+
 /** 解析键盘事件对应的业务动作意图 */
 export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAction | null {
   const { event: e, view, session, recite } = ctx;

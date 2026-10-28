@@ -96,3 +96,43 @@ export function isClickOutsideElement(
   return !container.contains(target);
 }
 
+export interface DrawerNavHandlers {
+  onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onToggleFav?: () => void;
+}
+
+/**
+ * 处理详情抽屉内部的键盘导航事件（Escape 退出、方向键与 j/k 切题、e 键收藏）
+ */
+export function handleDrawerNavKey(e: KeyboardEvent, handlers: DrawerNavHandlers): void {
+  const isInput =
+    e.target instanceof HTMLInputElement ||
+    e.target instanceof HTMLTextAreaElement ||
+    e.target instanceof HTMLSelectElement;
+
+  if (isInput) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      handlers.onClose();
+    }
+    return;
+  }
+
+  if (e.key === "Escape") {
+    e.stopPropagation();
+    handlers.onClose();
+  } else if ((e.key === "ArrowUp" || e.key === "k" || e.key === "ArrowLeft") && handlers.onPrev) {
+    e.preventDefault();
+    handlers.onPrev();
+  } else if ((e.key === "ArrowDown" || e.key === "j" || e.key === "ArrowRight") && handlers.onNext) {
+    e.preventDefault();
+    handlers.onNext();
+  } else if (e.key.toLowerCase() === "e" && handlers.onToggleFav) {
+    e.preventDefault();
+    handlers.onToggleFav();
+  }
+}
+
+

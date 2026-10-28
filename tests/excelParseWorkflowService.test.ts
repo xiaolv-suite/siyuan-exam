@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   isColumnMapOutOfBounds,
   parseSheetRowsWithStrategy,
+  prepareMapAssignment,
+  validateAndBuildManualMap,
 } from "@/ui/practice/services/excelParseWorkflowService";
 import type { ExcelColumnMap } from "@/importer/pipeline";
 
@@ -149,6 +151,69 @@ describe("excelParseWorkflowService", () => {
       expect(res.needManualEdit).toBe(true);
       expect(res.error).toContain("[import.missingColumns]");
       expect(res.initialAssignment).toBeDefined();
+    });
+  });
+
+  describe("prepareMapAssignment and validateAndBuildManualMap", () => {
+    it("prepares initial assignment according to priority", () => {
+      // 1. 空行数据返回 null
+      expect(prepareMapAssignment([], null, [], "")).toBeNull();
+
+      const rows = [["题型", "题干", "答案"]];
+      const manualMap: ExcelColumnMap = { type: 0, stem: 1, options: [], answer: 2 };
+
+      // 2. 优先采用 manualMap
+      const assignFromManual = prepareMapAssignment(rows, manualMap, [], "");
+      expect(assignFromManual?.type).toBe(0);
+      expect(assignFromManual?.stem).toBe(1);
+      expect(assignFromManual?.answer).toBe(2);
+
+      // 3. 次优采用 savedMap
+      const savedMappings = [{ name: "my-map", map: manualMap }];
+      const assignFromSaved = prepareMapAssignment(rows, null, savedMappings, "my-map");
+      expect(assignFromSaved?.type).toBe(0);
+
+      // 4. 回退 autoAssignment
+      const assignAuto = prepareMapAssignment(rows, null, [], "");
+      expect(assignAuto?.type).toBe(0);
+      expect(assignAuto?.stem).toBe(1);
+    });
+
+    it("validates and constructs manual column map", () => {
+      // 1. 必填字段合法
+      const assign = {
+        type: 0,
+        stem: 1,
+        options: [2, 3, -1, -1, -1, -1],
+        answer: 4,
+        analysis: -1,
+        difficulty: -1,
+        kp: -1,
+        score: -1,
+        source: -1,
+      };
+      const resOk = validateAndBuildManualMap(assign, 5);
+      expect(resOk.valid).toBe(true);
+      expect(resOk.map?.type).toBe(0);
+      expect(resOk.map?.stem).toBe(1);
+      expect(resOk.map?.answer).toBe(4);
+      expect(resOk.errors).toHaveLength(0);
+
+      // 2. 缺少必填字段（缺少答案）
+      const invalidAssign = {
+        type: 0,
+        stem: 1,
+        options: [-1, -1, -1, -1, -1, -1],
+        answer: -1,
+        analysis: -1,
+        difficulty: -1,
+        kp: -1,
+        score: -1,
+        source: -1,
+      };
+      const resFail = validateAndBuildManualMap(invalidAssign, 5);
+      expect(resFail.valid).toBe(false);
+      expect(resFail.errors.length).toBeGreaterThan(0);
     });
   });
 });

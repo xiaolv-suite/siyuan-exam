@@ -19,6 +19,17 @@ export interface CheckinPluginSettings {
 }
 
 /**
+ * 从思源插件设置中读取打卡桥相关参数
+ */
+export function extractCheckinSettingsFromPlugin(plugin: any): CheckinPluginSettings {
+  return {
+    checkinItemId: String(plugin?.settingUtils?.get?.("checkinItemId") ?? "").trim(),
+    checkinThreshold: Number(plugin?.settingUtils?.get?.("checkinThreshold") ?? 0) || 0,
+    dailyGoal: Number(plugin?.settingUtils?.get?.("dailyGoal") ?? 10) || 10,
+  };
+}
+
+/**
  * 读取打卡桥配置对象
  */
 export function getCheckinConfig(settings: CheckinPluginSettings): CheckinBridgeConfig {

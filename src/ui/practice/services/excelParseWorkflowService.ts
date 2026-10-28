@@ -10,7 +10,13 @@ import {
   type ExcelColumnMap,
   type ImportReport,
 } from "@/importer/pipeline";
-import { autoAssignment, type MapAssignment } from "@/importer/mapping";
+import {
+  autoAssignment,
+  assignmentFromMap,
+  assignmentToMap,
+  assignmentErrors,
+  type MapAssignment,
+} from "@/importer/mapping";
 
 export interface ParsedWorkbookResult {
   sheetNames: string[];
@@ -105,3 +111,42 @@ export function parseSheetRowsWithStrategy(opt: SheetParseOptions): SheetParseRe
   const report = parseExcelRows(dataRows, map, importOpt);
   return { report, usedMap: map };
 }
+
+/**
+ * 准备列指派编辑器初始态（当前手动映射 > 已保存映射 > 自动映射最优猜测）
+ */
+export function prepareMapAssignment(
+  rows: string[][] | undefined,
+  manualMap: ExcelColumnMap | null,
+  savedMappings: Array<{ name: string; map: ExcelColumnMap }>,
+  selectedMapping: string,
+): MapAssignment | null {
+  if (!rows?.length) return null;
+  const base = manualMap ?? savedMappings.find((m) => m.name === selectedMapping)?.map ?? null;
+  return base ? assignmentFromMap(base) : autoAssignment(rows[0].map(String));
+}
+
+export interface ManualMapCommitResult {
+  valid: boolean;
+  errors: string[];
+  map?: ExcelColumnMap;
+}
+
+/**
+ * 校验并构造提交的手动列映射
+ */
+export function validateAndBuildManualMap(
+  assign: MapAssignment,
+  width: number,
+): ManualMapCommitResult {
+  const errs = assignmentErrors(assign, width);
+  if (errs.length > 0) {
+    return { valid: false, errors: errs };
+  }
+  return {
+    valid: true,
+    errors: [],
+    map: assignmentToMap(assign),
+  };
+}
+

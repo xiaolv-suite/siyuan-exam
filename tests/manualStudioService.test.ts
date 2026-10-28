@@ -15,6 +15,7 @@ import {
   clearManualDraftAux,
   createBlankManualFormState,
   createManualDraftSnapshot,
+  assembleManualFormData,
 } from "@/ui/practice/services/manualStudioService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -224,5 +225,34 @@ B. y = x^2
     expect(snap.specOpen).toBe(true);
     expect(snap.specUnit).toBe("米");
     expect(snap.savedAt).toBeTypeOf("number");
+  });
+
+  it("11. assembleManualFormData：表单字段聚合与规格构造", () => {
+    const rawState = {
+      type: "fill" as const,
+      stem: "圆周率约等于",
+      options: [],
+      answer: "3.14",
+      analysis: "几何常数",
+      kp: "数学/几何",
+      source: "教材",
+      group: " 常识组 ",
+      status: "draft" as const,
+      specOpen: true,
+      specUnit: "",
+      specAbsTol: "0.01",
+      specRelPct: "",
+      specAltUnits: "",
+      rubricOpen: false,
+      rubricText: "",
+      studyLang: "zh-CN",
+      studyPhonetic: "",
+    };
+
+    const res = assembleManualFormData(rawState, "published");
+    expect(res.type).toBe("fill");
+    expect(res.status).toBe("published");
+    expect(res.group).toBe("常识组");
+    expect(res.numericSpec?.absTol).toBe("0.01");
   });
 });

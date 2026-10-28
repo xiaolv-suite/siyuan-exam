@@ -382,3 +382,50 @@ export function createManualDraftSnapshot(state: Partial<BlankManualFormState>):
   };
 }
 
+/**
+ * 将录题状态字段组装为标准提交对象 ManualQuestionFormData
+ */
+export function assembleManualFormData(
+  state: {
+    type: QuestionType;
+    stem: string;
+    options: string[];
+    answer: string;
+    analysis: string;
+    kp: string;
+    source: string;
+    group: string;
+    status: QuestionLifecycleStatus;
+    specOpen: boolean;
+    specUnit: string;
+    specAbsTol: string;
+    specRelPct: string;
+    specAltUnits: string;
+    rubricOpen: boolean;
+    rubricText: string;
+    studyLang: string;
+    studyPhonetic: string;
+  },
+  overrideStatus?: QuestionLifecycleStatus,
+): ManualQuestionFormData {
+  return {
+    type: state.type,
+    stem: state.stem,
+    options: state.options,
+    answer: state.answer,
+    analysis: state.analysis,
+    kp: state.kp,
+    source: state.source,
+    group: state.group?.trim() || undefined,
+    status: overrideStatus ?? state.status,
+    numericSpec:
+      state.type === "fill" && state.specOpen
+        ? { unit: state.specUnit, absTol: state.specAbsTol, relPct: state.specRelPct, altUnits: state.specAltUnits }
+        : undefined,
+    rubricText: state.type === "short" && state.rubricOpen && state.rubricText.trim() ? state.rubricText : undefined,
+    studyLang: state.studyLang,
+    studyPhonetic: state.studyPhonetic,
+  };
+}
+
+

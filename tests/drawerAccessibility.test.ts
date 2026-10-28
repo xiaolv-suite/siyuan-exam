@@ -4,6 +4,7 @@ import {
   markAncestorSiblingsInert,
   handleDrawerTabKey,
   isClickOutsideElement,
+  handleDrawerNavKey,
 } from "@/ui/shared/drawerAccessibility";
 
 describe("drawerAccessibility", () => {
@@ -96,6 +97,53 @@ describe("drawerAccessibility", () => {
       expect(isClickOutsideElement(container, inner)).toBe(false);
       expect(isClickOutsideElement(container, outside)).toBe(true);
       expect(isClickOutsideElement(null, outside)).toBe(false);
+    });
+  });
+
+  describe("handleDrawerNavKey", () => {
+    it("handles escape and navigation shortcuts appropriately", () => {
+      const handlers = {
+        onClose: vi.fn(),
+        onPrev: vi.fn(),
+        onNext: vi.fn(),
+        onToggleFav: vi.fn(),
+      };
+
+      // 1. Escape key
+      const escEvent = new KeyboardEvent("keydown", { key: "Escape" });
+      const stopSpy = vi.spyOn(escEvent, "stopPropagation");
+      handleDrawerNavKey(escEvent, handlers);
+      expect(stopSpy).toHaveBeenCalled();
+      expect(handlers.onClose).toHaveBeenCalled();
+
+      // 2. Navigation Up / k
+      const kEvent = new KeyboardEvent("keydown", { key: "k" });
+      const preventSpyK = vi.spyOn(kEvent, "preventDefault");
+      handleDrawerNavKey(kEvent, handlers);
+      expect(preventSpyK).toHaveBeenCalled();
+      expect(handlers.onPrev).toHaveBeenCalled();
+
+      // 3. Navigation Down / j
+      const jEvent = new KeyboardEvent("keydown", { key: "j" });
+      const preventSpyJ = vi.spyOn(jEvent, "preventDefault");
+      handleDrawerNavKey(jEvent, handlers);
+      expect(preventSpyJ).toHaveBeenCalled();
+      expect(handlers.onNext).toHaveBeenCalled();
+
+      // 4. Favorite toggle 'e'
+      const eEvent = new KeyboardEvent("keydown", { key: "e" });
+      const preventSpyE = vi.spyOn(eEvent, "preventDefault");
+      handleDrawerNavKey(eEvent, handlers);
+      expect(preventSpyE).toHaveBeenCalled();
+      expect(handlers.onToggleFav).toHaveBeenCalled();
+
+      // 5. Input elements should not trigger navigation shortcuts
+      const inputEl = document.createElement("input");
+      const inputKEvent = new KeyboardEvent("keydown", { key: "k" });
+      Object.defineProperty(inputKEvent, "target", { value: inputEl });
+      handlers.onPrev.mockClear();
+      handleDrawerNavKey(inputKEvent, handlers);
+      expect(handlers.onPrev).not.toHaveBeenCalled();
     });
   });
 });

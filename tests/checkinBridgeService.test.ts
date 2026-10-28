@@ -113,4 +113,23 @@ describe("打卡桥服务 (checkinBridgeService)", () => {
     // 正常传入时正常完成且无抛错
     await expect(postSessionCheckinSafely("item-1", 5, 4)).resolves.toBeUndefined();
   });
+
+  it("7. extractCheckinSettingsFromPlugin：从插件设置读取打卡配置", async () => {
+    const { extractCheckinSettingsFromPlugin } = await import("@/ui/practice/services/checkinBridgeService");
+    const mockPlugin = {
+      settingUtils: {
+        get: vi.fn().mockImplementation((key) => {
+          if (key === "checkinItemId") return "  item-999  ";
+          if (key === "checkinThreshold") return 5;
+          if (key === "dailyGoal") return 20;
+          return null;
+        }),
+      },
+    };
+
+    const s = extractCheckinSettingsFromPlugin(mockPlugin);
+    expect(s.checkinItemId).toBe("item-999");
+    expect(s.checkinThreshold).toBe(5);
+    expect(s.dailyGoal).toBe(20);
+  });
 });

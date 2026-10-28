@@ -1,7 +1,10 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import {
   shouldIgnoreKeyEvent,
   resolveKeyboardAction,
+  isInputTarget,
+  shouldBlockGlobalHotkeys,
 } from "@/ui/practice/services/practiceKeyboardService";
 import type { Question } from "@/core/types";
 
@@ -163,6 +166,48 @@ describe("practiceKeyboardService", () => {
         .toEqual({ type: "recite_rate", rating: 1 });
       expect(resolveKeyboardAction({ event: { key: "4" }, view: "recite", recite: revealedRecite }))
         .toEqual({ type: "recite_rate", rating: 4 });
+    });
+  });
+
+  describe("isInputTarget and shouldBlockGlobalHotkeys", () => {
+    it("identifies input targets correctly", () => {
+      const input = document.createElement("input");
+      const textarea = document.createElement("textarea");
+      const div = document.createElement("div");
+
+      expect(isInputTarget(input)).toBe(true);
+      expect(isInputTarget(textarea)).toBe(true);
+      expect(isInputTarget(div)).toBe(false);
+      expect(isInputTarget(null)).toBe(false);
+    });
+
+    it("evaluates shouldBlockGlobalHotkeys accurately", () => {
+      const tabRoot = document.createElement("div");
+      tabRoot.getClientRects = () => [{ width: 100, height: 100 } as any] as any;
+      const innerBtn = document.createElement("button");
+      tabRoot.appendChild(innerBtn);
+      document.body.appendChild(tabRoot);
+
+      // 1. 正常容器与内部普通元素 -> 不拦截
+      expect(shouldBlockGlobalHotkeys({
+        tabRoot,
+        target: innerBtn,
+      })).toBe(false);
+
+      // 2. 外部元素或无可见尺寸 -> 拦截
+      const outsideEl = document.createElement("div");
+      document.body.appendChild(outsideEl);
+      expect(shouldBlockGlobalHotkeys({
+        tabRoot,
+        target: outsideEl,
+      })).toBe(true);
+
+      // 3. 模态窗口或调色板打开 -> 拦截
+      expect(shouldBlockGlobalHotkeys({
+        tabRoot,
+        target: innerBtn,
+        paletteOpen: true,
+      })).toBe(true);
     });
   });
 });

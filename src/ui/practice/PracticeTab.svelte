@@ -9,11 +9,11 @@ import { renderMathInText } from "@/core/math";
 import { renderMathDiagramsInText } from "@/core/mathDiagram";
 import { auditForgettingRisks } from "@/core/forgettingRisk";
 import { sanitizeRichHtml } from "@/libs/sanitize";
-import { ttsSpeak, ttsSupported } from "@/core/tts";
+    import { ttsSpeak, ttsStop, ttsSupported } from "@/core/tts";
     import type { ExamApp, BankInfo } from "../../app";
     import type { Question } from "../../core/types";
     import { parseText, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
-    import { columnLabel, autoAssignment, assignmentFromMap, assignmentToMap, assignmentErrors, emptyAssignment, type MapAssignment } from "../../importer/mapping";
+    import { columnLabel, emptyAssignment, type MapAssignment } from "../../importer/mapping";
     import { formatSecToTime, locatorLabel, needsRelocate } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
     import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
@@ -90,6 +90,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       retryPendingCheckin,
       queryCheckinStreak,
       postSessionCheckinSafely,
+      extractCheckinSettingsFromPlugin,
     } from "./services/checkinBridgeService";
     import {
       downloadImportTemplate,
@@ -190,6 +191,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       clearManualDraftAux,
       createBlankManualFormState,
       createManualDraftSnapshot,
+      assembleManualFormData,
     } from "./services/manualStudioService";
     import {
       parseOcrFormResult,
@@ -292,9 +294,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     } from "./services/importRepairService";
     import {
       parseSheetRowsWithStrategy,
+      prepareMapAssignment,
+      validateAndBuildManualMap,
     } from "./services/excelParseWorkflowService";
     import {
       resolveKeyboardAction,
+      shouldBlockGlobalHotkeys,
     } from "./services/practiceKeyboardService";
     import {
       fetchBlockBacklinks,
@@ -311,6 +316,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       markAncestorSiblingsInert,
       handleDrawerTabKey,
       isClickOutsideElement,
+      handleDrawerNavKey,
     } from "../shared/drawerAccessibility";
     import {
       getQuestionScratchpadContent,
@@ -442,8 +448,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const qs = qids.map((id) => questionMap.get(id)).filter(Boolean) as Question[];
       if (!qs.length) return;
       await safeStart(qs, "quick", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
         restoreQuestionControls();
         showMessage(`⚡ 已开启艾宾浩斯临界考点急救特训（共 ${qs.length} 题）`, 3000, "info");
       });
@@ -744,6 +749,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     /** 答前置信自评（U12 最小）：随本次 attempt 落流水；提交后不可改写最初记录 */
     let confidenceSel = $state<"sure" | "fuzzy" | "guess" | "">("");
+
+    function resetSessionViewState() {
+      feedback = null;
+      selected = "";
+      draftLive = "";
+      confidenceSel = "";
+      sessionDone = null;
+    }
+
+    function enterSessionView() {
+      resetSessionViewState();
+      view = "session";
+    }
 
     // ---------- 55-05 主观题逐采分点自评 ----------
     /** 当前题的采分点自评选择（criterionId → 等级）；切题/提交后重置 */
@@ -1639,7 +1657,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         const q = all.find((x) => x.id === pid);
         if (!q) { showMessage(t("query.empty"), 3200, "info"); return true; }
         if (!(await negotiateStart([q], "wrong"))) return true;
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null; view = "session";
+        enterSessionView();
         return true;
       }
       /** 块菜单「在练习台打开/编辑」→ 浏览视图按 qid 聚焦（题目在其它库时自动切库） */
@@ -2441,8 +2459,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         sectionTree = [];
         rebuildQrefView();
         rebuildPlan();
-        feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
         restoreQuestionControls();
       } catch (e) {
         errorMsg = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
@@ -2475,8 +2492,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!res.picked.length) return;
 
       await safeStart(groupAdjacent(res.picked), mode, () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
         restoreQuestionControls();
       });
     }
@@ -2488,8 +2504,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const q = pickSingleWrongQuestion(all, qid);
       if (!q) { showMessage(t("query.empty"), 3200, "info"); return; }
       await safeStart(groupAdjacent([q]), "wrong", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
       });
     }
 
@@ -2500,8 +2515,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const related = pickSameKpQuestions(all, qid);
       if (!related.length) { showMessage(t("state.noSameKp"), 2800, "info"); return; }
       await safeStart(groupAdjacent(related), "same-kp", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
       });
     }
 
@@ -2513,8 +2527,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         return;
       }
       await safeStart(groupAdjacent(qs), "quick", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
         restoreQuestionControls();
         showMessage(`⚡ 已开启当前筛选专项目标特训（共 ${qs.length} 题）`, 3000, "info");
       });
@@ -2527,7 +2540,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const qs = qids.map((id) => all.find((x) => x.id === id)).filter(Boolean) as Question[];
       if (!qs.length) return;
       await safeStart(qs, "wrong", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null; view = "session";
+        enterSessionView();
       });
     }
 
@@ -2672,8 +2685,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       rebuildPlan(due);
       const queue = todayQueueFor(qs, plan?.queue ?? []);
       await safeStart(queue, plan?.mode === "sprint" ? "cram" : "daily", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
       });
     }
 
@@ -2761,9 +2773,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     const expKpRoots = $derived(extractKpRoots(questions));
 
     // ---------- 挑战码（友谊赛复制/导入：含答案，双方本地判分） ----------
-    async function copyChallengeCode() {
-      await serviceCopyChallengeCode(questions, bankName, showMessage, t);
-    }
+    const copyChallengeCode = () => serviceCopyChallengeCode(questions, bankName, showMessage, t);
 
     async function importChallengeCode() {
       const { inputDialogSync } = await import("../../libs/dialog");
@@ -2771,16 +2781,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!code?.trim()) return;
       try {
         session = await parseAndStartChallenge(app, code, activeBankId, t);
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
       } catch (e) {
         errorMsg = String(e instanceof Error ? e.message : e);
       }
     }
 
-    async function exportWrong() {
-      await exportWrongbookToDoc(app, activeBankId, bankName, { kpRoot: expKp || undefined, reason: expReason || undefined, sinceDays: expDays || undefined }, showMessage, offline, t);
-    }
+    const exportWrong = () =>
+      exportWrongbookToDoc(app, activeBankId, bankName, { kpRoot: expKp || undefined, reason: expReason || undefined, sinceDays: expDays || undefined }, showMessage, offline, t);
 
     let syncDocsBusy = $state(false);
     function retryForgotRecite() {
@@ -2871,19 +2879,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     /** 官方 Excel 模板下载（运行时生成，docs/15 规范） */
-    async function downloadTemplate() {
-      await downloadImportTemplate();
-    }
+    const downloadTemplate = downloadImportTemplate;
 
     /** 错误清单导出 CSV（Excel 友好，BOM 头） */
-    function downloadErrorsCsv() {
-      exportImportErrorsCsv(importReport);
-    }
+    const downloadErrorsCsv = () => exportImportErrorsCsv(importReport);
 
     // ---------- 题库包分享（.sy.zip 原生格式） ----------
-    async function exportBank() {
-      await exportBankPackageZip(app, activeBankId, showMessage, offline, t);
-    }
+    const exportBank = () => exportBankPackageZip(app, activeBankId, showMessage, offline, t);
 
     /** 拖拽导入（TODO 18 组）：xlsx/csv → Excel 流程；sy.zip → 题库包导入 */
     function onDrop(e: DragEvent) {
@@ -3127,16 +3129,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const q = session?.current;
       if (!q) return;
       pureListen = !pureListen;
-      void import("@/core/tts").then((m) => {
-        if (pureListen) m.ttsSpeak(buildQuestionTtsText(q));
-        else m.ttsStop?.();
-      });
+      if (pureListen) ttsSpeak(buildQuestionTtsText(q));
+      else ttsStop();
     }
     /** 纯听题完整态：切题时自动朗读新题 */
     $effect(() => {
       const q = view === "session" ? session?.current : null;
-      if (!q || !pureListen) return;
-      void import("@/core/tts").then((m) => m.ttsSpeak(buildQuestionTtsText(q)));
+      if (q && pureListen) ttsSpeak(buildQuestionTtsText(q));
     });
 
     async function saveExplain() {
@@ -3172,8 +3171,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const res = pickSameKpDrillQuestions(app, all, session, 10);
       if (res.errorKey) { errorMsg = t(res.errorKey); return; }
       await safeStart(res.questions, "special", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-        view = "session";
+        enterSessionView();
       });
     }
 
@@ -3187,7 +3185,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         if (res.session) {
           session = res.session;
           if (res.sessionDone) sessionDone = res.sessionDone;
-          feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; view = "session";
+          enterSessionView();
           sessionRev++;
           restoreQuestionControls();
           answerStart = Date.now(); // 首题计时基线（否则 qElapsedS 从 0 基线算出纪元秒）
@@ -3204,13 +3202,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     // ---------- 打卡桥（48-03 lite）：结算自动同步 + 待重试持久化 + 重载补写 ----------
     let checkinStatus = $state<import("@/core/checkinBridge").CheckinSyncStatus | null>(null);
     let checkinNote = $state("");
-    function checkinSettings() {
-      return {
-        checkinItemId: String(plugin.settingUtils?.get?.("checkinItemId") ?? "").trim(),
-        checkinThreshold: Number(plugin.settingUtils?.get?.("checkinThreshold") ?? 0) || 0,
-        dailyGoal: Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10) || 10,
-      };
-    }
+    const checkinSettings = () => extractCheckinSettingsFromPlugin(plugin);
     async function runCheckinBridge() {
       const res = await runCheckinSync(app, checkinSettings(), window);
       checkinStatus = res.status;
@@ -3458,15 +3450,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       void runCheckinBridge().catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error")); // 48-03 lite：结算自动同步打卡（幂等 externalRef，失败进待重试）
     }
 
-    async function syncWrongbookToCards() {
-      const wrongQs = questions.filter((q) => filteredWrongQueue.some((w) => w.qid === q.id));
-      await pushWrongsToCards(app, activeBankId, bankName, wrongQs, hasCardsPlugin, showMessage);
-    }
+    const syncWrongbookToCards = () =>
+      pushWrongsToCards(app, activeBankId, bankName, questions.filter((q) => filteredWrongQueue.some((w) => w.qid === q.id)), hasCardsPlugin, showMessage);
 
-    async function syncSingleWrongToCard(qid: string) {
-      const targetQ = questions.find((q) => q.id === qid);
-      await pushSingleWrongToCard(app, activeBankId, bankName, targetQ, hasCardsPlugin, showMessage);
-    }
+    const syncSingleWrongToCard = (qid: string) =>
+      pushSingleWrongToCard(app, activeBankId, bankName, questions.find((q) => q.id === qid), hasCardsPlugin, showMessage);
 
     /** 44-09 撤销作答：在反馈态下撤回刚才误触的提交，恢复原草稿并安全回滚作答流水 */
     async function undoRecentSubmit() {
@@ -3518,7 +3506,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         const { confirmDialogSync } = await import("../../libs/dialog");
         const ok = await executeSessionExit(app, session, exposures, !!sessionDone, confirmDialogSync, t);
         if (!ok) return;
-        session = null; feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; sessionDone = null;
+        session = null;
+        resetSessionViewState();
         groupBatchModal = null; groupBatchStart = 1;
         scratchpadOpen = false; scratchpadStore = {}; scratchpadShared = "";
         view = "entry";
@@ -3580,17 +3569,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       ocrModalOpen = true;
     }
 
+    function applyOcrForm(form: import("./services/manualOcrService").OcrFormResult) {
+      mType = form.type;
+      mStem = form.stem;
+      mOptions = form.options;
+      mAnswer = form.answer;
+      if (form.analysis) mAnalysis = form.analysis;
+      if (form.kp) mKp = form.kp;
+      ocrModalOpen = false;
+      clearManualValidation();
+    }
+
     function applyOcrFill() {
       const parsed = parseOcrFormResult(ocrInputText);
       if (!parsed) return;
-      mType = parsed.type;
-      mStem = parsed.stem;
-      mOptions = parsed.options;
-      mAnswer = parsed.answer;
-      if (parsed.analysis) mAnalysis = parsed.analysis;
-      if (parsed.kp) mKp = parsed.kp;
-      ocrModalOpen = false;
-      clearManualValidation();
+      applyOcrForm(parsed);
       showMessage(t("manual.ocrDone"), 3000, "info");
     }
 
@@ -3602,16 +3595,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       try {
         showMessage(t("manual.ocrUploading"), 3500, "info");
         const res = await processOcrImageUpload(app, file, t);
-        if (res.form) {
-          mType = res.form.type;
-          mStem = res.form.stem;
-          mOptions = res.form.options;
-          mAnswer = res.form.answer;
-          if (res.form.analysis) mAnalysis = res.form.analysis;
-          if (res.form.kp) mKp = res.form.kp;
-          ocrModalOpen = false;
-          clearManualValidation();
-        }
+        if (res.form) applyOcrForm(res.form);
         showMessage(res.message, res.isError ? 4000 : 3000, res.isError ? "error" : "info");
       } finally {
         ocrUploadBusy = false;
@@ -3662,23 +3646,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
     }
 
-    const exportItemQualityReport = () => executeBankExportAction("quality_report", app, activeBankId, bankName, showMessage);
-    const exportGiftFormat = () => executeBankExportAction("gift", app, activeBankId, bankName, showMessage);
-    const exportAnkiFormat = () => executeBankExportAction("anki", app, activeBankId, bankName, showMessage);
-    const exportMdDocFormat = () => executeBankExportAction("mddoc", app, activeBankId, bankName, showMessage);
-    const exportSyllabusAudit = () => executeBankExportAction("syllabus_audit", app, activeBankId, bankName, showMessage);
+    async function startQuickPractice(targetQuestions: Question[], toastMessage?: string) {
+      await safeStart(targetQuestions, "quick", () => {
+        enterSessionView();
+        restoreQuestionControls();
+        if (toastMessage) showMessage(toastMessage, 3000, "info");
+      });
+    }
 
     async function drillVariantFor(q: Question) {
       if (!q) return;
       try {
         const res = await executeVariantDrillLookup(app, q, 5);
         if (res.emptyNotice) { showMessage(res.emptyNotice, 2500, "info"); return; }
-        await safeStart(res.questions, "quick", () => {
-          feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-          view = "session";
-          restoreQuestionControls();
-          if (res.toastMessage) showMessage(res.toastMessage, 3000, "info");
-        });
+        await startQuickPractice(res.questions, res.toastMessage);
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
       }
@@ -3689,12 +3670,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       try {
         const res = await executeMotherQuestionLookup(app, target);
         if (res.emptyNotice) { showMessage(res.emptyNotice, 3000, "info"); return; }
-        await safeStart([res.motherQuestion!], "quick", () => {
-          feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
-          view = "session";
-          restoreQuestionControls();
-          if (res.toastMessage) showMessage(res.toastMessage, 4000, "info");
-        });
+        await startQuickPractice([res.motherQuestion!], res.toastMessage);
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
       }
@@ -3767,30 +3743,25 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       mType === "short" && mRubricOpen && mRubricText.trim() ? parseRubricFromText(mRubricText, 0, mRubricRevision) : null,
     );
 
+    function currentManualFormData(statusToSave?: QuestionLifecycleStatus) {
+      return assembleManualFormData({
+        type: mType, stem: mStem, options: mOptions, answer: mAnswer,
+        analysis: mAnalysis, kp: mKp, source: mSource, group: mGroup, status: mStatus,
+        specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
+        rubricOpen: mRubricOpen, rubricText: mRubricText, studyLang: mStudyLang, studyPhonetic: mStudyPhonetic,
+      }, statusToSave);
+    }
+
     async function saveManual(targetStatus?: QuestionLifecycleStatus) {
       const statusToSave = targetStatus ?? mStatus;
       if (mSaving || !mStem.trim()) return;
       if (statusToSave === "published" && !mAnswer.trim() && mType !== "short") return;
       const targetBankId = activeBankId;
-      const draftSignature = () => JSON.stringify([mType, mStem, mOptions, mAnswer, mAnalysis, mKp, mSource, mGroup, mStatus, mSpecOpen, mSpecUnit, mSpecAbsTol, mSpecRelPct, mSpecAltUnits, mRubricOpen, mRubricText]);
-      const signature = draftSignature();
+      const formData = currentManualFormData(statusToSave);
+      const signature = JSON.stringify(formData);
       mSaving = true; mSaved = ""; errorMsg = ""; clearManualValidation();
       try {
-        const res = await processAndSaveManualQuestion(app, targetBankId, {
-          type: mType,
-          stem: mStem,
-          options: mOptions,
-          answer: mAnswer,
-          analysis: mAnalysis,
-          kp: mKp,
-          source: mSource,
-          group: mGroup,
-          status: statusToSave,
-          numericSpec: mType === "fill" && mSpecOpen ? { unit: mSpecUnit, absTol: mSpecAbsTol, relPct: mSpecRelPct, altUnits: mSpecAltUnits } : undefined,
-          rubricText: mType === "short" && mRubricOpen && mRubricText.trim() ? mRubricText : undefined,
-          studyLang: mStudyLang,
-          studyPhonetic: mStudyPhonetic,
-        }, mRubricRevision);
+        const res = await processAndSaveManualQuestion(app, targetBankId, formData, mRubricRevision);
 
         if (!res.success) {
           manualErrorMsg = res.errorMsg || "";
@@ -3801,7 +3772,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         }
 
         mSaved = res.question!.id;
-        if (signature === draftSignature()) {
+        if (signature === JSON.stringify(currentManualFormData(statusToSave))) {
           blankManualDraft();
         }
         await refreshQuestionsAfterWrite(questions.length + 1);
@@ -4287,19 +4258,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!mapEditorOpen) return;
       mapErrors = [];
       const rows = sheetRowsCache.get(activeSheet);
-      if (!rows?.length) return;
-      // 预填优先级：当前手动映射 > 已保存映射 > 自动映射最优猜测
-      const base = manualMap ?? savedMappings.find((m) => m.name === selectedMapping)?.map ?? null;
-      mapAssign = base ? assignmentFromMap(base) : autoAssignment(rows[0].map(String));
+      const assign = prepareMapAssignment(rows, manualMap, savedMappings, selectedMapping);
+      if (assign) mapAssign = assign;
     }
 
     function applyManualMap() {
       if (importBusy) return;
       const rows = sheetRowsCache.get(activeSheet);
       if (!rows?.length) return;
-      const errs = assignmentErrors(mapAssign, rows[0].length);
-      if (errs.length) { mapErrors = errs; return; }
-      manualMap = assignmentToMap(mapAssign);
+      const res = validateAndBuildManualMap(mapAssign, rows[0].length);
+      if (!res.valid || !res.map) {
+        mapErrors = res.errors;
+        return;
+      }
+      manualMap = res.map;
       selectedMapping = ""; // 手动映射与已保存映射互斥
       mapEditorOpen = false;
       parseActiveSheet(); // U07：重解析清 trialConfirmed/retryPool
@@ -4749,7 +4721,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const q = all.find((x) => x.id === pid);
       if (!q) { showMessage(t("query.empty"), 3200, "info"); return true; }
       if (!(await negotiateStart([q], "wrong"))) return true;
-      feedback = null; selected = ""; confidenceSel = ""; sessionDone = null; view = "session";
+      enterSessionView();
       return true;
     }
 
@@ -4776,7 +4748,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function drillSingleQuestion(q: Question) {
       closePeekDrawer();
       await safeStart([q], "special", () => {
-        feedback = null; selected = ""; confidenceSel = ""; sessionDone = null; view = "session";
+        enterSessionView();
       });
     }
 
@@ -4835,26 +4807,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function onPeekDrawerKeydown(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          closePeekDrawer();
-        }
-        return;
-      }
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        closePeekDrawer();
-      } else if (e.key === "ArrowUp" || e.key === "k" || e.key === "ArrowLeft") {
-        e.preventDefault();
-        prevPeekQuestion();
-      } else if (e.key === "ArrowDown" || e.key === "j" || e.key === "ArrowRight") {
-        e.preventDefault();
-        nextPeekQuestion();
-      } else if (e.key.toLowerCase() === "e" && activePeekQuestion) {
-        e.preventDefault();
-        void toggleFavQuestion(activePeekQuestion);
-      }
+      handleDrawerNavKey(e, {
+        onClose: closePeekDrawer,
+        onPrev: prevPeekQuestion,
+        onNext: nextPeekQuestion,
+        onToggleFav: activePeekQuestion ? () => void toggleFavQuestion(activePeekQuestion) : undefined,
+      });
     }
 
     function toggleBrowseQuestion(qid: string) {
@@ -4933,11 +4891,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         if (!(e.target instanceof Node) || !peekDrawerEl.contains(e.target)) return;
         return;
       }
-      if (!tabRoot?.getClientRects().length || e.defaultPrevented || paletteOpen || railOpen || document.querySelector('[role="dialog"]')) return;
-      const target = e.target as HTMLElement;
-      if (target && target !== document.body && !tabRoot.contains(target)) return;
-      if (target?.closest('input, textarea, select, [contenteditable="true"]') || target?.isContentEditable) return;
-      if (target?.closest('button, a') && (e.key === "Enter" || e.key === " ")) return;
+      if (shouldBlockGlobalHotkeys({
+        tabRoot,
+        target: e.target,
+        defaultPrevented: e.defaultPrevented,
+        paletteOpen,
+        railOpen,
+        hasModalDialog: !!document.querySelector('[role="dialog"]'),
+      })) return;
+      if ((e.target as HTMLElement)?.closest('button, a') && (e.key === "Enter" || e.key === " ")) return;
 
       const action = resolveKeyboardAction({
         event: e,
@@ -6174,17 +6136,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       onprintAnswerSheet={printAnswerSheet}
       onprintAnswerCard={printAnswerCard}
       onprintTeacherLectureSheet={() => void printTeacherLectureSheet()}
-      onexportItemQualityReport={() => void exportItemQualityReport()}
-      onexportGiftFormat={() => void exportGiftFormat()}
-      onexportAnkiFormat={() => void exportAnkiFormat()}
-      onexportMdDocFormat={() => void exportMdDocFormat()}
+      onexportItemQualityReport={() => void executeBankExportAction("quality_report", app, activeBankId, bankName, showMessage)}
+      onexportGiftFormat={() => void executeBankExportAction("gift", app, activeBankId, bankName, showMessage)}
+      onexportAnkiFormat={() => void executeBankExportAction("anki", app, activeBankId, bankName, showMessage)}
+      onexportMdDocFormat={() => void executeBankExportAction("mddoc", app, activeBankId, bankName, showMessage)}
       onclearSectionSel={() => { sectionSel = null; }}
       onsearchKp={(kp) => setSearch(kp)}
       onpreviewKpMerge={previewKpMerge}
       onpreviewKpFill={previewKpFill}
       onapplyKpPlan={(plan) => void applyKpPlan(plan)}
       ondownloadSyllabusGaps={downloadSyllabusGaps}
-      onexportSyllabusAudit={exportSyllabusAudit}
+      onexportSyllabusAudit={() => void executeBankExportAction("syllabus_audit", app, activeBankId, bankName, showMessage)}
       onpreviewSyllabus={previewSyllabus}
       onimportSyllabus={() => void importSyllabus()}
       onapplyTaxonomyPreset={async () => {
