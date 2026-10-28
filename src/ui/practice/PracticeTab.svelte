@@ -147,6 +147,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       removeQuestionMaterialReference,
       resolveQuestionMaterialOpenUrl,
     } from "./services/questionMaterialLinkService";
+    import {
+      persistReviewQueue,
+      restoreReviewQueue,
+      recordGenerationUsage,
+      executeAiQuestionGeneration,
+      executeAiIssueRepair,
+      approveSingleQuestion,
+      fetchCurrentEditorDocContent,
+    } from "./services/aiStudioService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -4198,20 +4207,29 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     });
     /** 待审核队列持久化（TODO 27 组）：切视图/重载不丢生成结果 */
     async function persistAiQueue() {
-      try { await app.saveAux("ai/review-queue", { queue: aiQueue, rejected: aiRejected, duplicates: aiDuplicates, bankId: aiQueueBankId, material: aiQueueMaterial, options: aiQueueOptions }); }
-      catch { aiError = t("ai.queueSaveFailed"); }
-    }
-    async function saveGenerationUsage(counting: { id: string; approxTokens: number; calls: number }) {
       try {
-        await app.recordAiUsage(counting.id, counting.approxTokens, counting.calls);
-        aiUsageTotal = await app.aiUsage();
-      } catch { showMessage(t("ai.usageSaveFailed"), 4600, "error"); }
+        await persistReviewQueue(app, {
+          queue: aiQueue,
+          rejected: aiRejected,
+          duplicates: aiDuplicates,
+          bankId: aiQueueBankId,
+          material: aiQueueMaterial,
+          options: aiQueueOptions,
+        });
+      } catch {
+        aiError = t("ai.queueSaveFailed");
+      }
     }
     async function restoreAiQueue() {
-      try {
-        const v = await app.loadAux<{ queue: Question[]; rejected: typeof aiRejected; duplicates: number; material?: string; options?: import("@/ai/gen").GenOptions }>("ai/review-queue");
-        if (v?.queue?.length || v?.rejected?.length) { aiQueue = v.queue ?? []; aiRejected = v.rejected ?? []; aiDuplicates = v.duplicates ?? 0; aiQueueBankId = (v as any).bankId ?? ""; aiQueueMaterial = v.material ?? ""; aiQueueOptions = v.options ?? null; }
-      } catch { /* 忽略 */ }
+      const v = await restoreReviewQueue(app);
+      if (v) {
+        aiQueue = v.queue ?? [];
+        aiRejected = v.rejected ?? [];
+        aiDuplicates = v.duplicates ?? 0;
+        aiQueueBankId = v.bankId ?? "";
+        aiQueueMaterial = v.material ?? "";
+        aiQueueOptions = v.options ?? null;
+      }
     }
 
     async function runAiGenerate() {
@@ -4254,22 +4272,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       aiQueueBankId = requestBankId; aiQueueMaterial = requestMaterial; aiQueueOptions = requestOptions;
       void persistAiQueue();
       try {
-        const { generate } = await import("@/ai/gen");
-        const { CountingChannel } = await import("@/ai/counting");
-        const counting = new CountingChannel(await makeAiChannel());
-        const r = await generate(counting, requestMaterial, { ...requestOptions, signal: aiCancel });
-        aiCost = `≈${counting.approxTokens} tok · ${counting.calls} ${t("ai.usageCalls")}`;
-        await saveGenerationUsage(counting);
+        const r = await executeAiQuestionGeneration({
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+          material: requestMaterial,
+          genOptions: requestOptions,
+          signal: aiCancel,
+        });
+        aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
+        aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
         aiQueue = r.pending; aiRejected = r.rejected; aiDuplicates = r.duplicates;
         gleanPendingDone = requestGleanClips;
         if (aiCancel.aborted) {
-          // The kernel channel cannot abort an in-flight request. `generate`
-          // drops its late response, while preserving candidates from earlier
-          // chunks; surface the final state so the user can retry explicitly.
           showMessage(t("ai.cancelled"), 4200, "info");
         }
         void persistAiQueue();
-        // 60-01 写方向：出题成功且素材来自拾遗 → 提供「标记已读」闭环入口
         if (r.pending.length && gleanPendingDone.length) {
           const g = probeGlean(window);
           gleanDoneNote = g ? "" : t("ai.gleanUnavailable");
@@ -4293,30 +4310,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function aiSourceFromCurrentDoc() {
       try {
         const sApp = (plugin as any).app ?? plugin;
-        // 社区约定：app.ui.currentEditor（官方类型未导出，as any + 多级兜底）
         const ed = sApp?.ui?.currentEditor ?? sApp?.ui?.lastEditor ?? null;
         const rootId: string | undefined = ed?.protyle?.block?.rootID;
-        if (!rootId) { showMessage(t("ai.noCurrentDoc"), 3600, "error"); return; }
-        const { title, content } = await app.deps.client.exportDocMarkdown(rootId);
-        if (!content) { showMessage(t("ai.noCurrentDoc"), 3600, "error"); return; }
-        aiSource = content;
-        aiSourceOrigin = `${t("ai.sourceFromDocument").replace("{title}", title || rootId.slice(0, 8))}`;
-        if (!aiKp.trim() && title) aiKp = title;
-        showMessage(`${t("ai.sourceLoaded")} ${title || rootId.slice(0, 8)}`, 2600, "info");
+        const res = await fetchCurrentEditorDocContent(app.deps.client, rootId);
+        if (!res) {
+          showMessage(t("ai.noCurrentDoc"), 3600, "error");
+          return;
+        }
+        aiSource = res.content;
+        aiSourceOrigin = `${t("ai.sourceFromDocument").replace("{title}", res.title || rootId!.slice(0, 8))}`;
+        if (!aiKp.trim() && res.title) aiKp = res.title;
+        showMessage(`${t("ai.sourceLoaded")} ${res.title || rootId!.slice(0, 8)}`, 2600, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
       }
-    }
-
-    /** 通道构造（生成/修复共用）：端点+Key 配置走 OpenAI 兼容，否则思源内置 */
-    async function makeAiChannel() {
-      const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
-      const endpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
-      const key = resolveAiKey(plugin);
-      const model = String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-      return endpoint && key
-        ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-        : new SiyuanAiChannel(app.deps.client);
     }
 
     /** 拒绝项重试（AI Inbox 范式"重试"腿）：带否决原因让 AI 修复 → 复检 → 合入待审核 */
@@ -4329,12 +4336,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       aiCancel = { aborted: false };
       aiBusy = true; aiError = "";
       try {
-        const { repairIssues } = await import("@/ai/gen");
-        const { CountingChannel } = await import("@/ai/counting");
-        const counting = new CountingChannel(await makeAiChannel());
-        const r = await repairIssues(counting, rejected as import("@/ai/gen").GenIssue[], source, { ...requestOptions, signal: aiCancel });
-        aiCost = `≈${counting.approxTokens} tok · ${counting.calls} ${t("ai.usageCalls")}`;
-        await saveGenerationUsage(counting);
+        const r = await executeAiIssueRepair({
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+          rejected: rejected as import("@/ai/gen").GenIssue[],
+          source,
+          genOptions: requestOptions,
+          signal: aiCancel,
+        });
+        aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
+        aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
         aiQueue = [...aiQueue, ...r.pending];
         aiRejected = r.rejected;
         aiDuplicates += r.duplicates;
@@ -4366,15 +4377,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (aiBusy || aiPreparing || aiRegenBusy || approving.has(q.id) || queueBankMismatch() || !activeBankId) return;
       const targetBankId = aiQueueBankId || activeBankId;
       approving.add(q.id);
-      // 乐观出队：按钮即消失，不依赖写入往返；计数只加一次
       aiQueue = aiQueue.filter((x) => x.id !== q.id);
       try {
-        await app.writeManualQuestion(targetBankId, q);
+        await approveSingleQuestion(app, targetBankId, q);
         aiSaved++;
         await refreshQuestionsAfterWrite(questions.length + 1);
         void persistAiQueue();
       } catch (e) {
-        aiQueue = [...aiQueue, q];                           // 写入失败：退回队列（保住候选与计数一致）
+        aiQueue = [...aiQueue, q];
         if (!silent) showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4200, "error");
       } finally {
         approving.delete(q.id);
@@ -4447,12 +4457,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       aiCancel = { aborted: false };
       aiRegenBusy = q.id; aiError = "";
       try {
-        const { generate } = await import("@/ai/gen");
-        const { CountingChannel } = await import("@/ai/counting");
-        const counting = new CountingChannel(await makeAiChannel());
-        const r = await generate(counting, requestMaterial, { ...requestOptions, signal: aiCancel });
-        aiCost = `≈${counting.approxTokens} tok · ${counting.calls} ${t("ai.usageCalls")}`;
-        await saveGenerationUsage(counting);
+        const r = await executeAiQuestionGeneration({
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+          material: requestMaterial,
+          genOptions: requestOptions,
+          signal: aiCancel,
+        });
+        aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
+        aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
         if (r.pending[0]) {
           aiQueue = aiQueue.map((x) => (x.id === q.id ? r.pending[0] : x));
           void persistAiQueue();
