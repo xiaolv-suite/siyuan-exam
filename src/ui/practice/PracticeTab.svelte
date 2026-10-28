@@ -73,6 +73,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import BrowseStudioView from "./BrowseStudioView.svelte";
     import EntryStudioView from "./EntryStudioView.svelte";
     import MaterialsView from "./MaterialsView.svelte";
+    import {
+      printBankDoubleColumnPaper as servicePrintBankDoubleColumnPaper,
+      exportBankTeacherPaper as serviceExportBankTeacherPaper,
+      printBankHomeworkSheet as servicePrintBankHomeworkSheet,
+      printSelectedQuestionsPaper,
+      printSelectedTeacherPaper as servicePrintSelectedTeacherPaper,
+      printSelectedHomeworkSheet as servicePrintSelectedHomeworkSheet,
+    } from "./services/printPaperService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -856,28 +864,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (teacherPrintBusy || !practiceQuestions.length) return;
       teacherPrintBusy = true;
       try {
-        const { buildCompactQuestionSheetPro } = await import("@/core/printPro");
-        const html = buildCompactQuestionSheetPro(`${bankName || "题库"} · 教学测试卷`, practiceQuestions, {
-          headerTitle: `${bankName || "题库"} · 标准试卷`,
-          paperSize: "A4",
-          columns: "double",
-        });
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = `${bankName || "题库"}-标准双栏试卷.html`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          showMessage("已生成标准双栏试卷文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`打印双栏试卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        await servicePrintBankDoubleColumnPaper(bankName, practiceQuestions, showMessage);
       } finally {
         teacherPrintBusy = false;
       }
@@ -887,28 +874,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (teacherPrintBusy || !practiceQuestions.length) return;
       teacherPrintBusy = true;
       try {
-        const { buildTeacherLectureSheetPro } = await import("@/core/printPro");
-        const html = buildTeacherLectureSheetPro(`${bankName || "题库"}`, practiceQuestions, {
-          paperSize: "A4",
-          columns: "double",
-          groupByKp: true,
-        });
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = `${bankName || "题库"}-教师讲义教案卷.html`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          showMessage("已生成教师讲义教案卷文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`导出教师讲义失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        await serviceExportBankTeacherPaper(bankName, practiceQuestions, showMessage);
       } finally {
         teacherPrintBusy = false;
       }
@@ -918,28 +884,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (teacherPrintBusy || !practiceQuestions.length) return;
       teacherPrintBusy = true;
       try {
-        const { buildStudentHomeworkSheetPro } = await import("@/core/printPro");
-        const html = buildStudentHomeworkSheetPro(`${bankName || "题库"}`, practiceQuestions, {
-          paperSize: "A4",
-          columns: "double",
-          groupByKp: true,
-        });
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = `${bankName || "题库"}-课后作业导学单.html`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          showMessage("已生成课后作业导学单文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`打印作业导学单失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        await servicePrintBankHomeworkSheet(bankName, practiceQuestions, showMessage);
       } finally {
         teacherPrintBusy = false;
       }
@@ -949,93 +894,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!selectedCount) return;
       const ids = new Set(Object.keys(selectedIds));
       const targetQuestions = questions.filter((q) => ids.has(q.id));
-      if (!targetQuestions.length) return;
-      try {
-        const { buildCompactQuestionSheetPro } = await import("@/core/printPro");
-        const html = buildCompactQuestionSheetPro(`${bankName || "题库"} · 勾选精选题卷`, targetQuestions, {
-          headerTitle: `${bankName || "题库"} · 精选练习`,
-          columns: "double",
-          groupByKp: true,
-        });
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = `${bankName || "题库"}-精选题卷.html`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          showMessage("已生成勾选题排版试卷文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`打印勾选题失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      }
+      await printSelectedQuestionsPaper(bankName, targetQuestions, showMessage);
     }
 
     async function printSelectedTeacherPaper() {
       if (!selectedCount) return;
       const ids = new Set(Object.keys(selectedIds));
       const targetQuestions = questions.filter((q) => ids.has(q.id));
-      if (!targetQuestions.length) return;
-      try {
-        const { buildTeacherLectureSheetPro } = await import("@/core/printPro");
-        const html = buildTeacherLectureSheetPro(`${bankName || "题库"} · 勾选题备课讲义`, targetQuestions, {
-          paperSize: "A4",
-          columns: "double",
-          groupByKp: true,
-        });
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = `${bankName || "题库"}-勾选题备课讲义.html`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          showMessage("已生成勾选题教师讲义教案文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`导出勾选题讲义失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      }
+      await servicePrintSelectedTeacherPaper(bankName, targetQuestions, showMessage);
     }
 
     async function printSelectedHomeworkSheet() {
       if (!selectedCount) return;
       const ids = new Set(Object.keys(selectedIds));
       const targetQuestions = questions.filter((q) => ids.has(q.id));
-      if (!targetQuestions.length) return;
-      try {
-        const { buildStudentHomeworkSheetPro } = await import("@/core/printPro");
-        const html = buildStudentHomeworkSheetPro(`${bankName || "题库"} · 勾选题分层作业单`, targetQuestions, {
-          paperSize: "A4",
-          columns: "double",
-          groupByKp: true,
-        });
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = `${bankName || "题库"}-课后作业单.html`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-          showMessage("已生成勾选题课后分层作业单", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`导出作业单失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      }
+      await servicePrintSelectedHomeworkSheet(bankName, targetQuestions, showMessage);
     }
 
     function previewBatch() {
