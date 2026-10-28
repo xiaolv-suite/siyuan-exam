@@ -1,0 +1,315 @@
+/**
+ * ============================================================
+ * 整卷智能切题与答案反向缝合引擎 (Smart Exam Segmenter)
+ * 借鉴标杆：魔方助教 (mofang-assistant) 规则驱动切分流水线
+ * 能力：
+ * 1. 自动识别大题章节（单选/多选/判断/填空/简答）并继承题型与分值
+ * 2. 启发式精准切题，容错小数、题号跳跃与注意事项过滤
+ * 3. 智能水平拆分单行多选项（A. ... B. ... C. ... D. ...）
+ * 4. 自动识别文末分离的“【参考答案】”，跨段反向缝合回母题答案与解析
+ * ============================================================
+ */
+
+import type { Question, QuestionType } from "@/core/types";
+import { questionHash } from "@/core/answer";
+import { newQuestionId } from "@/core/ids";
+
+export interface SegmentedExamResult {
+  questions: Question[];
+  warnings: string[];
+  sections: Array<{ title: string; count: number }>;
+}
+
+export interface SegmentOptions {
+  source?: string;
+  defaultBankName?: string;
+  defaultKp?: string;
+}
+
+// 大题章节标题正则：例如 "一、单项选择题（每小题3分）"、"第二部分 填空题"
+const SECTION_RE = /^[#\s]*(?:第[一二三四五六七八九十]+部分|[一二三四五六七八九十]+[、.\s]+)([^（(\n\r]+)(?:[（(].*?[）)])?/;
+
+// 答案解析专区起始正则：整行必须是专区标题，例如 "【参考答案与解析】"、"试卷答案"
+const ANSWER_ZONE_RE = /^[#\s]*【?(?:参考答案(?:与详细解析)?|参考答案与解析|答案与解析|试卷答案|试题参考答案)】?\s*$/i;
+
+// 题目题号起始正则：例如 "1. "、"2、"、"15) "，严格排除类似 "1.5" 的浮点数
+const Q_START_RE = /^(\d+)[.、\s)]\s*(?!\d)(.*)$/;
+
+// 行内答案与解析提取：例如 "【答案】B"、"参考答案：C"、"【答案】x = 3"、"【解析】由公式可知..."
+const INLINE_ANSWER_RE = /(?:【(?:参考)?答案】|(?:参考)?答案\s*[:：]\s*)([^\n\r]+)/;
+const INLINE_ANALYSIS_RE = /(?:【解析】|解析\s*[:：]\s*)([\s\S]+)/;
+const INLINE_KP_RE = /(?:【考点】|考点\s*[:：]\s*)([^\n\r]+)/;
+
+/**
+ * 启发式推断大题的默认题型
+ */
+function inferQuestionType(sectionTitle: string): QuestionType {
+  const t = sectionTitle.trim();
+  if (t.includes("多选")) return "multiple";
+  if (t.includes("单选") || t.includes("选择")) return "single";
+  if (t.includes("判断") || t.includes("是非")) return "judge";
+  if (t.includes("填空")) return "fill";
+  if (t.includes("简答") || t.includes("解答") || t.includes("计算") || t.includes("分析") || t.includes("综合")) {
+    return "short";
+  }
+  return "single";
+}
+
+/**
+ * 启发式推断大题的默认题目分值
+ */
+function inferDefaultScore(sectionTitle: string, qType: QuestionType): number {
+  const m = sectionTitle.match(/每[小题|题]\s*(\d+)\s*分/);
+  if (m) {
+    const val = parseInt(m[1], 10);
+    if (!isNaN(val) && val > 0 && val <= 100) return val;
+  }
+  if (qType === "single" || qType === "multiple") return 3;
+  if (qType === "judge") return 2;
+  if (qType === "fill") return 3;
+  if (qType === "short") return 10;
+  return 3;
+}
+
+interface IntermediateDraft {
+  num: number;
+  sectionTitle: string;
+  type: QuestionType;
+  stemLines: string[];
+  options: string[];
+  answer: string;
+  analysisLines: string[];
+  score: number;
+  kp?: string;
+}
+
+/**
+ * 将整份文本试卷智能切分为结构化题目集合
+ */
+export function segmentExamPaper(
+  rawText: string,
+  options: SegmentOptions = {},
+): SegmentedExamResult {
+  const warnings: string[] = [];
+  const sectionsSummary: Array<{ title: string; count: number }> = [];
+
+  if (!rawText || !rawText.trim()) {
+    return { questions: [], warnings: ["输入试卷内容为空"], sections: [] };
+  }
+
+  const lines = rawText.split(/\r?\n/);
+  let currentSectionTitle = "基础试题";
+  let currentType: QuestionType = "single";
+  let currentScore = 3;
+  let inAnswerZone = false;
+
+  const drafts: IntermediateDraft[] = [];
+  const draftByNum = new Map<number, IntermediateDraft>();
+
+  let currentDraft: IntermediateDraft | null = null;
+  let currentAnswerStitchTarget: IntermediateDraft | null = null;
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx].trim();
+    if (!line) continue;
+
+    // 1. 检查是否进入了文末的“答案与解析专区”
+    if (ANSWER_ZONE_RE.test(line)) {
+      inAnswerZone = true;
+      currentDraft = null;
+      continue;
+    }
+
+    // 0. 第一大题之前的试卷导语或考场注意事项识别跳过
+    if (drafts.length === 0 && !SECTION_RE.test(line)) {
+      if (line.includes("注意事项") || line.includes("准考证号") || line.includes("密封线内") || line.includes("答题卡")) {
+        warnings.push(`已自动跳过考场注意事项: "${line.slice(0, 30)}..."`);
+        continue;
+      }
+    }
+
+    // 2. 如果在答案专区中：反向匹配缝合回对应母题
+    if (inAnswerZone) {
+      const qStart = line.match(Q_START_RE);
+      if (qStart) {
+        const num = parseInt(qStart[1], 10);
+        const rest = qStart[2].trim();
+        const target = draftByNum.get(num);
+        if (target) {
+          currentAnswerStitchTarget = target;
+          // 提取答案行
+          const ansMatch = rest.match(INLINE_ANSWER_RE) || rest.match(/^([A-Za-z0-9\u4e00-\u9fa5对错√×]+)(?:\s|$|[、.])/);
+          if (ansMatch) {
+            target.answer = ansMatch[1].trim();
+          }
+          const anaMatch = rest.match(INLINE_ANALYSIS_RE);
+          if (anaMatch) {
+            target.analysisLines.push(anaMatch[1].trim());
+          } else if (!ansMatch && rest) {
+            target.analysisLines.push(rest);
+          }
+        } else {
+          currentAnswerStitchTarget = null;
+          warnings.push(`答案专区出现未找到母题的题号: 第 ${num} 题`);
+        }
+      } else if (currentAnswerStitchTarget) {
+        // 多行解析追加
+        currentAnswerStitchTarget.analysisLines.push(line);
+      }
+      continue;
+    }
+
+    // 3. 检查大题章节标题（如 "一、选择题"）
+    const secMatch = line.match(SECTION_RE);
+    if (secMatch) {
+      currentSectionTitle = secMatch[0].trim();
+      currentType = inferQuestionType(currentSectionTitle);
+      currentScore = inferDefaultScore(currentSectionTitle, currentType);
+      currentDraft = null;
+      continue;
+    }
+
+    // 4. 检查题目起始题号（如 "1. 下列各式中..."）
+    const qStart = line.match(Q_START_RE);
+    if (qStart) {
+      const num = parseInt(qStart[1], 10);
+      const rest = qStart[2].trim();
+
+      // 第一大题之前的杂项/注意事项过滤（序号小于等于 0 或大题标题仍为前导说明）
+      if (drafts.length === 0 && (line.includes("注意事项") || line.includes("准考证号") || line.includes("密封线内"))) {
+        warnings.push(`已自动跳过考场注意事项: "${line.slice(0, 30)}..."`);
+        continue;
+      }
+
+      currentDraft = {
+        num,
+        sectionTitle: currentSectionTitle,
+        type: currentType,
+        stemLines: [rest],
+        options: [],
+        answer: "",
+        analysisLines: [],
+        score: currentScore,
+      };
+
+      drafts.push(currentDraft);
+      draftByNum.set(num, currentDraft);
+      continue;
+    }
+
+    // 5. 如果当前正在一个题面中，检查是否为选项行或答案解析行
+    if (currentDraft) {
+      // 检查行内是否标明了【答案】
+      const ansMatch = line.match(INLINE_ANSWER_RE);
+      if (ansMatch) {
+        currentDraft.answer = ansMatch[1].trim();
+        continue;
+      }
+
+      // 检查行内是否标明了【解析】
+      const anaMatch = line.match(INLINE_ANALYSIS_RE);
+      if (anaMatch) {
+        currentDraft.analysisLines.push(anaMatch[1].trim());
+        continue;
+      }
+
+      // 检查行内是否标明了【考点】
+      const kpMatch = line.match(INLINE_KP_RE);
+      if (kpMatch) {
+        currentDraft.kp = kpMatch[1].trim();
+        continue;
+      }
+
+      // 检查水平/单行选项（例如 "A. 3   B. -3   C. 1   D. 0" 或单个 "A. 3"）
+      // 匹配当前选项标号到下一个选项标号（或行尾）之间的内容，不排斥选项文本中的任何字母（如"选项A"、"Apple"）
+      if (/^[A-Ha-h][.、\s)）]/.test(line) || /\s+[A-Ha-h][.、\s)）]/.test(line)) {
+        const matches = Array.from(line.matchAll(/(?:^|\s+)([A-Ha-h])[.、\s)）]\s*(.*?)(?=(?:\s+[A-Ha-h][.、\s)）])|$)/g));
+        if (matches.length > 0) {
+          for (const m of matches) {
+            const optText = m[2].trim();
+            if (optText) {
+              currentDraft.options.push(optText);
+            }
+          }
+          continue;
+        }
+      }
+
+      // 否则作为题干后续行
+      currentDraft.stemLines.push(line);
+    }
+  }
+
+  // 6. 整理统计大题分布
+  const secCountMap = new Map<string, number>();
+  for (const d of drafts) {
+    secCountMap.set(d.sectionTitle, (secCountMap.get(d.sectionTitle) ?? 0) + 1);
+  }
+  for (const [title, count] of secCountMap) {
+    sectionsSummary.push({ title, count });
+  }
+
+  // 7. 转换为小驴考试标准 Question[]
+  const finalQuestions: Question[] = [];
+  const defaultKp = options.defaultKp || "通识/综合";
+  const sourceName = options.source || options.defaultBankName || "试卷智能切分导入";
+
+  for (const d of drafts) {
+    const rawStem = d.stemLines.join("\n").trim();
+    if (!rawStem) continue;
+
+    // 格式化题干：如果题干末尾有类似 (   ) 或 （   ），自动提取答案如果还没定
+    let cleanStem = rawStem;
+    let answer = d.answer;
+
+    if (!answer) {
+      const parenMatch = cleanStem.match(/[（(]\s*([A-Ha-h对错√×])\s*[）)]\s*$/);
+      if (parenMatch) {
+        answer = parenMatch[1].toUpperCase();
+        // 将原题干中的答案挖空替换为标准的 (   )
+        cleanStem = cleanStem.replace(/[（(]\s*([A-Ha-h对错√×])\s*[）)]\s*$/, "（   ）");
+      }
+    }
+
+    // 判断题型修正：如果带有选项，则确保为 single 或 multiple
+    let finalType = d.type;
+    if (d.options.length >= 2 && finalType !== "single" && finalType !== "multiple") {
+      finalType = "single";
+    } else if (d.options.length === 0 && finalType === "single") {
+      // 无选项的选择题，若题干有括号或下划线则降级为填空题，否则为问答题
+      finalType = cleanStem.includes("____") || cleanStem.includes("（   ）") || cleanStem.includes("()") ? "fill" : "short";
+    }
+
+    // 答案归一化
+    if (finalType === "judge") {
+      if (answer === "√" || answer.toLowerCase() === "true" || answer === "正确") answer = "对";
+      if (answer === "×" || answer.toLowerCase() === "false" || answer === "错误") answer = "错";
+    }
+
+    const analysis = d.analysisLines.join("\n").trim();
+
+    const q: Question = {
+      id: newQuestionId(),
+      type: finalType,
+      stem: cleanStem,
+      options: d.options,
+      answer: answer || (finalType === "single" ? "A" : finalType === "judge" ? "对" : ""),
+      analysis,
+      kp: d.kp || defaultKp,
+      difficulty: 3,
+      score: d.score,
+      source: sourceName,
+      status: "published",
+      origin: "imported",
+      hash: questionHash(cleanStem, d.options),
+    };
+
+    finalQuestions.push(q);
+  }
+
+  return {
+    questions: finalQuestions,
+    warnings,
+    sections: sectionsSummary,
+  };
+}

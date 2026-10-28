@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAiken, parseExcelRows, autoMapExcel, validate, parseType } from "../src/importer/pipeline";
+import { parseAiken, parseExcelRows, autoMapExcel, validate, parseType, parseText } from "../src/importer/pipeline";
 import { questionToMarkdown, questionFromBlock, parseIal, makeQuestion } from "../src/core/blockTemplate";
 
 const AIKEN = `// 注释行应被忽略
@@ -194,6 +194,29 @@ describe("块模板往返", () => {
     expect(parseType("TrueFalse")).toBe("judge");
     expect(parseType("论述")).toBe("short");
     expect(parseType("名词解释")).toBeNull();
+  });
+
+  it("parseText 自动识别整卷试卷并流转至智能切题引擎", async () => {
+    const rawExam = `
+一、单项选择题（每小题3分）
+1. 试题一内容（   ）
+A. 选项A    B. 选项B    C. 选项C    D. 选项D
+【答案】A
+【解析】解析一内容
+
+二、填空题
+2. 试题二内容，答案是 ____。
+【答案】核心考点
+`;
+    const r = await parseText(rawExam, { source: "期中模拟考" });
+    expect(r.errors).toEqual([]);
+    expect(r.ok).toHaveLength(2);
+    expect(r.ok[0].type).toBe("single");
+    expect(r.ok[0].options).toHaveLength(4);
+    expect(r.ok[0].answer).toBe("A");
+    expect(r.ok[0].source).toBe("期中模拟考");
+    expect(r.ok[1].type).toBe("fill");
+    expect(r.ok[1].answer).toBe("核心考点");
   });
 });
 

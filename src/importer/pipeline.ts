@@ -346,8 +346,8 @@ export function autoMapExcel(header: string[]): { map: ExcelColumnMap; missing: 
   return { map, missing };
 }
 
-/** 粘贴文本按内容特征分流：GIFT（::题::/答案区）→ TSV（#头/制表符/两列问答）→ Markdown试卷（【答案】/题号）→ Aiken（默认）。
- *  gift/tsv/markdownExam 动态加载：复用本模块的 parseExcelRows/validate，静态依赖会成环 */
+/** 粘贴文本按内容特征分流：GIFT（::题::/答案区）→ TSV（#头/制表符/两列问答）→ 整卷试卷（含大题/答案区）→ Markdown试卷（【答案】/题号）→ Aiken（默认）。
+ *  gift/tsv/markdownExam/examSegmenter 动态加载：复用本模块的 parseExcelRows/validate，静态依赖会成环 */
 export async function parseText(text: string, opt: ImportOptions = {}): Promise<ImportReport> {
   if (isGiftText(text)) {
     const { parseGift } = await import("./gift");
@@ -357,11 +357,56 @@ export async function parseText(text: string, opt: ImportOptions = {}): Promise<
     const { parseTsv } = await import("./tsv");
     return parseTsv(text, opt);
   }
+  if (isFullExamPaperText(text)) {
+    const { segmentExamPaper } = await import("./examSegmenter");
+    const res = segmentExamPaper(text, {
+      source: opt.source,
+      defaultKp: opt.kp,
+    });
+    return convertSegmentedToReport(res.questions, opt);
+  }
   const { isMarkdownExamText, parseMarkdownExam } = await import("./markdownExam");
   if (isMarkdownExamText(text)) {
     return parseMarkdownExam(text, opt);
   }
   return parseAiken(text, opt);
+}
+
+/** 试卷整卷特征探测：含大题章节标题（如“一、单项选择题”）或文末集中参考答案专区 */
+export function isFullExamPaperText(text: string): boolean {
+  if (!text || text.length < 20) return false;
+  const hasSection = /^[#\s]*(?:第[一二三四五六七八九十]+部分|[一二三四五六七八九十]+[、.\s]+).*(?:单选|多选|选择|填空|判断|解答|综合|计算)/m.test(text);
+  const hasAnswerZone = /^[#\s]*(?:【?(?:参考答案(?:与解析)?|答案与(?:详细)?解析|试卷答案|试题参考答案)】?)/m.test(text);
+  return hasSection || hasAnswerZone;
+}
+
+/** 将整卷智能切题结果转换为标准 ImportReport */
+export function convertSegmentedToReport(questions: Question[], opt: ImportOptions = {}): ImportReport {
+  const errors: ImportError[] = [];
+  const ok: Question[] = [];
+  const seenHash = new Set(opt.existingHashes);
+  const dedupe = opt.dedupe !== false;
+  let duplicates = 0;
+  const dupeSamples: { row: number; stem: string }[] = [];
+  const batch = newBatchId();
+
+  for (let i = 0; i < questions.length; i++) {
+    const q = { ...questions[i], batch };
+    const bad = validate(q);
+    if (bad) {
+      errors.push({ row: i + 1, reason: bad, raw: q.stem.slice(0, 80) });
+      continue;
+    }
+    if (dedupe && seenHash.has(q.hash)) {
+      duplicates++;
+      if (dupeSamples.length < 5) dupeSamples.push({ row: i + 1, stem: q.stem });
+      continue;
+    }
+    seenHash.add(q.hash);
+    ok.push(q);
+  }
+
+  return { ok, errors, duplicates, batch, dupeSamples };
 }
 
 /** GIFT 特征：::标题:: 前缀，或 {…} 答案区配 =/~ 正误标记 */
