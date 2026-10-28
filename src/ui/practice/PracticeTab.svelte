@@ -42,7 +42,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       type OrphanKind,
     } from "../../core/bankHealth";
     import { planBatchEdit, invertPlan } from "../../core/batchEdit";
-    import { matchesBrowseFilter } from "../../core/browseFilter";
     import { queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
     import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
     import { remainingPlan } from "@/core/planner";
@@ -264,6 +263,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       executeCommitImport,
       executeAnswerUpdates,
     } from "./services/importExecutionService";
+    import {
+      executeBrowseQuestionFilter,
+    } from "./services/browseFilterService";
+    import {
+      markAncestorSiblingsInert,
+      handleDrawerTabKey,
+    } from "../shared/drawerAccessibility";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -4730,50 +4736,23 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     );
     const filteredQuestions = $derived.by(() => {
       void dataRev; // 错题/受助/近 N 天过滤依赖应用层流水缓存，随总线事件失效（同 wrongList 注）
-      const base = favOnly ? questions.filter((q) => q.fav) : questions;
-      const targetIds = (filterOrphanKind && orphanDiag)
-        ? new Set(orphanDiag.byKind[filterOrphanKind].map((item) => item.qid))
-        : null;
-
-      let helped: Set<string> | null = null;
-      let recent: Set<string> | null = null;
-      let wb: ReadonlyMap<string, { wrongCount: number }> | null = null;
-
-      if (filterWrong || filterHelp || filterDays) {
-        const events = app.attempts.all();
-        const cutoff = filterDays > 0 ? Date.now() - filterDays * 86_400_000 : 0;
-        // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 函数内累加集（非组件状态），与 backlinkCache 惯用法一致
-        helped = new Set<string>();
-        // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 同上
-        recent = new Set<string>();
-        for (const e of events) {
-          if (e.help) helped.add(e.qid);
-          if (!cutoff || e.ts >= cutoff) recent.add(e.qid);
-        }
-        if (filterWrong) {
-          wb = app.derived().wrongbook;
-        }
-      }
-
-      const kw = searchDebounced.trim().toLowerCase();
-
-      // 过滤谓词已抽到 core（可单测）；此处只负责把响应式状态装配成纯输入
-      return base.filter((q) => matchesBrowseFilter(q, {
-        section: sectionSel,
-        type: filterType,
-        status: filterStatus,
-        disputedOnly: filterDispute,
-        targetIds,
-        source: filterSource,
-        wrongOnly: filterWrong,
-        helpedOnly: filterHelp,
-        recentOnly: filterDays > 0,
-        userTag: filterUserTag || null,
-        keyword: kw,
-        wrongCountOf: (id) => wb?.get(id)?.wrongCount ?? 0,
-        helped,
-        recent,
-      }));
+      return executeBrowseQuestionFilter(questions, {
+        favOnly,
+        filterOrphanKind,
+        orphanDiag,
+        filterType,
+        filterSource,
+        filterWrong,
+        filterStatus,
+        filterDispute,
+        filterHelp,
+        filterDays,
+        filterUserTag,
+        searchDebounced,
+        sectionSel,
+        attempts: (filterWrong || filterHelp || filterDays > 0) ? app.attempts.all() : [],
+        wrongbookMap: filterWrong ? app.derived().wrongbook : null,
+      });
     });
     const shownQuestions = $derived(filteredQuestions.slice(0, browseLimit));
     const hasMore = $derived(filteredQuestions.length > browseLimit);
@@ -4944,30 +4923,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     $effect(() => {
       const drawer = peekDrawerEl;
       if (!activePeekQuestion || !drawer || !tabRoot) return;
-      const marked: { node: HTMLElement; hadInert: boolean; ariaHidden: string | null }[] = [];
-      const mark = (node: HTMLElement) => {
-        if (node === drawer || node.classList.contains("lv-peek-backdrop") || marked.some((x) => x.node === node)) return;
-        marked.push({ node, hadInert: node.hasAttribute("inert"), ariaHidden: node.getAttribute("aria-hidden") });
-        node.setAttribute("inert", "");
-        node.setAttribute("aria-hidden", "true");
-      };
-      let current: HTMLElement | null = drawer;
-      while (current && current !== tabRoot) {
-        const parent = current.parentElement;
-        if (!parent) break;
-        for (const child of [...parent.children]) {
-          if (child instanceof HTMLElement && child !== current && !child.contains(drawer)) mark(child);
-        }
-        current = parent;
-      }
-      return () => {
-        for (const { node, hadInert, ariaHidden } of marked) {
-          if (hadInert) node.setAttribute("inert", "");
-          else node.removeAttribute("inert");
-          if (ariaHidden === null) node.removeAttribute("aria-hidden");
-          else node.setAttribute("aria-hidden", ariaHidden);
-        }
-      };
+      return markAncestorSiblingsInert(drawer, tabRoot);
     });
 
     function closePeekDrawer() {
@@ -5065,15 +5021,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           return;
         }
         if (e.key === "Tab" && peekDrawerEl) {
-          const focusables = [...peekDrawerEl.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-            .filter((el) => el.getClientRects().length);
-          const first = focusables[0] ?? peekDrawerEl;
-          const last = focusables[focusables.length - 1] ?? peekDrawerEl;
-          const idx = focusables.indexOf(document.activeElement as HTMLElement);
-          if ((e.shiftKey && (idx <= 0 || document.activeElement === peekDrawerEl)) || (!e.shiftKey && (idx === focusables.length - 1 || document.activeElement === peekDrawerEl))) {
-            e.preventDefault();
-            (e.shiftKey ? last : first).focus();
-          }
+          handleDrawerTabKey(peekDrawerEl, e);
           return;
         }
         // Do not let page-level shortcuts act while focus is in the drawer.
