@@ -253,6 +253,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import {
       parseSheetRowsWithStrategy,
     } from "./services/excelParseWorkflowService";
+    import {
+      resolveKeyboardAction,
+    } from "./services/practiceKeyboardService";
+    import {
+      fetchBlockBacklinks,
+      openSiYuanTarget,
+    } from "./services/backlinkNavigationService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -4999,35 +5006,22 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function loadBacklinks(blockId: string) {
       if (backlinkBusyFor) return;
-      if (!app.kernelOnline) {
-        backlinkError = { ...backlinkError, [blockId]: t("state.offlineHint") };
-        return;
-      }
       backlinkBusyFor = blockId;
       backlinkError = { ...backlinkError, [blockId]: "" };
       try {
-        const links = await app.deps.client.backlinks(blockId);
-        // 写时复制更新 $state Map（惯用法），不转 SvelteMap
-        // eslint-disable-next-line svelte/prefer-svelte-reactivity
-        const next = new Map(backlinkCache);
-        next.set(blockId, links);
-        backlinkCache = next;
-      } catch (e) {
-        backlinkError = { ...backlinkError, [blockId]: t("browse.backlinksFailed").replace("{message}", String(e instanceof Error ? e.message : e)) };
+        const res = await fetchBlockBacklinks(app, blockId, t);
+        if (res.links) {
+          const next = new Map(backlinkCache);
+          next.set(blockId, res.links);
+          backlinkCache = next;
+        } else if (res.error) {
+          backlinkError = { ...backlinkError, [blockId]: res.error };
+        }
       } finally { backlinkBusyFor = ""; }
     }
 
     function openInSiYuan(rootId: string, blockId?: string) {
-      if (!rootId && !blockId) { showMessage(t("browse.docUnavailable"), 2600, "error"); return; }
-      if (blockId) {
-        try {
-          window.open(`siyuan://blocks/${blockId}`);
-          return;
-        } catch { /* 容错回退 */ }
-      }
-      void import("siyuan").then(({ openTab }) => {
-        openTab({ app: ((plugin.app ?? plugin) as import("siyuan").App), doc: { id: rootId } });
-      }).catch((e) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
+      openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
     }
 
     // ---------- 题面富文本（md2html；离线回退纯文本） ----------
@@ -5083,74 +5077,90 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         return;
       }
       if (!tabRoot?.getClientRects().length || e.defaultPrevented || paletteOpen || railOpen || document.querySelector('[role="dialog"]')) return;
-      // 44-09 快捷撤销作答（Ctrl+Z / Meta+Z）：仅在反馈态下优先响应
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && view === "session" && feedback) {
-        e.preventDefault();
-        void undoRecentSubmit();
-        return;
-      }
-      if (e.key === "?" && !peekOpen) {
-        e.preventDefault();
-        hotkeysHelpOpen = !hotkeysHelpOpen;
-        return;
-      }
-      if (e.isComposing || e.keyCode === 229 || e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target as HTMLElement;
       if (target && target !== document.body && !tabRoot.contains(target)) return;
       if (target?.closest('input, textarea, select, [contenteditable="true"]') || target?.isContentEditable) return;
       if (target?.closest('button, a') && (e.key === "Enter" || e.key === " ")) return;
-      if (view === "session") {
-        if (!session || sessionDone) return;
-        const q = session.current;
-        if (!q) return;
-        if (e.key === "Escape") { e.preventDefault(); exitSession(); return; }
-        if (feedback) {
-          if (e.key === "Enter" || e.key.toLowerCase() === "j") { e.preventDefault(); nextQuestion(); }
-          else if (e.key.toLowerCase() === "k") { e.preventDefault(); previousQuestion(); }
-          else if (e.key.toLowerCase() === "u") { e.preventDefault(); void undoRecentSubmit(); }
-          else if (e.shiftKey && e.key.toUpperCase() === "S") { e.preventDefault(); scratchpadOpen = !scratchpadOpen; }
-          else if (feedback.verdict === "wrong" && /^[1-3]$/.test(e.key)) {
-            // 错因快捷键（docs/11：1-4 错因；1-3 对应三分类）
-            const reasons = ["careless", "unknown", "trap"] as const;
-            void app?.saveWrongReason(q.id, reasons[Number(e.key) - 1]).catch(() => undefined);
-            savedReason = reasons[Number(e.key) - 1];
-            e.preventDefault();
-          }
-          return;
-        }
-        const key = e.key.toUpperCase();
-        if (isChoiceQuestion(q) && /^[A-J]$/.test(key)) {
-          const idx = key.charCodeAt(0) - 65;
-          const choice = answerChoices(q)[idx];
-          if (choice) { e.preventDefault(); pickPracticeChoice(choice.value); }
-        } else if (/^[1-3]$/.test(e.key)) {
-          // 答前置信快捷键（U12）：1=确定 2=模糊 3=蒙（提交前选择，随 attempt 落流水）
-          e.preventDefault();
-          confidenceSel = (["sure", "fuzzy", "guess"] as const)[Number(e.key) - 1];
-        } else if (e.key.toLowerCase() === "e") {
-          e.preventDefault();
-          void toggleFavCurrent();
-        } else if (e.shiftKey && e.key.toUpperCase() === "S") {
-          e.preventDefault();
-          scratchpadOpen = !scratchpadOpen;
-        } else if (e.key === "Enter") {
-          if (!canSubmitAnswer) return;
-          e.preventDefault();
-          submitAnswer();
-        } else if (e.key.toLowerCase() === "k" && session.progress.done > 0) {
-          e.preventDefault();
+
+      const action = resolveKeyboardAction({
+        event: e,
+        view,
+        session: {
+          hasSession: !!session,
+          isSessionDone: !!sessionDone,
+          currentQuestion: session?.current,
+          hasFeedback: !!feedback,
+          feedbackVerdict: feedback?.verdict,
+          canSubmit: canSubmitAnswer,
+          doneCount: session?.progress.done ?? 0,
+        },
+        recite: {
+          isDone: reciteDone,
+          hasQueue: reciteQueue.length > 0,
+          hasCurrentQuestion: !!reciteQueue[reciteCursor],
+          revealed: reciteRevealed,
+          hintLevel: reciteHint,
+          hasAnalysis: !!reciteQueue[reciteCursor]?.analysis,
+        },
+      });
+
+      if (!action) return;
+      e.preventDefault();
+
+      switch (action.type) {
+        case "help":
+          hotkeysHelpOpen = !hotkeysHelpOpen;
+          break;
+        case "exit_session":
+          exitSession();
+          break;
+        case "undo_submit":
+          void undoRecentSubmit();
+          break;
+        case "next_question":
+          nextQuestion();
+          break;
+        case "prev_question":
           previousQuestion();
+          break;
+        case "toggle_scratchpad":
+          scratchpadOpen = !scratchpadOpen;
+          break;
+        case "record_wrong_reason":
+          if (session?.current) {
+            void app?.saveWrongReason(session.current.id, action.reason).catch(() => undefined);
+            savedReason = action.reason;
+          }
+          break;
+        case "pick_choice": {
+          if (session?.current) {
+            const idx = action.key.charCodeAt(0) - 65;
+            const choice = answerChoices(session.current)[idx];
+            if (choice) pickPracticeChoice(choice.value);
+          }
+          break;
         }
-      } else if (view === "recite") {
-        if (reciteDone || !reciteQueue.length) return;
-        if (e.key.toLowerCase() === "v" && reciteQueue[reciteCursor]) {
-          e.preventDefault();
-          ttsSpeak(reciteQueue[reciteCursor].stem);
-          return;
-        }
-        if (!reciteRevealed && e.key === " ") { e.preventDefault(); revealRecite(); return; }
-        if (!reciteRevealed && reciteHint === 1 && e.key.toLowerCase() === "h" && reciteQueue[reciteCursor]?.analysis) { e.preventDefault(); reciteHint = 2; return; }
-        if (reciteRevealed && /^[1-4]$/.test(e.key)) { e.preventDefault(); void rateSelf(Number(e.key) as 1 | 2 | 3 | 4); }
+        case "set_confidence":
+          confidenceSel = action.confidence;
+          break;
+        case "toggle_fav":
+          void toggleFavCurrent();
+          break;
+        case "submit_answer":
+          submitAnswer();
+          break;
+        case "tts_speak":
+          if (reciteQueue[reciteCursor]) ttsSpeak(reciteQueue[reciteCursor].stem);
+          break;
+        case "reveal_recite":
+          revealRecite();
+          break;
+        case "recite_hint":
+          reciteHint = 2;
+          break;
+        case "recite_rate":
+          void rateSelf(action.rating);
+          break;
       }
     }
 
