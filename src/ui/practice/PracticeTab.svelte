@@ -119,6 +119,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       formatEnvStatusLine,
       getHintButtonLabel,
     } from "./services/aiWorkflowService";
+    import {
+      changeQuestionLifecycle,
+      flagQuestionDispute,
+      resolveQuestionDispute,
+      clearQuestionDispute,
+      exportItemAnalysisReportCsv,
+    } from "./services/disputeGovernanceService";
+    import {
+      archiveWrongItem,
+      unarchiveWrongItem,
+      snoozeWrongItem,
+      restoreWrongItemToActive,
+      markWrongMastered,
+    } from "./services/wrongbookDispositionService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -144,7 +158,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { parseClozeText, clozeItemsToQuestions, type ParsedClozeItem } from "@/core/cloze";
     import { buildMaterialGroupContext, formatMaterialGroupHeader, type SiblingItem } from "@/core/materialContext";
     import { resolveFeedbackTimingMode, isGroupBatchBoundary, calculateGroupBatchSummary, type GroupBatchSummary, DEFAULT_GROUP_FEEDBACK_SIZE } from "@/core/feedbackTiming";
-    import { analyzeQuestionUsage, exportItemAnalysisCsv, type ItemAnalysisReport } from "@/core/itemAnalysis";
+    import { analyzeQuestionUsage, type ItemAnalysisReport } from "@/core/itemAnalysis";
     import { checkPublishGuard, createQuestionVersionSnapshot, getQuestionLifecycle, isAttemptVersionDrifted, LIFECYCLE_LABELS, questionDraftFromRevision, type QuestionLifecycleStatus } from "@/core/revision";
     import { consumePendingPracticeView, isCurrentPracticeViewRequest } from "@/core/pluginTab";
     import { dailyTrend } from "@/core/weekly";
@@ -1265,9 +1279,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       peekLifecycleBusy = true;
       peekLifecycleError = { ...peekLifecycleError, [q.id]: "" };
       try {
-        const next = await app.updateQuestionLifecycle(q, nextStatus);
+        const next = await changeQuestionLifecycle(app, q, nextStatus, showMessage, t);
         questions = questions.map((x) => (x.id === q.id ? { ...x, ...next } : x));
-        showMessage(t("lifecycle.changed").replace("{status}", LIFECYCLE_LABELS[nextStatus] ?? nextStatus), 2800, "info");
       } catch (e) {
         peekLifecycleError = {
           ...peekLifecycleError,
@@ -1302,14 +1315,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function downloadItemAnalysisCsv(report: ItemAnalysisReport) {
-      const csv = exportItemAnalysisCsv(report);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `题目分析-${report.qid}-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      exportItemAnalysisReportCsv(report);
     }
 
     function toggleDisputeForm(q: Question) {
@@ -1332,10 +1338,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!disputeNote.trim()) { disputeError = t("dispute.notePlaceholder"); return; }
       disputeBusy = true; disputeError = "";
       try {
-        const updated = await app.flagQuestionDispute(q, disputeReason, disputeNote.trim());
+        const updated = await flagQuestionDispute(app, q, disputeReason, disputeNote, showMessage, t);
         questions = questions.map((x) => (x.id === q.id ? { ...x, ...updated } : x));
         disputeFormOpenFor = "";
-        showMessage(t("dispute.flagSuccess"), 3200, "info");
       } catch (e) {
         disputeError = String(e instanceof Error ? e.message : e);
       } finally { disputeBusy = false; }
@@ -1346,10 +1351,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!disputeResolution.trim()) { disputeError = t("dispute.resolutionPlaceholder"); return; }
       disputeBusy = true; disputeError = "";
       try {
-        const updated = await app.resolveQuestionDispute(q, disputeResolution.trim());
+        const updated = await resolveQuestionDispute(app, q, disputeResolution, showMessage, t);
         questions = questions.map((x) => (x.id === q.id ? { ...x, ...updated } : x));
         disputeFormOpenFor = "";
-        showMessage(t("dispute.resolveSuccess"), 3200, "info");
       } catch (e) {
         disputeError = String(e instanceof Error ? e.message : e);
       } finally { disputeBusy = false; }
@@ -1359,10 +1363,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (disputeBusy || !app) return;
       disputeBusy = true; disputeError = "";
       try {
-        const updated = await app.clearQuestionDispute(q);
+        const updated = await clearQuestionDispute(app, q, showMessage, t);
         questions = questions.map((x) => (x.id === q.id ? { ...x, ...updated } : x));
         disputeFormOpenFor = "";
-        showMessage(t("dispute.clearSuccess"), 2800, "info");
       } catch (e) {
         disputeError = String(e instanceof Error ? e.message : e);
       } finally { disputeBusy = false; }
@@ -2193,47 +2196,23 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     });
 
     async function archiveWrong(qid: string) {
-      if (!app) return;
-      try {
-        await app.archiveWrong(qid);
-        dataRev++;
-        showMessage(t("wrongbook.archivedSuccess"), 2800, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await archiveWrongItem(app, qid, showMessage, t);
+      dataRev++;
     }
 
     async function unarchiveWrong(qid: string) {
-      if (!app) return;
-      try {
-        await app.unarchiveWrong(qid);
-        dataRev++;
-        showMessage(t("wrongbook.unarchivedSuccess"), 2800, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await unarchiveWrongItem(app, qid, showMessage, t);
+      dataRev++;
     }
 
     async function snoozeWrong(qid: string, days = 7) {
-      if (!app) return;
-      try {
-        await app.snoozeWrong(qid, days);
-        dataRev++;
-        showMessage(t("wrongbook.snoozeDone"), 2800, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await snoozeWrongItem(app, qid, days, showMessage, t);
+      dataRev++;
     }
 
     async function restoreWrongToActive(qid: string) {
-      if (!app) return;
-      try {
-        await app.setWrongStatus(qid, "active");
-        dataRev++;
-        showMessage("已将该题重新收录入在册错题库", 2800, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await restoreWrongItemToActive(app, qid, showMessage);
+      dataRev++;
     }
 
     function switchView(next: View) {
@@ -2487,12 +2466,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           title: t("wrongbook.masterOneTitle"),
           content: t("wrongbook.masterOneConfirm").replace("{question}", escapeHtml(question?.stem.slice(0, 100) ?? qid)),
         }))) return;
-        await app.setWrongStatus(qid, "mastered");
+        await markWrongMastered(app, qid, showMessage, t, offline);
         dataRev++;
         if (soundEnabled) playCelebrationChord();
-        showMessage(t("wrongbook.masteredDone"), 2400, "info");
-      } catch (e) {
-        showMessage(t("wrongbook.masterFailed").replace("{message}", offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e)), 4600, "error");
       } finally { wrongBusyId = ""; }
     }
 
