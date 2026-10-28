@@ -156,6 +156,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       approveSingleQuestion,
       fetchCurrentEditorDocContent,
     } from "./services/aiStudioService";
+    import {
+      pushWrongsToCards,
+      pushSingleWrongToCard,
+      pushSessionWrongsToActions,
+      assembleAndLaunchWrongMock,
+    } from "./services/wrongbookEcosystemService";
+    import {
+      fetchVariantDrillQuestions,
+      fetchFoundationMotherQuestion,
+    } from "./services/variantDrillService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -3590,39 +3600,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     async function syncWrongbookToCards() {
-      if (!hasCardsPlugin) {
-        showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
-        return;
-      }
       const wrongQs = questions.filter((q) => filteredWrongQueue.some((w) => w.qid === q.id));
-      if (!wrongQs.length) {
-        showMessage("[小驴学习] 当前筛选下没有可推送到闪卡的错题", 2500, "info");
-        return;
-      }
-      try {
-        const n = await app.convertToCards(activeBankId, bankName, wrongQs);
-        showMessage(`[小驴学习] 已将 ${n} 道错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
-      } catch (e) {
-        showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      }
+      await pushWrongsToCards(app, activeBankId, bankName, wrongQs, hasCardsPlugin, showMessage);
     }
 
     async function syncSingleWrongToCard(qid: string) {
-      if (!hasCardsPlugin) {
-        showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
-        return;
-      }
       const targetQ = questions.find((q) => q.id === qid);
-      if (!targetQ) {
-        showMessage("[小驴学习] 未找到该题目对象", 2500, "info");
-        return;
-      }
-      try {
-        const n = await app.convertToCards(activeBankId, bankName, [targetQ]);
-        showMessage(`[小驴学习] 已将 ${n} 道顽疾错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
-      } catch (e) {
-        showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      }
+      await pushSingleWrongToCard(app, activeBankId, bankName, targetQ, hasCardsPlugin, showMessage);
     }
 
     /** 44-09 撤销作答：在反馈态下撤回刚才误触的提交，恢复原草稿并安全回滚作答流水 */
@@ -3654,13 +3638,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         .filter((a) => a.grade.verdict === "wrong")
         .map((a) => questionMap.get(a.qid))
         .filter((q): q is Question & { blockId: string; rootId: string } => !!q);
-      if (!wrongQs.length) { showMessage(t("session.noCardable"), 2800, "info"); return; }
-      try {
-        const n = await app.convertToCards(activeBankId, bankName, wrongQs);
-        showMessage(n ? `${t("memory.toCardDone")} (${n})` : t("memory.toCardMissing"), 3200, n ? "info" : "error");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await pushWrongsToCards(app, activeBankId, bankName, wrongQs, true, showMessage);
     }
 
     // ---------- 下一行动（U15 lite）：结算页错题加入持久化行动（去重） ----------
@@ -3672,15 +3650,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       actionBusy = true; actionNote = "";
       try {
         const wrongQs = session.answered.filter((a) => a.grade.verdict === "wrong");
-        const r = await app.addActions(wrongQs.map((a) => {
-          const q = questionMap.get(a.qid);
-          return {
-            kind: "redo" as const,
-            qid: a.qid,
-            sessionId: session.id,
-            detail: `${t("action.kind.redo")}：${(q?.kp ?? q?.stem ?? a.qid).slice(0, 40)}`,
-          };
-        }));
+        const r = await pushSessionWrongsToActions(app, wrongQs, questionMap, session.id, t);
         actionNote = t("action.added").replace("{n}", String(r.added)).replace("{d}", String(r.skipped));
       } catch (e) {
         actionNote = String(e instanceof Error ? e.message : e);
@@ -3859,13 +3829,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function launchWrongbookMockExam() {
       if (!filteredWrongQueue.length || !app) return;
       try {
-        const result = await app.assembleWrongbookExam(activeBankId);
-        if (!result.totalCount) {
-          showMessage(t("wrongbook.noFiltered"), 2500, "info");
-          return;
-        }
-        plugin.openMock?.();
-        showMessage(`已为 ${result.totalCount} 道错题生成专属限时特训卷！正在进入模考考场…`, 3500, "info");
+        await assembleAndLaunchWrongMock(app, activeBankId, plugin.openMock, showMessage, t);
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
       }
@@ -3904,7 +3868,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function drillVariantFor(q: Question) {
       if (!q) return;
       try {
-        const res = await app.pickVariantQuestions(q, 5);
+        const res = await fetchVariantDrillQuestions(app, q, 5);
         if (!res.questions.length) {
           showMessage("未检索到相关考点或同族的变式题", 2500, "info");
           return;
@@ -3923,7 +3887,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function traceMotherQuestion(target: Question) {
       if (!target || !app) return;
       try {
-        const res = await app.findFoundationMotherQuestion(target);
+        const res = await fetchFoundationMotherQuestion(app, target);
         if (!res.motherQuestion) {
           showMessage(res.reason, 3000, "info");
           return;

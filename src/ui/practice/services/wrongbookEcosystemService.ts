@@ -1,0 +1,103 @@
+import type { Question } from "@/core/types";
+import type { ExamApp } from "@/app";
+import type { MessageReporter } from "./printPaperService";
+
+/**
+ * 将错题本中的错题批量同步推送到小驴闪卡（siyuan-lv-cards）
+ */
+export async function pushWrongsToCards(
+  app: ExamApp,
+  bankId: string,
+  bankName: string,
+  wrongQs: Question[],
+  hasCardsPlugin: boolean,
+  showMessage: MessageReporter,
+): Promise<number> {
+  if (!hasCardsPlugin) {
+    showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
+    return 0;
+  }
+  if (!wrongQs.length) {
+    showMessage("[小驴学习] 当前筛选下没有可推送到闪卡的错题", 2500, "info");
+    return 0;
+  }
+  try {
+    const n = await app.convertToCards(bankId, bankName, wrongQs);
+    showMessage(`[小驴学习] 已将 ${n} 道错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
+    return n;
+  } catch (e) {
+    showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+    return 0;
+  }
+}
+
+/**
+ * 将单道顽疾错题同步推送到小驴闪卡
+ */
+export async function pushSingleWrongToCard(
+  app: ExamApp,
+  bankId: string,
+  bankName: string,
+  targetQ: Question | undefined,
+  hasCardsPlugin: boolean,
+  showMessage: MessageReporter,
+): Promise<boolean> {
+  if (!hasCardsPlugin) {
+    showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
+    return false;
+  }
+  if (!targetQ) {
+    showMessage("[小驴学习] 未找到该题目对象", 2500, "info");
+    return false;
+  }
+  try {
+    const n = await app.convertToCards(bankId, bankName, [targetQ]);
+    showMessage(`[小驴学习] 已将 ${n} 道顽疾错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
+    return true;
+  } catch (e) {
+    showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+    return false;
+  }
+}
+
+/**
+ * 结算页错题批量加入持久化行动清单（去重）
+ */
+export async function pushSessionWrongsToActions(
+  app: ExamApp,
+  wrongAnswered: Array<{ qid: string }>,
+  questionMap: Map<string, Question>,
+  sessionId: string,
+  t: (k: string) => string,
+): Promise<{ added: number; skipped: number }> {
+  const items = wrongAnswered.map((a) => {
+    const q = questionMap.get(a.qid);
+    return {
+      kind: "redo" as const,
+      qid: a.qid,
+      sessionId,
+      detail: `${t("action.kind.redo")}：${(q?.kp ?? q?.stem ?? a.qid).slice(0, 40)}`,
+    };
+  });
+  return app.addActions(items);
+}
+
+/**
+ * 为错题组装专属限时模考特训卷
+ */
+export async function assembleAndLaunchWrongMock(
+  app: ExamApp,
+  bankId: string,
+  openMock: (() => void) | undefined,
+  showMessage: MessageReporter,
+  t: (k: string) => string,
+): Promise<number> {
+  const result = await app.assembleWrongbookExam(bankId);
+  if (!result.totalCount) {
+    showMessage(t("wrongbook.noFiltered"), 2500, "info");
+    return 0;
+  }
+  openMock?.();
+  showMessage(`已为 ${result.totalCount} 道错题生成专属限时特训卷！正在进入模考考场…`, 3500, "info");
+  return result.totalCount;
+}
