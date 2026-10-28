@@ -25,9 +25,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       DEFAULT_RUBRIC_LEVELS, type RubricSpec, type CriterionRating, type CriterionAssessment,
       type RubricAssessmentSnapshot,
     } from "../../core/rubric";
-    import { startTrail, recordEdit, trailValue, trailChanged, withLastEditReason, type AnswerTrail } from "../../core/answerTrail";
+    import { startTrail, recordEdit, trailValue, withLastEditReason, type AnswerTrail } from "../../core/answerTrail";
     import { helpFromExposure } from "../../core/exposure";
-    import { abandonedExposureInputs } from "../../core/exposure";
     import { randomSeedId } from "../../core/random";
     import { newBatchId } from "../../core/ids";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
@@ -45,7 +44,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     } from "../../core/bankHealth";
     import { planBatchEdit, invertPlan } from "../../core/batchEdit";
     import { matchesBrowseFilter } from "../../core/browseFilter";
-    import { queueKindOf, queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
+    import { queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
     import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
     import { upsertView, viewBankMismatch } from "@/core/smartViews";
     import { remainingPlan } from "@/core/planner";
@@ -55,7 +54,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { probeGlean, type GleanClip } from "@/core/gleanBridge";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
-    import { onExamEvent, emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
+    import { onExamEvent, emitExamEvent } from "@/core/bus";
     import PracticeSessionView from "./PracticeSessionView.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
@@ -208,6 +207,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import {
       loadBankSectionTree,
     } from "./services/sectionTreeService";
+    import {
+      recordSessionAttempt,
+      calculateSessionDoneSummary,
+      broadcastSessionEnded,
+      flushAbandonedSessionExposures,
+    } from "./services/sessionLifecycleService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -234,7 +239,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { buildMaterialGroupContext, formatMaterialGroupHeader, type SiblingItem } from "@/core/materialContext";
     import { resolveFeedbackTimingMode, isGroupBatchBoundary, calculateGroupBatchSummary, type GroupBatchSummary, DEFAULT_GROUP_FEEDBACK_SIZE } from "@/core/feedbackTiming";
     import { analyzeQuestionUsage, type ItemAnalysisReport } from "@/core/itemAnalysis";
-    import { checkPublishGuard, createQuestionVersionSnapshot, getQuestionLifecycle, isAttemptVersionDrifted, LIFECYCLE_LABELS, questionDraftFromRevision, type QuestionLifecycleStatus } from "@/core/revision";
+    import { checkPublishGuard, getQuestionLifecycle, isAttemptVersionDrifted, LIFECYCLE_LABELS, questionDraftFromRevision, type QuestionLifecycleStatus } from "@/core/revision";
     import { consumePendingPracticeView, isCurrentPracticeViewRequest } from "@/core/pluginTab";
     import { dailyTrend } from "@/core/weekly";
     import { playSuccessChime, playCelebrationChord } from "@/libs/sound";
@@ -3328,30 +3333,24 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (hideOptions) recallUsed.add(q.id); // 未揭示就提交也算先回忆作答（52-02 可追溯）
       const r = session.submit(ans || null, timeMs);
       if (!r) {
-        // 已答位置守卫（session.submit 拒绝重计）：K 回退误入已答位 → 静默前进，不重复写流水
         nextQuestion();
         return;
       }
       const g = r.grade;
       if (q.analysis) addExposure(q.id, "analysis"); // 63-02：反馈态必然展示解析（布尔事实）
-      app.recordAttempt({
-        qid: q.id, kind: "practice", mode: session.state.mode,
-        verdict: g.verdict, myAnswer: g.myAnswer, sessionId: session.id,
-        queue: queueKindOf(session.state.mode), // 39-02：cram/wrong 不再被误记为 normal
+      recordSessionAttempt({
+        app,
+        session,
+        q,
+        submitResult: r,
         timeMs,
-        qVersion: createQuestionVersionSnapshot(q),
-        delayedReview: r.isDelayedReview || undefined,
-        confidence: confidenceSel || undefined,   // U12：答前快照随 attempt；未选=如实缺省
-        help: helpShown.get(q.id),               // 114-01：本题曾被讲解/提示 → 受助作答如实标记
-        recall: recallUsed.has(q.id) || undefined, // 52-02：先回忆模式揭示可追溯
-        exposure: (() => { const set = exposures.get(q.id); return set && set.size ? [...set] : undefined; })(), // 63-02：布尔事实
-        ...((): Pick<import("../../core/types").AttemptEvent, "firstAnswer" | "edits"> => {
-          const t = trails.get(q.id);
-          if (!t || !trailChanged(t)) return {}; // 63-03：终答==首答（含取消回退）→ 不带轨迹，报告口径「未改答」
-          return { firstAnswer: t.first, edits: t.edits };
-        })(),
+        confidenceSel,
+        helpMode: helpShown.get(q.id),
+        isRecalled: recallUsed.has(q.id),
+        exposures: (() => { const set = exposures.get(q.id); return set && set.size ? [...set] : undefined; })(),
+        trail: trails.get(q.id),
       });
-      void app.saveSession().catch(() => undefined);   // 37-05 checkpoint：作答即存（SaveGate 同键合并，重载不重复作答）
+      void app.saveSession().catch(() => undefined);
       if (feedbackMode === "end") {
         // 44-01：会话末复盘——作答事件完全一致，仅对错不在逐题显示，结算页统一回看
         showMessage(t("session.recordedSilent"), 1500, "info");
@@ -3398,70 +3397,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function finishSession() {
       clearReciteSubmitTimer();
-      sessionDone = { ...session.finish(), ...session.breakdown() };
-      settleMode = session.state.mode; // 39-02：冻结本次队列身份，供结算回执如实标注
-      // 用时统计（考试 prep 时间管理关键指标）
-      const times = session.answered.map((a) => a.timeMs).filter((t) => t > 0);
-      sessionDone.totalTimeS = Math.round(times.reduce((s, t) => s + t, 0) / 1000);
-      sessionDone.avgTimeS = times.length ? Math.round(times.reduce((s, t) => s + t, 0) / 1000 / times.length) : 0;
-      // 48-02 lite：会话结束事件（仅计数，无题干；生态消费者按需重读明细）
-      const answeredKps = session.answered.map((a) => {
-        const targetQ = questions.find((q) => q.id === a.qid);
-        return { kp: targetQ?.kp, verdict: a.grade.verdict };
-      });
-      const weakKps = computeWeakKnowledgePoints(answeredKps);
-
-      emitExamEvent("session-ended", {
-        sessionId: session.id,
-        mode: session.state.mode,
-        total: sessionDone.total,
-        correct: sessionDone.correct,
-        wrong: sessionDone.wrong,
-        weakKnowledgePoints: weakKps,
-      });
-
-      // Epoch 6：小驴生态联邦标准事件广播 lv-exam:session-ended
-      if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-        window.dispatchEvent(
-          new CustomEvent("lv-exam:session-ended", {
-            detail: {
-              v: 1,
-              source: "siyuan-exam",
-              type: "lv-exam:session-ended",
-              eventId: `ev-exam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-              at: new Date().toISOString(),
-              idempotencyKey: `exam-session:${session.id}`,
-              payload: {
-                sessionId: session.id,
-                mode: session.state.mode,
-                total: sessionDone.total,
-                correct: sessionDone.correct,
-                wrong: sessionDone.wrong,
-                weakKnowledgePoints: weakKps,
-              },
-            },
-          }),
-        );
-
-        if (weakKps.length > 0) {
-          window.dispatchEvent(
-            new CustomEvent("lv-exam:weakness-alert", {
-              detail: {
-                v: 1,
-                source: "siyuan-exam",
-                type: "lv-exam:weakness-alert",
-                eventId: `ev-weak-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-                at: new Date().toISOString(),
-                payload: {
-                  sessionId: session.id,
-                  mode: session.state.mode,
-                  weakKnowledgePoints: weakKps,
-                },
-              },
-            }),
-          );
-        }
-      }
+      const summary = calculateSessionDoneSummary(session, questions);
+      sessionDone = summary;
+      settleMode = session.state.mode;
+      broadcastSessionEnded(session, summary, window);
 
       await app.saveSession();
       await app.flush();
@@ -3553,14 +3492,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
       exitBusy = true;
       try {
-        // 63-02 边界前推：看过提示/材料但未提交就退出——曝光是真实事实，落 exposure-only 事件
-        //（verdict=not_attempted 与跳过同形；不伪造已完成作答；已提交的题不重复）
-        for (const input of abandonedExposureInputs(
-          session.answered.map((a) => a.qid), exposures,
-          { kind: "practice", mode: session.state.mode, sessionId: session.id },
-        )) {
-          try { app.recordAttempt(input); } catch { /* 尽力而为：放弃会话不因曝光落库失败而中断 */ }
-        }
+        flushAbandonedSessionExposures(app, session, exposures);
         await app.saveSession();
         await app.flush();
         session = null; feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; sessionDone = null;
@@ -5886,13 +5818,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       oncreateAndImport={async () => { if (await createBank()) view = "import"; }}
       onResume={() => void resume()}
       ondiscardSession={async () => {
-        if (session) {
-          for (const input of abandonedExposureInputs(
-            session.answered.map((a) => a.qid), exposures,
-            { kind: "practice", mode: session.state.mode, sessionId: session.id },
-          )) {
-            try { app?.recordAttempt(input); } catch { /* 尽力而为 */ }
-          }
+        if (session && app) {
+          flushAbandonedSessionExposures(app, session, exposures);
         }
         await app?.discardSession();
         session = null;
