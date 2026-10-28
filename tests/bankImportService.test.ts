@@ -142,4 +142,72 @@ describe("题库导入与模板分享服务 (bankImportService)", () => {
     const unverifiedNote = formatTrialReadbackNote(0, 2, false, t);
     expect(unverifiedNote).toBe("[import.readbackUnknown]");
   });
+
+  it("7. resolveDroppedFileType：文件后缀拖拽分流识别", async () => {
+    const { resolveDroppedFileType } = await import("@/ui/practice/services/bankImportService");
+    expect(resolveDroppedFileType("math.xlsx")).toBe("excel");
+    expect(resolveDroppedFileType("data.xls")).toBe("excel");
+    expect(resolveDroppedFileType("questions.csv")).toBe("excel");
+    expect(resolveDroppedFileType("bank.sy.zip")).toBe("zip");
+    expect(resolveDroppedFileType("archive.zip")).toBe("zip");
+    expect(resolveDroppedFileType("doc.pdf")).toBe("unsupported");
+  });
+
+  it("8. importBankFromSyZipFile：题库包上传与解析消息生成", async () => {
+    const { importBankFromSyZipFile } = await import("@/ui/practice/services/bankImportService");
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      importBankSyZip: vi.fn().mockResolvedValue({ registered: ["高考数学", "物理实验"] }),
+    };
+
+    const file = new File(["zip"], "bank.sy.zip");
+    const res = await importBankFromSyZipFile(mockApp, file, t);
+    expect(res.registered).toEqual(["高考数学", "物理实验"]);
+    expect(res.message).toBe("[share.importRegistered]");
+  });
+
+  it("9. processImportDrawerDrop：导入抽屉文件拖拽类型解析与文本读取", async () => {
+    const { processImportDrawerDrop } = await import("@/ui/practice/services/bankImportService");
+
+    // 1. Excel 文件分流
+    const xlsxFile = new File(["dummy"], "questions.xlsx");
+    const res1 = await processImportDrawerDrop(xlsxFile);
+    expect(res1.kind).toBe("excel");
+
+    // 2. 文本类文件读取
+    const txtFile = new File(["题目内容"], "test.md");
+    const res2 = await processImportDrawerDrop(txtFile);
+    expect(res2.kind).toBe("text");
+    if (res2.kind === "text") {
+      expect(res2.text).toBe("题目内容");
+    }
+
+    // 3. 不支持的文件类型
+    const imgFile = new File(["img"], "image.png");
+    const res3 = await processImportDrawerDrop(imgFile);
+    expect(res3.kind).toBe("unsupported");
+  });
+
+  it("10. resolveGlobalTabDropAction：全局拖拽路由判定", async () => {
+    const { resolveGlobalTabDropAction } = await import("@/ui/practice/services/bankImportService");
+    const excelFile = new File([""], "exam.xlsx");
+    const zipFile = new File([""], "bank.sy.zip");
+    const pdfFile = new File([""], "paper.pdf");
+
+    // 1. 无题库但拖入非 zip -> 拦截提示先选/建题库
+    const res1 = resolveGlobalTabDropAction("exam.xlsx", excelFile, false);
+    expect(res1.action).toBe("need_bank");
+
+    // 2. 无题库但拖入 zip -> 允许导入题库包
+    const res2 = resolveGlobalTabDropAction("bank.sy.zip", zipFile, false);
+    expect(res2.action).toBe("zip");
+
+    // 3. 有题库拖入 excel
+    const res3 = resolveGlobalTabDropAction("exam.xlsx", excelFile, true);
+    expect(res3.action).toBe("excel");
+
+    // 4. 有题库拖入不支持类型
+    const res4 = resolveGlobalTabDropAction("paper.pdf", pdfFile, true);
+    expect(res4.action).toBe("unsupported");
+  });
 });

@@ -99,3 +99,11 @@ export async function copyTodayStudyReport(
     showMessage(t("mock.summaryCopyFailed"), 3200, "error");
   }
 }
+
+/**
+ * 提取题库考点一级根分类（去重过滤空值）
+ */
+export function extractKpRoots(questions: Array<{ kp?: string }>): string[] {
+  return [...new Set(questions.map((q) => q.kp?.split("/")[0]).filter(Boolean))] as string[];
+}
+

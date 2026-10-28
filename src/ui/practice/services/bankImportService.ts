@@ -130,3 +130,89 @@ export function formatTrialReadbackNote(
     .replace("{m}", String(missingCount));
 }
 
+/**
+ * 判定拖拽文件的类型分流（Excel 表格 / 原生题库包 ZIP / 不支持）
+ */
+export function resolveDroppedFileType(fileName: string): "excel" | "zip" | "unsupported" {
+  if (/\.xlsx$|\.xls$|\.csv$/i.test(fileName)) return "excel";
+  if (/\.zip$/i.test(fileName)) return "zip";
+  return "unsupported";
+}
+
+export interface BankZipImportResult {
+  registered: string[];
+  message: string;
+}
+
+/**
+ * 执行原生题库包（.sy.zip）文件上传并解析注册
+ */
+export async function importBankFromSyZipFile(
+  app: any,
+  file: File,
+  t: (k: string) => string,
+): Promise<BankZipImportResult> {
+  const { registered } = await app.importBankSyZip(file, file.name);
+  const message = registered.length
+    ? t("share.importRegistered").replace("{names}", registered.join("、"))
+    : t("share.importDone");
+
+  return {
+    registered,
+    message,
+  };
+}
+
+export type ImportDrawerDropResult =
+  | { kind: "excel"; file: File }
+  | { kind: "text"; text: string }
+  | { kind: "unsupported" }
+  | { kind: "error"; messageKey: string };
+
+/**
+ * 处理导入抽屉文件拖拽（支持 Excel 文件流、文本文件直接读取为文本）
+ */
+export async function processImportDrawerDrop(file: File): Promise<ImportDrawerDropResult> {
+  if (/\.(xlsx|xls|csv)$/i.test(file.name)) {
+    return { kind: "excel", file };
+  }
+  if (/\.(txt|md|gift|aiken)$/i.test(file.name)) {
+    try {
+      const text = await file.text();
+      return { kind: "text", text };
+    } catch {
+      return { kind: "error", messageKey: "import.readFailed" };
+    }
+  }
+  return { kind: "unsupported" };
+}
+
+export type GlobalTabDropAction =
+  | { action: "need_bank"; errorKey: "guard.needBankFirst" }
+  | { action: "excel"; file: File }
+  | { action: "zip"; file: File }
+  | { action: "unsupported"; errorKey: "import.unsupportedDrop" };
+
+/**
+ * 判定工作区全局拖拽路由动作
+ */
+export function resolveGlobalTabDropAction(
+  fileName: string,
+  file: File,
+  hasBank: boolean,
+): GlobalTabDropAction {
+  const type = resolveDroppedFileType(fileName);
+  if (!hasBank && type !== "zip") {
+    return { action: "need_bank", errorKey: "guard.needBankFirst" };
+  }
+  if (type === "excel") {
+    return { action: "excel", file };
+  }
+  if (type === "zip") {
+    return { action: "zip", file };
+  }
+  return { action: "unsupported", errorKey: "import.unsupportedDrop" };
+}
+
+
+

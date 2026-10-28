@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   shouldIgnoreKeyEvent,
   resolveKeyboardAction,
-  type KeyboardDispatchContext,
 } from "@/ui/practice/services/practiceKeyboardService";
 import type { Question } from "@/core/types";
 

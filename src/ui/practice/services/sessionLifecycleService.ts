@@ -276,3 +276,95 @@ export async function executeSessionExit(
   return true;
 }
 
+export interface SessionKpBreakdownItem {
+  kp: string;
+  correct: number;
+  total: number;
+  wrong: number;
+}
+
+/**
+ * 聚合会话作答结果按考点维度的对错分布（按正确率升序排序，薄弱考点优先呈现）
+ */
+export function computeSessionKpBreakdown(
+  answered: Array<{ qid: string; grade: { verdict: string } }>,
+  questionMap: Map<string, Question>,
+): SessionKpBreakdownItem[] {
+  const map = new Map<string, SessionKpBreakdownItem>();
+
+  for (const a of answered) {
+    const q = questionMap.get(a.qid);
+    const key = q?.kp?.trim() ?? "";
+    if (!key) continue;
+    const e = map.get(key) ?? { kp: key, correct: 0, total: 0, wrong: 0 };
+    e.total++;
+    if (a.grade.verdict === "correct") e.correct++;
+    else if (a.grade.verdict === "wrong") e.wrong++;
+    map.set(key, e);
+  }
+
+  return [...map.values()].sort((a, b) => a.correct / a.total - b.correct / b.total);
+}
+
+export interface SessionResumeResult {
+  session: PracticeSession | null;
+  sessionDone: any;
+  missingCount: number;
+}
+
+/**
+ * 恢复中断的练习会话并推进游标
+ */
+export async function executeSessionResume(
+  app: any,
+  loadQuestionsFn: () => Promise<Question[]>,
+  activeBankId: string,
+): Promise<SessionResumeResult> {
+  const s = await app.resumeSession(async (qids: string[]) => {
+    const all = await loadQuestionsFn();
+    return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
+  }, activeBankId);
+
+  if (!s) {
+    return { session: null, sessionDone: null, missingCount: 0 };
+  }
+
+  s.advancePastAnswered();
+  const sessionDone = s.allAnswered() ? s.finish() : null;
+
+  return {
+    session: s,
+    sessionDone,
+    missingCount: app.lastResumeMissing?.length ?? 0,
+  };
+}
+
+export interface SessionFinishResult {
+  summary: any;
+  settleMode: string;
+}
+
+/**
+ * 执行练习会话结束结算（汇总计算、事件广播与会话落盘）
+ */
+export async function executeSessionFinish(
+  app: any,
+  session: PracticeSession,
+  questions: Question[],
+  win: Window = typeof window !== "undefined" ? window : ({} as Window),
+): Promise<SessionFinishResult> {
+  const summary = calculateSessionDoneSummary(session, questions);
+  broadcastSessionEnded(session, summary, win);
+
+  await app.saveSession();
+  await app.flush();
+
+  return {
+    summary,
+    settleMode: session.state.mode,
+  };
+}
+
+
+
+

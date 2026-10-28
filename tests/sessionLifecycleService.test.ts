@@ -11,6 +11,7 @@ import {
   getExposureHelpMode,
   toggleQuestionUserTag,
   executeSessionExit,
+  computeSessionKpBreakdown,
 } from "@/ui/practice/services/sessionLifecycleService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -239,6 +240,91 @@ describe("练习会话生命周期与结算广播服务 (sessionLifecycleService
     const confirmOk = vi.fn().mockResolvedValue(true);
     const okRes = await executeSessionExit(mockApp, mockSession, new Map(), false, confirmOk, dummyT);
     expect(okRes).toBe(true);
+    expect(mockApp.saveSession).toHaveBeenCalled();
+    expect(mockApp.flush).toHaveBeenCalled();
+  });
+
+  it("11. computeSessionKpBreakdown：考点维度对错聚合统计与排序", () => {
+    const qMap = new Map<string, Question>([
+      ["q-1", { id: "q-1", kp: "代数" } as any],
+      ["q-2", { id: "q-2", kp: "代数" } as any],
+      ["q-3", { id: "q-3", kp: "几何" } as any],
+      ["q-4", { id: "q-4" } as any], // 缺考点
+    ]);
+
+    const answered = [
+      { qid: "q-1", grade: { verdict: "correct" } },
+      { qid: "q-2", grade: { verdict: "wrong" } },
+      { qid: "q-3", grade: { verdict: "wrong" } },
+      { qid: "q-4", grade: { verdict: "correct" } },
+    ];
+
+    const breakdown = computeSessionKpBreakdown(answered, qMap);
+    // 缺考点的被过滤
+    expect(breakdown).toHaveLength(2);
+    // 代数正确率 1/2=0.5，几何正确率 0/1=0，几何排在前面（薄弱优先）
+    expect(breakdown[0].kp).toBe("几何");
+    expect(breakdown[0].total).toBe(1);
+    expect(breakdown[1].kp).toBe("代数");
+    expect(breakdown[1].total).toBe(2);
+  });
+
+  it("12. executeSessionResume：会话恢复、已答跳过与完成结算判定", async () => {
+    const { executeSessionResume } = await import("@/ui/practice/services/sessionLifecycleService");
+
+    // 1. 恢复成功但未答完
+    const mockSession = {
+      advancePastAnswered: vi.fn(),
+      allAnswered: vi.fn().mockReturnValue(false),
+      finish: vi.fn(),
+    };
+    const mockApp = {
+      resumeSession: vi.fn().mockImplementation(async (resolver) => {
+        await resolver(["q-1"]);
+        return mockSession;
+      }),
+      lastResumeMissing: ["q-lost"],
+    };
+    const loadQuestionsFn = vi.fn().mockResolvedValue([{ id: "q-1" }]);
+
+    const res = await executeSessionResume(mockApp, loadQuestionsFn, "bank-1");
+    expect(res.session).toBe(mockSession);
+    expect(mockSession.advancePastAnswered).toHaveBeenCalled();
+    expect(res.sessionDone).toBeNull();
+    expect(res.missingCount).toBe(1);
+
+    // 2. 无可恢复会话
+    const emptyApp = {
+      resumeSession: vi.fn().mockResolvedValue(null),
+    };
+    const emptyRes = await executeSessionResume(emptyApp, loadQuestionsFn, "bank-1");
+    expect(emptyRes.session).toBeNull();
+    expect(emptyRes.sessionDone).toBeNull();
+    expect(emptyRes.missingCount).toBe(0);
+  });
+
+  it("13. executeSessionFinish：会话结束总结计算与数据落盘", async () => {
+    const { executeSessionFinish } = await import("@/ui/practice/services/sessionLifecycleService");
+
+    const mockSession = {
+      finish: () => ({ total: 2, correct: 1, wrong: 1 }),
+      breakdown: () => ({ initialTotal: 2, initialCorrect: 1 }),
+      answered: [
+        { qid: "q-1", timeMs: 4000, grade: { verdict: "correct" } },
+      ],
+      state: { mode: "exam" },
+    } as any;
+    const mockApp = {
+      saveSession: vi.fn().mockResolvedValue(undefined),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockWin = {
+      dispatchEvent: vi.fn(),
+    } as any;
+
+    const res = await executeSessionFinish(mockApp, mockSession, [], mockWin);
+    expect(res.settleMode).toBe("exam");
+    expect(res.summary).toBeDefined();
     expect(mockApp.saveSession).toHaveBeenCalled();
     expect(mockApp.flush).toHaveBeenCalled();
   });

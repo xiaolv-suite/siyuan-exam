@@ -308,3 +308,77 @@ export function parseOcrTextToForm(text: string): {
     kp: parsed.kp,
   };
 }
+
+export interface BlankManualFormState {
+  type: QuestionType;
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  kp: string;
+  source: string;
+  group: string;
+  specOpen: boolean;
+  specUnit: string;
+  specAbsTol: string;
+  specRelPct: string;
+  specAltUnits: string;
+  rubricOpen: boolean;
+  rubricText: string;
+  rubricRevision: number;
+  studyLang: string;
+  studyPhonetic: string;
+  status: QuestionLifecycleStatus;
+}
+
+/**
+ * 构造录题表单初始空白状态（用于重置或提交成功后清空）
+ */
+export function createBlankManualFormState(): BlankManualFormState {
+  return {
+    type: "single",
+    stem: "",
+    options: ["", ""],
+    answer: "",
+    analysis: "",
+    kp: "",
+    source: "",
+    group: "",
+    specOpen: false,
+    specUnit: "",
+    specAbsTol: "",
+    specRelPct: "",
+    specAltUnits: "",
+    rubricOpen: false,
+    rubricText: "",
+    rubricRevision: 1,
+    studyLang: "zh-CN",
+    studyPhonetic: "",
+    status: "published",
+  };
+}
+
+/**
+ * 构造录题草稿持久化快照
+ */
+export function createManualDraftSnapshot(state: Partial<BlankManualFormState>): any {
+  return {
+    type: state.type ?? "single",
+    stem: state.stem ?? "",
+    options: [...(state.options ?? [])],
+    answer: state.answer ?? "",
+    analysis: state.analysis ?? "",
+    kp: state.kp ?? "",
+    source: state.source ?? "",
+    group: state.group ?? "",
+    savedAt: Date.now(),
+    specOpen: state.specOpen ?? false,
+    specUnit: state.specUnit ?? "",
+    specAbsTol: state.specAbsTol ?? "",
+    specRelPct: state.specRelPct ?? "",
+    specAltUnits: state.specAltUnits ?? "",
+    rubricOpen: state.rubricOpen ?? false,
+    rubricText: state.rubricText ?? "",
+  };
+}
+

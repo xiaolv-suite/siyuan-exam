@@ -94,3 +94,116 @@ export async function pushForgotReciteToActions(
   }));
   return app.addActions(items);
 }
+
+export interface ReciteSessionState {
+  queue: Question[];
+  cursor: number;
+  revealed: boolean;
+  done: boolean;
+  hint: number;
+  ratings: number[];
+  sessionId: string;
+}
+
+/**
+ * 初始化艾宾浩斯背题会话状态
+ */
+export function initReciteSession(
+  app: ExamApp,
+  questions: Question[],
+  groupSize = 15,
+): ReciteSessionState | null {
+  const queue = assembleReciteQueue(app, questions, groupSize);
+  if (!queue.length) return null;
+  return {
+    queue,
+    cursor: 0,
+    revealed: false,
+    done: false,
+    hint: 0,
+    ratings: [],
+    sessionId: `s-recite-${Date.now().toString(36)}`,
+  };
+}
+
+export interface ReciteAdvanceResult {
+  nextCursor: number;
+  revealed: boolean;
+  done: boolean;
+  hint: number;
+  ratings: number[];
+  nextQuestion: Question | null;
+}
+
+/**
+ * 推进背题进度（评价推进后游标+1或结束会话）
+ */
+export function advanceReciteState(
+  cursor: number,
+  queueLength: number,
+  ratings: number[],
+  rating: number,
+  queue: Question[],
+): ReciteAdvanceResult {
+  const newRatings = [...ratings, rating];
+  if (cursor < queueLength - 1) {
+    const nextCursor = cursor + 1;
+    return {
+      nextCursor,
+      revealed: false,
+      done: false,
+      hint: 0,
+      ratings: newRatings,
+      nextQuestion: queue[nextCursor] ?? null,
+    };
+  }
+  return {
+    nextCursor: cursor,
+    revealed: false,
+    done: true,
+    hint: 0,
+    ratings: newRatings,
+    nextQuestion: null,
+  };
+}
+
+/**
+ * 获取背题朗读文本与语音参数
+ */
+export function getReciteTtsPayload(
+  q: Question | undefined,
+  mode: "stem" | "answer",
+  slowRate = false,
+): { text: string; options: { lang?: string; rate: number } } | null {
+  if (!q) return null;
+  const text = mode === "stem" ? q.stem : String(q.answer ?? "");
+  if (!text || !text.trim()) return null;
+  return {
+    text,
+    options: {
+      lang: q.studyMeta?.lang,
+      rate: slowRate ? 0.85 : 1,
+    },
+  };
+}
+
+/**
+ * 提取遗忘项重组重练会话状态
+ */
+export function prepareRetryForgotState(
+  queue: Question[],
+  ratings: number[],
+): ReciteSessionState | null {
+  const forgot = extractForgotReciteQuestions(queue, ratings);
+  if (!forgot.length) return null;
+  return {
+    queue: forgot,
+    cursor: 0,
+    revealed: false,
+    done: false,
+    hint: 0,
+    ratings: [],
+    sessionId: `s-recite-${Date.now().toString(36)}`,
+  };
+}
+

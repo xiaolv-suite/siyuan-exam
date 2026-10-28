@@ -4,7 +4,6 @@ import {
   executeAnswerUpdates,
 } from "@/ui/practice/services/importExecutionService";
 import type { ImportReport } from "@/importer/pipeline";
-import type { Question } from "@/core/types";
 
 describe("importExecutionService", () => {
   const dummyT = (k: string) => `[${k}]`;

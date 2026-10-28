@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   executeBrowseQuestionFilter,
-  type BrowseFilterCriteriaOptions,
 } from "@/ui/practice/services/browseFilterService";
 import type { Question } from "@/core/types";
 

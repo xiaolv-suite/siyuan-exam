@@ -6,6 +6,7 @@ import {
   planErrataFromText,
   previewKpMergePlan,
   previewKpFillPlan,
+  executeClusterMergeToTarget,
 } from "@/ui/practice/services/bankGovernanceService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -146,5 +147,47 @@ describe("题库治理与考纲服务 (bankGovernanceService)", () => {
     expect(fillRes.plan?.changes.length).toBe(1);
     expect(fillRes.plan?.changes[0].qid).toBe("q-2");
     expect(fillRes.plan?.changes[0].to).toBe("通用基础");
+  });
+
+  it("5. executeClusterMergeToTarget：重复簇题目合并流程与作答流水迁移", async () => {
+    const t = (k: string) => `[${k}]`;
+    const targetQ: any = { id: "q-1", stem: "主保留题干", blockId: "b-1" };
+    const otherQ: any = { id: "q-2", stem: "重复题干", blockId: "b-2" };
+    const qMap = new Map<string, Question>([
+      ["q-1", targetQ],
+      ["q-2", otherQ],
+    ]);
+
+    const mockApp = {
+      mergeDuplicateQuestions: vi.fn().mockResolvedValue({ mergedEventsCount: 3 }),
+    } as unknown as ExamApp;
+
+    // 1. 用户取消合并
+    const confirmCancel = vi.fn().mockResolvedValue(false);
+    const cancelRes = await executeClusterMergeToTarget(
+      mockApp,
+      targetQ,
+      ["q-1", "q-2"],
+      qMap,
+      confirmCancel,
+      t,
+    );
+    expect(cancelRes.success).toBe(false);
+    expect(mockApp.mergeDuplicateQuestions).not.toHaveBeenCalled();
+
+    // 2. 用户确认合并
+    const confirmAgree = vi.fn().mockResolvedValue(true);
+    const agreeRes = await executeClusterMergeToTarget(
+      mockApp,
+      targetQ,
+      ["q-1", "q-2"],
+      qMap,
+      confirmAgree,
+      t,
+    );
+    expect(agreeRes.success).toBe(true);
+    expect(agreeRes.othersCount).toBe(1);
+    expect(agreeRes.mergedAttemptsCount).toBe(3);
+    expect(mockApp.mergeDuplicateQuestions).toHaveBeenCalledWith(targetQ, otherQ);
   });
 });

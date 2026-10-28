@@ -13,6 +13,8 @@ import {
   saveManualDraftAux,
   loadManualDraftAux,
   clearManualDraftAux,
+  createBlankManualFormState,
+  createManualDraftSnapshot,
 } from "@/ui/practice/services/manualStudioService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -201,5 +203,26 @@ B. y = x^2
 
     await clearManualDraftAux(mockApp);
     expect(storedVal).toBeNull();
+  });
+
+  it("10. createBlankManualFormState 与 createManualDraftSnapshot：录题表单初始态与草稿快照组装", () => {
+    const blank = createBlankManualFormState();
+    expect(blank.type).toBe("single");
+    expect(blank.stem).toBe("");
+    expect(blank.options).toEqual(["", ""]);
+    expect(blank.status).toBe("published");
+    expect(blank.rubricRevision).toBe(1);
+
+    const snap = createManualDraftSnapshot({
+      type: "fill",
+      stem: "待填空题干",
+      specOpen: true,
+      specUnit: "米",
+    });
+    expect(snap.type).toBe("fill");
+    expect(snap.stem).toBe("待填空题干");
+    expect(snap.specOpen).toBe(true);
+    expect(snap.specUnit).toBe("米");
+    expect(snap.savedAt).toBeTypeOf("number");
   });
 });

@@ -79,6 +79,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       planErrataFromText,
       previewKpMergePlan,
       previewKpFillPlan,
+      executeClusterMergeToTarget,
     } from "./services/bankGovernanceService";
     import {
       printWrongSheet as servicePrintWrongSheet,
@@ -99,7 +100,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       filterUnconfirmedQuestions,
       buildTrialImportReport,
       formatTrialReadbackNote,
+      importBankFromSyZipFile,
+      processImportDrawerDrop,
+      resolveGlobalTabDropAction,
     } from "./services/bankImportService";
+    import {
+      recordAiAuditTask,
+      loadAiAuditTaskLogs,
+      saveExplainConversationHistory,
+      type AiTaskLogEntry,
+    } from "./services/aiAuditLogService";
     import {
       executeAiExplain,
       executeAiHint,
@@ -152,6 +162,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       executeAiQuestionGeneration,
       executeAiIssueRepair,
       approveSingleQuestion,
+      approveBatchQuestions,
       fetchCurrentEditorDocContent,
       validateAndApplyCandidateEdit,
       verifyQueueBankMatch,
@@ -177,6 +188,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       getCleanStateOnTypeSwitch,
       saveManualDraftAux,
       clearManualDraftAux,
+      createBlankManualFormState,
+      createManualDraftSnapshot,
     } from "./services/manualStudioService";
     import {
       parseOcrFormResult,
@@ -197,16 +210,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       updateDailyPlanTrace,
     } from "./services/dailyPlanService";
     import {
-      assembleReciteQueue,
       executeReciteRating,
       extractForgotReciteQuestions,
       pushForgotReciteToCards,
       pushForgotReciteToActions,
+      initReciteSession,
+      advanceReciteState,
+      getReciteTtsPayload,
+      prepareRetryForgotState,
     } from "./services/reciteStudioService";
     import {
       exportWrongbookToDoc,
       syncBankQuestionsToDoc,
       copyTodayStudyReport,
+      extractKpRoots,
     } from "./services/bankDocSyncService";
     import {
       pickDrillQuestions,
@@ -224,8 +241,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     } from "./services/sectionTreeService";
     import {
       recordSessionAttempt,
-      calculateSessionDoneSummary,
-      broadcastSessionEnded,
       flushAbandonedSessionExposures,
       executeUndoLastAttempt,
       extractSessionWrongQuestions,
@@ -233,6 +248,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       getExposureHelpMode,
       toggleQuestionUserTag,
       executeSessionExit,
+      computeSessionKpBreakdown,
+      executeSessionResume,
+      executeSessionFinish,
     } from "./services/sessionLifecycleService";
     import {
       getMaterialIconName as matIconName,
@@ -889,29 +907,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function mergeClusterToTarget(targetQ: Question & { blockId: string }, clusterIds: string[]) {
       if (!app || mergeBusy) return;
-      const others = clusterIds
-        .filter((id) => id !== targetQ.id)
-        .map((id) => questionMap.get(id))
-        .filter((q): q is Question & { blockId: string; rootId: string } => !!q && !!q.blockId);
-      if (!others.length) return;
-
       const { confirmDialogSync } = await import("../../libs/dialog");
-      const confirmed = await confirmDialogSync({
-        title: t("health.mergeConfirmTitle"),
-        content: `${t("health.mergeConfirmBody")}\n\n保留题目：[${targetQ.id}] ${targetQ.stem.slice(0, 40)}\n合并并清理：${others.length} 道重复题。`,
-      });
-      if (!confirmed) return;
-
       mergeBusy = true;
       try {
-        let totalMergedAttempts = 0;
-        for (const other of others) {
-          const res = await app.mergeDuplicateQuestions(targetQ, other);
-          totalMergedAttempts += res.mergedEventsCount;
+        const res = await executeClusterMergeToTarget(app, targetQ, clusterIds, questionMap, confirmDialogSync, t);
+        if (res.success) {
+          await refreshQuestionsAfterWrite(questions.length - res.othersCount);
+          activeClusterIndex = -1;
+          showMessage(`${t("health.mergeSuccess")}（迁移 ${res.mergedAttemptsCount} 条作答记录）`, 3200, "info");
         }
-        await refreshQuestionsAfterWrite(questions.length - others.length);
-        activeClusterIndex = -1;
-        showMessage(`${t("health.mergeSuccess")}（迁移 ${totalMergedAttempts} 条作答记录）`, 3200, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
       } finally {
@@ -955,20 +959,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     const kpBreakdown = $derived.by(() => {
       void sessionRev;
       if (!sessionDone || !session) return [];
-      // 仅用于本次结算的临时聚合器，不作为组件响应式状态。
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const map = new Map<string, { kp: string; correct: number; total: number; wrong: number }>();
-      for (const a of session.answered) {
-        const q = questionMap.get(a.qid);
-        const key = q?.kp ?? "";
-        if (!key) continue;
-        const e = map.get(key) ?? { kp: key, correct: 0, total: 0, wrong: 0 };
-        e.total++;
-        if (a.grade.verdict === "correct") e.correct++;
-        if (a.grade.verdict === "wrong") e.wrong++;
-        map.set(key, e);
-      }
-      return [...map.values()].sort((a, b) => a.correct / a.total - b.correct / b.total);
+      return computeSessionKpBreakdown(session.answered, questionMap);
     });
     /** 54 第三刀：数值/多空作答框——curSpec 取当前题的结构化作答规则；多空草稿按 ";;" 切分为逐空输入 */
     const curSpec = $derived.by(() => {
@@ -2703,22 +2694,22 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         return;
       }
       const groupSize = Number(plugin.settingUtils?.get?.("reciteGroupSize") ?? 15) || 15;
-      reciteQueue = assembleReciteQueue(app, all, groupSize);
-      if (!reciteQueue.length) { errorMsg = t("state.emptyBank"); return; }
-      reciteCursor = 0; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
-      reciteSessionId = `s-recite-${Date.now().toString(36)}`;
+      const s = initReciteSession(app, all, groupSize);
+      if (!s) { errorMsg = t("state.emptyBank"); return; }
+      reciteQueue = s.queue; reciteCursor = s.cursor; reciteRevealed = s.revealed;
+      reciteDone = s.done; reciteHint = s.hint; reciteRatings = s.ratings; reciteSessionId = s.sessionId;
       view = "recite";
-      if (reciteAutoTts && reciteQueue[0]) {
-        ttsSpeak(reciteQueue[0].stem, { lang: reciteQueue[0].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
+      if (reciteAutoTts) {
+        const payload = getReciteTtsPayload(reciteQueue[0], "stem", ttsSlowRate);
+        if (payload) ttsSpeak(payload.text, payload.options);
       }
     }
 
     function revealRecite() {
       reciteRevealed = true;
-      if (reciteAutoTts && reciteQueue[reciteCursor]) {
-        const q = reciteQueue[reciteCursor];
-        const ansText = String(q.answer ?? "");
-        if (ansText) ttsSpeak(ansText, { lang: q.studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
+      if (reciteAutoTts) {
+        const payload = getReciteTtsPayload(reciteQueue[reciteCursor], "answer", ttsSlowRate);
+        if (payload) ttsSpeak(payload.text, payload.options);
       }
     }
 
@@ -2739,15 +2730,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         });
         if (!res) return;
         reciteOutcome = res.outcome;
-        reciteRatings.push(rating);
-        reciteHint = 0;
-        if (reciteCursor < reciteQueue.length - 1) {
-          reciteCursor++; reciteRevealed = false; speechEvalResult = null; speechRecording = false;
-          if (reciteAutoTts && reciteQueue[reciteCursor]) {
-            ttsSpeak(reciteQueue[reciteCursor].stem, { lang: reciteQueue[reciteCursor].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
-          }
-        } else {
-          reciteDone = true;
+        const adv = advanceReciteState(reciteCursor, reciteQueue.length, reciteRatings, rating, reciteQueue);
+        reciteRatings = adv.ratings;
+        reciteHint = adv.hint;
+        reciteCursor = adv.nextCursor;
+        reciteRevealed = adv.revealed;
+        reciteDone = adv.done;
+        speechEvalResult = null; speechRecording = false;
+        if (!adv.done && reciteAutoTts && adv.nextQuestion) {
+          const payload = getReciteTtsPayload(adv.nextQuestion, "stem", ttsSlowRate);
+          if (payload) ttsSpeak(payload.text, payload.options);
         }
       } catch (e) {
         reciteError = String(e instanceof Error ? e.message : e);
@@ -2766,7 +2758,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let expKp = $state("");
     let expReason = $state("");
     let expDays = $state(0);
-    const expKpRoots = $derived([...new Set(questions.map((q) => q.kp?.split("/")[0]).filter(Boolean))]);
+    const expKpRoots = $derived(extractKpRoots(questions));
 
     // ---------- 挑战码（友谊赛复制/导入：含答案，双方本地判分） ----------
     async function copyChallengeCode() {
@@ -2792,16 +2784,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     let syncDocsBusy = $state(false);
     function retryForgotRecite() {
-      const forgotQueue = extractForgotReciteQuestions(reciteQueue, reciteRatings);
-      if (!forgotQueue.length) return;
-      reciteQueue = forgotQueue;
-      reciteCursor = 0;
-      reciteRevealed = false;
-      reciteDone = false;
-      reciteHint = 0;
-      reciteRatings = [];
-      if (reciteAutoTts && reciteQueue[0]) {
-        ttsSpeak(reciteQueue[0].stem, reciteQueue[0].studyMeta?.lang ? { lang: reciteQueue[0].studyMeta.lang } : 1);
+      const s = prepareRetryForgotState(reciteQueue, reciteRatings);
+      if (!s) return;
+      reciteQueue = s.queue;
+      reciteCursor = s.cursor;
+      reciteRevealed = s.revealed;
+      reciteDone = s.done;
+      reciteHint = s.hint;
+      reciteRatings = s.ratings;
+      if (reciteAutoTts) {
+        const payload = getReciteTtsPayload(reciteQueue[0], "stem", ttsSlowRate);
+        if (payload) ttsSpeak(payload.text, payload.options);
       }
     }
 
@@ -2864,16 +2857,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       importDragOver = false;
       if (importBusy || !e.dataTransfer?.files?.length) return;
       const file = e.dataTransfer.files[0];
-      if (/\.(xlsx|xls|csv)$/i.test(file.name)) {
-        await onExcelFile(inputLike(file) as unknown as Event);
-      } else if (/\.(txt|md|gift|aiken)$/i.test(file.name)) {
-        try {
-          const text = await file.text();
-          importText = text;
-          showMessage(t("import.fileLoaded"), 2800, "info");
-        } catch {
-          showMessage(t("import.readFailed"), 3200, "error");
-        }
+      const res = await processImportDrawerDrop(file);
+      if (res.kind === "excel") {
+        await onExcelFile(inputLike(res.file) as unknown as Event);
+      } else if (res.kind === "text") {
+        importText = res.text;
+        showMessage(t("import.fileLoaded"), 2800, "info");
+      } else if (res.kind === "error") {
+        showMessage(t(res.messageKey), 3200, "error");
       } else {
         showMessage(t("import.dropUnsupported", t("import.unsupportedDrop")), 3200, "info");
       }
@@ -2900,15 +2891,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       e.preventDefault();
       const file = e.dataTransfer?.files?.[0];
       if (!file) return;
-      if (!hasBank && !/\.zip$/i.test(file.name)) { errorMsg = t("guard.needBankFirst"); return; }
-      if (/\.xlsx$|\.xls$|\.csv$/i.test(file.name)) {
+      const route = resolveGlobalTabDropAction(file.name, file, hasBank);
+      if (route.action === "need_bank" || route.action === "unsupported") {
+        errorMsg = t(route.errorKey);
+      } else if (route.action === "excel") {
         view = "import";
-        void onExcelFile(inputLike(file) as unknown as Event);
-      } else if (/\.zip$/i.test(file.name)) {
+        void onExcelFile(inputLike(route.file) as unknown as Event);
+      } else if (route.action === "zip") {
         errorMsg = ""; importError = ""; importResult = null;
-        void importBank(inputLike(file) as unknown as Event);
-      } else {
-        errorMsg = t("import.unsupportedDrop");
+        void importBank(inputLike(route.file) as unknown as Event);
       }
     }
 
@@ -2922,10 +2913,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const file = input.files?.[0];
       if (!file) return;
       try {
-        // 38-05：multipart 上传，浏览器/桌面同路径（不再依赖 Electron File.path）
-        const { registered } = await app.importBankSyZip(file, file.name);
+        const res = await importBankFromSyZipFile(app, file, t);
         banks = app.listBanks();
-        showMessage(registered.length ? t("share.importRegistered").replace("{names}", registered.join("、")) : t("share.importDone"), 4600, "info");
+        showMessage(res.message, 4600, "info");
         void loadQuestions();
       } catch (err) {
         showMessage(String(err instanceof Error ? err.message : err), 4200, "error");
@@ -2939,23 +2929,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let explainHistory = $state<Record<string, import("@/ai/client").AiMessage[]>>({});
     /** 多轮历史持久化（27 P3）：保存到插件存储，重载后可继续追问；仅保留最近 10 题 */
     async function persistExplainHistory() {
-      const entries = Object.entries(explainHistory).slice(-10);
-      await app.saveAux("ai/explain-history", Object.fromEntries(entries));
+      await saveExplainConversationHistory(app, explainHistory);
     }
 
     /** AI 发送记录（U23/41-01 lite）：本地留存实际 payload（信封+消息），供"我发送了什么"审计 */
     async function logAiTask(entry: { templateId: string; qid: string; status: string; tokens: number; messages: import("@/ai/client").AiMessage[] }) {
-      try {
-        const log = (await app.loadAux<(typeof entry & { at: number })[]>("ai/task-log")) ?? [];
-        log.push({ ...entry, at: Date.now() });
-        await app.saveAux("ai/task-log", log.slice(-20));
-      } catch { /* 审计日志失败不影响任务本身 */ }
+      await recordAiAuditTask(app, entry);
     }
 
-    interface AiTaskLogEntry { at: number; templateId: string; qid: string; status: string; tokens: number; messages: import("@/ai/client").AiMessage[] }
     let aiTaskLog = $state<AiTaskLogEntry[]>([]);
     async function loadAiTaskLog() {
-      try { aiTaskLog = (await app.loadAux<AiTaskLogEntry[]>("ai/task-log")) ?? []; } catch { aiTaskLog = []; }
+      aiTaskLog = await loadAiAuditTaskLogs(app);
     }
     let explainFollowUp = $state("");
     let explainSaveBusy = $state(false);
@@ -3199,19 +3183,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       resumeBusy = true;
       resumeError = "";
       try {
-        const s = await app.resumeSession(async (qids) => {
-          const all = await loadQuestions();
-          return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
-        }, activeBankId);
-        if (s) {
-          // 37-05 恢复推进：跳过已答位置，防重复作答双计事件；全答完直接进结算
-          s.advancePastAnswered();
-          if (s.allAnswered()) sessionDone = s.finish();
-          session = s; feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; view = "session";
+        const res = await executeSessionResume(app, loadQuestions, activeBankId);
+        if (res.session) {
+          session = res.session;
+          if (res.sessionDone) sessionDone = res.sessionDone;
+          feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; view = "session";
           sessionRev++;
           restoreQuestionControls();
           answerStart = Date.now(); // 首题计时基线（否则 qElapsedS 从 0 基线算出纪元秒）
-          if (app.lastResumeMissing.length) showMessage(t("resume.missing").replace("{n}", String(app.lastResumeMissing.length)), 4200, "info");
+          if (res.missingCount) showMessage(t("resume.missing").replace("{n}", String(res.missingCount)), 4200, "info");
         }
       } catch (e) {
         resumeError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
@@ -3466,13 +3446,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function finishSession() {
       clearReciteSubmitTimer();
-      const summary = calculateSessionDoneSummary(session, questions);
-      sessionDone = summary;
-      settleMode = session.state.mode;
-      broadcastSessionEnded(session, summary, window);
-
-      await app.saveSession();
-      await app.flush();
+      const res = await executeSessionFinish(app, session, questions, window);
+      sessionDone = res.summary;
+      settleMode = res.settleMode;
       rebuildPlan();
 
       // 小驴打卡联动（安全调用，未配置或未安装时优雅跳过）
@@ -3772,12 +3748,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let draftTimer: ReturnType<typeof setTimeout> | null = null;
     $effect(() => {
       // 读取全部草稿字段建立依赖；防抖 800ms 落盘（切视图/崩溃后可恢复）
-      const snap = {
-        type: mType, stem: mStem, options: [...mOptions], answer: mAnswer,
-        analysis: mAnalysis, kp: mKp, source: mSource, group: mGroup, savedAt: Date.now(),
+      const snap = createManualDraftSnapshot({
+        type: mType, stem: mStem, options: mOptions, answer: mAnswer,
+        analysis: mAnalysis, kp: mKp, source: mSource, group: mGroup,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
         rubricOpen: mRubricOpen, rubricText: mRubricText,
-      };
+      });
       if (draftTimer) clearTimeout(draftTimer);
       if (!snap.stem.trim() && !snap.answer.trim() && !snap.analysis.trim()) return; // 空草稿不写
       draftTimer = setTimeout(() => {
@@ -3835,11 +3811,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function blankManualDraft() {
-      mStem = ""; mOptions = ["", ""]; mAnswer = ""; mAnalysis = "";
-      mSpecOpen = false; mSpecUnit = ""; mSpecAbsTol = ""; mSpecRelPct = ""; mSpecAltUnits = "";
-      mRubricOpen = false; mRubricText = ""; mRubricRevision = 1;
-      mStudyLang = "zh-CN"; mStudyPhonetic = "";
-      mStatus = "published";
+      const b = createBlankManualFormState();
+      mStem = b.stem; mOptions = b.options; mAnswer = b.answer; mAnalysis = b.analysis;
+      mSpecOpen = b.specOpen; mSpecUnit = b.specUnit; mSpecAbsTol = b.specAbsTol; mSpecRelPct = b.specRelPct; mSpecAltUnits = b.specAltUnits;
+      mRubricOpen = b.rubricOpen; mRubricText = b.rubricText; mRubricRevision = b.rubricRevision;
+      mStudyLang = b.studyLang; mStudyPhonetic = b.studyPhonetic;
+      mStatus = b.status;
       draftRestored = false;
       clearManualValidation();
       void clearManualDraftAux(app);
@@ -4112,21 +4089,24 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     async function approveAllAi() {
-      if (aiMutationBusy || queueBankMismatch()) return;
+      if (aiMutationBusy || queueBankMismatch() || !activeBankId) return;
       aiBatchBusy = true;
       try {
-      const total = aiQueue.length;
-      for (const q of [...aiQueue]) await approveAi(q, true); // 批量时抑制逐题 toast（41-04：统一汇总）
-      void persistAiQueue();
-      // 41-04 批量部分失败汇总：仍在队列的 = 写入失败退回的候选
-      const failed = aiQueue.length;
-      if (total > 0) {
-        showMessage(
-          failed ? t("ai.batchPartial").replace("{f}", String(failed)).replace("{t}", String(total)) : t("ai.batchAllOk").replace("{n}", String(total)),
-          4600,
-          failed ? "error" : "info",
-        );
-      }
+        const targetBankId = aiQueueBankId || activeBankId;
+        const total = aiQueue.length;
+        const res = await approveBatchQuestions(app, targetBankId, aiQueue);
+        aiSaved += res.approved.length;
+        aiQueue = res.failed;
+        if (res.approved.length) await refreshQuestionsAfterWrite(questions.length + res.approved.length);
+        void persistAiQueue();
+        const failed = res.failed.length;
+        if (total > 0) {
+          showMessage(
+            failed ? t("ai.batchPartial").replace("{f}", String(failed)).replace("{t}", String(total)) : t("ai.batchAllOk").replace("{n}", String(total)),
+            4600,
+            failed ? "error" : "info",
+          );
+        }
       } finally { aiBatchBusy = false; }
     }
 
@@ -4895,6 +4875,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       try {
         const res = await fetchBlockBacklinks(app, blockId, t);
         if (res.links) {
+          // eslint-disable-next-line svelte/prefer-svelte-reactivity
           const next = new Map(backlinkCache);
           next.set(blockId, res.links);
           backlinkCache = next;

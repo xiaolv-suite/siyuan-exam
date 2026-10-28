@@ -213,3 +213,41 @@ export function previewKpFillPlan(
   return { plan: planEmptyKpFill(questions, kp).plan, note: "" };
 }
 
+/**
+ * 执行重复簇题目合并到目标主题目并迁移作答流水（43-07）
+ */
+export async function executeClusterMergeToTarget(
+  app: ExamApp,
+  targetQ: Question & { blockId: string },
+  clusterIds: string[],
+  questionMap: Map<string, Question>,
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
+  t: (k: string) => string,
+): Promise<{ success: boolean; othersCount: number; mergedAttemptsCount: number }> {
+  if (!app) return { success: false, othersCount: 0, mergedAttemptsCount: 0 };
+  const others = clusterIds
+    .filter((id) => id !== targetQ.id)
+    .map((id) => questionMap.get(id))
+    .filter((q): q is Question & { blockId: string; rootId: string } => !!q && !!q.blockId);
+  if (!others.length) return { success: false, othersCount: 0, mergedAttemptsCount: 0 };
+
+  const confirmed = await confirmFn({
+    title: t("health.mergeConfirmTitle"),
+    content: `${t("health.mergeConfirmBody")}\n\n保留题目：[${targetQ.id}] ${targetQ.stem.slice(0, 40)}\n合并并清理：${others.length} 道重复题。`,
+  });
+  if (!confirmed) return { success: false, othersCount: 0, mergedAttemptsCount: 0 };
+
+  let totalMergedAttempts = 0;
+  for (const other of others) {
+    const res = await app.mergeDuplicateQuestions(targetQ, other);
+    totalMergedAttempts += res.mergedEventsCount;
+  }
+
+  return {
+    success: true,
+    othersCount: others.length,
+    mergedAttemptsCount: totalMergedAttempts,
+  };
+}
+
+

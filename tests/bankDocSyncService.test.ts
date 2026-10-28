@@ -77,4 +77,17 @@ describe("题库文档双向同步与错题报告导出服务 (bankDocSyncServic
 
     vi.unstubAllGlobals();
   });
+
+  it("4. extractKpRoots：考点一级根节点去重提取", async () => {
+    const { extractKpRoots } = await import("@/ui/practice/services/bankDocSyncService");
+    const questions = [
+      { kp: "数学/代数/一次方程" },
+      { kp: "数学/几何/三角形" },
+      { kp: "物理/力学" },
+      { kp: "" },
+      {},
+    ];
+    const roots = extractKpRoots(questions);
+    expect(roots).toEqual(["数学", "物理"]);
+  });
 });
