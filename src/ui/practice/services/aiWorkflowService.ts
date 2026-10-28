@@ -189,7 +189,57 @@ export async function executeAiFollowUp(options: FollowUpRequestOptions) {
 
   const ch = await createAiChannel(client, aiConfig);
   const messages = continueExplainMessages(history, prompt.trim());
-  const env = await new AiTaskRunner(ch).run(reqCtx, messages);
+  const runner = new AiTaskRunner(ch);
+  const env = await runner.run(reqCtx, messages);
 
   return { env, ch, messages, reqCtx };
 }
+
+/**
+ * 将 AI 讲解内容持久化追加保存至思源试题原文文档块中
+ */
+export async function saveExplainToQuestionDoc(
+  app: any,
+  q: Question,
+  body: string,
+  showMessage: (msg: string, time?: number, type?: string) => void,
+  t: (k: string) => string,
+): Promise<{ success: boolean; error?: string }> {
+  if (!app || !q || !body.trim()) return { success: false };
+
+  try {
+    await app.appendQuestionNote(q.id, q.blockId, body.trim(), "ai-explain");
+    showMessage(t("explain.saved"), 2400, "info");
+    return { success: true };
+  } catch (e) {
+    const error = String(e instanceof Error ? e.message : e);
+    return { success: false, error };
+  }
+}
+
+/**
+ * 将当前题目单题转卡加入思源闪卡队列
+ */
+export async function convertSingleQuestionToCard(
+  app: any,
+  bankId: string,
+  bankName: string,
+  q: Question,
+  t: (k: string) => string,
+): Promise<{ resultText: string; isError: boolean }> {
+  if (!app || !q) return { resultText: "", isError: false };
+
+  try {
+    const n = await app.convertToCards(bankId, bankName, [q]);
+    return {
+      resultText: n ? t("memory.toCardDone") : t("memory.toCardMissing"),
+      isError: false,
+    };
+  } catch (e) {
+    return {
+      resultText: String(e instanceof Error ? e.message : e),
+      isError: true,
+    };
+  }
+}
+

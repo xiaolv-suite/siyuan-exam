@@ -106,6 +106,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       executeAiFollowUp,
       formatEnvStatusLine,
       getHintButtonLabel,
+      saveExplainToQuestionDoc,
+      convertSingleQuestionToCard,
     } from "./services/aiWorkflowService";
     import {
       changeQuestionLifecycle,
@@ -3153,12 +3155,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       explainSaveBusy = true;
       explainSaveError = ""; explainSaveErrorQid = qid;
       try {
-        if (app) await app.appendQuestionNote(q.id, q.blockId, body, "ai-explain");
-        explainSavedQid = qid;
-        explainSaveErrorQid = "";
-        showMessage(t("explain.saved"), 2400, "info");
-      } catch (e) {
-        explainSaveError = String(e instanceof Error ? e.message : e);
+        const res = await saveExplainToQuestionDoc(app, q, body, showMessage, t);
+        if (res.success) {
+          explainSavedQid = qid;
+          explainSaveErrorQid = "";
+        } else if (res.error) {
+          explainSaveError = res.error;
+        }
       } finally { explainSaveBusy = false; }
     }
 
@@ -3167,12 +3170,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function toCard() {
       if (!session?.current) return;
       cardResult = "…";
-      try {
-        const n = await app.convertToCards(activeBankId, bankName, [session.current as Question & { blockId?: string }]);
-        cardResult = n ? t("memory.toCardDone") : t("memory.toCardMissing");
-      } catch (e) {
-        cardResult = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
-      }
+      const res = await convertSingleQuestionToCard(app, activeBankId, bankName, session.current, t);
+      cardResult = res.isError && offline ? t("state.offlineHint") : res.resultText;
     }
 
     // ---------- 举一反三 ----------

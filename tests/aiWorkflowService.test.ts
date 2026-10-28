@@ -7,11 +7,24 @@ import {
   executeAiExplain,
   executeAiHint,
   executeAiFollowUp,
+  saveExplainToQuestionDoc,
+  convertSingleQuestionToCard,
 } from "@/ui/practice/services/aiWorkflowService";
 import type { KernelApiClient } from "@/kernel/client";
 import type { Question } from "@/core/types";
 
 describe("AI 互动与试题导学服务 (aiWorkflowService)", () => {
+  const fakeQuestion: Question = {
+    id: "q-101",
+    type: "single",
+    stem: "关于测试题目的题干内容",
+    options: ["A选项", "B选项", "C选项", "D选项"],
+    answer: "A",
+    status: "published",
+    origin: "manual",
+    hash: "h-101",
+  };
+
   it("1. formatEnvStatusLine：格式化信封状态与错误文本", () => {
     const t = (k: string) => `[${k}]`;
 
@@ -65,17 +78,6 @@ describe("AI 互动与试题导学服务 (aiWorkflowService)", () => {
       }),
     } as unknown as KernelApiClient;
 
-    const fakeQuestion: Question = {
-      id: "q-101",
-      type: "single",
-      stem: "关于测试题目的题干内容",
-      options: ["A选项", "B选项", "C选项", "D选项"],
-      answer: "A",
-      status: "published",
-      origin: "manual",
-      hash: "h-101",
-    };
-
     // 1. 试题讲解
     const explainRes = await executeAiExplain({
       q: fakeQuestion,
@@ -116,5 +118,44 @@ describe("AI 互动与试题导学服务 (aiWorkflowService)", () => {
       aiConfig: {},
     });
     expect(followRes.messages.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("5. saveExplainToQuestionDoc：保存讲解笔记到思源文档块", async () => {
+    const t = (k: string) => `[${k}]`;
+    const msgs: string[] = [];
+    const showMessage = (m: string) => msgs.push(m);
+
+    const mockApp = {
+      appendQuestionNote: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const res = await saveExplainToQuestionDoc(
+      mockApp,
+      fakeQuestion,
+      "这是完整的 AI 试题深度解析内容",
+      showMessage,
+      t,
+    );
+
+    expect(res.success).toBe(true);
+    expect(mockApp.appendQuestionNote).toHaveBeenCalledWith(
+      "q-101",
+      undefined,
+      "这是完整的 AI 试题深度解析内容",
+      "ai-explain",
+    );
+    expect(msgs).toContain("[explain.saved]");
+  });
+
+  it("6. convertSingleQuestionToCard：单题闪卡转卡调用", async () => {
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      convertToCards: vi.fn().mockResolvedValue(1),
+    };
+
+    const res = await convertSingleQuestionToCard(mockApp, "bank-1", "题库", fakeQuestion, t);
+    expect(res.isError).toBe(false);
+    expect(res.resultText).toBe("[memory.toCardDone]");
+    expect(mockApp.convertToCards).toHaveBeenCalledWith("bank-1", "题库", [fakeQuestion]);
   });
 });
