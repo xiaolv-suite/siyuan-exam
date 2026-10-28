@@ -15,7 +15,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import type { Question } from "../../core/types";
     import { parseText, parseExcelRows, autoMapExcel, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
     import { columnLabel, autoAssignment, assignmentFromMap, assignmentToMap, assignmentErrors, emptyAssignment, type MapAssignment } from "../../importer/mapping";
-    import { formatSecToTime, parseTimeToSec, locatorLabel, locatedUrl, needsRelocate, revisionStale } from "@/core/materialNotes";
+    import { formatSecToTime, parseTimeToSec, locatorLabel, locatedUrl, needsRelocate } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
     import { makeQuestion } from "../../core/blockTemplate";
     import { normalizeAnswer, questionHash } from "../../core/answer";
@@ -141,6 +141,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       copyChallengeCode as serviceCopyChallengeCode,
       parseAndStartChallenge,
     } from "./services/challengeService";
+    import {
+      computeQuestionMaterialSnapshot,
+      saveQuestionMaterialReference,
+      removeQuestionMaterialReference,
+      resolveQuestionMaterialOpenUrl,
+    } from "./services/questionMaterialLinkService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -1737,14 +1743,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let qrefActionError = $state<Record<string, string>>({});
 
     function qrefSnapshot(qid: string) {
-      const ref = app.questionMaterialRef(qid);
-      if (!ref) return null;
-      const m = app.listMaterials().find((x) => x.id === ref.materialId);
-      return {
-        title: m?.title ?? "?",
-        label: locatorLabel(ref.locator),
-        stale: revisionStale(ref.revision, m?.revision ?? ref.revision),
-      };
+      return computeQuestionMaterialSnapshot(app, qid);
     }
     function rebuildQrefView() {
       const next: Record<string, { title: string; label: string; stale: boolean } | null> = {};
@@ -1766,16 +1765,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       qrefError = "";
       qrefBusyFor = qid;
       try {
-        const previousRef = app.questionMaterialRef(qid);
-        const page = qrefPage.trim() ? Number(qrefPage) : undefined;
-        if (qrefPage.trim() && (!Number.isInteger(page) || page! < 1)) throw new Error(t("materials.badPage"));
-        const tSec = qrefTime.trim() ? parseTimeToSec(qrefTime) : undefined;
-        const locator = page == null && tSec == null ? null : { page, tSec };
-        const r = await app.linkQuestionMaterial(qid, qrefMatId, locator);
+        const res = await saveQuestionMaterialReference(app, qid, qrefMatId, qrefPage, qrefTime, showMessage, t);
         qrefFormFor = ""; refreshQref(qid);
-        if (previousRef?.materialId && previousRef.materialId !== qrefMatId) refreshMaterialQuestionCount(previousRef.materialId);
+        if (res.previousMaterialId && res.previousMaterialId !== qrefMatId) refreshMaterialQuestionCount(res.previousMaterialId);
         refreshMaterialQuestionCount(qrefMatId);
-        showMessage(r.replaced ? t("qref.relinked") : t("qref.linked"), 2000, "info");
       } catch (e) {
         qrefError = String(e instanceof Error ? e.message : e);
       } finally { qrefBusyFor = ""; }
@@ -1785,23 +1778,19 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       qrefBusyFor = qid;
       qrefActionError = { ...qrefActionError, [qid]: "" };
       try {
-        const ref = app.questionMaterialRef(qid);
-        const { confirmDialogSync } = await import("../../libs/dialog");
-        if (!(await confirmDialogSync({ title: t("qref.unlinkTitle"), content: t("qref.unlinkConfirm") }))) return;
-        await app.unlinkQuestionMaterial(qid);
-        refreshQref(qid);
-        if (ref?.materialId) refreshMaterialQuestionCount(ref.materialId);
-        showMessage(t("qref.unlinked"), 2200, "info");
+        const previousMatId = await removeQuestionMaterialReference(app, qid, showMessage, t);
+        if (previousMatId) {
+          refreshQref(qid);
+          refreshMaterialQuestionCount(previousMatId);
+        }
       } catch (e) {
         qrefActionError = { ...qrefActionError, [qid]: String(e instanceof Error ? e.message : e) };
       } finally { qrefBusyFor = ""; }
     }
     function openQref(qid: string) {
-      const ref = app.questionMaterialRef(qid);
-      const m = ref ? app.listMaterials().find((x) => x.id === ref.materialId) : null;
-      const url = locatedUrl(m ? app.resolveMaterialUrlOf(m, window.location.origin) : null, ref?.locator ?? null);
+      const { url, material } = resolveQuestionMaterialOpenUrl(app, qid, window.location.origin);
       if (!url) { showMessage(t("materials.cannotOpen"), 2400, "error"); return; }
-      if (m) { void gatedOpen(url, m); return; } // 73-02：link 类经隐私闸
+      if (material) { void gatedOpen(url, material); return; } // 73-02：link 类经隐私闸
       window.open(url, "_blank", "noopener");
     }
 
@@ -3853,27 +3842,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let printWrongBusy = $state(false);
 
     async function printTeacherLectureSheet() {
-      if (!activeBankId || !questions.length) return;
-      try {
-        const html = await app.buildTeacherLectureSheet(bankName || "题库试卷", activeBankId);
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${bankName || "题库"}-教师讲义教案卷.html`;
-          a.click();
-          URL.revokeObjectURL(url);
-          showMessage("已生成教师讲义教案卷文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`教师讲义生成失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      }
+      await serviceExportBankTeacherPaper(bankName, questions, showMessage);
     }
 
     let cheatSheetBusy = $state(false);
