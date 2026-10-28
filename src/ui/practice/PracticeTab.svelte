@@ -16,7 +16,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { columnLabel, autoAssignment, assignmentFromMap, assignmentToMap, assignmentErrors, emptyAssignment, type MapAssignment } from "../../importer/mapping";
     import { formatSecToTime, locatorLabel, needsRelocate } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
-    import { makeQuestion } from "../../core/blockTemplate";
     import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
     import {
       parseRubricFromText, scoreRubric,
@@ -163,11 +162,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       fetchFoundationMotherQuestion,
     } from "./services/variantDrillService";
     import {
-      buildNumericAnswerSpec,
-      buildAuthorRubricSpec,
-      locateManualErrorField,
       updateCorrectOptionIndex,
       parseOcrTextToForm,
+      processAndSaveManualQuestion,
     } from "./services/manualStudioService";
     import {
       editQuestionReflection,
@@ -297,7 +294,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { buildMaterialGroupContext, formatMaterialGroupHeader, type SiblingItem } from "@/core/materialContext";
     import { resolveFeedbackTimingMode, isGroupBatchBoundary, calculateGroupBatchSummary, type GroupBatchSummary, DEFAULT_GROUP_FEEDBACK_SIZE } from "@/core/feedbackTiming";
     import { analyzeQuestionUsage, type ItemAnalysisReport } from "@/core/itemAnalysis";
-    import { checkPublishGuard, getQuestionLifecycle, isAttemptVersionDrifted, LIFECYCLE_LABELS, questionDraftFromRevision, type QuestionLifecycleStatus } from "@/core/revision";
+    import { getQuestionLifecycle, isAttemptVersionDrifted, LIFECYCLE_LABELS, questionDraftFromRevision, type QuestionLifecycleStatus } from "@/core/revision";
     import { consumePendingPracticeView, isCurrentPracticeViewRequest } from "@/core/pluginTab";
     import { dailyTrend } from "@/core/weekly";
     import { playSuccessChime, playCelebrationChord } from "@/libs/sound";
@@ -3597,10 +3594,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       manualErrorField = "";
     }
 
-    function manualFieldForError(q: Question, message: string): string {
-      return locateManualErrorField(q, message, mOptions);
-    }
-
     function setCorrectOption(i: number) {
       mAnswer = updateCorrectOptionIndex(mAnswer, i, mType === "multiple");
     }
@@ -3845,47 +3838,31 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const signature = draftSignature();
       mSaving = true; mSaved = ""; errorMsg = ""; clearManualValidation();
       try {
-        let authorRubric: RubricSpec | undefined;
-        if (mType === "short" && mRubricOpen && mRubricText.trim()) {
-          const res = buildAuthorRubricSpec(mRubricText, mRubricRevision);
-          if (res.error) {
-            manualErrorMsg = res.error;
-            manualErrorField = "rubric";
-            await tick();
-            document.querySelector<HTMLElement>(`[data-manual-field="rubric"]`)?.focus();
-            return;
-          }
-          authorRubric = res.rubric;
-        }
-
-        const answerSpec = mType === "fill" && mSpecOpen
-          ? buildNumericAnswerSpec({ unit: mSpecUnit, absTol: mSpecAbsTol, relPct: mSpecRelPct, altUnits: mSpecAltUnits })
-          : undefined;
-
-        const q = makeQuestion({
-          type: mType, stem: mStem,
-          options: mType === "single" || mType === "multiple" ? mOptions.map((o) => o.trim()) : [],
-          answer: mAnswer, analysis: mAnalysis, kp: mKp, source: mSource,
-          group: mGroup.trim() || undefined,
+        const res = await processAndSaveManualQuestion(app, targetBankId, {
+          type: mType,
+          stem: mStem,
+          options: mOptions,
+          answer: mAnswer,
+          analysis: mAnalysis,
+          kp: mKp,
+          source: mSource,
+          group: mGroup,
           status: statusToSave,
-          ...(answerSpec ? { answerSpec } : {}),
-          ...(authorRubric ? { rubric: authorRubric } : {}),
-          ...(mStudyPhonetic.trim() || mStudyLang !== "zh-CN"
-            ? { studyMeta: { lang: mStudyLang || "zh-CN", phonetic: mStudyPhonetic.trim() || undefined } }
-            : {}),
-        });
-        if (statusToSave === "published") {
-          const guard = checkPublishGuard(q);
-          if (!guard.valid) {
-            manualErrorMsg = guard.errors.join("；");
-            manualErrorField = manualFieldForError(q, guard.errors[0]);
-            await tick();
-            document.querySelector<HTMLElement>(`[data-manual-field="${manualErrorField}"]`)?.focus();
-            return;
-          }
+          numericSpec: mType === "fill" && mSpecOpen ? { unit: mSpecUnit, absTol: mSpecAbsTol, relPct: mSpecRelPct, altUnits: mSpecAltUnits } : undefined,
+          rubricText: mType === "short" && mRubricOpen && mRubricText.trim() ? mRubricText : undefined,
+          studyLang: mStudyLang,
+          studyPhonetic: mStudyPhonetic,
+        }, mRubricRevision);
+
+        if (!res.success) {
+          manualErrorMsg = res.errorMsg || "";
+          manualErrorField = res.errorField || "";
+          await tick();
+          document.querySelector<HTMLElement>(`[data-manual-field="${manualErrorField}"]`)?.focus();
+          return;
         }
-        await app.writeManualQuestion(targetBankId, q);
-        mSaved = q.id;
+
+        mSaved = res.question!.id;
         if (signature === draftSignature()) {
           mStem = ""; mOptions = ["", ""]; mAnswer = ""; mAnalysis = "";
           mSpecOpen = false; mSpecUnit = ""; mSpecAbsTol = ""; mSpecRelPct = ""; mSpecAltUnits = "";

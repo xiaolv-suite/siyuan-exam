@@ -5,6 +5,7 @@ import {
   locateManualErrorField,
   updateCorrectOptionIndex,
   saveManualQuestion,
+  processAndSaveManualQuestion,
   parseOcrTextToForm,
 } from "@/ui/practice/services/manualStudioService";
 import type { ExamApp } from "@/app";
@@ -106,5 +107,45 @@ B. y = x^2
     expect(form.answer).toBe("A");
     expect(form.analysis).toContain("最高次数为 1");
     expect(form.kp).toBe("函数/一次函数");
+  });
+
+  it("6. processAndSaveManualQuestion：校验守卫、错误定位与成功持久化", async () => {
+    let savedQuestion: Question | null = null;
+    const mockApp = {
+      writeManualQuestion: vi.fn().mockImplementation((_b, q) => {
+        savedQuestion = q;
+        return Promise.resolve();
+      }),
+    } as unknown as ExamApp;
+
+    // 1. 成功保存 published 题目
+    const okRes = await processAndSaveManualQuestion(mockApp, "bank-1", {
+      type: "single",
+      stem: "若 x=1，则 2x 等于多少？",
+      options: ["A. 1", "B. 2"],
+      answer: "B",
+      analysis: "2*1=2",
+      kp: "代数",
+      source: "模拟试题",
+      status: "published",
+    });
+    expect(okRes.success).toBe(true);
+    expect(okRes.question?.id).toBeDefined();
+    expect(savedQuestion).not.toBeNull();
+
+    // 2. 拦截发布守卫错误（如发布态下选项缺失）
+    const failRes = await processAndSaveManualQuestion(mockApp, "bank-1", {
+      type: "single",
+      stem: "无效单选题",
+      options: ["仅一个选项"],
+      answer: "A",
+      analysis: "",
+      kp: "",
+      source: "",
+      status: "published",
+    });
+    expect(failRes.success).toBe(false);
+    expect(failRes.errorMsg).toBeDefined();
+    expect(failRes.errorField).toBeDefined();
   });
 });

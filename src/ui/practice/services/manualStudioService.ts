@@ -139,6 +139,68 @@ export async function saveManualQuestion(
   return q;
 }
 
+export interface ProcessManualQuestionResult {
+  success: boolean;
+  question?: Question;
+  errorMsg?: string;
+  errorField?: string;
+}
+
+/**
+ * 校验、发布守卫检查并保存手工录入的题目到题库
+ */
+export async function processAndSaveManualQuestion(
+  app: ExamApp,
+  bankId: string,
+  data: ManualQuestionFormData,
+  revision = 1,
+): Promise<ProcessManualQuestionResult> {
+  let rubric: RubricSpec | undefined;
+  if (data.type === "short" && data.rubricText?.trim()) {
+    const res = buildAuthorRubricSpec(data.rubricText, revision);
+    if (res.error) {
+      return { success: false, errorMsg: res.error, errorField: "rubric" };
+    }
+    rubric = res.rubric;
+  }
+
+  let answerSpec: NumericAnswerSpec | undefined;
+  if (data.type === "fill" && data.numericSpec) {
+    answerSpec = buildNumericAnswerSpec(data.numericSpec);
+  }
+
+  const q = makeQuestion({
+    type: data.type,
+    stem: data.stem,
+    options: data.type === "single" || data.type === "multiple" ? data.options.map((o) => o.trim()) : [],
+    answer: data.answer,
+    analysis: data.analysis,
+    kp: data.kp,
+    source: data.source,
+    group: data.group?.trim() || undefined,
+    status: data.status,
+    ...(answerSpec ? { answerSpec } : {}),
+    ...(rubric ? { rubric } : {}),
+    ...(data.studyPhonetic?.trim() || (data.studyLang && data.studyLang !== "zh-CN")
+      ? { studyMeta: { lang: data.studyLang || "zh-CN", phonetic: data.studyPhonetic?.trim() || undefined } }
+      : {}),
+  });
+
+  if (data.status === "published") {
+    const { checkPublishGuard } = await import("@/core/revision");
+    const guard = checkPublishGuard(q);
+    if (!guard.valid) {
+      const errorMsg = guard.errors.join("；");
+      const errorField = locateManualErrorField(q, guard.errors[0], data.options);
+      return { success: false, errorMsg, errorField };
+    }
+  }
+
+  await app.writeManualQuestion(bankId, q);
+  return { success: true, question: q };
+}
+
+
 /**
  * 将 OCR 文本解析并转化为录题表单字段
  */
