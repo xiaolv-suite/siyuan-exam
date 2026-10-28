@@ -4,7 +4,7 @@
     import { onMount, tick } from "svelte";
 import { showMessage } from "siyuan";
 import manifest from "../../../plugin.json";
-import { logCheckinEventSafely, getBridgeSafely } from "@/libs/ecosystem-bridge-kit";
+import { getBridgeSafely } from "@/libs/ecosystem-bridge-kit";
 import { renderMathInText } from "@/core/math";
 import { renderMathDiagramsInText } from "@/core/mathDiagram";
 import { auditForgettingRisks } from "@/core/forgettingRisk";
@@ -82,18 +82,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       previewKpFillPlan,
     } from "./services/bankGovernanceService";
     import {
-      exportCheatSheet as serviceExportCheatSheet,
-      exportItemQualityReport as serviceExportItemQualityReport,
-      exportGiftFormat as serviceExportGiftFormat,
-      exportAnkiFormat as serviceExportAnkiFormat,
-      exportMdDocFormat as serviceExportMdDocFormat,
-      exportSyllabusAudit as serviceExportSyllabusAudit,
       printWrongSheet as servicePrintWrongSheet,
+      executeBankExportAction,
     } from "./services/bankExportService";
     import {
       runCheckinSync,
       retryPendingCheckin,
       queryCheckinStreak,
+      postSessionCheckinSafely,
     } from "./services/checkinBridgeService";
     import {
       downloadImportTemplate,
@@ -3480,18 +3476,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
       // 小驴打卡联动（安全调用，未配置或未安装时优雅跳过）
       const checkinItemId = String(plugin.settingUtils?.get?.("checkinItemId") ?? "").trim();
-      const completedQuestions = sessionDone.total;
-      const accuracy = sessionDone.total > 0 ? Math.round((sessionDone.correct / sessionDone.total) * 100) : 0;
-      const today = new Date().toISOString().slice(0, 10);
-      if (checkinItemId && completedQuestions > 0) {
-        void logCheckinEventSafely({
-          itemId: checkinItemId,
-          value: completedQuestions,
-          unit: "题",
-          externalRef: `exam:${checkinItemId}:${today}`,
-          note: `完成备考刷题 ${completedQuestions} 题（正确率 ${accuracy}%）`,
-        }).catch(() => undefined);
-      }
+      void postSessionCheckinSafely(checkinItemId, sessionDone.total, sessionDone.correct);
 
       void runCheckinBridge().catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error")); // 48-03 lite：结算自动同步打卡（幂等 externalRef，失败进待重试）
     }
@@ -3705,31 +3690,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (cheatSheetBusy || !app) return;
       cheatSheetBusy = true;
       try {
-        await serviceExportCheatSheet(app, activeBankId, showMessage);
+        await executeBankExportAction("cheat_sheet", app, activeBankId, bankName, showMessage);
       } finally {
         cheatSheetBusy = false;
       }
     }
 
-    async function exportItemQualityReport() {
-      await serviceExportItemQualityReport(app, activeBankId, showMessage);
-    }
-
-    async function exportGiftFormat() {
-      await serviceExportGiftFormat(app, activeBankId, bankName, showMessage);
-    }
-
-    async function exportAnkiFormat() {
-      await serviceExportAnkiFormat(app, activeBankId, bankName, showMessage);
-    }
-
-    async function exportMdDocFormat() {
-      await serviceExportMdDocFormat(app, activeBankId, bankName, showMessage);
-    }
-
-    async function exportSyllabusAudit() {
-      await serviceExportSyllabusAudit(app, activeBankId, showMessage);
-    }
+    const exportItemQualityReport = () => executeBankExportAction("quality_report", app, activeBankId, bankName, showMessage);
+    const exportGiftFormat = () => executeBankExportAction("gift", app, activeBankId, bankName, showMessage);
+    const exportAnkiFormat = () => executeBankExportAction("anki", app, activeBankId, bankName, showMessage);
+    const exportMdDocFormat = () => executeBankExportAction("mddoc", app, activeBankId, bankName, showMessage);
+    const exportSyllabusAudit = () => executeBankExportAction("syllabus_audit", app, activeBankId, bankName, showMessage);
 
     async function drillVariantFor(q: Question) {
       if (!q) return;

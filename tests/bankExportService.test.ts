@@ -8,6 +8,7 @@ import {
   exportMdDocFormat,
   exportSyllabusAudit,
   printWrongSheet,
+  executeBankExportAction,
 } from "@/ui/practice/services/bankExportService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -139,5 +140,20 @@ describe("题库数据与试卷导出服务 (bankExportService)", () => {
     expect(mockWin.document.write).toHaveBeenCalled();
     expect(mockWin.document.close).toHaveBeenCalled();
     expect(mockWin.focus).toHaveBeenCalled();
+  });
+
+  it("5. executeBankExportAction：统一动作分发器正确调用各子导出", async () => {
+    const msgs: string[] = [];
+    const showMessage = (msg: string) => msgs.push(msg);
+    const mockApp = {
+      exportQuestionsToGift: vi.fn().mockResolvedValue("GIFT_DATA"),
+      exportQuestionsToAnkiTsv: vi.fn().mockResolvedValue("ANKI_DATA"),
+    } as unknown as ExamApp;
+
+    await executeBankExportAction("gift", mockApp, "b1", "题库", showMessage);
+    expect(msgs).toContain("已导出为 GIFT 格式 ✓");
+
+    await executeBankExportAction("anki", mockApp, "b1", "题库", showMessage);
+    expect(msgs).toContain("已导出为 Anki 卡包 TSV ✓");
   });
 });

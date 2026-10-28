@@ -185,3 +185,46 @@ export async function printWrongSheet(options: {
     showMessage(`打印生成失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
   }
 }
+
+export type BankExportActionType =
+  | "cheat_sheet"
+  | "quality_report"
+  | "gift"
+  | "anki"
+  | "mddoc"
+  | "syllabus_audit";
+
+/**
+ * 统一题库导出动作执行分发器
+ */
+export async function executeBankExportAction(
+  type: BankExportActionType,
+  app: ExamApp,
+  activeBankId: string,
+  bankName: string,
+  showMessage: MessageReporter,
+): Promise<void> {
+  if (!app || !activeBankId) return;
+
+  switch (type) {
+    case "cheat_sheet":
+      await exportCheatSheet(app, activeBankId, showMessage);
+      break;
+    case "quality_report":
+      await exportItemQualityReport(app, activeBankId, showMessage);
+      break;
+    case "gift":
+      await exportGiftFormat(app, activeBankId, bankName, showMessage);
+      break;
+    case "anki":
+      await exportAnkiFormat(app, activeBankId, bankName, showMessage);
+      break;
+    case "mddoc":
+      await exportMdDocFormat(app, activeBankId, bankName, showMessage);
+      break;
+    case "syllabus_audit":
+      await exportSyllabusAudit(app, activeBankId, showMessage);
+      break;
+  }
+}
+

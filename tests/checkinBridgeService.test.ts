@@ -103,4 +103,14 @@ describe("打卡桥服务 (checkinBridgeService)", () => {
     const s2 = await queryCheckinStreak({ checkinItemId: "item-1" }, mockWin);
     expect(s2).toBe(7);
   });
+
+  it("6. postSessionCheckinSafely：会话结算异步打卡上报", async () => {
+    const { postSessionCheckinSafely } = await import("@/ui/practice/services/checkinBridgeService");
+    // 空 itemId 时静默跳过
+    await expect(postSessionCheckinSafely("", 10, 8)).resolves.toBeUndefined();
+    // 零题目时静默跳过
+    await expect(postSessionCheckinSafely("item-1", 0, 0)).resolves.toBeUndefined();
+    // 正常传入时正常完成且无抛错
+    await expect(postSessionCheckinSafely("item-1", 5, 4)).resolves.toBeUndefined();
+  });
 });

@@ -93,3 +93,29 @@ export async function queryCheckinStreak(
   const s = await fetchStreak(probeCheckinApi(win), cfg.itemId);
   return s?.current ?? null;
 }
+
+/**
+ * 会话结算后安全异步上报打卡事件（48-03 lite）
+ */
+export async function postSessionCheckinSafely(
+  checkinItemId: string,
+  total: number,
+  correct: number,
+): Promise<void> {
+  if (!checkinItemId || total <= 0) return;
+  const { logCheckinEventSafely } = await import("@/libs/ecosystem-bridge-kit");
+  const accuracy = Math.round((correct / total) * 100);
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    await logCheckinEventSafely({
+      itemId: checkinItemId,
+      value: total,
+      unit: "题",
+      externalRef: `exam:${checkinItemId}:${today}`,
+      note: `完成备考刷题 ${total} 题（正确率 ${accuracy}%）`,
+    });
+  } catch {
+    // 优雅静默
+  }
+}
+
