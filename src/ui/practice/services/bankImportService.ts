@@ -86,3 +86,47 @@ export function makeFileEventProxy(file: File): { target: { files: File[]; value
     },
   };
 }
+
+/**
+ * 过滤出尚未试导确认的题目
+ */
+export function filterUnconfirmedQuestions(
+  questions: import("@/core/types").Question[],
+  confirmedIds: string[],
+): import("@/core/types").Question[] {
+  if (!confirmedIds.length) return questions;
+  const set = new Set(confirmedIds);
+  return questions.filter((q) => !set.has(q.id));
+}
+
+/**
+ * 构建试导入报告包（默认截取前 5 题）
+ */
+export function buildTrialImportReport(
+  questions: import("@/core/types").Question[],
+  originalBatch: string,
+  size = 5,
+): ImportReport {
+  return {
+    ok: questions.slice(0, size),
+    errors: [],
+    duplicates: 0,
+    batch: `${originalBatch}-t5`,
+  };
+}
+
+/**
+ * 格式化试导入读回确认提示文案
+ */
+export function formatTrialReadbackNote(
+  confirmedCount: number,
+  missingCount: number,
+  verified: boolean,
+  t: (k: string) => string,
+): string {
+  if (!verified) return t("import.readbackUnknown");
+  return t("import.trialDone")
+    .replace("{c}", String(confirmedCount))
+    .replace("{m}", String(missingCount));
+}
+

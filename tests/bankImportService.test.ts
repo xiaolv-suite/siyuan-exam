@@ -117,4 +117,29 @@ describe("题库导入与模板分享服务 (bankImportService)", () => {
     expect(proxy.target.files).toEqual([file]);
     expect(proxy.target.value).toBe("");
   });
+
+  it("6. filterUnconfirmedQuestions、buildTrialImportReport 与 formatTrialReadbackNote", async () => {
+    const { filterUnconfirmedQuestions, buildTrialImportReport, formatTrialReadbackNote } =
+      await import("@/ui/practice/services/bankImportService");
+    const t = (k: string) => `[${k}]`;
+
+    const qs = [
+      { id: "q-1", stem: "题1" },
+      { id: "q-2", stem: "题2" },
+      { id: "q-3", stem: "题3" },
+    ] as any;
+
+    const unconfirmed = filterUnconfirmedQuestions(qs, ["q-1"]);
+    expect(unconfirmed).toEqual([{ id: "q-2", stem: "题2" }, { id: "q-3", stem: "题3" }]);
+
+    const trial = buildTrialImportReport(unconfirmed, "batch-1", 1);
+    expect(trial.ok).toEqual([{ id: "q-2", stem: "题2" }]);
+    expect(trial.batch).toBe("batch-1-t5");
+
+    const verifiedNote = formatTrialReadbackNote(2, 0, true, t);
+    expect(verifiedNote).toBe("[import.trialDone]");
+
+    const unverifiedNote = formatTrialReadbackNote(0, 2, false, t);
+    expect(unverifiedNote).toBe("[import.readbackUnknown]");
+  });
 });

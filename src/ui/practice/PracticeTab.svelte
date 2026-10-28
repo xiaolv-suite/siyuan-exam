@@ -14,7 +14,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import type { Question } from "../../core/types";
     import { parseText, parseExcelRows, autoMapExcel, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
     import { columnLabel, autoAssignment, assignmentFromMap, assignmentToMap, assignmentErrors, emptyAssignment, type MapAssignment } from "../../importer/mapping";
-    import { formatSecToTime, parseTimeToSec, locatorLabel, locatedUrl, needsRelocate } from "@/core/materialNotes";
+    import { formatSecToTime, locatorLabel, needsRelocate } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
     import { makeQuestion } from "../../core/blockTemplate";
     import { normalizeAnswer, questionHash } from "../../core/answer";
@@ -28,7 +28,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { startTrail, recordEdit, trailValue, withLastEditReason, type AnswerTrail } from "../../core/answerTrail";
     import { helpFromExposure } from "../../core/exposure";
     import { randomSeedId } from "../../core/random";
-    import { newBatchId } from "../../core/ids";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
     import { validate } from "../../importer/pipeline";
     import {
@@ -46,7 +45,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { matchesBrowseFilter } from "../../core/browseFilter";
     import { queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
     import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
-    import { upsertView, viewBankMismatch } from "@/core/smartViews";
     import { remainingPlan } from "@/core/planner";
     import { kpAudit } from "@/core/kpGovernance";
     import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
@@ -107,6 +105,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       exportBankPackageZip,
       readClipboardImportText,
       makeFileEventProxy,
+      filterUnconfirmedQuestions,
+      buildTrialImportReport,
+      formatTrialReadbackNote,
     } from "./services/bankImportService";
     import {
       executeAiExplain,
@@ -213,6 +214,42 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       broadcastSessionEnded,
       flushAbandonedSessionExposures,
     } from "./services/sessionLifecycleService";
+    import {
+      getMaterialIconName as matIconName,
+      registerMaterialFile as serviceRegisterMaterialFile,
+      registerMaterialLinkInput as serviceRegisterMaterialLinkInput,
+      removeMaterialWithConfirm as serviceRemoveMaterialWithConfirm,
+      saveMaterialNoteItem as serviceSaveMaterialNoteItem,
+      removeMaterialNoteWithConfirm as serviceRemoveMaterialNoteWithConfirm,
+      resolveMaterialLocatedUrl as serviceResolveMaterialLocatedUrl,
+      bridgeMaterialToManual as serviceBridgeMaterialToManual,
+      bridgeMaterialToAi as serviceBridgeMaterialToAi,
+    } from "./services/materialManagementService";
+    import {
+      loadSmartViewsAux,
+      saveSmartViewsAux,
+      createNamedSmartView,
+      isViewBankMismatched,
+      loadExcelMappingsAux,
+      saveExcelMappingAux,
+      cloneQuestionToManualDraft,
+    } from "./services/smartViewManagementService";
+    import {
+      searchSiyuanDocCandidates,
+      extractFromSingleSiyuanDoc,
+      extractFromBatchSiyuanDocs,
+      parseClozeItems,
+      assembleClozeImportReport,
+      checkImportCheckpointAux,
+      discardImportCheckpointAux,
+    } from "./services/docImportClozeService";
+    import {
+      pickRandomSpotCheckQuestions,
+      renderSpotCheckHtml,
+      reparseFixedExcelRow,
+      reparseFixedTextRow,
+      applyReparsedResultToReport,
+    } from "./services/importRepairService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -235,7 +272,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
     import { getScratchpadText, updateScratchpadText, clearCurrentScratchpad, type ScratchpadStore, type ScratchpadMode } from "@/core/scratchpad";
-    import { parseClozeText, clozeItemsToQuestions, type ParsedClozeItem } from "@/core/cloze";
+    import type { ParsedClozeItem } from "@/core/cloze";
     import { buildMaterialGroupContext, formatMaterialGroupHeader, type SiblingItem } from "@/core/materialContext";
     import { resolveFeedbackTimingMode, isGroupBatchBoundary, calculateGroupBatchSummary, type GroupBatchSummary, DEFAULT_GROUP_FEEDBACK_SIZE } from "@/core/feedbackTiming";
     import { analyzeQuestionUsage, type ItemAnalysisReport } from "@/core/itemAnalysis";
@@ -4410,15 +4447,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
     }
 
-    function matIconName(kind: string): string {
-      if (kind === "pdf") return "table";
-      if (kind === "video") return "play";
-      if (kind === "audio") return "volume";
-      if (kind === "image") return "file";
-      if (kind === "doc") return "file";
-      return "folder";
-    }
-
     async function onMaterialFile(e: Event) {
       const input = e.target as HTMLInputElement;
       const file = input.files?.[0];
@@ -4426,9 +4454,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!file || materialsBusy) return;
       materialsBusy = true; materialsNote = "";
       try {
-        const { material, deduped } = await app.registerMaterialFromFile(file, { subject: matSubject, chapter: matChapter });
+        const res = await serviceRegisterMaterialFile(app, file, { subject: matSubject, chapter: matChapter }, t);
         loadMaterials();
-        materialsNote = deduped ? t("materials.deduped") : `✓ ${t("materials.registered")} ${material.title}`;
+        materialsNote = res.message;
       } catch (err) {
         materialsNote = String(err instanceof Error ? err.message : err);
       } finally { materialsBusy = false; }
@@ -4438,24 +4466,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!matLink.trim() || materialsBusy) return;
       materialsBusy = true; materialsNote = "";
       try {
-        const rawLink = matLink.trim();
-        let titleToUse = matLinkTitle.trim();
-        const blockMatch = rawLink.match(/siyuan:\/\/blocks\/([0-9a-zA-Z-]+)/) || (rawLink.length === 22 && rawLink.match(/^([0-9]{14}-[0-9a-z]{7})$/));
-        if (blockMatch && !titleToUse && app?.kernelOnline) {
-          try {
-            const blockId = blockMatch[1];
-            const rows = await app.deps.client.sql<Record<string, string>>(`SELECT content, hpath FROM blocks WHERE id='${blockId.replace(/'/g, "''")}' LIMIT 1`);
-            if (rows[0]) {
-              titleToUse = String(rows[0].content || "").trim().slice(0, 40) || (rows[0].hpath ? String(rows[0].hpath).split("/").pop() || "" : "");
-            }
-          } catch { /* 容错 */ }
-        }
-        const { material, deduped } = await app.registerMaterialFromLink(rawLink, {
-          title: titleToUse, subject: matSubject, chapter: matChapter,
-        });
+        const res = await serviceRegisterMaterialLinkInput(app, matLink, matLinkTitle, { subject: matSubject, chapter: matChapter }, t);
         loadMaterials();
         matLink = ""; matLinkTitle = "";
-        materialsNote = deduped ? t("materials.deduped") : `✓ ${t("materials.registered")} ${material.title}`;
+        materialsNote = res.message;
       } catch (err) {
         materialsNote = String(err instanceof Error ? err.message : err);
       } finally { materialsBusy = false; }
@@ -4500,46 +4514,38 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     function openMaterial(m: import("../../core/materials").MaterialDoc) {
       selectedMaterialId = m.id;
-      const url = app.resolveMaterialUrlOf(m, window.location.origin);
+      const url = serviceResolveMaterialLocatedUrl(app, m);
       if (!url) { materialsNote = t("materials.cannotOpen"); return; }
       void gatedOpen(url, m);
     }
 
     /** R54 原型高级交互：把资料/笔记一键带入手工出题 */
     function bridgeMaterialToManual(m: import("../../core/materials").MaterialDoc, noteText = "") {
-      mSource = [m.subject, m.chapter, m.title].filter(Boolean).join(" / ");
-      if (noteText) {
-        mStem = noteText;
-      }
+      const bridged = serviceBridgeMaterialToManual(m, noteText);
+      mSource = bridged.source;
+      if (bridged.stem) mStem = bridged.stem;
       view = "manual";
-      showMessage(`已将资料《${m.title}》带入手工录题！`, 2800, "info");
+      showMessage(bridged.toast, 2800, "info");
     }
 
     /** R54 原型高级交互：把资料/笔记一键带入 AI 材料 */
     function bridgeMaterialToAi(m: import("../../core/materials").MaterialDoc, noteText = "") {
-      const notes = app.listMaterialNotes(m.id).map((n) => n.text).join("\n\n");
-      const content = [
-        `【资料出处】${[m.subject, m.chapter, m.title].filter(Boolean).join(" / ")}`,
-        noteText ? `【重点笔记】\n${noteText}` : notes ? `【资料笔记】\n${notes}` : "",
-      ].filter(Boolean).join("\n\n");
-      aiSource = content;
+      const bridged = serviceBridgeMaterialToAi(app, m, noteText);
+      aiSource = bridged.content;
       view = "ai";
-      showMessage(`已将资料《${m.title}》带入 AI 出题工作台！`, 2800, "info");
+      showMessage(bridged.toast, 2800, "info");
     }
 
     async function removeMaterialEntry(m: import("../../core/materials").MaterialDoc) {
       const { confirmDialogSync } = await import("../../libs/dialog");
-      const ok = await confirmDialogSync({
-        title: t("materials.removeTitle"),
-        content: `${escapeHtml(m.title)}<br><span style="font-size:var(--lv-font-size-sm);color:var(--lv-text-3)">${t("materials.removeNote")}</span>`,
-      });
-      if (!ok) return;
       materialsBusy = true; materialsNote = "";
       try {
-        await app.removeMaterialById(m.id);
-        loadMaterials();
-        if (notesOpenId === m.id) { notesOpenId = ""; notesCache = []; }
-        materialsNote = t("materials.removed");
+        const res = await serviceRemoveMaterialWithConfirm(app, m, confirmDialogSync, t);
+        if (res.success) {
+          loadMaterials();
+          if (notesOpenId === m.id) { notesOpenId = ""; notesCache = []; }
+          materialsNote = res.message;
+        }
       } catch (err) {
         materialsNote = String(err instanceof Error ? err.message : err);
       } finally { materialsBusy = false; }
@@ -4606,24 +4612,22 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function saveNote(m: import("../../core/materials").MaterialDoc) {
       if (!noteText.trim() || materialsBusy) return;
       const signature = noteSignature();
-      const editingId = noteEditingId;
       noteFormError = ""; materialsBusy = true;
       try {
-        const page = notePage.trim() ? Number(notePage) : undefined;
-        if (notePage.trim() && (!Number.isInteger(page) || page! < 1)) throw new Error(t("materials.badPage"));
-        const tSec = noteTime.trim() ? parseTimeToSec(noteTime) : undefined;
-        const quote = noteQuote.trim() || undefined;
-        const locator: import("../../core/materialNotes").NoteLocator | null =
-          page == null && tSec == null && !quote ? null : { page, tSec, quote };
-        const tags = noteTags.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
-        if (editingId) await app.updateMaterialNote(editingId, { locator, text: noteText, tags });
-        else await app.addMaterialNote({ materialId: m.id, revision: m.revision, locator, text: noteText, tags });
+        const res = await serviceSaveMaterialNoteItem(app, m, {
+          editingId: noteEditingId,
+          text: noteText,
+          page: notePage,
+          time: noteTime,
+          quote: noteQuote,
+          tags: noteTags,
+        }, t);
         const savedNotes = refreshMaterialNoteCount(m.id);
         if (notesOpenId === m.id) {
           notesCache = savedNotes;
           if (signature === noteSignature()) { resetNoteForm(); noteDrafts.delete(m.id); }
         }
-        materialsNote = t("materials.noteSaved");
+        materialsNote = res.message;
       } catch (err) {
         noteFormError = String(err instanceof Error ? err.message : err);
       } finally { materialsBusy = false; }
@@ -4631,21 +4635,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function removeNoteEntry(m: import("../../core/materials").MaterialDoc, n: import("../../core/materialNotes").MaterialNote) {
       if (materialsBusy) return;
       const { confirmDialogSync } = await import("../../libs/dialog");
-      if (!(await confirmDialogSync({ title: t("materials.noteDelTitle"), content: escapeHtml(n.text.slice(0, 80)) }))) return;
-      if (materialsBusy) return;
       materialsBusy = true;
       try {
-        await app.deleteMaterialNote(n.id);
-        refreshNotes(m);
-        if (noteEditingId === n.id) noteEditingId = "";
+        const res = await serviceRemoveMaterialNoteWithConfirm(app, n, confirmDialogSync, t);
+        if (res.success) {
+          refreshNotes(m);
+          if (noteEditingId === n.id) noteEditingId = "";
+        }
       } catch (err) {
         materialsNote = String(err instanceof Error ? err.message : err);
       } finally { materialsBusy = false; }
     }
     /** 定位打开：PDF → #page、媒体 → #t（浏览器原生 seek）；无定位=普通打开 */
     function openMaterialAt(m: import("../../core/materials").MaterialDoc, n: import("../../core/materialNotes").MaterialNote) {
-      const base = app.resolveMaterialUrlOf(m, window.location.origin);
-      const url = locatedUrl(base, n.locator);
+      const url = serviceResolveMaterialLocatedUrl(app, m, n.locator);
       if (!url) { materialsNote = t("materials.cannotOpen"); return; }
       void gatedOpen(url, m);
     }
@@ -4657,10 +4660,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let mappingBusy = $state(false);
 
     async function loadMappings() {
-      try {
-        const v = await app.loadAux<{ name: string; map: import("../../importer/pipeline").ExcelColumnMap }[]>("import/mappings");
-        savedMappings = Array.isArray(v) ? v : [];
-      } catch { savedMappings = []; }
+      savedMappings = await loadExcelMappingsAux(app);
     }
 
     async function saveMapping() {
@@ -4668,16 +4668,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const { inputDialogSync } = await import("../../libs/dialog");
       const name = (await inputDialogSync({ title: t("import.mappingName"), placeholder: t("import.mappingNameHint") }))?.trim();
       if (!name) return;
-      const previous = savedMappings;
-      const next = [...previous.filter((m) => m.name !== name), { name, map: JSON.parse(JSON.stringify(lastMap)) }].slice(-20);
       mappingBusy = true;
-      savedMappings = next;
       try {
-        await app.saveAux("import/mappings", next);
-        showMessage(t("settingSaved"), 2400, "info");
-      } catch (e) {
-        savedMappings = previous;
-        showMessage(t("import.mappingSaveFailed").replace("{message}", String(e instanceof Error ? e.message : e)), 4200, "error");
+        const res = await saveExcelMappingAux(app, savedMappings, name, lastMap, t);
+        savedMappings = res.next;
+        showMessage(res.message, res.success ? 2400 : 4200, res.success ? "info" : "error");
       } finally { mappingBusy = false; }
     }
 
@@ -4794,24 +4789,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (smartViewLoadBusy) return;
       smartViewLoadBusy = true;
       try {
-        const v = await app.loadAux<import("@/core/smartViews").SmartView[]>("browse/smartViews");
-        smartViews = Array.isArray(v) ? v : [];
-        smartViewLoadFailed = false;
-        smartViewError = "";
-      } catch (e) {
-        smartViews = [];
-        smartViewLoadFailed = true;
-        smartViewError = t("view.loadFailed").replace("{message}", String(e instanceof Error ? e.message : e));
+        const res = await loadSmartViewsAux(app, t);
+        smartViews = res.views;
+        smartViewLoadFailed = res.failed;
+        smartViewError = res.error;
       } finally { smartViewLoadBusy = false; }
     }
     async function saveSmartViews(next: import("@/core/smartViews").SmartView[]) {
-      try {
-        await app.saveAux("browse/smartViews", next);
-        return true;
-      } catch (e) {
-        smartViewError = t("view.saveFailed").replace("{message}", String(e instanceof Error ? e.message : e));
-        return false;
-      }
+      const res = await saveSmartViewsAux(app, next, t);
+      smartViewError = res.error;
+      return res.success;
     }
     /** 当前过滤态 → 视图快照（43-05：过滤条件+题库身份+schema 版本一起存） */
     async function saveCurrentView() {
@@ -4821,15 +4808,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         const { inputDialogSync } = await import("../../libs/dialog");
         const name = (await inputDialogSync({ title: t("view.saveTitle"), placeholder: t("view.namePlaceholder") }))?.trim();
         if (!name) return;
-        const next = upsertView(smartViews, {
-          name,
-          v: 1,
-          bankId: activeBankId,
-          search: searchText,
-          favOnly,
-          section: sectionSel ? JSON.parse(JSON.stringify(sectionSel)) : null,
-          createdAt: Date.now(),
-        });
+        const next = createNamedSmartView(smartViews, activeBankId, name, searchText, favOnly, sectionSel);
         if (!(await saveSmartViews(next))) return;
         smartViews = next;
         selectedView = name;
@@ -4841,7 +4820,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       selectedView = name;
       const v = smartViews.find((x) => x.name === name);
       if (!v) return;
-      if (viewBankMismatch(v, activeBankId)) {
+      if (isViewBankMismatched(v, activeBankId)) {
         const { confirmDialogSync } = await import("../../libs/dialog");
         if (!(await confirmDialogSync({ title: t("view.pick"), content: t("view.bankMismatch").replace("{name}", escapeHtml(v.name)) }))) {
           selectedView = "";
@@ -4919,17 +4898,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function cloneToManualStudio(q: Question) {
-      mType = q.type === "material" ? "single" : q.type;
-      mStem = q.stem ? `${q.stem}（变式）` : "";
-      mOptions = q.options?.length ? [...q.options] : ["", ""];
-      mAnswer = q.answer || "";
-      mAnalysis = q.analysis ? `【母题解析】：${q.analysis}` : "";
-      mKp = q.kp || "";
-      mSource = q.blockId ? `(( ${q.blockId} '${q.stem.slice(0, 20)}...' ))` : (q.source || "");
-      mStatus = "draft";
+      const draft = cloneQuestionToManualDraft(q);
+      mType = draft.type;
+      mStem = draft.stem;
+      mOptions = draft.options;
+      mAnswer = draft.answer;
+      mAnalysis = draft.analysis;
+      mKp = draft.kp;
+      mSource = draft.source;
+      mStatus = draft.status;
       closePeekDrawer();
       view = "manual";
-      showMessage("已将该题载入手工录题台，并自动建立母题溯源反链！", 3500, "info");
+      showMessage(draft.toast, 3500, "info");
     }
     let peekDrawerEl = $state<HTMLDivElement | null>(null);
     let peekReturnFocus: HTMLElement | null = null;
@@ -5188,8 +5168,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function commitImport() {
       if (!importReport || importBusy) return;
       if (importPreviewBankId !== activeBankId) { importError = t("import.bankChanged"); return; }
-      // 先导 5 行（2.3）：已试导确认的题从完整入库中排除，不重导
-      const remaining = trialConfirmed.length ? importReport.ok.filter((q) => !trialConfirmed.includes(q.id)) : importReport.ok;
+      const remaining = filterUnconfirmedQuestions(importReport.ok, trialConfirmed);
       if (!remaining.length && !importReport.updates?.length) {
         importResult = { written: trialConfirmed.length, confirmed: trialConfirmed.length, missing: 0, verified: true };
         retryPool = []; importReport = null; importText = ""; trialConfirmed = []; trialNote = "";
@@ -5201,7 +5180,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     // 先导 5 行试导入（TODO 2.3）：试导前 5 题并读回确认；完整入库时排除已确认行
     let trialConfirmed = $state<string[]>([]);
     let trialNote = $state("");
-    const remainingImportQuestions = $derived(importReport?.ok.filter((q) => !trialConfirmed.includes(q.id)) ?? []);
+    const remainingImportQuestions = $derived(importReport ? filterUnconfirmedQuestions(importReport.ok, trialConfirmed) : []);
 
     async function trialImport5() {
       if (!importReport || importBusy || !remainingImportQuestions.length) return;
@@ -5209,12 +5188,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const targetBankId = activeBankId;
       trialBusy = true; importError = ""; trialNote = "";
       try {
-        const trial: ImportReport = { ok: remainingImportQuestions.slice(0, 5), errors: [], duplicates: 0, batch: importReport.batch + "-t5" };
+        const trial = buildTrialImportReport(remainingImportQuestions, importReport.batch, 5);
         const r = await app.commitImport(targetBankId, trial);
         trialConfirmed = [...new Set([...trialConfirmed, ...r.readback.confirmed])];
-        trialNote = r.readback.verified
-          ? t("import.trialDone").replace("{c}", String(r.readback.confirmed.length)).replace("{m}", String(r.readback.missing.length))
-          : t("import.readbackUnknown");
+        trialNote = formatTrialReadbackNote(r.readback.confirmed.length, r.readback.missing.length, r.readback.verified, t);
         await refreshQuestionsAfterWrite(0);
       } catch (e) {
         importError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
@@ -5286,7 +5263,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       siyuanDocBusy = true;
       selectedDocIds = {};
       try {
-        siyuanDocCandidates = await app.searchSiyuanDocs(q);
+        siyuanDocCandidates = await searchSiyuanDocCandidates(app, q);
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
       } finally {
@@ -5299,20 +5276,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!ids.length || !app) return;
       siyuanDocBusy = true;
       try {
-        const report = await app.importFromSiyuanDocBatch(ids);
-        if (!report.ok.length) {
-          const rawReason = report.errors[0]?.reason || "";
-          const reason = /缺少 ANSWER 行|Aiken/i.test(rawReason)
-            ? "所选文档内未检索到题目内容（支持选择题、表格题表、==高亮挖空== 或 **术语** 定义）"
-            : (rawReason || "所选文档内未检索到题目格式内容");
-          showMessage(reason, 4000, "info");
-          return;
+        const res = await extractFromBatchSiyuanDocs(app, ids);
+        if (res.report) {
+          importReport = res.report;
+          importText = "";
+          importSubTab = "standard";
+          selectedDocIds = {};
+          showMessage(res.message, 4200, "info");
+        } else {
+          showMessage(res.message, 4000, res.isError ? "error" : "info");
         }
-        importReport = report;
-        importText = "";
-        importSubTab = "standard";
-        selectedDocIds = {};
-        showMessage(`从已选 ${ids.length} 篇文档中成功批量提取 ${report.ok.length} 道试题，请在下方预览并确认入库！`, 4200, "info");
       } catch (e) {
         showMessage(`批量提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
@@ -5334,19 +5307,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!app) return;
       siyuanDocBusy = true;
       try {
-        const report = await app.importFromSiyuanDoc(docId);
-        if (!report.ok.length) {
-          const rawReason = report.errors[0]?.reason || "";
-          const reason = /缺少 ANSWER 行|Aiken/i.test(rawReason)
-            ? `《${title}》内未检索到题目内容（支持选择题、表格题表、==高亮挖空== 或 **术语** 定义）`
-            : (rawReason || "文档内未检索到题目格式内容");
-          showMessage(reason, 4000, "info");
-          return;
+        const res = await extractFromSingleSiyuanDoc(app, docId, title);
+        if (res.report) {
+          importReport = res.report;
+          importText = "";
+          importSubTab = "standard";
+          showMessage(res.message, 4000, "info");
+        } else {
+          showMessage(res.message, 4000, res.isError ? "error" : "info");
         }
-        importReport = report;
-        importText = "";
-        importSubTab = "standard";
-        showMessage(`从《${title}》成功提取 ${report.ok.length} 道试题，请在下方预览并确认入库！`, 4000, "info");
       } catch (e) {
         showMessage(`提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
@@ -5359,15 +5328,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       siyuanDocBusy = true;
       try {
         const docIds = siyuanDocCandidates.map((d) => d.id);
-        const report = await app.importFromSiyuanDocBatch(docIds);
-        if (!report.ok.length) {
-          showMessage(report.errors[0]?.reason || "所选文档内未检索到题目格式内容", 3500, "info");
-          return;
+        const res = await extractFromBatchSiyuanDocs(app, docIds);
+        if (res.report) {
+          importReport = res.report;
+          importText = "";
+          importSubTab = "standard";
+          showMessage(res.message, 4200, "info");
+        } else {
+          showMessage(res.message, 3500, "info");
         }
-        importReport = report;
-        importText = "";
-        importSubTab = "standard";
-        showMessage(`从 ${docIds.length} 篇文档中成功批量提取 ${report.ok.length} 道试题，请在下方预览并确认入库！`, 4200, "info");
       } catch (e) {
         showMessage(`批量提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
@@ -5386,9 +5355,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     function doParseCloze() {
       if (!clozeInputText.trim()) return;
-      clozeParsedItems = parseClozeText(clozeInputText, { modes: clozeModes });
-      if (!clozeParsedItems.length) {
-        showMessage(t("cloze.empty"), 3000, "info");
+      const res = parseClozeItems(clozeInputText, clozeModes, t);
+      clozeParsedItems = res.items;
+      if (res.emptyNotice) {
+        showMessage(res.emptyNotice, 3000, "info");
       }
     }
 
@@ -5396,18 +5366,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!clozeParsedItems.length || !activeBankId || clozeImporting || committing) return;
       clozeImporting = true;
       try {
-        const qs = clozeItemsToQuestions(clozeParsedItems, { kp: "笔记挖空", source: "正文划重点" });
-        const report: import("../../importer/pipeline").ImportReport = {
-          ok: qs,
-          errors: [],
-          duplicates: 0,
-          batch: newBatchId() + "-cloze",
-        };
+        const { report, count } = assembleClozeImportReport(clozeParsedItems);
         const ok = await runCommit(report);
         if (ok) {
           clozeInputText = "";
           clozeParsedItems = [];
-          showMessage(t("cloze.importSuccess").replace("{n}", String(qs.length)), 3500, "info");
+          showMessage(t("cloze.importSuccess").replace("{n}", String(count)), 3500, "info");
         }
       } finally {
         clozeImporting = false;
@@ -5415,12 +5379,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     async function checkImportCheckpoint() {
-      if (!app || !activeBankId) { importCheckpoint = null; return; }
-      try {
-        importCheckpoint = await app.loadImportCheckpoint(activeBankId);
-      } catch {
-        importCheckpoint = null;
-      }
+      importCheckpoint = await checkImportCheckpointAux(app, activeBankId);
     }
 
     async function resumeCheckpoint() {
@@ -5439,7 +5398,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function discardCheckpoint() {
       if (!importCheckpoint || importBusy) return;
-      await app?.clearImportCheckpoint().catch(() => undefined);
+      await discardImportCheckpointAux(app);
       importCheckpoint = null;
       showMessage(t("import.checkpointDiscarded"), 2400, "info");
     }
@@ -5524,15 +5483,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!importReport?.ok.length || spotBusy) return;
       spotBusy = true;
       try {
-        const pool = [...importReport.ok];
-        const picks: Question[] = [];
-        while (pool.length && picks.length < 3) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+        const picks = pickRandomSpotCheckQuestions(importReport.ok, 3);
         spotIds = picks.map((q) => q.id);
-        const html: Record<string, string> = {};
-        for (const q of picks) {
-          try { html[q.id] = await app.renderStem(q); } catch { html[q.id] = ""; }
-        }
-        spotHtml = html;
+        spotHtml = await renderSpotCheckHtml(app, picks);
       } finally { spotBusy = false; }
     }
 
@@ -5576,6 +5529,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!importReport || fixRow == null || importBusy) return;
       const sheet = sheetRowsCache.get(activeSheet);
       const abs = errRow - 1;
+      const existingHashes = dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash));
       let single: ImportReport;
       if (fixCells.length && sheet?.[abs]) {
         // Excel：修好的行写回缓存并单行重验（Alt+Enter 净化沿用 parseExcelRows 内部规则）
@@ -5584,34 +5538,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         const nextSheetCache = new Map(sheetRowsCache);
         nextSheetCache.set(activeSheet, sheet);
         sheetRowsCache = nextSheetCache;
-        single = parseExcelRows([sheet[abs]], lastMap!, {
-          existingHashes: dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash)),
-          duplicateStrategy: dupeStrategy,
-        });
+        single = reparseFixedExcelRow(sheet[abs], lastMap!, existingHashes, dupeStrategy);
       } else {
         // 文本路径：整块重验（GIFT/TSV 特征同样走 parseText 分流）
-        single = await parseText(fixText, {
-          existingHashes: dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash)),
-          duplicateStrategy: dupeStrategy,
-        });
+        single = await reparseFixedTextRow(fixText, existingHashes, dupeStrategy);
       }
-      if (single.ok.length === 1) {
-        importReport = {
-          ...importReport,
-          ok: [...importReport.ok, single.ok[0]],
-          errors: importReport.errors.filter((e) => e.row !== errRow),
-        };
+      const applied = applyReparsedResultToReport(importReport, errRow, single, t);
+      importReport = applied.nextReport;
+      if (applied.fixed) {
         cancelRowFix();
         showMessage(t("import.rowFixed"), 2600, "info");
-      } else if (single.errors.length === 1) {
-        fixNote = single.errors[0].reason;
-        importReport = {
-          ...importReport,
-          errors: importReport.errors.map((e) => (e.row === errRow ? { ...e, reason: single.errors[0].reason } : e)),
-        };
-      } else {
-        // 修复后与题库/批内重复 → 不进 ok，也不算错误行，如实提示
-        fixNote = t("import.rowDuped");
+      } else if (applied.fixNote) {
+        fixNote = applied.fixNote;
       }
     }
 
