@@ -8,6 +8,7 @@ import {
   loadExcelMappingsAux,
   saveExcelMappingAux,
   cloneQuestionToManualDraft,
+  getNeighborQuestionId,
 } from "@/ui/practice/services/smartViewManagementService";
 import type { SmartView } from "@/core/smartViews";
 import type { Question } from "@/core/types";
@@ -168,6 +169,21 @@ describe("smartViewManagementService", () => {
 
       const draft = cloneQuestionToManualDraft(q);
       expect(draft.type).toBe("single");
+    });
+  });
+
+  describe("getNeighborQuestionId", () => {
+    const list: Question[] = [
+      { id: "q-1" } as any,
+      { id: "q-2" } as any,
+      { id: "q-3" } as any,
+    ];
+
+    it("gets previous and next question ids safely", () => {
+      expect(getNeighborQuestionId(list, 1, -1)).toBe("q-1");
+      expect(getNeighborQuestionId(list, 1, 1)).toBe("q-3");
+      expect(getNeighborQuestionId(list, 0, -1)).toBeNull();
+      expect(getNeighborQuestionId(list, 2, 1)).toBeNull();
     });
   });
 });

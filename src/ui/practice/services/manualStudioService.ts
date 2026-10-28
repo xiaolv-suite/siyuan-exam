@@ -4,6 +4,9 @@ import type { NumericAnswerSpec } from "@/core/structuredAnswer";
 import { parseRubricFromText, validateRubric, type RubricSpec } from "@/core/rubric";
 import { makeQuestion } from "@/core/blockTemplate";
 import { parseOcrQuestionText } from "@/core/ocr";
+import { normalizeLatexFormula } from "@/core/math";
+
+export const MANUAL_DRAFT_KEY = "draft/manual";
 
 export interface NumericSpecParams {
   unit?: string;
@@ -199,6 +202,88 @@ export async function processAndSaveManualQuestion(
   await app.writeManualQuestion(bankId, q);
   return { success: true, question: q };
 }
+
+/** 批量归一化题干、选项与解析中的 LaTeX 公式语法 */
+export function normalizeDraftFormulas(
+  stem: string,
+  options: string[],
+  analysis: string,
+): { stem: string; options: string[]; analysis: string } {
+  return {
+    stem: stem ? normalizeLatexFormula(stem) : "",
+    options: options.map((o) => (o ? normalizeLatexFormula(o) : "")),
+    analysis: analysis ? normalizeLatexFormula(analysis) : "",
+  };
+}
+
+/** 切换题型时是否需要确认弹窗（有已填内容时防误触丢失） */
+export function shouldConfirmTypeSwitch(
+  stem: string,
+  options: string[],
+  answer: string,
+  analysis: string,
+): boolean {
+  return Boolean(
+    stem.trim() ||
+      answer.trim() ||
+      analysis.trim() ||
+      options.some((opt) => opt.trim()),
+  );
+}
+
+/** 切换题型时重置对应选项与填空规格 */
+export function getCleanStateOnTypeSwitch(nextType: QuestionType): {
+  answer: string;
+  options: string[];
+  specOpen: boolean;
+  specUnit: string;
+  specAbsTol: string;
+  specRelPct: string;
+  specAltUnits: string;
+} {
+  const isChoice = nextType === "single" || nextType === "multiple";
+
+  return {
+    answer: "",
+    options: isChoice ? ["", ""] : [],
+    specOpen: false,
+    specUnit: "",
+    specAbsTol: "",
+    specRelPct: "",
+    specAltUnits: "",
+  };
+}
+
+/** 保存录题草稿 */
+export async function saveManualDraftAux(app: ExamApp, snap: any): Promise<void> {
+  if (!app) return;
+  try {
+    await app.saveAux(MANUAL_DRAFT_KEY, snap);
+  } catch {
+    // 容错静默
+  }
+}
+
+/** 加载录题草稿 */
+export async function loadManualDraftAux(app: ExamApp): Promise<any | null> {
+  if (!app) return null;
+  try {
+    return await app.loadAux(MANUAL_DRAFT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** 清理录题草稿 */
+export async function clearManualDraftAux(app: ExamApp): Promise<void> {
+  if (!app) return;
+  try {
+    await app.saveAux(MANUAL_DRAFT_KEY, null);
+  } catch {
+    // 容错静默
+  }
+}
+
 
 
 /**

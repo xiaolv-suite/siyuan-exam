@@ -84,3 +84,15 @@ export function handleDrawerTabKey(drawer: HTMLElement, e: KeyboardEvent): void 
     (e.shiftKey ? last : first).focus();
   }
 }
+
+/**
+ * 判定点击事件是否发生在目标元素外部（常用于下拉菜单/弹出气泡点击外部关闭）
+ */
+export function isClickOutsideElement(
+  container: HTMLElement | null,
+  target: Node | null,
+): boolean {
+  if (!container || !target) return false;
+  return !container.contains(target);
+}
+

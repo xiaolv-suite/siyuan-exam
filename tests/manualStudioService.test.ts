@@ -7,6 +7,12 @@ import {
   saveManualQuestion,
   processAndSaveManualQuestion,
   parseOcrTextToForm,
+  normalizeDraftFormulas,
+  shouldConfirmTypeSwitch,
+  getCleanStateOnTypeSwitch,
+  saveManualDraftAux,
+  loadManualDraftAux,
+  clearManualDraftAux,
 } from "@/ui/practice/services/manualStudioService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -147,5 +153,53 @@ B. y = x^2
     expect(failRes.success).toBe(false);
     expect(failRes.errorMsg).toBeDefined();
     expect(failRes.errorField).toBeDefined();
+  });
+
+  it("7. normalizeDraftFormulas：清洗题干与选项 LaTeX 公式", () => {
+    const raw = normalizeDraftFormulas(
+      "已知 $a = 1$，求 $b$",
+      ["$x \\le 2$", "常数项"],
+      "$\\alpha + \\beta$",
+    );
+    expect(raw.stem).toBe("已知 $a = 1$，求 $b$");
+    expect(raw.options[0]).toContain("le");
+    expect(raw.analysis).toContain("alpha");
+  });
+
+  it("8. shouldConfirmTypeSwitch 与 getCleanStateOnTypeSwitch：题型切换守卫与状态初始化", () => {
+    // 空内容不弹窗
+    expect(shouldConfirmTypeSwitch("", ["", ""], "", "")).toBe(false);
+    // 有题干或选项时提示确认
+    expect(shouldConfirmTypeSwitch("题干已填", ["", ""], "", "")).toBe(true);
+    expect(shouldConfirmTypeSwitch("", ["选项A已填"], "", "")).toBe(true);
+
+    // 切到单选/多选初始化两项空选项
+    const singleState = getCleanStateOnTypeSwitch("single");
+    expect(singleState.options).toEqual(["", ""]);
+    expect(singleState.specOpen).toBe(false);
+
+    // 切到判断题选项为空
+    const judgeState = getCleanStateOnTypeSwitch("judge");
+    expect(judgeState.options).toEqual([]);
+  });
+
+  it("9. saveManualDraftAux, loadManualDraftAux 与 clearManualDraftAux：草稿持久化操作", async () => {
+    let storedVal: any = null;
+    const mockApp = {
+      saveAux: vi.fn().mockImplementation((_k, val) => {
+        storedVal = val;
+        return Promise.resolve();
+      }),
+      loadAux: vi.fn().mockImplementation(() => Promise.resolve(storedVal)),
+    } as unknown as ExamApp;
+
+    await saveManualDraftAux(mockApp, { stem: "草稿题干" });
+    expect(storedVal).toEqual({ stem: "草稿题干" });
+
+    const loaded = await loadManualDraftAux(mockApp);
+    expect(loaded).toEqual({ stem: "草稿题干" });
+
+    await clearManualDraftAux(mockApp);
+    expect(storedVal).toBeNull();
   });
 });

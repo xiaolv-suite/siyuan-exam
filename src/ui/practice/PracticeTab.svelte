@@ -165,6 +165,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       updateCorrectOptionIndex,
       parseOcrTextToForm,
       processAndSaveManualQuestion,
+      normalizeDraftFormulas,
+      shouldConfirmTypeSwitch,
+      getCleanStateOnTypeSwitch,
+      saveManualDraftAux,
+      clearManualDraftAux,
     } from "./services/manualStudioService";
     import {
       editQuestionReflection,
@@ -230,6 +235,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       loadExcelMappingsAux,
       saveExcelMappingAux,
       cloneQuestionToManualDraft,
+      getNeighborQuestionId,
     } from "./services/smartViewManagementService";
     import {
       searchSiyuanDocCandidates,
@@ -267,7 +273,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import {
       markAncestorSiblingsInert,
       handleDrawerTabKey,
+      isClickOutsideElement,
     } from "../shared/drawerAccessibility";
+    import {
+      getQuestionScratchpadContent,
+      copyScratchpadText,
+    } from "./services/scratchpadWorkflowService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -289,7 +300,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
-    import { getScratchpadText, updateScratchpadText, clearCurrentScratchpad, type ScratchpadStore, type ScratchpadMode } from "@/core/scratchpad";
+    import { updateScratchpadText, clearCurrentScratchpad, type ScratchpadStore, type ScratchpadMode } from "@/core/scratchpad";
     import type { ParsedClozeItem } from "@/core/cloze";
     import { buildMaterialGroupContext, formatMaterialGroupHeader, type SiblingItem } from "@/core/materialContext";
     import { resolveFeedbackTimingMode, isGroupBatchBoundary, calculateGroupBatchSummary, type GroupBatchSummary, DEFAULT_GROUP_FEEDBACK_SIZE } from "@/core/feedbackTiming";
@@ -3777,35 +3788,33 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
     }
 
-    async function normalizeManualFormulas() {
-      const { normalizeLatexFormula } = await import("../../core/math");
-      if (mStem) mStem = normalizeLatexFormula(mStem);
-      if (mOptions.length) mOptions = mOptions.map((o) => normalizeLatexFormula(o));
-      if (mAnalysis) mAnalysis = normalizeLatexFormula(mAnalysis);
+    function normalizeManualFormulas() {
+      const res = normalizeDraftFormulas(mStem, mOptions, mAnalysis);
+      mStem = res.stem;
+      mOptions = res.options;
+      mAnalysis = res.analysis;
       showMessage(t("manual.formulaDone"), 2500, "info");
     }
 
     async function switchManualType(nextType: typeof mType) {
       if (nextType === mType) return;
-      if (mStem.trim() || mAnswer.trim() || mAnalysis.trim() || mOptions.some((option) => option.trim())) {
+      if (shouldConfirmTypeSwitch(mStem, mOptions, mAnswer, mAnalysis)) {
         const { confirmDialogSync } = await import("../../libs/dialog");
         if (!(await confirmDialogSync({ title: t("manual.switchTypeTitle"), content: t("manual.switchTypeConfirm") }))) return;
       }
       mType = nextType;
-      mAnswer = "";
-      if (nextType === "single" || nextType === "multiple") mOptions = ["", ""];
-      if (nextType !== "fill") {
-        mSpecOpen = false;
-        mSpecUnit = "";
-        mSpecAbsTol = "";
-        mSpecRelPct = "";
-        mSpecAltUnits = "";
-      }
+      const clean = getCleanStateOnTypeSwitch(nextType);
+      mAnswer = clean.answer;
+      mOptions = clean.options;
+      mSpecOpen = clean.specOpen;
+      mSpecUnit = clean.specUnit;
+      mSpecAbsTol = clean.specAbsTol;
+      mSpecRelPct = clean.specRelPct;
+      mSpecAltUnits = clean.specAltUnits;
       clearManualValidation();
     }
 
     // ---------- 录题草稿保护（45-06 lite）：输入防抖自动保存 → 重载/切视图恢复 → 提交成功清理 ----------
-    const MANUAL_DRAFT_KEY = "draft/manual";
     let draftRestored = $state(false);
     let draftTimer: ReturnType<typeof setTimeout> | null = null;
     $effect(() => {
@@ -3819,7 +3828,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (draftTimer) clearTimeout(draftTimer);
       if (!snap.stem.trim() && !snap.answer.trim() && !snap.analysis.trim()) return; // 空草稿不写
       draftTimer = setTimeout(() => {
-        void app.saveAux(MANUAL_DRAFT_KEY, snap).catch(() => undefined);
+        void saveManualDraftAux(app, snap);
       }, 800);
       return () => { if (draftTimer) clearTimeout(draftTimer); };
     });
@@ -3864,13 +3873,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
         mSaved = res.question!.id;
         if (signature === draftSignature()) {
-          mStem = ""; mOptions = ["", ""]; mAnswer = ""; mAnalysis = "";
-          mSpecOpen = false; mSpecUnit = ""; mSpecAbsTol = ""; mSpecRelPct = ""; mSpecAltUnits = "";
-          mRubricOpen = false; mRubricText = ""; mRubricRevision = 1;
-          mStudyLang = "zh-CN"; mStudyPhonetic = "";
-          mStatus = "published";
-          draftRestored = false;
-          void app.saveAux(MANUAL_DRAFT_KEY, null).catch(() => undefined); // 45-06：提交成功清理草稿
+          blankManualDraft();
         }
         await refreshQuestionsAfterWrite(questions.length + 1);
       } catch (e) {
@@ -3881,11 +3884,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     function blankManualDraft() {
       mStem = ""; mOptions = ["", ""]; mAnswer = ""; mAnalysis = "";
       mSpecOpen = false; mSpecUnit = ""; mSpecAbsTol = ""; mSpecRelPct = ""; mSpecAltUnits = "";
+      mRubricOpen = false; mRubricText = ""; mRubricRevision = 1;
       mStudyLang = "zh-CN"; mStudyPhonetic = "";
       mStatus = "published";
       draftRestored = false;
       clearManualValidation();
-      void app.saveAux(MANUAL_DRAFT_KEY, null).catch(() => undefined);
+      void clearManualDraftAux(app);
     }
 
     // ---------- AI 出题（v0.4：双通道 + 待审核队列，Inbox 式永不直接入库） ----------
@@ -4671,7 +4675,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       moreFocusTimer = null;
     }
     function onWindowClick(e: MouseEvent) {
-      if (moreOpen && moreRoot && !moreRoot.contains(e.target as Node)) moreOpen = false;
+      if (moreOpen && isClickOutsideElement(moreRoot, e.target as Node)) moreOpen = false;
     }
     function toggleMore() {
       clearMoreFocusTimer();
@@ -4838,13 +4842,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     const hasNextPeek = $derived(currentPeekIndex >= 0 && currentPeekIndex < shownQuestions.length - 1);
 
     function prevPeekQuestion() {
-      if (!hasPrevPeek) return;
-      expandedId = shownQuestions[currentPeekIndex - 1].id;
+      const prevId = getNeighborQuestionId(shownQuestions, currentPeekIndex, -1);
+      if (prevId) expandedId = prevId;
     }
 
     function nextPeekQuestion() {
-      if (!hasNextPeek) return;
-      expandedId = shownQuestions[currentPeekIndex + 1].id;
+      const nextId = getNeighborQuestionId(shownQuestions, currentPeekIndex, 1);
+      if (nextId) expandedId = nextId;
     }
 
     async function drillSingleQuestion(q: Question) {
@@ -5142,10 +5146,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let scratchpadMode = $state<ScratchpadMode>("per_question");
 
     const currentScratchpadText = $derived.by(() => {
-      const q = session?.current;
-      if (!q) return "";
       void sessionRev;
-      return getScratchpadText(scratchpadStore, q.id, scratchpadMode, scratchpadShared);
+      return getQuestionScratchpadContent(scratchpadStore, session?.current?.id, scratchpadMode, scratchpadShared);
     });
 
     function onScratchpadInput(text: string) {
@@ -5165,12 +5167,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     async function copyScratchpad() {
-      const text = currentScratchpadText.trim();
-      if (!text) return;
-      try {
-        await navigator.clipboard.writeText(text);
-        showMessage(t("scratchpad.copied"), 2000, "info");
-      } catch { /* 静默 */ }
+      await copyScratchpadText(currentScratchpadText, showMessage, t);
     }
 
     // ---------- 52-09 正文划重点挖空出题（Cloze Generator） ----------

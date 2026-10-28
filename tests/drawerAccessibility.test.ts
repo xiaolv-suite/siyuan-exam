@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   markAncestorSiblingsInert,
   handleDrawerTabKey,
+  isClickOutsideElement,
 } from "@/ui/shared/drawerAccessibility";
 
 describe("drawerAccessibility", () => {
@@ -79,6 +80,22 @@ describe("drawerAccessibility", () => {
       const tabEvent = new KeyboardEvent("keydown", { key: "Tab", shiftKey: false });
       handleDrawerTabKey(drawer, tabEvent);
       expect(focusSpy1).toHaveBeenCalled();
+    });
+  });
+
+  describe("isClickOutsideElement", () => {
+    it("detects clicks inside and outside", () => {
+      const container = document.createElement("div");
+      const inner = document.createElement("button");
+      const outside = document.createElement("span");
+
+      container.appendChild(inner);
+      document.body.appendChild(container);
+      document.body.appendChild(outside);
+
+      expect(isClickOutsideElement(container, inner)).toBe(false);
+      expect(isClickOutsideElement(container, outside)).toBe(true);
+      expect(isClickOutsideElement(null, outside)).toBe(false);
     });
   });
 });

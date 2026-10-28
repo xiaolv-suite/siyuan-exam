@@ -158,3 +158,17 @@ export function cloneQuestionToManualDraft(q: Question): {
     toast: "已将该题载入手工录题台，并自动建立母题溯源反链！",
   };
 }
+
+/** 获取相邻题目的 ID（向前或向后） */
+export function getNeighborQuestionId(
+  questions: Question[],
+  currentIndex: number,
+  delta: -1 | 1,
+): string | null {
+  const nextIdx = currentIndex + delta;
+  if (nextIdx >= 0 && nextIdx < questions.length) {
+    return questions[nextIdx].id;
+  }
+  return null;
+}
+
