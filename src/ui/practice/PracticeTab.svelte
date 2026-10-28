@@ -9,7 +9,6 @@ import { renderMathInText } from "@/core/math";
 import { renderMathDiagramsInText } from "@/core/mathDiagram";
 import { auditForgettingRisks } from "@/core/forgettingRisk";
 import { sanitizeRichHtml } from "@/libs/sanitize";
-    import { planToday, parseExamProfiles, nearestUpcoming, nextPlanTrace, remainingPlan } from "@/core/planner";
 import { ttsSpeak, ttsSupported } from "@/core/tts";
     import type { ExamApp, BankInfo } from "../../app";
     import type { Question } from "../../core/types";
@@ -51,7 +50,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { queueKindOf, queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
     import { RatingGuard, ratingAttemptKey, type RatingOutcomeView } from "../../core/ratingOutcome";
     import { upsertView, viewBankMismatch } from "@/core/smartViews";
-    import { avgMsByType, estimatePlanMinutes } from "@/core/timeBudget";
+    import { remainingPlan } from "@/core/planner";
     import { kpAudit } from "@/core/kpGovernance";
     import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
     import { localDateKeyOf } from "@/core/checkinBridge";
@@ -173,6 +172,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       updateCorrectOptionIndex,
       parseOcrTextToForm,
     } from "./services/manualStudioService";
+    import {
+      editQuestionReflection,
+      loadSessionReflections,
+      queryAttemptMeta,
+      executeMisdiagnosisTask,
+      mergeAdoptedMisdiagnosis,
+    } from "./services/reflectionMisdiagnosisService";
+    import {
+      formatPlanReason,
+      buildDailyPlanSchedule,
+      updateDailyPlanTrace,
+    } from "./services/dailyPlanService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -2567,10 +2578,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     /** 今日卡片说明：按 planner 结构化口径本地化渲染（plan.reason 为 zh 审计口径，不直接上界面） */
     function planReasonText(p: NonNullable<typeof plan>): string {
-      const d = p.reasonData ?? { days: 0, cram: 0, stubborn: 0, due: 0 };
-      if (p.reasonKind === "sprint") return t("plan.sprint").replace("{d}", String(d.days)).replace("{n}", String(d.cram)).replace("{m}", String(d.stubborn));
-      if (p.reasonKind === "due") return t("plan.due").replace("{n}", String(d.due));
-      return t("plan.reflow").replace("{m}", String(d.stubborn));
+      return formatPlanReason(p, t);
     }
     /** 53-01 lite：今日计划分钟预算（与 plan 同步重算） */
     let planTime = $state<import("@/core/timeBudget").TimeEstimate | null>(null);
@@ -2581,50 +2589,22 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     function rebuildPlan(dueFirst?: Question[]) {
       if (!app) { plan = null; return; }
-      const examDate = String(plugin.settingUtils?.get?.("examDate") ?? "").trim();
-      const sprintDays = Number(plugin.settingUtils?.get?.("sprintDays") ?? 14);
-      const goal = Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10);
-      // 53-02 lite：多考期（设置 textarea「名称:日期」逐行）——计划锚定最近未来考期，无则回退单考期设置
-      examProfileList = parseExamProfiles(String(plugin.settingUtils?.get?.("examProfiles") ?? ""));
-      const nearest = nearestUpcoming(examProfileList);
-      const effectiveExamDate = nearest?.date ?? (examDate || undefined);
-      // rebuildPlan 函数内累加器（非组件状态），不转 SvelteMap/SvelteSet
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const wrongCounts = new Map<string, number>();
-      for (const w of app.derived().wrongbook.values()) wrongCounts.set(w.qid, w.wrongCount);
-      const activeWrongIds = new Set(app.wrongItems().map((w) => w.qid));
-      const freshPlan = planToday({
-        examDate: effectiveExamDate,
-        sprintDays: Number.isFinite(sprintDays) && sprintDays > 0 ? sprintDays : 14,
-        dailyGoal: Number.isFinite(goal) && goal > 0 ? goal : 10,
-        all: questions, wrongCounts, activeWrongIds,
-        wrongReasons: app.wrongReasonMap() ?? undefined,
-        dueFirst: dueFirst ?? [],
+      const res = buildDailyPlanSchedule({
+        app,
+        questions,
+        examDate: String(plugin.settingUtils?.get?.("examDate") ?? "").trim(),
+        sprintDays: Number(plugin.settingUtils?.get?.("sprintDays") ?? 14),
+        dailyGoal: Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10),
+        examProfilesRaw: String(plugin.settingUtils?.get?.("examProfiles") ?? ""),
+        dueFirst,
       });
-      // 今日计划与作答流水合并：完成后重算入口时自动显示剩余题目。
-      const today = localDateKeyOf(Date.now());
-      const completedToday = new Set(
-        app.attempts
-          .all()
-          .filter((event) => event.verdict !== "not_attempted" && localDateKeyOf(event.ts) === today)
-          .map((event) => event.qid),
-      );
-      plan = remainingPlan(freshPlan, completedToday);
-      // 53-01 lite：今日计划分钟预算（按题型历史用时中位；缺历史题型如实标注默认值）
-      const typeOf = new Map(questions.map((q) => [q.id, q.type] as const));
-      planTime = estimatePlanMinutes(plan.queue, avgMsByType(app.attempts.all(), (qid) => typeOf.get(qid)));
-      // 44-05 lite：昨日计划回看轨迹（缺席连续计数持久化；入口页 chip 提示）
-      void (async () => {
-        const prev = ((await app.loadAux<import("@/core/planner").PlanTrace | null>("plan/trace")) ?? null);
-        const yesterday = new Date(Date.now() - 86_400_000);
-        const yKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
-        const doneY = app.attempts
-          .all()
-          .filter((e) => e.verdict !== "not_attempted" && localDateKeyOf(e.ts) === yKey).length;
-        const trace = nextPlanTrace(prev, localDateKeyOf(Date.now()), plan!.queue.length, doneY);
-        planTrace = trace;
-        void app.saveAux("plan/trace", trace).catch((e: unknown) => { showMessage(String(e instanceof Error ? e.message : e), 3600, "error"); });
-      })();
+      plan = res.plan;
+      planTime = res.planTime;
+      examProfileList = res.examProfileList;
+
+      void updateDailyPlanTrace(app, plan.queue.length)
+        .then((trace) => { planTrace = trace; })
+        .catch((e: unknown) => { showMessage(String(e instanceof Error ? e.message : e), 3600, "error"); });
     }
 
     /** 每日任务直接使用计划队列（零决策入口） */
@@ -3257,17 +3237,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     const recallUsed = new Set<string>();
     /** 52-04 lite：自诊断复盘缓存（qid → {text, at}；结算页回看与编辑） */
     let reflections = $state<Record<string, { text: string; at: number }>>({});
+
     async function editReflection(qid: string) {
-      const cur = await app.loadWrongReflection(qid);
-      const { inputDialogSync } = await import("../../libs/dialog");
-      const text = await inputDialogSync({
-        title: t("reflection.title"),
-        placeholder: t("reflection.placeholder"),
-        defaultText: cur?.text ?? "",
-      });
-      if (text == null) return; // 取消不改现有复盘
-      await app.saveWrongReflection(qid, text);
-      if (text.trim()) reflections = { ...reflections, [qid]: { text: text.trim(), at: Date.now() } };
+      const res = await editQuestionReflection(app, qid, t);
+      if (res === null) return;
+      if (res.text) reflections = { ...reflections, [qid]: res };
       else {
         const next = { ...reflections };
         delete next[qid];
@@ -3275,16 +3249,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
       showMessage(t("reflection.saved"), 2400, "info");
     }
+
     /** 打开回看时批量载入上次检查点（52-04：复习能回看） */
     async function loadReflections() {
-      const next: Record<string, { text: string; at: number }> = {};
-      for (const a of session?.answered ?? []) {
-        // 114-05 lite：受助答对（讲解/提示后）也纳入回看——自我解释的载体与错题复盘同层
-        if (a.grade.verdict === "correct" && !helpShown.get(a.qid)) continue;
-        const r = await app.loadWrongReflection(a.qid);
-        if (r) next[a.qid] = r;
-      }
-      reflections = next;
+      reflections = await loadSessionReflections(
+        app,
+        session?.answered ?? [],
+        (qid) => !!helpShown.get(qid),
+      );
     }
 
     // ---------- AI 错因假设（116-01 T08：事实→假设→验证行动；假设与用户复盘独立，采纳由用户操作） ----------
@@ -3293,9 +3265,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     /** 本次会话该题最近一次作答的 confidence/help（流水口径；无记录=缺证据，模板如实标注） */
     function attemptMeta(qid: string): { confidence?: "sure" | "fuzzy" | "guess"; helped?: boolean } {
-      const events = app.attempts.all().filter((e) => e.qid === qid && e.sessionId === session?.id);
-      const last = events[events.length - 1];
-      return { confidence: last?.confidence, helped: !!last?.help };
+      return queryAttemptMeta(app, session?.id ?? "", qid);
     }
 
     async function runMisdiagnosis(a: { qid: string; grade: { myAnswer: string | null }; timeMs: number }) {
@@ -3304,49 +3274,25 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!app.kernelOnline) { showMessage(t("state.offlineHint"), 2400, "info"); return; }
       misdiagnosisBusy = a.qid;
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
-        const { buildMisdiagnosisMessages } = await import("@/ai/misdiagnosis");
-        const { AiTaskRunner, questionFingerprint } = await import("@/ai/task");
-        const endpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
-        const key = resolveAiKey(plugin);
-        const model = String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key
-          ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
         const meta = attemptMeta(a.qid);
-        const messages = buildMisdiagnosisMessages(q, {
+        const res = await executeMisdiagnosisTask({
+          q,
           myAnswer: a.grade.myAnswer ?? null,
-          confidence: meta.confidence,
           timeMs: a.timeMs,
-          helped: meta.helped,
-          userThought: reflections[a.qid]?.text,
-        });
-        const reqCtx: import("@/ai/task").AiTaskContext = {
-          templateId: "practice.misdiagnosis",
-          templateVersion: 1,
-          qid: q.id,
-          questionRevision: questionFingerprint(q),
-          learnerAnswer: a.grade.myAnswer ?? null,
-          submitted: true, // 结算回看=已提交（揭示闸门天然满足）
-          mode: "practice",
           sessionId: session.id,
-        };
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
-        void logAiTask({ templateId: env.templateId, qid: reqCtx.qid, status: env.status, tokens: env.tokens, messages });
-        if (env.status === "ok" && env.data.text) {
-          misdiagnosisText = { ...misdiagnosisText, [a.qid]: env.data.text };
-          void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
-          // U14：假设独立持久化（与用户复盘分层；离线落内存态，重载后可回看）
-          void app.saveMisdiagnosis({
-            qid: a.qid,
-            text: env.data.text,
-            at: Date.now(),
-            sessionId: session.id,
-            templateVersion: 1,
-            evidence: { myAnswer: a.grade.myAnswer ?? null, confidence: meta.confidence, timeMs: a.timeMs, helped: meta.helped },
-          }).catch(() => { /* 持久化失败不阻断展示 */ });
+          meta,
+          userThought: reflections[a.qid]?.text,
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+          app,
+          t,
+        });
+
+        if (res.text) {
+          misdiagnosisText = { ...misdiagnosisText, [a.qid]: res.text };
+          void app.recordAiUsage(res.channelId, res.tokens, 1).catch(() => undefined);
         } else {
-          showMessage(envStatusLine(env), 3600, "error");
+          showMessage(res.error, 3600, "error");
         }
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3600, "error");
@@ -3357,12 +3303,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function adoptMisdiagnosis(qid: string) {
       const hypothesis = misdiagnosisText[qid];
       if (!hypothesis) return;
-      const cur = await app.loadWrongReflection(qid);
-      const merged = (cur?.text ? cur.text + "\n\n" : "") + t("ai.misdiagnosisTag") + "\n" + hypothesis;
-      await app.saveWrongReflection(qid, merged);
-      reflections = { ...reflections, [qid]: { text: merged, at: Date.now() } };
-      void app.markMisdiagnosisAdopted(qid).catch(() => { /* 打点失败不影响并入 */ });
-      showMessage(t("reflection.saved"), 2000, "info");
+      const res = await mergeAdoptedMisdiagnosis(app, qid, hypothesis, t, showMessage);
+      reflections = { ...reflections, [qid]: res };
     }
     /** 114-01：本会话受助标记（qid → 讲解模式；reveal=查看被拦泄露提示）；同题再答时随 attempt 落 help 字段 */
     // 63-02：暴露集合（同题多暴露保全；help 字段由 helpFromExposure 派生，向后兼容）
