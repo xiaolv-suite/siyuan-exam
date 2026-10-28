@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   generateFlashCandidates,
   commitFlashCards,
+  executeCommitFlashCardsWithConfirm,
 } from "@/ui/practice/services/flashCandidateService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -66,5 +67,27 @@ describe("AI 闪卡候选与入库服务 (flashCandidateService)", () => {
     const blockIds = await commitFlashCards(mockApp, "bank-1", "测试题库", cards);
     expect(mockApp.createFlashCards).toHaveBeenCalledWith("bank-1", "测试题库", cards);
     expect(blockIds).toEqual(["b-card-1", "b-card-2"]);
+  });
+
+  it("3. executeCommitFlashCardsWithConfirm：带确认弹窗的入库提交", async () => {
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      createFlashCards: vi.fn().mockResolvedValue({
+        blockIds: ["b-card-1"],
+      }),
+    } as unknown as ExamApp;
+    const cards = [{ front: "正面", back: "背面", reason: "理由" }];
+
+    // 1. 用户取消
+    const cancelConfirm = vi.fn().mockResolvedValue(false);
+    const cancelRes = await executeCommitFlashCardsWithConfirm(mockApp, "b1", "题库", cards, cancelConfirm, t);
+    expect(cancelRes.confirmed).toBe(false);
+
+    // 2. 用户确认
+    const agreeConfirm = vi.fn().mockResolvedValue(true);
+    const agreeRes = await executeCommitFlashCardsWithConfirm(mockApp, "b1", "题库", cards, agreeConfirm, t);
+    expect(agreeRes.confirmed).toBe(true);
+    expect(agreeRes.blockIds).toEqual(["b-card-1"]);
+    expect(agreeRes.toast).toBe("[flash.done]");
   });
 });

@@ -138,12 +138,18 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       canScheduleReciteSubmit,
     } from "./services/reciteModeWorkflowService";
     import {
-      changeQuestionLifecycle,
       flagQuestionDispute,
       resolveQuestionDispute,
       clearQuestionDispute,
       exportItemAnalysisReportCsv,
+      initDisputeFormValues,
     } from "./services/disputeGovernanceService";
+    import {
+      extractNumericSpecFields,
+      createQuestionEditDraft,
+      executeSaveQuestionEdit,
+      executeChangeQuestionLifecycle,
+    } from "./services/questionEditService";
     import {
       archiveWrongItem,
       unarchiveWrongItem,
@@ -153,7 +159,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     } from "./services/wrongbookDispositionService";
     import {
       generateFlashCandidates,
-      commitFlashCards,
+      executeCommitFlashCardsWithConfirm,
     } from "./services/flashCandidateService";
     import {
       copyChallengeCode as serviceCopyChallengeCode,
@@ -164,6 +170,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       saveQuestionMaterialReference,
       removeQuestionMaterialReference,
       resolveQuestionMaterialOpenUrl,
+      initQrefFormState,
     } from "./services/questionMaterialLinkService";
     import {
       persistReviewQueue,
@@ -250,6 +257,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     } from "./services/gleanEcosystemService";
     import {
       loadBankSectionTree,
+      resolveSectionNodeLabel,
     } from "./services/sectionTreeService";
     import {
       recordSessionAttempt,
@@ -343,12 +351,15 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import { summarizeLoad } from "@/ai/flashCandidates";
     import { resolveAiKey } from "@/ai/secrets";
     import SaveStatus from "../shared/SaveStatus.svelte";
-    import { SAMPLE_BANK_NAME, SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
-    import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_QUESTION_COUNT } from "@/core/cantoneseSample";
-    import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_QUESTION_COUNT } from "@/core/englishSample";
-    import { QUALIFICATION_SAMPLE_BANK_NAME, QUALIFICATION_SAMPLE_QUESTION_COUNT } from "@/core/qualificationSample";
-    import { K12_SAMPLE_BANK_NAME, K12_SAMPLE_QUESTION_COUNT } from "@/core/k12Sample";
-    import { HIGHER_SAMPLE_BANK_NAME, HIGHER_SAMPLE_QUESTION_COUNT } from "@/core/higherSample";
+    import { SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
+    import {
+      normalizeSampleBankKind,
+      executeCreateBank,
+      executeCreateSampleBank,
+      resolveRetainedSampleBank,
+      formatSampleNoticeText,
+      type SampleBankKind,
+    } from "./services/bankLifecycleService";
     import { getBankCategoryMeta, type BankCategory } from "@/core/bankCategory";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
@@ -1338,47 +1349,24 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let editingId = $state("");
     let editBusy = $state(false);
     let editError = $state("");
-    let editDraft = $state<{ stem: string; options: string[]; answer: string; analysis: string; kp: string; difficulty: string; status?: QuestionLifecycleStatus; answerSpec?: import("../../core/structuredAnswer").NumericAnswerSpec } | null>(null);
+    let editDraft = $state<import("./services/questionEditService").QuestionEditDraft | null>(null);
     let editSpecOpen = $state(false);
     let editSpecUnit = $state("");
     let editSpecAbsTol = $state("");
     let editSpecRelPct = $state("");
     let editSpecAltUnits = $state("");
-    /** 规格字段 ↔ spec 对象（编辑表单用；作者留空且原无 spec → undefined 保持自动识别） */
-    function specFromEditFields(): import("../../core/structuredAnswer").NumericAnswerSpec | undefined {
-      const abs = parseFloat(editSpecAbsTol);
-      const rel = parseFloat(editSpecRelPct) / 100;
-      const unit = editSpecUnit.trim();
-      const alts = editSpecAltUnits.split(/[，,;；]/).map((x) => x.trim()).filter(Boolean);
-      if (!Number.isFinite(abs) && !Number.isFinite(rel) && !unit && !alts.length) return undefined;
-      const spec: import("../../core/structuredAnswer").NumericAnswerSpec = { v: 1, kind: "numeric" };
-      if (Number.isFinite(abs) && abs > 0) spec.absTol = abs;
-      if (Number.isFinite(rel) && rel > 0) spec.relTolerance = rel;
-      if (unit) spec.unit = unit;
-      if (alts.length) spec.altUnits = alts.map((u) => ({ unit: u, factor: 1 }));
-      return spec;
-    }
     function loadSpecFields(spec: import("../../core/structuredAnswer").AnswerSpec | undefined) {
-      editSpecUnit = spec?.kind === "numeric" ? (spec.unit ?? "") : "";
-      editSpecAbsTol = spec?.kind === "numeric" && spec.absTol != null ? String(spec.absTol) : "";
-      editSpecRelPct = spec?.kind === "numeric" && spec.relTolerance != null ? String(Math.round(spec.relTolerance * 10000) / 100) : "";
-      editSpecAltUnits = spec?.kind === "numeric" ? (spec.altUnits?.map((a) => a.unit).join(", ") ?? "") : "";
+      const f = extractNumericSpecFields(spec);
+      editSpecUnit = f.unit;
+      editSpecAbsTol = f.absTol;
+      editSpecRelPct = f.relPct;
+      editSpecAltUnits = f.altUnits;
     }
 
     function openEditForm(q: Question) {
       editError = "";
       editingId = q.id;
-      editDraft = {
-        stem: q.stem,
-        options: [...q.options],
-        answer: q.answer,
-        analysis: q.analysis ?? "",
-        kp: q.kp ?? "",
-        difficulty: q.difficulty != null ? String(q.difficulty) : "",
-        status: getQuestionLifecycle(q),
-        // 编辑表单只编辑数值规格；多空规格原样保留（specFromEditFields 不产出 multiBlank）
-        answerSpec: q.answerSpec?.kind === "numeric" ? q.answerSpec : undefined,
-      };
+      editDraft = createQuestionEditDraft(q);
       loadSpecFields(q.answerSpec);
       editSpecOpen = !!q.answerSpec;
     }
@@ -1387,22 +1375,19 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
     async function saveEdit(q: Question & { blockId: string }) {
       if (!editDraft || editBusy) return;
-      if (!editDraft.stem.trim()) { editError = t("edit.needStem"); return; }
-      if (q.type !== "material" && !editDraft.answer.trim()) { editError = t("edit.needAnswer"); return; }
       editBusy = true; editError = "";
       try {
-        const next = await app.updateQuestionContent(q, {
-          stem: editDraft.stem.trim(),
-          options: editDraft.options,
-          answer: editDraft.answer.trim(),
-          analysis: editDraft.analysis.trim(),
-          kp: editDraft.kp.trim(),
-          difficulty: editDraft.difficulty ? parseInt(editDraft.difficulty, 10) || undefined : undefined,
-          status: editDraft.status,
-          // 54-02：编辑表单的作者规格（打开时自现有 spec 读入；留空字段=清除回自动识别）
-          answerSpec: specFromEditFields(),
-        });
-        questions = questions.map((x) => (x.id === q.id ? { ...x, ...next } : x));
+        const res = await executeSaveQuestionEdit(app, q, editDraft, {
+          absTol: editSpecAbsTol,
+          relPct: editSpecRelPct,
+          unit: editSpecUnit,
+          altUnits: editSpecAltUnits,
+        }, t);
+        if (res.error) {
+          editError = res.error;
+          return;
+        }
+        questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.next } : x));
         closeEditForm();
         showMessage(t("edit.saved"), 2800, "info");
       } catch (e) {
@@ -1418,7 +1403,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       peekLifecycleBusy = true;
       peekLifecycleError = { ...peekLifecycleError, [q.id]: "" };
       try {
-        const next = await changeQuestionLifecycle(app, q, nextStatus, showMessage, t);
+        const next = await executeChangeQuestionLifecycle(app, q, nextStatus, showMessage, t);
         questions = questions.map((x) => (x.id === q.id ? { ...x, ...next } : x));
       } catch (e) {
         peekLifecycleError = {
@@ -1456,17 +1441,17 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     const downloadItemAnalysisCsv = exportItemAnalysisReportCsv;
 
     function toggleDisputeForm(q: Question) {
+      disputeError = "";
       if (disputeFormOpenFor === q.id) {
         disputeFormOpenFor = "";
         disputeNote = "";
         disputeResolution = "";
-        disputeError = "";
       } else {
         disputeFormOpenFor = q.id;
-        disputeReason = q.dispute?.reason ?? "wrong_answer";
-        disputeNote = q.dispute?.note ?? "";
-        disputeResolution = q.dispute?.resolution ?? "";
-        disputeError = "";
+        const init = initDisputeFormValues(q);
+        disputeReason = init.reason;
+        disputeNote = init.note;
+        disputeResolution = init.resolution;
       }
     }
 
@@ -1513,23 +1498,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let sectionTree = $state<import("@/core/sectionTree").DocNode[]>([]);
     let sectionSel = $state<import("@/core/sectionTree").SectionRef | null>(null);
     let sectionBusy = $state(false);
-    const sectionLabel = $derived.by(() => {
-      if (!sectionSel) return "";
-      if (sectionSel.kind === "doc") return sectionTree.find((d) => d.id === sectionSel!.id)?.title ?? sectionSel.hpath;
-      const walk = (ns: import("@/core/sectionTree").HeadingNode[]): string | null => {
-        for (const n of ns) {
-          if (n.hpath === sectionSel!.hpath) return n.text;
-          const hit = walk(n.children);
-          if (hit) return hit;
-        }
-        return null;
-      };
-      for (const d of sectionTree) {
-        const hit = walk(d.children);
-        if (hit) return hit;
-      }
-      return sectionSel.hpath;
-    });
+    const sectionLabel = $derived(resolveSectionNodeLabel(sectionTree, sectionSel));
 
     async function toggleSectionTree() {
       sectionOpen = !sectionOpen;
@@ -1878,10 +1847,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
     function startQrefForm(qid: string) {
       qrefFormFor = qid; qrefError = "";
-      const ref = app.questionMaterialRef(qid);
-      qrefMatId = ref?.materialId ?? "";
-      qrefPage = ref?.locator?.page != null ? String(ref.locator.page) : "";
-      qrefTime = ref?.locator?.tSec != null ? formatSecToTime(ref.locator.tSec) : "";
+      const f = initQrefFormState(app, qid);
+      qrefMatId = f.materialId;
+      qrefPage = f.page;
+      qrefTime = f.time;
     }
     async function saveQref(qid: string) {
       if (!qrefMatId || qrefBusyFor) return;
@@ -1997,16 +1966,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       const bank = app.listBanks().find((b) => b.id === activeBankId);
       if (!bank) { showMessage(t("guard.needBankFirst"), 2400, "error"); return; }
       const { confirmDialogSync } = await import("../../libs/dialog");
-      const ok = await confirmDialogSync({
-        title: t("flash.confirmTitle").replace("{n}", String(result.cards.length)),
-        content: result.cards.map((c) => `・${escapeHtml(c.front)}`).join("<br>"),
-      });
-      if (!ok) return;
       flashBusy = q.id;
       try {
-        const blockIds = await commitFlashCards(app, bank.id, bank.name, result.cards);
-        flashCandidates = { ...flashCandidates, [q.id]: { ...result, cards: [] } };
-        showMessage(t("flash.done").replace("{n}", String(blockIds.length)), 3200, "info");
+        const res = await executeCommitFlashCardsWithConfirm(app, bank.id, bank.name, result.cards, confirmDialogSync, t);
+        if (res.confirmed) {
+          flashCandidates = { ...flashCandidates, [q.id]: { ...result, cards: [] } };
+          if (res.toast) showMessage(res.toast, 3200, "info");
+        }
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
       } finally { flashBusy = ""; }
@@ -2016,15 +1982,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!newBankName.trim() || creating) return false;
       creating = true; errorMsg = ""; bankCreateError = ""; sampleNotice = "";
       try {
-        const b = await app.createBank(newBankName);
-        banks = app.listBanks();
-        activeBankId = b.id;
-        rememberBank(b.id);
+        const { bank, banks: nextBanks } = await executeCreateBank(app, newBankName);
+        banks = nextBanks;
+        activeBankId = bank.id;
+        rememberBank(bank.id);
         newBankName = "";
         await refreshQuestionsAfterWrite(3);
-        emitExamEvent("bank-changed", { bank: b.id });
-        // 25-P1 首用：建库自带示例题（app.createBank），留在入口视图由 47-02 首用引导接管——
-        // 最快首题路径是直接练示例题；导入/手工录题在下方动作区一步可达
+        emitExamEvent("bank-changed", { bank: bank.id });
         return true;
       } catch (e) {
         bankCreateError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
@@ -2032,50 +1996,30 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       } finally { creating = false; }
     }
 
-    type SampleBankKind = "general" | "cantonese" | "english" | "qualification" | "k12" | "higher";
     async function createSampleBank(kind: SampleBankKind | Event = "general") {
-      const actualKind: SampleBankKind = (kind === "cantonese" || kind === "english" || kind === "qualification" || kind === "k12" || kind === "higher") ? kind : "general";
+      const actualKind = normalizeSampleBankKind(kind);
       if (creating) return;
       creating = true; creatingSample = true;
       errorMsg = ""; bankCreateError = ""; sampleNotice = "";
-      let targetCount = SAMPLE_QUESTION_COUNT;
-      let targetName = SAMPLE_BANK_NAME;
-      if (actualKind === "cantonese") {
-        targetCount = CANTONESE_SAMPLE_QUESTION_COUNT;
-        targetName = CANTONESE_SAMPLE_BANK_NAME;
-      } else if (actualKind === "english") {
-        targetCount = ENGLISH_SAMPLE_QUESTION_COUNT;
-        targetName = ENGLISH_SAMPLE_BANK_NAME;
-      } else if (actualKind === "qualification") {
-        targetCount = QUALIFICATION_SAMPLE_QUESTION_COUNT;
-        targetName = QUALIFICATION_SAMPLE_BANK_NAME;
-      } else if (actualKind === "k12") {
-        targetCount = K12_SAMPLE_QUESTION_COUNT;
-        targetName = K12_SAMPLE_BANK_NAME;
-      } else if (actualKind === "higher") {
-        targetCount = HIGHER_SAMPLE_QUESTION_COUNT;
-        targetName = HIGHER_SAMPLE_BANK_NAME;
-      }
+      let currentTargetName = "";
       try {
-        const b = await app.createSampleBank(actualKind);
-        banks = app.listBanks();
-        activeBankId = b.id;
-        rememberBank(b.id);
+        const res = await executeCreateSampleBank(app, actualKind);
+        currentTargetName = res.targetName;
+        banks = res.banks;
+        activeBankId = res.bank.id;
+        rememberBank(res.bank.id);
         questions = []; questionsLoaded = false; sectionSel = null; plan = null;
         view = "entry";
-        await refreshQuestionsAfterWrite(targetCount);
-        emitExamEvent("bank-changed", { bank: b.id });
-        sampleNotice = questions.length >= targetCount && !questionsError
-          ? t("guard.sampleReady").replace("{n}", String(targetCount))
-          : t("guard.samplePending").replace("{n}", String(questions.length)).replace("{total}", String(targetCount));
+        await refreshQuestionsAfterWrite(res.targetCount);
+        emitExamEvent("bank-changed", { bank: res.bank.id });
+        sampleNotice = formatSampleNoticeText(questions.length, res.targetCount, Boolean(questionsError), t);
       } catch (e) {
         bankCreateError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
-        banks = app.listBanks();
-        // 写入失败后保留并选中已创建的题库，重试继续使用同一个笔记本。
-        const retained = banks.find((b) => b.name === targetName && b.sampleState);
-        if (retained) {
-          activeBankId = retained.id;
-          rememberBank(retained.id);
+        const { retainedBank, banks: nextBanks } = resolveRetainedSampleBank(app, currentTargetName);
+        banks = nextBanks;
+        if (retainedBank) {
+          activeBankId = retainedBank.id;
+          rememberBank(retainedBank.id);
           questions = []; questionsLoaded = false; sectionSel = null; plan = null;
           view = "entry";
           await loadQuestions();

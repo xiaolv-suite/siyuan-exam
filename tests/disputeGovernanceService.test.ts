@@ -5,6 +5,7 @@ import {
   resolveQuestionDispute,
   clearQuestionDispute,
   exportItemAnalysisReportCsv,
+  initDisputeFormValues,
 } from "@/ui/practice/services/disputeGovernanceService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -113,5 +114,30 @@ describe("题目生命周期与争议处置单服务 (disputeGovernanceService)"
     expect(revokeObjectURLMock).toHaveBeenCalled();
 
     vi.unstubAllGlobals();
+  });
+
+  it("4. initDisputeFormValues：初始化争议表单状态", () => {
+    // 1. 无已有争议
+    expect(initDisputeFormValues({} as Question)).toEqual({
+      reason: "wrong_answer",
+      note: "",
+      resolution: "",
+    });
+
+    // 2. 有已有争议
+    const qWithDispute: Question = {
+      id: "q-1",
+      dispute: {
+        reason: "outdated",
+        note: "旧大纲题目",
+        resolution: "已剔除",
+        status: "resolved",
+      },
+    } as any;
+    expect(initDisputeFormValues(qWithDispute)).toEqual({
+      reason: "outdated",
+      note: "旧大纲题目",
+      resolution: "已剔除",
+    });
   });
 });

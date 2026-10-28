@@ -1,5 +1,5 @@
 import type { ExamApp } from "@/app";
-import { parseTimeToSec, locatorLabel, locatedUrl, revisionStale, type NoteLocator } from "@/core/materialNotes";
+import { parseTimeToSec, formatSecToTime, locatorLabel, locatedUrl, revisionStale, type NoteLocator } from "@/core/materialNotes";
 import type { MessageReporter } from "./printPaperService";
 
 export interface QrefSnapshotItem {
@@ -87,3 +87,19 @@ export function resolveQuestionMaterialOpenUrl(
   const url = locatedUrl(m ? app.resolveMaterialUrlOf(m, origin) : null, ref?.locator ?? null);
   return { url, material: m };
 }
+
+/**
+ * 初始化题目关联资料的编辑表单字段
+ */
+export function initQrefFormState(
+  app: ExamApp,
+  qid: string,
+): { materialId: string; page: string; time: string } {
+  const ref = app.questionMaterialRef(qid);
+  return {
+    materialId: ref?.materialId ?? "",
+    page: ref?.locator?.page != null ? String(ref.locator.page) : "",
+    time: ref?.locator?.tSec != null ? formatSecToTime(ref.locator.tSec) : "",
+  };
+}
+

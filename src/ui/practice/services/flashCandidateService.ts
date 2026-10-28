@@ -83,3 +83,30 @@ export async function commitFlashCards(
   const { blockIds } = await app.createFlashCards(bankId, bankName, cards);
   return blockIds;
 }
+
+/**
+ * 确认入库生成的闪卡候选（经弹窗确认后写块）
+ */
+export async function executeCommitFlashCardsWithConfirm(
+  app: ExamApp,
+  bankId: string,
+  bankName: string,
+  cards: import("@/ai/flashCandidates").FlashCardCandidate[],
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
+  t: (k: string) => string,
+): Promise<{ confirmed: boolean; blockIds: string[]; toast?: string }> {
+  const { escapeHtml } = await import("@/libs/sanitize");
+  const ok = await confirmFn({
+    title: t("flash.confirmTitle").replace("{n}", String(cards.length)),
+    content: cards.map((c) => `・${escapeHtml(c.front)}`).join("<br>"),
+  });
+  if (!ok) return { confirmed: false, blockIds: [] };
+
+  const blockIds = await commitFlashCards(app, bankId, bankName, cards);
+  return {
+    confirmed: true,
+    blockIds,
+    toast: t("flash.done").replace("{n}", String(blockIds.length)),
+  };
+}
+

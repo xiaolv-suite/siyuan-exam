@@ -4,6 +4,7 @@ import {
   saveQuestionMaterialReference,
   removeQuestionMaterialReference,
   resolveQuestionMaterialOpenUrl,
+  initQrefFormState,
 } from "@/ui/practice/services/questionMaterialLinkService";
 import type { ExamApp } from "@/app";
 
@@ -97,5 +98,29 @@ describe("题目↔学习资料关联引用服务 (questionMaterialLinkService)"
     const res = resolveQuestionMaterialOpenUrl(mockApp, "q-1", "http://127.0.0.1:6806");
     expect(res.material?.id).toBe("mat-1");
     expect(res.url).toContain("page=20");
+  });
+
+  it("5. initQrefFormState：初始化资料关联编辑表单状态", () => {
+    // 1. 无已有引用
+    const emptyApp = {
+      questionMaterialRef: vi.fn().mockReturnValue(null),
+    } as unknown as ExamApp;
+    expect(initQrefFormState(emptyApp, "q-1")).toEqual({
+      materialId: "",
+      page: "",
+      time: "",
+    });
+
+    // 2. 有已有引用（页码+时间定位）
+    const mockApp = {
+      questionMaterialRef: vi.fn().mockReturnValue({
+        materialId: "mat-2",
+        locator: { page: 12, tSec: 125 },
+      }),
+    } as unknown as ExamApp;
+    const form = initQrefFormState(mockApp, "q-2");
+    expect(form.materialId).toBe("mat-2");
+    expect(form.page).toBe("12");
+    expect(form.time).toBe("2:05");
   });
 });

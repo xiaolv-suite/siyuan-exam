@@ -73,3 +73,19 @@ export function exportItemAnalysisReportCsv(report: ItemAnalysisReport): void {
   const csv = exportItemAnalysisCsv(report);
   downloadBlobFile(csv, `题目分析-${report.qid}-${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8");
 }
+
+/**
+ * 初始化题目争议抽屉表单字段值
+ */
+export function initDisputeFormValues(q: Question): {
+  reason: DisputeReason;
+  note: string;
+  resolution: string;
+} {
+  return {
+    reason: q.dispute?.reason ?? "wrong_answer",
+    note: q.dispute?.note ?? "",
+    resolution: q.dispute?.resolution ?? "",
+  };
+}
+
