@@ -7,6 +7,10 @@ import {
   executeUndoLastAttempt,
   extractSessionWrongQuestions,
   resolveQuestionRestorationState,
+  recordExposureFact,
+  getExposureHelpMode,
+  toggleQuestionUserTag,
+  executeSessionExit,
 } from "@/ui/practice/services/sessionLifecycleService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -185,5 +189,57 @@ describe("练习会话生命周期与结算广播服务 (sessionLifecycleService
     const state = resolveQuestionRestorationState(mockSession, { id: "q-1" } as any, true);
     expect(state.selected).toBe("B");
     expect(state.feedback?.verdict).toBe("correct");
+  });
+
+  it("8. recordExposureFact 与 getExposureHelpMode：记录与派生受助曝光", () => {
+    const exposures = new Map<string, Set<string>>();
+    recordExposureFact(exposures, "q-1", "hint");
+    recordExposureFact(exposures, "q-1", "explain");
+
+    expect(exposures.get("q-1")?.has("hint")).toBe(true);
+    expect(exposures.get("q-1")?.has("explain")).toBe(true);
+    expect(getExposureHelpMode(exposures, "q-1")).toBe("explain");
+    expect(getExposureHelpMode(exposures, "q-2")).toBeUndefined();
+  });
+
+  it("9. toggleQuestionUserTag：切换用户自定义标签", async () => {
+    const mockApp = {
+      tagQuestion: vi.fn().mockResolvedValue({ userTags: ["易错", "高频"] }),
+    };
+
+    const res = await toggleQuestionUserTag(mockApp, { id: "q-1", blockId: "b-1" } as any, "高频");
+    expect(res).toEqual(["易错", "高频"]);
+    expect(mockApp.tagQuestion).toHaveBeenCalled();
+
+    // 无 blockId 时跳过
+    expect(await toggleQuestionUserTag(mockApp, { id: "q-1" } as any, "高频")).toBeNull();
+  });
+
+  it("10. executeSessionExit：处理退出确认与曝光保全", async () => {
+    const dummyT = (k: string) => `[${k}]`;
+    const mockApp = {
+      recordAttempt: vi.fn(),
+      saveSession: vi.fn().mockResolvedValue(undefined),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const mockSession = {
+      id: "sess-1",
+      state: { mode: "quick" },
+      answered: [{ qid: "q-1" }],
+    } as any;
+
+    // 1. 中途退出，用户取消
+    const confirmCancel = vi.fn().mockResolvedValue(false);
+    const cancelRes = await executeSessionExit(mockApp, mockSession, new Map(), false, confirmCancel, dummyT);
+    expect(cancelRes).toBe(false);
+    expect(mockApp.saveSession).not.toHaveBeenCalled();
+
+    // 2. 中途退出，用户确认
+    const confirmOk = vi.fn().mockResolvedValue(true);
+    const okRes = await executeSessionExit(mockApp, mockSession, new Map(), false, confirmOk, dummyT);
+    expect(okRes).toBe(true);
+    expect(mockApp.saveSession).toHaveBeenCalled();
+    expect(mockApp.flush).toHaveBeenCalled();
   });
 });

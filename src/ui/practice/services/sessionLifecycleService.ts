@@ -4,7 +4,7 @@ import type { ExamApp } from "@/app";
 import { queueKindOf } from "@/core/queueIdentity";
 import { createQuestionVersionSnapshot } from "@/core/revision";
 import { trailChanged, type AnswerTrail } from "@/core/answerTrail";
-import { abandonedExposureInputs } from "@/core/exposure";
+import { abandonedExposureInputs, helpFromExposure } from "@/core/exposure";
 import { emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
 
 export interface RecordAttemptOptions {
@@ -204,3 +204,75 @@ export function resolveQuestionRestorationState(
     draftLive: !isChoice ? existingAnswer : "",
   };
 }
+
+/**
+ * 记录题目曝光事实节点（如 hint / explain / socratic / reveal / analysis）
+ */
+export function recordExposureFact(
+  exposures: Map<string, Set<string>>,
+  qid: string,
+  node: string,
+): void {
+  let set = exposures.get(qid);
+  if (!set) {
+    set = new Set<string>();
+    exposures.set(qid, set);
+  }
+  set.add(node);
+}
+
+/**
+ * 读取题目的受助暴露事实（提示/讲解/揭示任一）
+ */
+export function getExposureHelpMode(
+  exposures: Map<string, Set<string>>,
+  qid: string,
+): "explain" | "hint" | "socratic" | "reveal" | undefined {
+  const set = exposures.get(qid);
+  if (!set) return undefined;
+  if (set.has("explain") || set.has("socratic") || set.has("hint") || set.has("reveal")) {
+    return (helpFromExposure(set) ?? "hint") as any;
+  }
+  return undefined;
+}
+
+/**
+ * 切换题目用户自定义标签（思源块属性）
+ */
+export async function toggleQuestionUserTag(
+  app: any,
+  q: Question | undefined,
+  tag: string,
+): Promise<string[] | null> {
+  if (!q || !q.blockId || !app) return null;
+  const updated = await app.tagQuestion(q, tag);
+  return updated?.userTags ?? null;
+}
+
+/**
+ * 退出当前练习会话（含未结算确认、放弃曝光保全与落盘）
+ */
+export async function executeSessionExit(
+  app: any,
+  session: PracticeSession | null,
+  exposures: any,
+  isSessionDone: boolean,
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
+  t: (k: string) => string,
+): Promise<boolean> {
+  if (!session) return true;
+
+  if (!isSessionDone && session.answered?.length) {
+    const ok = await confirmFn({
+      title: t("session.exit"),
+      content: t("session.exitConfirm"),
+    });
+    if (!ok) return false;
+  }
+
+  flushAbandonedSessionExposures(app, session, exposures);
+  await app.saveSession();
+  await app.flush();
+  return true;
+}
+

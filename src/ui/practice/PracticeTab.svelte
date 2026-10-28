@@ -24,7 +24,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       type RubricAssessmentSnapshot,
     } from "../../core/rubric";
     import { startTrail, recordEdit, trailValue, withLastEditReason, type AnswerTrail } from "../../core/answerTrail";
-    import { helpFromExposure } from "../../core/exposure";
     import { randomSeedId } from "../../core/random";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
     import {
@@ -220,6 +219,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       executeUndoLastAttempt,
       extractSessionWrongQuestions,
       resolveQuestionRestorationState,
+      getExposureHelpMode,
+      toggleQuestionUserTag,
+      executeSessionExit,
     } from "./services/sessionLifecycleService";
     import {
       getMaterialIconName as matIconName,
@@ -3328,11 +3330,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     /** 114-01 兼容读法：本题是否有受助暴露（提示/讲解/揭示任一） */
     const helpShown = {
       set(qid: string, mode: "explain" | "hint" | "socratic" | "reveal") { addExposure(qid, mode); },
-      get(qid: string) {
-        const set = exposures.get(qid);
-        return set && (set.has("explain") || set.has("socratic") || set.has("hint") || set.has("reveal")) ? (helpFromExposure(set) ?? "hint") : undefined;
-      },
-    }
+      get(qid: string) { return getExposureHelpMode(exposures as any, qid); },
+    };
     /** 114-01：一次一层提示——qid → 已展示层级（0=未申请）；已展示层文本供后续层去重 */
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 函数内累加 Map（非组件遍历状态）
     const hintLevels = new Map<string, 0 | 1 | 2 | 3>();
@@ -3363,11 +3362,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function toggleUserTag(tag: string) {
       const q = session?.current;
-      if (!q || !q.blockId) return;
+      if (!q) return;
       try {
-        const updated = await app.tagQuestion(q as Question & { blockId: string }, tag);
-        q.userTags = updated.userTags;
-        sessionRev++;
+        const userTags = await toggleQuestionUserTag(app, q, tag);
+        if (userTags) {
+          q.userTags = userTags;
+          sessionRev++;
+        }
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
       }
@@ -3537,15 +3538,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       clearReciteSubmitTimer();
       if (exitBusy) return;
       if (!session) { view = "entry"; return; }
-      if (!sessionDone && session.answered.length) {
-        const { confirmDialogSync } = await import("../../libs/dialog");
-        if (!(await confirmDialogSync({ title: t("session.exit"), content: t("session.exitConfirm") }))) return;
-      }
       exitBusy = true;
       try {
-        flushAbandonedSessionExposures(app, session, exposures);
-        await app.saveSession();
-        await app.flush();
+        const { confirmDialogSync } = await import("../../libs/dialog");
+        const ok = await executeSessionExit(app, session, exposures, !!sessionDone, confirmDialogSync, t);
+        if (!ok) return;
         session = null; feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; sessionDone = null;
         groupBatchModal = null; groupBatchStart = 1;
         scratchpadOpen = false; scratchpadStore = {}; scratchpadShared = "";
