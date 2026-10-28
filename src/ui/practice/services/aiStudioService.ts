@@ -274,4 +274,64 @@ export function buildGenOptionsSnapshot(params: GenOptionsSnapshotParams): GenOp
   };
 }
 
+export interface CandidateEditDraft {
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+}
+
+/**
+ * 构造 AI 候选题目的编辑草稿
+ */
+export function createAiCandidateEditDraft(q: Question): CandidateEditDraft {
+  return {
+    stem: q.stem,
+    options: [...q.options],
+    answer: q.answer,
+    analysis: q.analysis ?? "",
+  };
+}
+
+/**
+ * 执行 AI 候选题目单题重新生成
+ */
+export async function executeRegenSingleCandidate(options: {
+  client: KernelApiClient;
+  aiConfig: AiChannelConfig;
+  material: string;
+  genOptions: GenOptions;
+  targetQuestion: Question;
+  signal?: { aborted: boolean };
+}): Promise<{
+  newQuestion?: Question;
+  rejectReason?: string;
+  approxTokens: number;
+  calls: number;
+  channelId: string;
+}> {
+  const { client, aiConfig, material, genOptions, targetQuestion, signal } = options;
+  const requestOptions: GenOptions = {
+    ...genOptions,
+    types: [targetQuestion.type],
+    count: 1,
+    kp: targetQuestion.kp,
+  };
+  const r = await executeAiQuestionGeneration({
+    client,
+    aiConfig,
+    material,
+    genOptions: requestOptions,
+    signal,
+  });
+  return {
+    newQuestion: r.pending[0],
+    rejectReason: r.rejected[0]?.reason,
+    approxTokens: r.approxTokens,
+    calls: r.calls,
+    channelId: r.channelId,
+  };
+}
+
+
 

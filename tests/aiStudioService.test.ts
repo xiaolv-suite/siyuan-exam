@@ -10,6 +10,8 @@ import {
   verifyQueueBankMatch,
   ensureAiEndpointConsent,
   buildGenOptionsSnapshot,
+  createAiCandidateEditDraft,
+  executeRegenSingleCandidate,
   type AiReviewQueueState,
 } from "@/ui/practice/services/aiStudioService";
 import type { ExamApp } from "@/app";
@@ -185,5 +187,38 @@ describe("AI 出题工作台队列与审批服务 (aiStudioService)", () => {
     expect(opts.count).toBe(10);
     expect(opts.difficulty).toBe("hard");
     expect(opts.customHint).toContain("避免多重否定句\n多出综合分析题");
+  });
+
+  it("8. createAiCandidateEditDraft 与 executeRegenSingleCandidate：草稿构造与单题重出", async () => {
+    // 1. 草稿构造
+    const draft = createAiCandidateEditDraft(fakeQuestion);
+    expect(draft.stem).toBe("AI 生成测试题目");
+    expect(draft.options).toEqual(["A", "B"]);
+    expect(draft.answer).toBe("A");
+
+    // 2. 单题重出
+    const mockClient = {
+      aiChat: vi.fn().mockResolvedValue({
+        status: "ok",
+        content: JSON.stringify([
+          {
+            stem: "新重出的单选题",
+            options: ["A. 1", "B. 2"],
+            answer: "B",
+          },
+        ]),
+      }),
+    } as unknown as KernelApiClient;
+
+    const res = await executeRegenSingleCandidate({
+      client: mockClient,
+      aiConfig: {},
+      material: "测试材料",
+      genOptions: { types: ["single"], count: 1, difficulty: "medium", kp: "集合", sourceTitle: "测试", preset: "default", quality: "standard" },
+      targetQuestion: fakeQuestion,
+    });
+
+    expect(res.channelId).toBe("siyuan");
+    expect(res.approxTokens).toBeGreaterThanOrEqual(0);
   });
 });

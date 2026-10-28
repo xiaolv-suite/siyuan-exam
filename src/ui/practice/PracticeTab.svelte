@@ -191,6 +191,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       verifyQueueBankMatch,
       ensureAiEndpointConsent,
       buildGenOptionsSnapshot,
+      createAiCandidateEditDraft,
+      executeRegenSingleCandidate,
     } from "./services/aiStudioService";
     import {
       pushWrongsToCards,
@@ -318,6 +320,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       checkImportCheckpointAux,
       discardImportCheckpointAux,
       buildResumeCheckpointReport,
+      toggleClozeSupportMode,
+      toggleSelectAllDocCandidates,
     } from "./services/docImportClozeService";
     import {
       pickRandomSpotCheckQuestions,
@@ -3966,7 +3970,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (aiMutationBusy) return;
       editingAiId = q.id;
       aiEditError = "";
-      aiEditDraft = { stem: q.stem, options: [...q.options], answer: q.answer, analysis: q.analysis ?? "" };
+      aiEditDraft = createAiCandidateEditDraft(q);
     }
 
     function cancelEditAi() {
@@ -3989,26 +3993,25 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     async function regenOneAi(q: Question) {
       if (aiMutationBusy || queueBankMismatch()) return;
       if (!aiQueueMaterial.trim()) { showMessage(t("ai.regenNoSource"), 3600, "info"); return; }
-      const requestMaterial = aiQueueMaterial;
-      const requestOptions = { ...(aiQueueOptions ?? snapshotAiOptions()), types: [q.type], count: 1, kp: q.kp };
       aiCancel = { aborted: false };
       aiRegenBusy = q.id; aiError = "";
       try {
-        const r = await executeAiQuestionGeneration({
+        const r = await executeRegenSingleCandidate({
           client: app.deps.client,
           aiConfig: aiSettings(),
-          material: requestMaterial,
-          genOptions: requestOptions,
+          material: aiQueueMaterial,
+          genOptions: aiQueueOptions ?? snapshotAiOptions(),
+          targetQuestion: q,
           signal: aiCancel,
         });
         aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
         aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
-        if (r.pending[0]) {
-          aiQueue = aiQueue.map((x) => (x.id === q.id ? r.pending[0] : x));
+        if (r.newQuestion) {
+          aiQueue = aiQueue.map((x) => (x.id === q.id ? r.newQuestion! : x));
           void persistAiQueue();
           showMessage(t("ai.regenDone"), 2800, "info");
         } else {
-          aiError = r.rejected[0]?.reason ?? t("ai.empty");
+          aiError = r.rejectReason ?? t("ai.empty");
         }
       } catch (e) {
         aiError = String(e instanceof Error ? e.message : e);
@@ -4943,13 +4946,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     function toggleSelectAllDocs() {
-      if (selectedDocCount === siyuanDocCandidates.length) {
-        selectedDocIds = {};
-      } else {
-        const next: Record<string, boolean> = {};
-        for (const doc of siyuanDocCandidates) next[doc.id] = true;
-        selectedDocIds = next;
-      }
+      selectedDocIds = toggleSelectAllDocCandidates(siyuanDocCandidates, selectedDocIds);
     }
 
     async function pickAndImportSiyuanDoc(docId: string, title: string) {
@@ -4980,11 +4977,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     function toggleClozeMode(mode: "highlight" | "curly" | "bracket") {
-      if (clozeModes.includes(mode)) {
-        if (clozeModes.length > 1) clozeModes = clozeModes.filter((m) => m !== mode);
-      } else {
-        clozeModes = [...clozeModes, mode];
-      }
+      clozeModes = toggleClozeSupportMode(clozeModes, mode);
       if (clozeInputText.trim()) doParseCloze();
     }
 

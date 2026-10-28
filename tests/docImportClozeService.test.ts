@@ -8,6 +8,8 @@ import {
   checkImportCheckpointAux,
   discardImportCheckpointAux,
   buildResumeCheckpointReport,
+  toggleClozeSupportMode,
+  toggleSelectAllDocCandidates,
 } from "@/ui/practice/services/docImportClozeService";
 import type { ImportReport, ImportCheckpoint } from "@/importer/pipeline";
 
@@ -167,6 +169,29 @@ describe("docImportClozeService", () => {
       expect(res.report.ok).toEqual([{ id: "q-1" }]);
       expect(res.report.batch).toBe("b-cp");
       expect(res.confirmedIds).toEqual(["q-0"]);
+    });
+
+    it("toggles cloze support mode and keeps at least one mode", () => {
+      // 1. 添加模式
+      expect(toggleClozeSupportMode(["highlight"], "curly")).toEqual(["highlight", "curly"]);
+
+      // 2. 移除模式
+      expect(toggleClozeSupportMode(["highlight", "curly"], "curly")).toEqual(["highlight"]);
+
+      // 3. 只有一个模式时禁止移除
+      expect(toggleClozeSupportMode(["highlight"], "highlight")).toEqual(["highlight"]);
+    });
+
+    it("toggles select all doc candidates correctly", () => {
+      const candidates = [{ id: "d1" }, { id: "d2" }];
+
+      // 1. 从空到全选
+      const allSelected = toggleSelectAllDocCandidates(candidates, {});
+      expect(allSelected).toEqual({ d1: true, d2: true });
+
+      // 2. 从全选到清空
+      const cleared = toggleSelectAllDocCandidates(candidates, { d1: true, d2: true });
+      expect(cleared).toEqual({});
     });
   });
 });

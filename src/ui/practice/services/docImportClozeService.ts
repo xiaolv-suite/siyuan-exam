@@ -145,3 +145,35 @@ export function buildResumeCheckpointReport(cp: ImportCheckpoint): {
   };
 }
 
+export type ClozeModeKey = "highlight" | "curly" | "bracket";
+
+/**
+ * 切换挖空语法支持模式（至少保留一种模式）
+ */
+export function toggleClozeSupportMode(
+  currentModes: ClozeModeKey[],
+  mode: ClozeModeKey,
+): ClozeModeKey[] {
+  if (currentModes.includes(mode)) {
+    return currentModes.length > 1 ? currentModes.filter((m) => m !== mode) : currentModes;
+  }
+  return [...currentModes, mode];
+}
+
+/**
+ * 切换全选/清空思源文档候选项字典
+ */
+export function toggleSelectAllDocCandidates(
+  candidates: Array<{ id: string }>,
+  currentSelected: Record<string, boolean>,
+): Record<string, boolean> {
+  const count = Object.keys(currentSelected).length;
+  if (count === candidates.length && candidates.length > 0) {
+    return {};
+  }
+  const next: Record<string, boolean> = {};
+  for (const doc of candidates) next[doc.id] = true;
+  return next;
+}
+
+
