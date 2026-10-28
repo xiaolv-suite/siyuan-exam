@@ -13,7 +13,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 import { ttsSpeak, ttsSupported } from "@/core/tts";
     import type { ExamApp, BankInfo } from "../../app";
     import type { Question } from "../../core/types";
-    import { parseText, parseExcelRows, autoMapExcel, errorsToCsv, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
+    import { parseText, parseExcelRows, autoMapExcel, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
     import { columnLabel, autoAssignment, assignmentFromMap, assignmentToMap, assignmentErrors, emptyAssignment, type MapAssignment } from "../../importer/mapping";
     import { formatSecToTime, parseTimeToSec, locatorLabel, locatedUrl, needsRelocate, revisionStale } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
@@ -54,7 +54,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { avgMsByType, estimatePlanMinutes } from "@/core/timeBudget";
     import { kpAudit } from "@/core/kpGovernance";
     import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
-    import { probeCheckinApi, syncCheckin, localDateKeyOf, bridgeEnabled, fetchStreak } from "@/core/checkinBridge";
+    import { localDateKeyOf } from "@/core/checkinBridge";
     import { probeGlean, listLaterClips, formatClipsForSource, markClipDone, type GleanClip } from "@/core/gleanBridge";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
@@ -100,6 +100,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       exportSyllabusAudit as serviceExportSyllabusAudit,
       printWrongSheet as servicePrintWrongSheet,
     } from "./services/bankExportService";
+    import {
+      runCheckinSync,
+      retryPendingCheckin,
+      queryCheckinStreak,
+    } from "./services/checkinBridgeService";
+    import {
+      downloadImportTemplate,
+      exportImportErrorsCsv,
+      exportBankPackageZip,
+      readClipboardImportText,
+      makeFileEventProxy,
+    } from "./services/bankImportService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -2869,17 +2881,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function pasteClipboardToImport() {
       if (importBusy) return;
-      try {
-        const text = await navigator.clipboard.readText();
-        if (!text?.trim()) {
-          showMessage(t("import.clipboardEmpty"), 2800, "info");
-          return;
-        }
-        importText = text;
-        showMessage(t("import.clipboardPasted"), 2800, "info");
-      } catch {
-        showMessage(t("import.clipboardFailed"), 3200, "info");
-      }
+      const text = await readClipboardImportText(showMessage, t);
+      if (text) importText = text;
     }
 
     let importDragOver = $state(false);
@@ -2906,41 +2909,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     /** 官方 Excel 模板下载（运行时生成，docs/15 规范） */
     async function downloadTemplate() {
-      const { buildTemplateWorkbook } = await import("@/importer/template");
-      const { buffer, filename } = buildTemplateWorkbook();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      await downloadImportTemplate();
     }
 
     /** 错误清单导出 CSV（Excel 友好，BOM 头） */
     function downloadErrorsCsv() {
-      if (!importReport?.errors.length) return;
-      const csv = errorsToCsv(importReport.errors);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `导入错误清单 ${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      exportImportErrorsCsv(importReport);
     }
 
     // ---------- 题库包分享（.sy.zip 原生格式） ----------
     async function exportBank() {
-      if (!activeBankId) return;
-      try {
-        const { zipPath, filename } = await app.exportBankSyZip(activeBankId);
-        const a = document.createElement("a");
-        a.href = `${window.location.origin}${zipPath}`;
-        a.download = filename;
-        a.click();
-        showMessage(t("share.exportDone") + filename, 4000, "info");
-      } catch (e) {
-        showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await exportBankPackageZip(app, activeBankId, showMessage, offline, t);
     }
 
     /** 拖拽导入（TODO 18 组）：xlsx/csv → Excel 流程；sy.zip → 题库包导入 */
@@ -2963,7 +2942,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     /** 构造伪 input 对象（复用 onExcelFile/importBank 的取文件逻辑） */
     function inputLike(file: File): { target: HTMLInputElement } {
-      return { target: { files: [file], value: "" } as unknown as HTMLInputElement };
+      return makeFileEventProxy(file) as unknown as { target: HTMLInputElement };
     }
 
     async function importBank(e: Event) {
@@ -3329,46 +3308,26 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     // ---------- 打卡桥（48-03 lite）：结算自动同步 + 待重试持久化 + 重载补写 ----------
     let checkinStatus = $state<import("@/core/checkinBridge").CheckinSyncStatus | null>(null);
     let checkinNote = $state("");
-    const CHECKIN_PENDING_KEY = "checkin/bridge/pending";
-    function checkinCfg() {
+    function checkinSettings() {
       return {
-        itemId: String(plugin.settingUtils?.get?.("checkinItemId") ?? "").trim(),
-        threshold: Number(plugin.settingUtils?.get?.("checkinThreshold") ?? 0) || 0,
+        checkinItemId: String(plugin.settingUtils?.get?.("checkinItemId") ?? "").trim(),
+        checkinThreshold: Number(plugin.settingUtils?.get?.("checkinThreshold") ?? 0) || 0,
+        dailyGoal: Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10) || 10,
       };
     }
     async function runCheckinBridge() {
-      const cfg = checkinCfg();
-      const api = probeCheckinApi(window);
-      const today = localDateKeyOf(Date.now());
-      const attempts = app.attempts.all().filter(
-        (e) => localDateKeyOf(e.ts) === today && e.verdict !== "not_attempted",
-      ).length;
-      const goal = Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10) || 10;
-      const st = await syncCheckin(api, cfg, attempts, Date.now(), goal);
-      await app.saveAux(CHECKIN_PENDING_KEY, st.event ?? null);
-      checkinStatus = st.status;
-      if (st.status === "pending") checkinNote = String(st.event?.externalRef ?? "");
+      const res = await runCheckinSync(app, checkinSettings(), window);
+      checkinStatus = res.status;
+      checkinNote = res.note;
     }
     /** 重载补写：上次未写入的打卡事件以原 externalRef 重试（写入成功才清除） */
     async function retryCheckinPending() {
-      const pending = await app.loadAux<import("@/core/checkinBridge").CheckinEventInput | null>(CHECKIN_PENDING_KEY);
-      if (!pending) return;
-      const api = probeCheckinApi(window);
-      if (!api) return; // 打卡未装：保留待重试
-      try {
-        await api.whenReady?.();
-        if (api.hasCapability && !api.hasCapability("events.record")) return;
-        const result = api.recordEvent?.(pending);
-        if (result !== undefined) await app.saveAux(CHECKIN_PENDING_KEY, null);
-      } catch { /* 保留待重试；下次重载继续 */ }
+      await retryPendingCheckin(app, window);
     }
     /** 48-04 lite：打卡→考试只读投影——桥开启时读取连续天数（只读、失败安静、不自算 streak） */
     let checkinStreak = $state<number | null>(null);
     async function loadCheckinStreak() {
-      const cfg = checkinCfg();
-      if (!bridgeEnabled(cfg)) return;
-      const s = await fetchStreak(probeCheckinApi(window), cfg.itemId);
-      checkinStreak = s?.current ?? null;
+      checkinStreak = await queryCheckinStreak(checkinSettings(), window);
     }
 
     /** 44-01：结算页错题回看展开态 */
@@ -6846,6 +6805,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       onexportSyllabusAudit={exportSyllabusAudit}
       onpreviewSyllabus={previewSyllabus}
       onimportSyllabus={() => void importSyllabus()}
+      onapplyTaxonomyPreset={async () => {
+        if (!app) return;
+        try {
+          const res = await app.applyTaxonomyPreset();
+          dataRev++;
+          sylNote = `已成功载入国家新课标学科图谱大纲（${res.roots.length} 个领域，${res.relations.length} 条先修拓扑边）✓`;
+          showMessage(sylNote, 3000, "info");
+        } catch (e) {
+          sylError = String(e instanceof Error ? e.message : e);
+          showMessage(sylError, 3500, "error");
+        }
+      }}
       onapplyPaperRecall={() => void applyPaperRecall()}
       onexportErrataTemplate={exportErrataTemplate}
       onerrataFile={onErrataFile}

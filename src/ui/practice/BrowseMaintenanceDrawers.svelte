@@ -78,6 +78,7 @@
     onexportSyllabusAudit: () => void;
     onpreviewSyllabus: () => void;
     onimportSyllabus: () => void;
+    onapplyTaxonomyPreset?: () => void;
     onapplyPaperRecall: () => void;
     onexportErrataTemplate: () => void;
     onerrataFile: (e: Event) => void;
@@ -165,6 +166,7 @@
     onexportSyllabusAudit,
     onpreviewSyllabus,
     onimportSyllabus,
+    onapplyTaxonomyPreset,
     onapplyPaperRecall,
     onexportErrataTemplate,
     onerrataFile,
@@ -274,7 +276,22 @@
           {#if sylDoc.meta.year}<span class="lv-chip num">{sylDoc.meta.year}</span>{/if}
           <span class="lv-muted num">{t("syl.importedAt").replace("{d}", new Date(sylDoc.importedAt).toLocaleDateString())}</span>
         {/if}
+        {#if app.kpRelationsDoc?.().relations?.length}
+          <span class="lv-chip num" title="考点先修图谱边数">先修依赖: {app.kpRelationsDoc().relations.length} 边</span>
+        {/if}
       </div>
+      {#if !sylDoc.roots.length}
+        <div class="lv-row" style="margin:6px 0;gap:var(--lv-space-2)">
+          <button
+            class="lv-btn sm lv-btn--ghost"
+            onclick={onapplyTaxonomyPreset}
+            disabled={app.syllabusReadonly || app.kpRelationsReadonly}
+            title="一键载入国家新课标中小学/高中全景数学知识图谱大纲与先修依赖拓扑"
+          >
+            <Icon name="git-branch" size={13} /> 载入新课标图谱大纲预设
+          </button>
+        </div>
+      {/if}
       {#if sylDoc.roots.length}
         {@const cov = coverageTree(sylDoc.roots, sylKpStats)}
         <div class="lv-row" style="flex-wrap:wrap;margin:4px 0 0;gap:var(--lv-space-1)">

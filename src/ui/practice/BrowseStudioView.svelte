@@ -184,6 +184,7 @@
     onexportSyllabusAudit: () => void;
     onpreviewSyllabus: () => void;
     onimportSyllabus: () => void;
+    onapplyTaxonomyPreset?: () => void;
     onapplyPaperRecall: () => void;
     onexportErrataTemplate: () => void;
     onerrataFile: (e: Event) => void;
@@ -419,6 +420,7 @@
     onexportSyllabusAudit,
     onpreviewSyllabus,
     onimportSyllabus,
+    onapplyTaxonomyPreset,
     onapplyPaperRecall,
     onexportErrataTemplate,
     onerrataFile,
@@ -657,6 +659,7 @@
     onexportSyllabusAudit={onexportSyllabusAudit}
     onpreviewSyllabus={onpreviewSyllabus}
     onimportSyllabus={onimportSyllabus}
+    onapplyTaxonomyPreset={onapplyTaxonomyPreset}
     onapplyPaperRecall={onapplyPaperRecall}
     onexportErrataTemplate={onexportErrataTemplate}
     onerrataFile={onerrataFile}
