@@ -313,9 +313,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import {
       pickRandomSpotCheckQuestions,
       renderSpotCheckHtml,
-      reparseFixedExcelRow,
-      reparseFixedTextRow,
-      applyReparsedResultToReport,
+      prepareRowFixInitialState,
+      executeApplyRowFix,
     } from "./services/importRepairService";
     import {
       parseSheetRowsWithStrategy,
@@ -333,6 +332,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import {
       executeCommitImport,
       executeAnswerUpdates,
+      buildRetryMissingReport,
     } from "./services/importExecutionService";
     import {
       executeBrowseQuestionFilter,
@@ -5165,19 +5165,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (importBusy) return;
       const report = importReport;
       const sheet = sheetRowsCache.get(activeSheet);
-      // parseExcelRows 行号 = 绝对行号（首行表头=1）：err.row-1 即缓存数组下标
       const abs = row - 1;
-      if (sheet?.[abs]) {
-        fixNote = "";
-        fixRow = row;
-        fixCells = [...sheet[abs]];
-        fixText = "";
-        return;
-      }
-      // 文本路径（粘贴）：err.raw 是 120 字截断预览不可编辑 → 按产生错误的解析器口径提取原文
-      fixRow = row;
-      fixCells = [];
-      fixText = "";
+      const init = prepareRowFixInitialState(row, sheet?.[abs]);
+      fixRow = init.row;
+      fixCells = init.cells;
+      fixText = init.text;
+      fixNote = init.note;
+      if (init.cells.length) return;
       void (async () => {
         const blk = await extractTextRowAt(importText, row);
         if (fixRow !== row || importReport !== report) return;
@@ -5194,29 +5188,25 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
     async function applyRowFix(errRow: number) {
       if (!importReport || fixRow == null || importBusy) return;
-      const sheet = sheetRowsCache.get(activeSheet);
-      const abs = errRow - 1;
-      const existingHashes = dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash));
-      let single: ImportReport;
-      if (fixCells.length && sheet?.[abs]) {
-        // Excel：修好的行写回缓存并单行重验（Alt+Enter 净化沿用 parseExcelRows 内部规则）
-        sheet[abs] = [...fixCells];
-        // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 写时复制惯用法，与 backlinkCache 一致
-        const nextSheetCache = new Map(sheetRowsCache);
-        nextSheetCache.set(activeSheet, sheet);
-        sheetRowsCache = nextSheetCache;
-        single = reparseFixedExcelRow(sheet[abs], lastMap!, existingHashes, dupeStrategy);
-      } else {
-        // 文本路径：整块重验（GIFT/TSV 特征同样走 parseText 分流）
-        single = await reparseFixedTextRow(fixText, existingHashes, dupeStrategy);
-      }
-      const applied = applyReparsedResultToReport(importReport, errRow, single, t);
-      importReport = applied.nextReport;
-      if (applied.fixed) {
+      const res = await executeApplyRowFix({
+        currentReport: importReport,
+        errRow,
+        fixCells,
+        fixText,
+        sheetRowsCache,
+        activeSheet,
+        lastMap,
+        questions,
+        dupeStrategy,
+        t,
+      });
+      importReport = res.nextReport;
+      if (res.nextSheetCache) sheetRowsCache = res.nextSheetCache;
+      if (res.fixed) {
         cancelRowFix();
         showMessage(t("import.rowFixed"), 2600, "info");
-      } else if (applied.fixNote) {
-        fixNote = applied.fixNote;
+      } else if (res.fixNote) {
+        fixNote = res.fixNote;
       }
     }
 
@@ -5224,7 +5214,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     async function retryMissing() {
       if (committing || !retryPool.length) return;
       if (activeBankId !== retryBankId) { importError = t("import.retryWrongBank"); return; }
-      await runCommit({ ok: retryPool, errors: [], duplicates: 0, batch: retryBatch, updates: importReport?.updates });
+      await runCommit(buildRetryMissingReport(retryPool, retryBatch, importReport?.updates));
     }
 </script>
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   executeCommitImport,
   executeAnswerUpdates,
+  buildRetryMissingReport,
 } from "@/ui/practice/services/importExecutionService";
 import type { ImportReport } from "@/importer/pipeline";
 
@@ -121,6 +122,14 @@ describe("importExecutionService", () => {
 
       expect(res.hasIssue).toBe(true);
       expect(res.messageType).toBe("error");
+    });
+
+    it("builds retry missing report accurately", () => {
+      const retryPool = [{ id: "q-retry" }] as any;
+      const report = buildRetryMissingReport(retryPool, "b-batch-1");
+      expect(report.ok).toEqual(retryPool);
+      expect(report.batch).toBe("b-batch-1");
+      expect(report.errors).toEqual([]);
     });
   });
 });

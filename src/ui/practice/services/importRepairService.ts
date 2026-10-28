@@ -93,3 +93,95 @@ export function applyReparsedResultToReport(
   // 修复后与题库/批内重复
   return { nextReport: currentReport, fixNote: t("import.rowDuped"), fixed: false };
 }
+
+export interface RowFixInitialState {
+  row: number;
+  cells: string[];
+  text: string;
+  note: string;
+}
+
+/** 构造行修复初始化状态 */
+export function prepareRowFixInitialState(
+  row: number,
+  sheetRow?: string[],
+): RowFixInitialState {
+  if (sheetRow) {
+    return {
+      row,
+      cells: [...sheetRow],
+      text: "",
+      note: "",
+    };
+  }
+  return {
+    row,
+    cells: [],
+    text: "",
+    note: "",
+  };
+}
+
+export interface ApplyRowFixOptions {
+  currentReport: ImportReport;
+  errRow: number;
+  fixCells: string[];
+  fixText: string;
+  sheetRowsCache: Map<string, string[][]>;
+  activeSheet: string;
+  lastMap: ExcelColumnMap | null;
+  questions: Question[];
+  dupeStrategy: string;
+  t: (k: string) => string;
+}
+
+export interface ApplyRowFixResult {
+  nextReport: ImportReport;
+  fixed: boolean;
+  fixNote?: string;
+  nextSheetCache?: Map<string, string[][]>;
+}
+
+/** 执行单行错误重验并回填报告与表格缓存 */
+export async function executeApplyRowFix(
+  options: ApplyRowFixOptions,
+): Promise<ApplyRowFixResult> {
+  const {
+    currentReport,
+    errRow,
+    fixCells,
+    fixText,
+    sheetRowsCache,
+    activeSheet,
+    lastMap,
+    questions,
+    dupeStrategy,
+    t,
+  } = options;
+
+  const sheet = sheetRowsCache.get(activeSheet);
+  const abs = errRow - 1;
+  const existingHashes =
+    dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash));
+
+  let single: ImportReport;
+  let nextSheetCache: Map<string, string[][]> | undefined;
+
+  if (fixCells.length && sheet?.[abs]) {
+    sheet[abs] = [...fixCells];
+    nextSheetCache = new Map(sheetRowsCache);
+    nextSheetCache.set(activeSheet, sheet);
+    single = reparseFixedExcelRow(sheet[abs], lastMap!, existingHashes, dupeStrategy);
+  } else {
+    single = await reparseFixedTextRow(fixText, existingHashes, dupeStrategy);
+  }
+
+  const applied = applyReparsedResultToReport(currentReport, errRow, single, t);
+  return {
+    nextReport: applied.nextReport,
+    fixed: applied.fixed,
+    fixNote: applied.fixNote,
+    nextSheetCache,
+  };
+}
+

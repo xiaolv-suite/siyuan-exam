@@ -104,3 +104,19 @@ export async function executeAnswerUpdates(
     messageType: hasIssue ? "error" : "info",
   };
 }
+
+/** 构造未读回试题的重试提交报告 */
+export function buildRetryMissingReport(
+  retryPool: Question[],
+  retryBatch: string,
+  updates?: any[],
+): ImportReport {
+  return {
+    ok: retryPool,
+    errors: [],
+    duplicates: 0,
+    batch: retryBatch,
+    updates,
+  };
+}
+

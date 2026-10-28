@@ -5,6 +5,8 @@ import {
   reparseFixedExcelRow,
   reparseFixedTextRow,
   applyReparsedResultToReport,
+  prepareRowFixInitialState,
+  executeApplyRowFix,
 } from "@/ui/practice/services/importRepairService";
 import type { Question } from "@/core/types";
 import type { ImportReport } from "@/importer/pipeline";
@@ -116,6 +118,46 @@ describe("importRepairService", () => {
       const res = applyReparsedResultToReport(baseReport, 2, single, dummyT);
       expect(res.fixed).toBe(false);
       expect(res.fixNote).toBe("[import.rowDuped]");
+    });
+  });
+
+  describe("prepareRowFixInitialState and executeApplyRowFix", () => {
+    it("prepares initial row fix state for excel and text rows", () => {
+      const excelState = prepareRowFixInitialState(2, ["单选", "题干", "A", "B", "A"]);
+      expect(excelState.row).toBe(2);
+      expect(excelState.cells).toHaveLength(5);
+      expect(excelState.text).toBe("");
+
+      const textState = prepareRowFixInitialState(3);
+      expect(textState.row).toBe(3);
+      expect(textState.cells).toEqual([]);
+    });
+
+    it("executes row fix for text blocks and integrates into report", async () => {
+      const baseReport: ImportReport = {
+        ok: [],
+        errors: [{ row: 1, reason: "Aiken 格式错误", raw: "bad" }],
+        duplicates: 0,
+        batch: "b1",
+      };
+
+      const validAiken = "下列哪个是偶数？\nA. 1\nB. 2\nANSWER: B\n";
+      const res = await executeApplyRowFix({
+        currentReport: baseReport,
+        errRow: 1,
+        fixCells: [],
+        fixText: validAiken,
+        sheetRowsCache: new Map(),
+        activeSheet: "Sheet1",
+        lastMap: null,
+        questions: [],
+        dupeStrategy: "skip",
+        t: dummyT,
+      });
+
+      expect(res.fixed).toBe(true);
+      expect(res.nextReport.ok).toHaveLength(1);
+      expect(res.nextReport.errors).toHaveLength(0);
     });
   });
 });
