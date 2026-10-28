@@ -1,4 +1,6 @@
 import type { ExamApp } from "@/app";
+import type { Question } from "@/core/types";
+import { isStubbornWrong } from "@/core/stubborn";
 import type { MessageReporter } from "./printPaperService";
 
 /**
@@ -98,3 +100,55 @@ export async function markWrongMastered(
     );
   }
 }
+
+export interface WrongQueueFilterCriteria {
+  reasonFilter: string;
+  filterStubborn: boolean;
+  kpFilter: string;
+  sortMode: string;
+}
+
+/**
+ * 提取错题队列中的一级考点根分类选项
+ */
+export function extractWrongQueueKpOptions(
+  wrongQueue: Array<{ qid: string }>,
+  questionMap: Map<string, Question>,
+): string[] {
+  const set = new Set<string>();
+  for (const w of wrongQueue) {
+    const q = questionMap.get(w.qid);
+    if (q?.kp) set.add(q.kp.split("/")[0]);
+  }
+  return Array.from(set).sort();
+}
+
+/**
+ * 根据错因、顽疾错题、考点以及排序规则过滤错题队列
+ */
+export function filterAndSortWrongQueue<T extends { qid: string; wrongCount?: number }>(
+  wrongQueue: T[],
+  questionMap: Map<string, Question>,
+  reasonOf: (qid: string) => string | undefined,
+  criteria: WrongQueueFilterCriteria,
+): T[] {
+  let list = wrongQueue;
+  if (criteria.reasonFilter !== "all") {
+    list = list.filter((w) => reasonOf(w.qid) === criteria.reasonFilter);
+  }
+  if (criteria.filterStubborn) {
+    list = list.filter((w) => isStubbornWrong(w as any));
+  }
+  if (criteria.kpFilter) {
+    list = list.filter((w) => questionMap.get(w.qid)?.kp?.startsWith(criteria.kpFilter));
+  }
+  if (criteria.sortMode === "wrongCount") {
+    list = [...list].sort((a, b) => (b.wrongCount || 0) - (a.wrongCount || 0));
+  } else if (criteria.sortMode === "kp") {
+    list = [...list].sort((a, b) =>
+      String(questionMap.get(a.qid)?.kp || "").localeCompare(String(questionMap.get(b.qid)?.kp || "")),
+    );
+  }
+  return list;
+}
+

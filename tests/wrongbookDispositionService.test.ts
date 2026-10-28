@@ -5,7 +5,10 @@ import {
   snoozeWrongItem,
   restoreWrongItemToActive,
   markWrongMastered,
+  extractWrongQueueKpOptions,
+  filterAndSortWrongQueue,
 } from "@/ui/practice/services/wrongbookDispositionService";
+import type { Question } from "@/core/types";
 import type { ExamApp } from "@/app";
 
 describe("错题归档与延期处置服务 (wrongbookDispositionService)", () => {
@@ -66,5 +69,44 @@ describe("错题归档与延期处置服务 (wrongbookDispositionService)", () =
     } as unknown as ExamApp;
     await markWrongMastered(failApp, "q-1", showMessage, t, false);
     expect(msgs[1]).toContain("[wrongbook.masterFailed]");
+  });
+
+  it("4. extractWrongQueueKpOptions 与 filterAndSortWrongQueue：错题考点提取与多条件组合过滤排序", () => {
+    const qMap = new Map<string, Question>([
+      ["q-1", { id: "q-1", kp: "代数/一次方程" } as any],
+      ["q-2", { id: "q-2", kp: "几何/三角形" } as any],
+      ["q-3", { id: "q-3", kp: "代数/不等式" } as any],
+    ]);
+
+    const wrongQueue = [
+      { qid: "q-1", wrongCount: 3, lastWrongAt: 100 },
+      { qid: "q-2", wrongCount: 1, lastWrongAt: 200 },
+      { qid: "q-3", wrongCount: 5, lastWrongAt: 300 },
+    ];
+
+    // 1. 考点根选项提取
+    const kpOptions = extractWrongQueueKpOptions(wrongQueue, qMap);
+    expect(kpOptions).toEqual(["代数", "几何"]);
+
+    // 2. 考点前缀筛选
+    const filteredKp = filterAndSortWrongQueue(wrongQueue, qMap, () => "careless", {
+      reasonFilter: "all",
+      filterStubborn: false,
+      kpFilter: "代数",
+      sortMode: "default",
+    });
+    expect(filteredKp).toHaveLength(2);
+    expect(filteredKp.map((x) => x.qid)).toEqual(["q-1", "q-3"]);
+
+    // 3. 按错误次数排序
+    const sorted = filterAndSortWrongQueue(wrongQueue, qMap, () => "careless", {
+      reasonFilter: "all",
+      filterStubborn: false,
+      kpFilter: "",
+      sortMode: "wrongCount",
+    });
+    expect(sorted[0].qid).toBe("q-3"); // wrongCount: 5
+    expect(sorted[1].qid).toBe("q-1"); // wrongCount: 3
+    expect(sorted[2].qid).toBe("q-2"); // wrongCount: 1
   });
 });

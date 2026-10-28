@@ -156,7 +156,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       snoozeWrongItem,
       restoreWrongItemToActive,
       markWrongMastered,
+      extractWrongQueueKpOptions,
+      filterAndSortWrongQueue,
     } from "./services/wrongbookDispositionService";
+    import {
+      buildPracticePaletteCommands,
+      resolveTaskNavigation,
+    } from "./services/practicePaletteService";
     import {
       generateFlashCandidates,
       executeCommitFlashCardsWithConfirm,
@@ -344,7 +350,6 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
-    import type { PaletteCommand } from "../shared/Palette.svelte";
     import { SvelteMap, SvelteSet } from "svelte/reactivity";
     import Rail from "../shared/Rail.svelte";
     import { escapeHtml, renderInlineText } from "../../libs/sanitize";
@@ -2189,27 +2194,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     const wrongQueue = $derived(
       [...wrongList].sort((a, b) => b.wrongCount - a.wrongCount || b.lastWrongAt - a.lastWrongAt),
     );
-    const wbKpOptions = $derived.by(() => {
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived 内纯派生去重集
-      const set = new Set<string>();
-      for (const w of wrongQueue) {
-        const q = questionMap.get(w.qid);
-        if (q?.kp) set.add(q.kp.split("/")[0]);
-      }
-      return Array.from(set).sort();
-    });
-    const filteredWrongQueue = $derived.by(() => {
-      let list = wrongQueue;
-      if (wbReasonFilter !== "all") list = list.filter((w) => reasonOf(w.qid) === wbReasonFilter);
-      if (wbFilterStubborn) list = list.filter((w) => isStubbornWrong(w));
-      if (wbKpFilter) list = list.filter((w) => questionMap.get(w.qid)?.kp?.startsWith(wbKpFilter));
-      if (wbSortMode === "wrongCount") {
-        list = [...list].sort((a, b) => (b.wrongCount || 0) - (a.wrongCount || 0));
-      } else if (wbSortMode === "kp") {
-        list = [...list].sort((a, b) => String(questionMap.get(a.qid)?.kp || "").localeCompare(String(questionMap.get(b.qid)?.kp || "")));
-      }
-      return list;
-    });
+    const wbKpOptions = $derived(extractWrongQueueKpOptions(wrongQueue, questionMap));
+    const filteredWrongQueue = $derived(filterAndSortWrongQueue(wrongQueue, questionMap, reasonOf, {
+      reasonFilter: wbReasonFilter,
+      filterStubborn: wbFilterStubborn,
+      kpFilter: wbKpFilter,
+      sortMode: wbSortMode,
+    }));
 
     async function archiveWrong(qid: string) {
       await archiveWrongItem(app, qid, showMessage, t);
@@ -2246,32 +2237,25 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     ]);
 
     let paletteOpen = $state(false);
-    const paletteCommands: PaletteCommand[] = [
-      { group: t("palette.views"), icon: "home", label: t("tab.practice"), keywords: "home entry today", run: () => { switchView("entry"); } },
-      { group: t("palette.views"), icon: "xcircle", label: t("wrongbook.title"), keywords: "wrongbook wrong", run: () => { switchView("wrongbook"); void loadQuestions(); } },
-      { group: t("palette.views"), icon: "table", label: t("mode.browse"), keywords: "browse bank list", run: () => { switchView("browse"); void loadQuestions(); } },
-      { group: t("palette.views"), icon: "import", label: t("import.title"), keywords: "import excel csv aiken gift", run: () => { switchView("import"); } },
-      { group: t("palette.views"), icon: "pencil", label: t("entry.manual"), keywords: "manual add", run: () => { switchView("manual"); } },
-      { group: t("palette.views"), icon: "sparkles", label: t("ai.title"), keywords: "ai generate", run: () => { switchView("ai"); } },
-      { group: t("palette.views"), icon: "book", label: t("materials.title"), keywords: "materials pdf", run: () => { switchView("materials"); loadMaterials(); } },
-      { group: t("palette.actions"), icon: "zap", label: t("mode.quick"), keywords: "quick drill practice", run: () => void startDrill("quick") },
-      { group: t("palette.actions"), icon: "calendar", label: t("mode.daily"), keywords: "daily", run: () => void startDrill("daily") },
-      { group: t("palette.actions"), icon: "rotate", label: t("mode.recite"), keywords: "recite cover tts", run: () => void startRecite() },
-      { group: t("palette.actions"), icon: "xcircle", label: t("mode.wrong"), keywords: "wrong redo drill", run: () => void startDrill("wrong") },
-      { group: t("palette.actions"), icon: "flame", label: t("mode.cram"), keywords: "cram cram", run: () => void startDrill("cram") },
-      { group: t("palette.actions"), icon: "star", label: t("mode.fav"), keywords: "fav starred", run: () => void startDrill("fav") },
-      { group: t("palette.actions"), icon: "save", label: t("sync.docsBtn"), keywords: "sync archive local docs", run: () => void syncBankDocs() },
-      { group: t("palette.actions"), icon: "copy", label: t("entry.copyReport"), keywords: "copy today study report diary", run: () => void copyTodayReportMarkdown() },
-      { group: t("palette.tabs"), icon: "clock", label: t("tab.mock"), keywords: "mock exam", run: () => plugin.openMock?.() },
-      { group: t("palette.tabs"), icon: "chart", label: t("tab.report"), keywords: "report stats", run: () => plugin.openReport?.() },
-    ];
+    const paletteCommands = $derived(buildPracticePaletteCommands({
+      t,
+      switchView,
+      loadQuestions,
+      loadMaterials,
+      startDrill,
+      startRecite,
+      syncBankDocs,
+      copyTodayReportMarkdown,
+      openMock: plugin.openMock,
+      openReport: plugin.openReport,
+    }));
 
     function onTaskNav(target: "today" | "bank" | "create" | "mock" | "report") {
-      if (target === "mock") return plugin.openMock?.();
-      if (target === "report") return plugin.openReport?.();
-      const next: View = target === "today" ? "entry" : target === "bank" ? "browse" : "manual";
-      switchView(next);
-      if (next === "entry" || next === "browse") void loadQuestions();
+      const res = resolveTaskNavigation(target, plugin.openMock, plugin.openReport);
+      if (res.nextView) {
+        switchView(res.nextView);
+        if (res.nextView === "entry" || res.nextView === "browse") void loadQuestions();
+      }
     }
 
     /** 47-02 lite：首用引导（有题库 + 零作答记录 + 未跳过时显示；产生首个作答后自动消失） */
