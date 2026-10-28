@@ -4,6 +4,10 @@ import {
   pushSingleWrongToCard,
   pushSessionWrongsToActions,
   assembleAndLaunchWrongMock,
+  countEliminatedWrongs,
+  calculateClearPercentage,
+  queryArchivedWrongList,
+  queryEliminatedWrongList,
 } from "@/ui/practice/services/wrongbookEcosystemService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -94,5 +98,42 @@ describe("错题生态联动服务 (wrongbookEcosystemService)", () => {
     const c2 = await assembleAndLaunchWrongMock(emptyApp, "bank-1", openMockMock, showMessage, t);
     expect(c2).toBe(0);
     expect(msgs[1]).toBe("[wrongbook.noFiltered]");
+  });
+
+  it("5. countEliminatedWrongs, calculateClearPercentage, queryArchivedWrongList 与 queryEliminatedWrongList", () => {
+    const questions = [{ id: "q-1" }, { id: "q-2" }];
+    const mockApp = {
+      derived: vi.fn().mockReturnValue({
+        wrongbook: new Map([
+          ["q-1", { qid: "q-1", status: "eliminated", lastWrongAt: 200 }],
+          ["q-other", { qid: "q-other", status: "eliminated", lastWrongAt: 100 }],
+        ]),
+      }),
+      listArchivedWrongs: vi.fn().mockReturnValue([
+        { qid: "q-1" },
+        { qid: "q-foreign" },
+      ]),
+    } as unknown as ExamApp;
+
+    // 1. 已消灭计数（只统计当前题库下的题目）
+    const count = countEliminatedWrongs(mockApp, questions);
+    expect(count).toBe(1);
+    expect(countEliminatedWrongs(null, questions)).toBe(0);
+
+    // 2. 消灭率百分比
+    expect(calculateClearPercentage(1, 3)).toBe(25); // 1 / (1 + 3) = 25%
+    expect(calculateClearPercentage(0, 0)).toBe(0);
+
+    // 3. 归档列表
+    const archived = queryArchivedWrongList(mockApp, questions);
+    expect(archived).toHaveLength(1);
+    expect(archived[0].qid).toBe("q-1");
+    expect(queryArchivedWrongList(null, questions)).toEqual([]);
+
+    // 4. 已消灭列表
+    const eliminated = queryEliminatedWrongList(mockApp, questions);
+    expect(eliminated).toHaveLength(1);
+    expect(eliminated[0].qid).toBe("q-1");
+    expect(queryEliminatedWrongList(null, questions)).toEqual([]);
   });
 });

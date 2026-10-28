@@ -132,3 +132,25 @@ export async function executeMasterAllWrong(
 
   return { ok, failed };
 }
+
+/**
+ * 批量标记全部错题为已掌握（经弹窗确认）
+ */
+export async function executeMasterAllWrongWithConfirm(
+  app: ExamApp,
+  wrongList: Array<{ qid: string }>,
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
+  showMessage: MessageReporter,
+  t: (k: string) => string,
+): Promise<{ confirmed: boolean; ok: number; failed: number }> {
+  if (!wrongList.length) return { confirmed: false, ok: 0, failed: 0 };
+  const ok = await confirmFn({
+    title: t("wrongbook.masterAllTitle"),
+    content: t("wrongbook.masterAllConfirm").replace("{n}", String(wrongList.length)),
+  });
+  if (!ok) return { confirmed: false, ok: 0, failed: 0 };
+
+  const res = await executeMasterAllWrong(app, wrongList, showMessage, t);
+  return { confirmed: true, ...res };
+}
+

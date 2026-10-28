@@ -5,6 +5,7 @@ import {
   handleDrawerTabKey,
   isClickOutsideElement,
   handleDrawerNavKey,
+  handleModalDrawerKeydown,
 } from "@/ui/shared/drawerAccessibility";
 
 describe("drawerAccessibility", () => {
@@ -144,6 +145,25 @@ describe("drawerAccessibility", () => {
       handlers.onPrev.mockClear();
       handleDrawerNavKey(inputKEvent, handlers);
       expect(handlers.onPrev).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("handleModalDrawerKeydown", () => {
+    it("handles escape and tab within modal drawer", () => {
+      const drawer = document.createElement("div");
+      document.body.appendChild(drawer);
+      const onClose = vi.fn();
+
+      // 1. drawer 为空返回 false
+      expect(handleModalDrawerKeydown(new KeyboardEvent("keydown"), null, onClose)).toBe(false);
+
+      // 2. Escape 按键拦截并关闭
+      const esc = new KeyboardEvent("keydown", { key: "Escape" });
+      const preventSpy = vi.spyOn(esc, "preventDefault");
+      const res = handleModalDrawerKeydown(esc, drawer, onClose);
+      expect(res).toBe(true);
+      expect(preventSpy).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
     });
   });
 });

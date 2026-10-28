@@ -5,6 +5,7 @@ import {
   pickSameKpQuestions,
   toggleQuestionFavorite,
   executeMasterAllWrong,
+  executeMasterAllWrongWithConfirm,
 } from "@/ui/practice/services/drillLauncherService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -136,5 +137,23 @@ describe("练习会话调度与定向刷题服务 (drillLauncherService)", () =>
     expect(res.ok).toBe(2);
     expect(res.failed).toBe(0);
     expect(msgs[0]).toBe("[wrongbook.masterAllDone]");
+  });
+
+  it("5. executeMasterAllWrongWithConfirm：带弹窗确认的批量掌握处理", async () => {
+    const msgs: string[] = [];
+    const showMessage = (m: string) => msgs.push(m);
+    const t = (k: string) => `[${k}]`;
+    const mockApp = { setWrongStatus: vi.fn().mockResolvedValue(undefined) } as unknown as ExamApp;
+
+    // 1. 取消
+    const cancelConfirm = vi.fn().mockResolvedValue(false);
+    const resCancel = await executeMasterAllWrongWithConfirm(mockApp, [{ qid: "q-1" }], cancelConfirm, showMessage, t);
+    expect(resCancel.confirmed).toBe(false);
+
+    // 2. 确认
+    const agreeConfirm = vi.fn().mockResolvedValue(true);
+    const resAgree = await executeMasterAllWrongWithConfirm(mockApp, [{ qid: "q-1" }], agreeConfirm, showMessage, t);
+    expect(resAgree.confirmed).toBe(true);
+    expect(resAgree.ok).toBe(1);
   });
 });

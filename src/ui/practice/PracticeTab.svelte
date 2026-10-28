@@ -197,6 +197,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       pushSingleWrongToCard,
       pushSessionWrongsToActions,
       assembleAndLaunchWrongMock,
+      countEliminatedWrongs,
+      calculateClearPercentage,
+      queryArchivedWrongList,
+      queryEliminatedWrongList,
     } from "./services/wrongbookEcosystemService";
     import {
       pickSameKpDrillQuestions,
@@ -255,7 +259,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       pickSingleWrongQuestion,
       pickSameKpQuestions,
       toggleQuestionFavorite,
-      executeMasterAllWrong,
+      executeMasterAllWrongWithConfirm,
     } from "./services/drillLauncherService";
     import {
       fetchGleanClips,
@@ -345,9 +349,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     } from "./services/browseFilterService";
     import {
       markAncestorSiblingsInert,
-      handleDrawerTabKey,
       isClickOutsideElement,
       handleDrawerNavKey,
+      handleModalDrawerKeydown,
     } from "../shared/drawerAccessibility";
     import {
       getQuestionScratchpadContent,
@@ -2167,13 +2171,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 消灭口径：eliminated/(eliminated+在册)；处置覆盖层不影响分母方向 */
     const eliminatedCount = $derived.by(() => {
       void dataRev;
-      if (!app) return 0;
-      const ids = new Set(questions.map((q) => q.id));
-      try { return [...app.derived().wrongbook.values()].filter((w) => ids.has(w.qid) && w.status === "eliminated").length; } catch { return 0; }
+      return countEliminatedWrongs(app, questions);
     });
-    const clearPct = $derived(
-      eliminatedCount + wrongList.length ? Math.round((eliminatedCount / (eliminatedCount + wrongList.length)) * 100) : 0,
-    );
+    const clearPct = $derived(calculateClearPercentage(eliminatedCount, wrongList.length));
     /** 错题队列：错次降序 → 最近错误降序（紧迫度序） */
     let wbTab = $state<"active" | "archived" | "eliminated">("active");
     let wbReasonFilter = $state<"all" | "careless" | "unknown" | "trap">("all");
@@ -2182,21 +2182,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let wbSortMode = $state<"default" | "wrongCount" | "kp">((readLocal("lv-exam/wrong-sort") as any) || "default");
     const archivedWrongList = $derived.by(() => {
       void dataRev;
-      if (!app) return [];
-      const ids = new Set(questions.map((q) => q.id));
-      return app.listArchivedWrongs().filter((w) => ids.has(w.qid));
+      return queryArchivedWrongList(app, questions);
     });
     const eliminatedWrongList = $derived.by(() => {
       void dataRev;
-      if (!app) return [];
-      const ids = new Set(questions.map((q) => q.id));
-      try {
-        return [...app.derived().wrongbook.values()]
-          .filter((w) => ids.has(w.qid) && w.status === "eliminated")
-          .sort((a, b) => b.lastWrongAt - a.lastWrongAt);
-      } catch {
-        return [];
-      }
+      return queryEliminatedWrongList(app, questions);
     });
     const wrongQueue = $derived(
       [...wrongList].sort((a, b) => b.wrongCount - a.wrongCount || b.lastWrongAt - a.lastWrongAt),
@@ -2464,11 +2454,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     async function masterAllWrong() {
       if (bulkMasterBusy || !wrongList.length) return;
       const { confirmDialogSync } = await import("../../libs/dialog");
-      if (!(await confirmDialogSync({ title: t("wrongbook.masterAllTitle"), content: t("wrongbook.masterAllConfirm").replace("{n}", String(wrongList.length)) }))) return;
       bulkMasterBusy = true;
       try {
-        await executeMasterAllWrong(app, wrongList, showMessage, t);
-        dataRev++;
+        const res = await executeMasterAllWrongWithConfirm(app, wrongList, confirmDialogSync, showMessage, t);
+        if (res.confirmed) dataRev++;
       } finally { bulkMasterBusy = false; }
     }
 
@@ -2483,9 +2472,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         dataRev++;
       } finally { favBusy = false; }
     }
-    async function toggleFavCurrent() {
-      await toggleFavQuestion(session?.current as (Question & { blockId?: string; fav?: boolean }) | undefined);
-    }
+    const toggleFavCurrent = () => toggleFavQuestion(session?.current as (Question & { blockId?: string; fav?: boolean }) | undefined);
 
     /** 共用题干：材料组母卡（同组材料的题干作为上下文渲染） */
     const materialContext = $derived.by(() => {
@@ -2513,11 +2500,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!session || sib.sessionCursor === undefined) return;
       if (session.jumpTo(sib.sessionCursor)) {
         clearReciteSubmitTimer();
-        feedback = null;
-        selected = "";
-        draftLive = "";
-        confidenceSel = "";
-        // 同组切题保持展开状态，避免重复手动展开
+        resetSessionViewState();
         answerStart = Date.now();
         hideOptions = false;
         recallDraft = "";
@@ -2718,8 +2701,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }
     }
 
-    async function copyTodayReportMarkdown() {
-      await copyTodayStudyReport(
+    function copyTodayReportMarkdown() {
+      return copyTodayStudyReport(
         {
           bankName,
           todayDone,
@@ -4293,11 +4276,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     /** R54 原型高级交互：把资料/笔记一键带入手工出题 */
     function bridgeMaterialToManual(m: import("../../core/materials").MaterialDoc, noteText = "") {
-      const bridged = serviceBridgeMaterialToManual(m, noteText);
-      mSource = bridged.source;
-      if (bridged.stem) mStem = bridged.stem;
+      const b = serviceBridgeMaterialToManual(m, noteText);
+      mSource = b.source; if (b.stem) mStem = b.stem;
       view = "manual";
-      showMessage(bridged.toast, 2800, "info");
+      showMessage(b.toast, 2800, "info");
     }
 
     /** R54 原型高级交互：把资料/笔记一键带入 AI 材料 */
@@ -4640,18 +4622,12 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     function cloneToManualStudio(q: Question) {
-      const draft = cloneQuestionToManualDraft(q);
-      mType = draft.type;
-      mStem = draft.stem;
-      mOptions = draft.options;
-      mAnswer = draft.answer;
-      mAnalysis = draft.analysis;
-      mKp = draft.kp;
-      mSource = draft.source;
-      mStatus = draft.status;
+      const d = cloneQuestionToManualDraft(q);
+      mType = d.type; mStem = d.stem; mOptions = d.options; mAnswer = d.answer;
+      mAnalysis = d.analysis; mKp = d.kp; mSource = d.source; mStatus = d.status;
       closePeekDrawer();
       view = "manual";
-      showMessage(draft.toast, 3500, "info");
+      showMessage(d.toast, 3500, "info");
     }
     let peekDrawerEl = $state<HTMLDivElement | null>(null);
     let peekReturnFocus: HTMLElement | null = null;
@@ -4752,25 +4728,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     /** 键盘流（docs/11 映射表）：会话 A-F/⏎/J；背诵 空格翻开、1-4 自评；composition（中文输入法）期间不响应 */
     function onKeydown(e: KeyboardEvent) {
-      const peekOpen = !!activePeekQuestion && !!peekDrawerEl;
-      if (peekOpen) {
-        // A host confirmation/input dialog takes precedence over the page peek.
-        const externalDialog = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].some((el) => el !== peekDrawerEl);
-        if (externalDialog) return;
-        if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          closePeekDrawer();
-          return;
-        }
-        if (e.key === "Tab" && peekDrawerEl) {
-          handleDrawerTabKey(peekDrawerEl, e);
-          return;
-        }
-        // Do not let page-level shortcuts act while focus is in the drawer.
-        if (!(e.target instanceof Node) || !peekDrawerEl.contains(e.target)) return;
-        return;
-      }
+      if (activePeekQuestion && handleModalDrawerKeydown(e, peekDrawerEl, closePeekDrawer)) return;
       if (shouldBlockGlobalHotkeys({
         tabRoot,
         target: e.target,

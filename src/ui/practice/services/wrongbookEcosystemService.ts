@@ -101,3 +101,63 @@ export async function assembleAndLaunchWrongMock(
   showMessage(`已为 ${result.totalCount} 道错题生成专属限时特训卷！正在进入模考考场…`, 3500, "info");
   return result.totalCount;
 }
+
+/**
+ * 计算已消灭错题数（status="eliminated" 且属于当前题库）
+ */
+export function countEliminatedWrongs(
+  app: ExamApp | null | undefined,
+  questions: Array<{ id: string }>,
+): number {
+  if (!app) return 0;
+  const ids = new Set(questions.map((q) => q.id));
+  try {
+    return [...app.derived().wrongbook.values()].filter(
+      (w) => ids.has(w.qid) && w.status === "eliminated",
+    ).length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 计算错题消灭率百分比（0-100）
+ */
+export function calculateClearPercentage(
+  eliminatedCount: number,
+  activeWrongCount: number,
+): number {
+  const total = eliminatedCount + activeWrongCount;
+  return total > 0 ? Math.round((eliminatedCount / total) * 100) : 0;
+}
+
+/**
+ * 获取当前题库的已归档错题列表
+ */
+export function queryArchivedWrongList(
+  app: ExamApp | null | undefined,
+  questions: Array<{ id: string }>,
+): any[] {
+  if (!app) return [];
+  const ids = new Set(questions.map((q) => q.id));
+  return app.listArchivedWrongs().filter((w) => ids.has(w.qid));
+}
+
+/**
+ * 获取当前题库的已消灭错题列表（按最近错误时间降序）
+ */
+export function queryEliminatedWrongList(
+  app: ExamApp | null | undefined,
+  questions: Array<{ id: string }>,
+): any[] {
+  if (!app) return [];
+  const ids = new Set(questions.map((q) => q.id));
+  try {
+    return [...app.derived().wrongbook.values()]
+      .filter((w) => ids.has(w.qid) && w.status === "eliminated")
+      .sort((a, b) => b.lastWrongAt - a.lastWrongAt);
+  } catch {
+    return [];
+  }
+}
+

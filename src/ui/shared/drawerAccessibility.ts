@@ -135,4 +135,33 @@ export function handleDrawerNavKey(e: KeyboardEvent, handlers: DrawerNavHandlers
   }
 }
 
+/**
+ * 处理页面全局 onKeydown 时对打开中抽屉的拦截（包含 Escape 关闭、Tab 焦点圈定与外部 Dialog 优先级判定）
+ */
+export function handleModalDrawerKeydown(
+  e: KeyboardEvent,
+  drawerEl: HTMLElement | null,
+  onClose: () => void,
+): boolean {
+  if (!drawerEl) return false;
+  // A host confirmation/input dialog takes precedence over the page peek.
+  if (typeof document !== "undefined") {
+    const externalDialog = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].some((el) => el !== drawerEl);
+    if (externalDialog) return true;
+  }
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+    return true;
+  }
+  if (e.key === "Tab") {
+    handleDrawerTabKey(drawerEl, e);
+    return true;
+  }
+  return true;
+}
+
+
 
