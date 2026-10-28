@@ -260,6 +260,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       fetchBlockBacklinks,
       openSiYuanTarget,
     } from "./services/backlinkNavigationService";
+    import {
+      executeCommitImport,
+      executeAnswerUpdates,
+    } from "./services/importExecutionService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -5416,24 +5420,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       commitCancelRequested = false;
       commitProgress = { done: 0, total: report.ok.length };
       try {
-        const r = await app.commitImport(targetBankId, report, {
+        const commitRes = await executeCommitImport(app, targetBankId, report, trialConfirmed.length, {
           onProgress: (done, total) => { commitProgress = { done, total }; },
           isCancelled: () => commitCancelRequested,
         });
-        importResult = {
-          written: r.written + trialConfirmed.length,
-          confirmed: r.readback.confirmed.length + trialConfirmed.length,
-          missing: r.readback.missing.length,
-          verified: r.readback.verified || !report.ok.length,
-          cancelled: r.cancelled === true,
-          unprocessed: r.unprocessed?.length ?? 0,
-          pendingIndex: r.pendingIndex?.length ?? 0,
-        };
-        retryPool = report.ok.filter((q) => r.readback.missing.includes(q.id));
-        retryBatch = report.batch;
-        retryBankId = targetBankId;
+        importResult = commitRes.importResult;
+        retryPool = commitRes.retryPool;
+        retryBatch = commitRes.retryBatch;
+        retryBankId = commitRes.retryBankId;
         void checkImportCheckpoint();
-        if (r.cancelled || commitCancelRequested) {
+        if (commitRes.cancelled) {
           importResult.cancelled = true;
           importReport = { ...report, ok: retryPool };
           await refreshQuestionsAfterWrite(0);
@@ -5441,28 +5437,20 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         }
         // 38-03 更新式重导：报告.updates 按 hash 定位库内题，只覆盖答案/解析/别名
         if (report.updates?.length) {
-          // 同批内重复题可能指向本轮刚新增的题；读取固定目标库，不使用切库后的全局列表。
-          const updatedQuestions = await app.listQuestions(targetBankId);
-          const r2 = await app.applyAnswerUpdates(report.updates, [...targetQuestions, ...updatedQuestions], {
+          const updRes = await executeAnswerUpdates(app, targetBankId, report.updates, targetQuestions, t, {
             isCancelled: () => commitCancelRequested,
             onProgress: (done, total) => { commitProgress = { done, total }; },
           });
-          updateResult = r2;
-          showMessage(
-            t("import.updatesDone").replace("{ok}", String(r2.ok)).replace("{f}", String(r2.failed)).replace("{m}", String(r2.missing)),
-            5600,
-            r2.failed || r2.missing || r2.unprocessed ? "error" : "info",
-          );
-          if (r2.failed || r2.missing || r2.unprocessed) {
-            if (r2.unprocessed) importResult.cancelled = true;
-            // 答案更新是幂等操作；保留候选可重新核对/提交，已新增题不重复写入。
+          updateResult = updRes.updateResult;
+          showMessage(updRes.message, 5600, updRes.messageType);
+          if (updRes.hasIssue) {
+            if (updRes.updateResult.unprocessed) importResult.cancelled = true;
             importReport = { ...report, ok: retryPool, updates: report.updates };
             await refreshQuestionsAfterWrite(0);
             return false;
           }
         }
         importReport = null; importText = "";
-        // commitImport 内部已等待索引并按 qid 读回；导入可能更新重复题，不能用题目总数推断成功。
         await refreshQuestionsAfterWrite(0);
         return true;
       } catch (e) {
