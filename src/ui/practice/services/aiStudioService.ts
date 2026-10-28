@@ -5,6 +5,8 @@ import type { GenOptions, GenIssue } from "@/ai/gen";
 import { generate, repairIssues } from "@/ai/gen";
 import { CountingChannel } from "@/ai/counting";
 import { createAiChannel, type AiChannelConfig } from "./aiWorkflowService";
+import { normalizeAnswer, questionHash } from "@/core/answer";
+import { validate } from "@/importer/pipeline";
 
 export const REVIEW_QUEUE_KEY = "ai/review-queue";
 
@@ -147,3 +149,50 @@ export async function fetchCurrentEditorDocContent(
   if (!content) return null;
   return { title, content };
 }
+
+/**
+ * 校验并应用 AI 候选题目的手动编辑修改
+ */
+export function validateAndApplyCandidateEdit(
+  original: Question,
+  draft: { stem: string; options: string[]; answer: string; analysis: string },
+): { valid: boolean; question?: Question; error?: string } {
+  const stem = draft.stem.trim();
+  const options = draft.options.map((o) => o.trim());
+  const answer = normalizeAnswer(original.type, draft.answer) ?? "";
+  const analysis = draft.analysis.trim();
+
+  const edited: Question = {
+    ...original,
+    stem,
+    options,
+    answer,
+    analysis,
+    hash: questionHash(stem, options),
+  };
+
+  const bad = validate(edited);
+  if (bad) {
+    return { valid: false, error: bad };
+  }
+
+  return { valid: true, question: edited };
+}
+
+/**
+ * 队列归属题库与当前活动题库对账
+ */
+export function verifyQueueBankMatch(
+  queueBankId: string,
+  currentBankId: string,
+  t: (k: string) => string,
+): { matched: boolean; errorMessage?: string } {
+  if (queueBankId && currentBankId !== queueBankId) {
+    return {
+      matched: false,
+      errorMessage: t("ai.queueWrongBank"),
+    };
+  }
+  return { matched: true };
+}
+

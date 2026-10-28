@@ -4,6 +4,7 @@ import {
   saveSmartViewsAux,
   createNamedSmartView,
   isViewBankMismatched,
+  removeNamedSmartView,
   loadExcelMappingsAux,
   saveExcelMappingAux,
   cloneQuestionToManualDraft,
@@ -90,6 +91,14 @@ describe("smartViewManagementService", () => {
       const view: SmartView = { name: "数学专精", v: 1, bankId: "math-bank", favOnly: false, createdAt: 100 };
       expect(isViewBankMismatched(view, "math-bank")).toBe(false);
       expect(isViewBankMismatched(view, "english-bank")).toBe(true);
+    });
+
+    it("removes named smart view", () => {
+      const list: SmartView[] = [
+        { name: "v1", v: 1, bankId: "b1", favOnly: false, createdAt: 1 },
+        { name: "v2", v: 1, bankId: "b1", favOnly: false, createdAt: 2 },
+      ];
+      expect(removeNamedSmartView(list, "v1")).toEqual([list[1]]);
     });
   });
 

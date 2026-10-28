@@ -17,7 +17,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { formatSecToTime, locatorLabel, needsRelocate } from "@/core/materialNotes";
     import { groupAdjacent } from "../../core/session";
     import { makeQuestion } from "../../core/blockTemplate";
-    import { normalizeAnswer, questionHash } from "../../core/answer";
     import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
     import {
       parseRubricFromText, scoreRubric,
@@ -29,7 +28,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { helpFromExposure } from "../../core/exposure";
     import { randomSeedId } from "../../core/random";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
-    import { validate } from "../../importer/pipeline";
     import {
       bankHealthReport,
       coverageStats,
@@ -151,6 +149,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       executeAiIssueRepair,
       approveSingleQuestion,
       fetchCurrentEditorDocContent,
+      validateAndApplyCandidateEdit,
+      verifyQueueBankMatch,
     } from "./services/aiStudioService";
     import {
       pushWrongsToCards,
@@ -229,6 +229,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       saveSmartViewsAux,
       createNamedSmartView,
       isViewBankMismatched,
+      removeNamedSmartView,
       loadExcelMappingsAux,
       saveExcelMappingAux,
       cloneQuestionToManualDraft,
@@ -4155,8 +4156,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let aiQueueBankId = $state("");
 
     function queueBankMismatch(): boolean {
-      if (aiQueueBankId && activeBankId !== aiQueueBankId) {
-        showMessage(t("ai.queueWrongBank"), 4600, "error");
+      const check = verifyQueueBankMatch(aiQueueBankId, activeBankId, t);
+      if (!check.matched && check.errorMessage) {
+        showMessage(check.errorMessage, 4600, "error");
         return true;
       }
       return false;
@@ -4226,13 +4228,12 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     function saveEditAi(q: Question) {
       if (!aiEditDraft) return;
-      const stem = aiEditDraft.stem.trim();
-      const options = aiEditDraft.options.map((o) => o.trim());
-      const answer = normalizeAnswer(q.type, aiEditDraft.answer) ?? "";
-      const edited: Question = { ...q, stem, options, answer, analysis: aiEditDraft.analysis.trim(), hash: questionHash(stem, options) };
-      const bad = validate(edited);
-      if (bad) { aiEditError = bad; return; }
-      aiQueue = aiQueue.map((x) => (x.id === q.id ? edited : x));
+      const res = validateAndApplyCandidateEdit(q, aiEditDraft);
+      if (!res.valid || !res.question) {
+        aiEditError = res.error || "";
+        return;
+      }
+      aiQueue = aiQueue.map((x) => (x.id === q.id ? res.question! : x));
       cancelEditAi();
       void persistAiQueue();
     }
@@ -4830,7 +4831,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
         const name = selectedView;
         const { confirmDialogSync } = await import("../../libs/dialog");
         if (!(await confirmDialogSync({ title: t("view.deleteTitle"), content: t("view.deleteConfirm").replace("{name}", escapeHtml(name)) }))) return;
-        const next = smartViews.filter((v) => v.name !== name);
+        const next = removeNamedSmartView(smartViews, name);
         if (!(await saveSmartViews(next))) return;
         smartViews = next;
         selectedView = "";

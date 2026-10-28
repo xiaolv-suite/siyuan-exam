@@ -89,6 +89,11 @@ export function isViewBankMismatched(view: SmartView, activeBankId: string): boo
   return viewBankMismatch(view, activeBankId);
 }
 
+/** 删除指定名称的视图并返回新视图数组 */
+export function removeNamedSmartView(currentViews: SmartView[], name: string): SmartView[] {
+  return currentViews.filter((v) => v.name !== name);
+}
+
 /** 加载已保存的 Excel 映射 */
 export async function loadExcelMappingsAux(app: any): Promise<ExcelMappingItem[]> {
   try {

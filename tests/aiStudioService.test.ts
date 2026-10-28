@@ -6,6 +6,8 @@ import {
   approveSingleQuestion,
   approveBatchQuestions,
   fetchCurrentEditorDocContent,
+  validateAndApplyCandidateEdit,
+  verifyQueueBankMatch,
   type AiReviewQueueState,
 } from "@/ui/practice/services/aiStudioService";
 import type { ExamApp } from "@/app";
@@ -106,5 +108,37 @@ describe("AI 出题工作台队列与审批服务 (aiStudioService)", () => {
     // 2. 无 rootId
     const emptyRes = await fetchCurrentEditorDocContent(mockClient, "");
     expect(emptyRes).toBeNull();
+  });
+
+  it("5. validateAndApplyCandidateEdit 与 verifyQueueBankMatch：编辑校验与题库防错写", () => {
+    const t = (k: string) => `[${k}]`;
+
+    // 1. 合法编辑
+    const editRes = validateAndApplyCandidateEdit(fakeQuestion, {
+      stem: "修改后的题干？",
+      options: ["A. 1", "B. 2"],
+      answer: "B",
+      analysis: "修改后的解析",
+    });
+    expect(editRes.valid).toBe(true);
+    if (editRes.valid) {
+      expect(editRes.question.stem).toBe("修改后的题干？");
+      expect(editRes.question.answer).toBe("B");
+    }
+
+    // 2. 非法编辑（题干为空）
+    const badRes = validateAndApplyCandidateEdit(fakeQuestion, {
+      stem: "   ",
+      options: ["A. 1", "B. 2"],
+      answer: "A",
+      analysis: "",
+    });
+    expect(badRes.valid).toBe(false);
+
+    // 3. 题库一致与不一致对账
+    expect(verifyQueueBankMatch("bank-1", "bank-1", t).matched).toBe(true);
+    const mismatch = verifyQueueBankMatch("bank-1", "bank-2", t);
+    expect(mismatch.matched).toBe(false);
+    expect(mismatch.errorMessage).toBe("[ai.queueWrongBank]");
   });
 });
