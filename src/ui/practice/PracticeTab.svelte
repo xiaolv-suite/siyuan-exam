@@ -44,7 +44,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       type OrphanKind,
     } from "../../core/bankHealth";
     import { planBatchEdit, invertPlan } from "../../core/batchEdit";
-    import { buildSectionTree } from "../../core/sectionTree";
     import { matchesBrowseFilter } from "../../core/browseFilter";
     import { queueKindOf, queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
     import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
@@ -53,7 +52,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { kpAudit } from "@/core/kpGovernance";
     import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
     import { localDateKeyOf } from "@/core/checkinBridge";
-    import { probeGlean, listLaterClips, formatClipsForSource, markClipDone, type GleanClip } from "@/core/gleanBridge";
+    import { probeGlean, type GleanClip } from "@/core/gleanBridge";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
     import { onExamEvent, emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
@@ -202,6 +201,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       toggleQuestionFavorite,
       executeMasterAllWrong,
     } from "./services/drillLauncherService";
+    import {
+      fetchGleanClips,
+      batchMarkGleanClipsDone,
+    } from "./services/gleanEcosystemService";
+    import {
+      loadBankSectionTree,
+    } from "./services/sectionTreeService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -1465,13 +1471,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
 
     async function toggleSectionTree() {
       sectionOpen = !sectionOpen;
-      if (sectionOpen && !sectionTree.length && activeBankId) {
+      if (sectionOpen && !sectionTree.length && activeBankId && app) {
         sectionBusy = true;
         try {
-          const tr = await app.docTree(activeBankId);
-          sectionTree = buildSectionTree(tr.docs, tr.headings);
-        } catch { sectionTree = []; }
-        finally { sectionBusy = false; }
+          sectionTree = await loadBankSectionTree(app, activeBankId);
+        } finally {
+          sectionBusy = false;
+        }
       }
     }
 
@@ -1867,52 +1873,29 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     /** 按选定回执（而非当前会话）做错因假设：证据取自该次作答事件本身（U14 口径） */
-    async function runReceiptMisdiagnosis(q: Question, e: import("../../core/types").AttemptEvent) {      const key = `${e.qid}#${e.seq}`;
+    async function runReceiptMisdiagnosis(q: Question, e: import("../../core/types").AttemptEvent) {
+      const key = `${e.qid}#${e.seq}`;
       if (receiptBusy || !app.kernelOnline) return;
       receiptBusy = key;
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
-        const { buildMisdiagnosisMessages } = await import("@/ai/misdiagnosis");
-        const { AiTaskRunner, questionFingerprint } = await import("@/ai/task");
-        const endpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
-        const key2 = resolveAiKey(plugin);
-        const model = String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key2
-          ? new OpenAiChannel({ endpoint, apiKey: key2, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
-        const messages = buildMisdiagnosisMessages(q, {
+        const res = await executeMisdiagnosisTask({
+          q,
           myAnswer: e.myAnswer ?? null,
-          confidence: e.confidence,
           timeMs: e.timeMs,
-          helped: !!e.help,
-          userThought: reflections[e.qid]?.text,
-        });
-        const reqCtx: import("@/ai/task").AiTaskContext = {
-          templateId: "practice.misdiagnosis",
-          templateVersion: 1,
-          qid: e.qid,
-          questionRevision: questionFingerprint(q),
-          learnerAnswer: e.myAnswer ?? null,
-          submitted: true,
-          mode: "practice",
           sessionId: e.sessionId,
-        };
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
-        void logAiTask({ templateId: env.templateId, qid: e.qid, status: env.status, tokens: env.tokens, messages });
-        if (env.status === "ok" && env.data.text) {
-          receiptMisdiagnosis = { ...receiptMisdiagnosis, [key]: env.data.text };
-          void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
-          // U14：按该次回执的证据独立落库
-          void app.saveMisdiagnosis({
-            qid: e.qid,
-            text: env.data.text,
-            at: Date.now(),
-            sessionId: e.sessionId,
-            templateVersion: 1,
-            evidence: { myAnswer: e.myAnswer ?? null, confidence: e.confidence, timeMs: e.timeMs, helped: !!e.help },
-          }).catch(() => { /* 持久化失败不阻断展示 */ });
+          meta: { confidence: e.confidence, helped: !!e.help },
+          userThought: reflections[e.qid]?.text,
+          client: app.deps.client,
+          aiConfig: aiSettings(),
+          app,
+          t,
+        });
+
+        if (res.text) {
+          receiptMisdiagnosis = { ...receiptMisdiagnosis, [key]: res.text };
+          void app.recordAiUsage(res.channelId, res.tokens, 1).catch(() => undefined);
         } else {
-          showMessage(envStatusLine(env), 3600, "error");
+          showMessage(res.error, 3600, "error");
         }
       } catch (err) {
         showMessage(String(err instanceof Error ? err.message : err), 3600, "error");
@@ -2928,10 +2911,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       } catch (e) {
         explainText = String(e instanceof Error ? e.message : e);
       } finally { explainBusy = false; }
-    }
-
-    function envStatusLine(env: { status: string; summary: string; error?: string }): string {
-      return formatEnvStatusLine(env, t);
     }
 
     function hintButtonLabel(q: { id: string; options: string[] }): string {
@@ -3959,15 +3938,13 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       gleanBusy = true;
       gleanError = "";
       try {
-        const g = probeGlean(window);
-        if (!g) { gleanError = t("ai.gleanUnavailable"); return; }
-        const clips = await listLaterClips(g, 10);
-        if (!clips.length) { showMessage(t("ai.gleanEmpty"), 3200, "info"); return; }
-        const block = formatClipsForSource(clips);
-        aiSource = aiSource.trim() ? `${aiSource.trim()}\n\n${block}` : block;
-        aiSourceOrigin = "";
-        gleanPendingDone = clips; // 记录本次所用素材（生成成功后可标记已读）
-        showMessage(t("ai.gleanImported").replace("{n}", String(clips.length)), 3200, "info");
+        const res = await fetchGleanClips(window, 10, showMessage, t);
+        if (res.error) { gleanError = res.error; return; }
+        if (res.sourceBlock) {
+          aiSource = aiSource.trim() ? `${aiSource.trim()}\n\n${res.sourceBlock}` : res.sourceBlock;
+          aiSourceOrigin = "";
+          gleanPendingDone = res.clips;
+        }
       } catch (e) {
         gleanErrorAction = "load";
         gleanError = t("ai.gleanLoadFailed").replace("{message}", String(e instanceof Error ? e.message : e));
@@ -3976,24 +3953,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     /** 60-01 写方向：逐篇 setClipStatus(done)；拾遗侧写开关未开/失败如实计数，不伪造成功 */
     async function markGleanDone() {
       if (gleanDoneBusy || !gleanPendingDone.length) return;
-      const g = probeGlean(window);
-      if (!g) {
-        gleanErrorAction = "mark";
-        gleanError = t("ai.gleanUnavailable");
-        return;
-      }
       gleanDoneBusy = true;
       gleanError = "";
       try {
-        let ok = 0;
-        for (const c of gleanPendingDone) {
-          if (await markClipDone(g, c.id)) ok++;
+        const res = await batchMarkGleanClipsDone(window, gleanPendingDone, showMessage, t);
+        if (res.error) {
+          gleanErrorAction = "mark";
+          gleanError = res.error;
+          return;
         }
-        gleanDoneNote = ok === gleanPendingDone.length
-          ? t("ai.gleanDoneAll").replace("{n}", String(ok))
-          : t("ai.gleanDonePartial").replace("{ok}", String(ok)).replace("{n}", String(gleanPendingDone.length));
-        showMessage(gleanDoneNote, 4600, ok ? "info" : "error");
-        if (ok === gleanPendingDone.length) gleanPendingDone = [];
+        gleanDoneNote = res.note;
+        if (res.okCount === gleanPendingDone.length) gleanPendingDone = [];
       } catch (e) {
         gleanErrorAction = "mark";
         gleanError = t("ai.gleanMarkFailed").replace("{message}", String(e instanceof Error ? e.message : e));
