@@ -7,6 +7,7 @@ import {
   mergeAdoptedMisdiagnosis,
   updateReflectionMapState,
   executeMisdiagnosisWorkflow,
+  queryQuestionReceipts,
 } from "@/ui/practice/services/reflectionMisdiagnosisService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -143,5 +144,29 @@ describe("自诊断复盘与错因假设服务 (reflectionMisdiagnosisService)",
 
     expect(res.text).toBe("AI 错误分析");
     expect(mockApp.recordAiUsage).toHaveBeenCalled();
+  });
+
+  it("6. queryQuestionReceipts：提取最近 10 条作答回执与独立错因假设", () => {
+    const mockApp = {
+      attempts: {
+        all: vi.fn().mockReturnValue([
+          { qid: "q-1", seq: 1 },
+          { qid: "q-1", seq: 2 },
+          { qid: "q-2", seq: 3 },
+        ]),
+      },
+      latestMisdiagnosis: vi.fn().mockReturnValue({
+        text: "知识点盲区",
+        at: 123456,
+        adoptedAt: 123499,
+      }),
+    } as unknown as ExamApp;
+
+    const res = queryQuestionReceipts(mockApp, "q-1");
+    expect(res.receipts).toHaveLength(2);
+    // 逆序排序，最新 seq:2 排在最前
+    expect(res.receipts[0].seq).toBe(2);
+    expect(res.storedMisdiagnosis?.text).toBe("知识点盲区");
+    expect(res.storedMisdiagnosis?.adoptedAt).toBe(123499);
   });
 });

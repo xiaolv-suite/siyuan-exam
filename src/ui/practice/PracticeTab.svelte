@@ -49,7 +49,6 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
     import { remainingPlan } from "@/core/planner";
     import { kpAudit } from "@/core/kpGovernance";
-    import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
     import { localDateKeyOf } from "@/core/checkinBridge";
     import { probeGlean, type GleanClip } from "@/core/gleanBridge";
     import { resolveLink } from "@/core/externalLinks";
@@ -80,13 +79,16 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       printFilteredQuestionSheet,
       printFilteredAnswerSheet,
       printFilteredAnswerCard,
-      recordPaperRecallAttempts,
       previewSyllabusText,
       importSyllabusToApp,
       planErrataFromText,
       previewKpMergePlan,
       previewKpFillPlan,
       executeClusterMergeToTarget,
+      computePaperRecallPreview,
+      executeApplyPaperRecall,
+      executeApplyErrata,
+      executeApplyKpPlan,
     } from "./services/bankGovernanceService";
     import {
       printWrongSheet as servicePrintWrongSheet,
@@ -212,6 +214,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       mergeAdoptedMisdiagnosis,
       updateReflectionMapState,
       executeMisdiagnosisWorkflow,
+      queryQuestionReceipts,
     } from "./services/reflectionMisdiagnosisService";
     import {
       formatPlanReason,
@@ -1258,11 +1261,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!plan?.changes.length || errataBusy) return;
       errataBusy = true;
       try {
-        const r = await app.applyBatchEdit(plan.changes);
-        // 撤销基线与批量编辑共用（43-06）：保存逆向计划，重载后可撤
-        batchUndo = { changes: invertPlan(plan.changes), bankId: activeBankId, at: Date.now() };
+        const res = await executeApplyErrata(app, plan, activeBankId, t);
+        batchUndo = res.undo;
         await saveBatchUndo();
-        errataNote = t("errata.applied").replace("{ok}", String(r.ok)).replace("{f}", String(r.failed));
+        errataNote = res.note;
         errataPlan = null;
         void loadQuestions();
       } catch (e) {
@@ -1271,52 +1273,37 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     // ---------- 打印视图（68-01 lite）：题册/答案册分离，作用于当前筛选全集 ----------
-    function printQuestionSheet() {
-      printFilteredQuestionSheet(bankName, filteredQuestions, showMessage);
-    }
-    function printAnswerSheet() {
-      printFilteredAnswerSheet(bankName, filteredQuestions, showMessage);
-    }
-    function printAnswerCard() {
-      printFilteredAnswerCard(bankName, filteredQuestions, showMessage);
-    }
+    const printQuestionSheet = () => printFilteredQuestionSheet(bankName, filteredQuestions, showMessage);
+    const printAnswerSheet = () => printFilteredAnswerSheet(bankName, filteredQuestions, showMessage);
+    const printAnswerCard = () => printFilteredAnswerCard(bankName, filteredQuestions, showMessage);
 
     // ---------- 纸笔回录（68-02 lite）：题号=作答 → 判分预览 → append 流水（mode=paper，不覆盖任何线上数据） ----------
     let paperOpen = $state(false);
     let paperText = $state("");
     let paperBusy = $state(false);
     let paperNote = $state("");
-    const paperPreview = $derived.by(() => {
-      if (!paperOpen || !paperText.trim()) return null;
-      const { rows, errors } = parsePaperAnswers(paperText);
-      const { items, outOfRange } = gradePaper(filteredQuestions, rows);
-      return { errors, items, outOfRange };
-    });
+    const paperPreview = $derived.by(() => (paperOpen ? computePaperRecallPreview(paperText, filteredQuestions) : null));
     async function applyPaperRecall() {
       const pv = paperPreview;
       if (!pv || paperBusy || !app) return;
       paperBusy = true;
       try {
-        const count = recordPaperRecallAttempts(app, pv.items);
-        if (!count) {
-          paperNote = t("paper.none");
-          return;
+        const res = executeApplyPaperRecall(app, pv.items, t);
+        paperNote = res.note;
+        if (res.count > 0) {
+          dataRev++;
+          paperText = "";
         }
-        dataRev++;
-        paperText = "";
-        paperNote = t("paper.applied").replace("{n}", String(count));
       } finally { paperBusy = false; }
     }
 
     function previewKpMerge() {
       const res = previewKpMergePlan(questions, kpMergeFrom, kpMergeTo, t);
-      kpNote = res.note;
-      kpMergePlan = res.plan;
+      kpNote = res.note; kpMergePlan = res.plan;
     }
     function previewKpFill() {
       const res = previewKpFillPlan(questions, kpFillKp, t);
-      kpNote = res.note;
-      kpFillPlan = res.plan;
+      kpNote = res.note; kpFillPlan = res.plan;
     }
     /** 应用治理变更：与批量编辑共用 SaveGate 闸与撤销基线（撤销走同一 batchedit/last） */
     async function applyKpPlan(plan: import("@/core/batchEdit").BatchPlan) {
@@ -1324,9 +1311,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!plan.changes.length) return;
       kpBusy = true; kpNote = "";
       try {
-        const r = await app.applyBatchEdit(plan.changes);
-        kpNote = t("batch.applied").replace("{n}", String(r.ok)).replace("{f}", String(r.failed));
-        batchUndo = { changes: plan.changes, bankId: activeBankId, at: Date.now() };
+        const res = await executeApplyKpPlan(app, plan, activeBankId, t);
+        kpNote = res.note;
+        batchUndo = res.undo;
         await saveBatchUndo();
         kpMergePlan = null; kpFillPlan = null;
         await loadQuestions();
@@ -1466,9 +1453,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       itemAnalysisReport = analyzeQuestionUsage(q, events);
     }
 
-    function downloadItemAnalysisCsv(report: ItemAnalysisReport) {
-      exportItemAnalysisReportCsv(report);
-    }
+    const downloadItemAnalysisCsv = exportItemAnalysisReportCsv;
 
     function toggleDisputeForm(q: Question) {
       if (disputeFormOpenFor === q.id) {
@@ -1942,10 +1927,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     function toggleReceipts(qid: string) {
       receiptOpenFor = receiptOpenFor === qid ? "" : qid;
       if (receiptOpenFor) {
-        receiptCache = app.attempts.all().filter((e) => e.qid === qid).slice(-10).reverse();
-        // U14：上次 AI 假设（独立存储）回显——与用户复盘分层展示
-        const rec = app.latestMisdiagnosis(qid);
-        receiptStored = rec ? { text: rec.text, at: rec.at, adoptedAt: rec.adoptedAt } : null;
+        const res = queryQuestionReceipts(app, qid);
+        receiptCache = res.receipts;
+        receiptStored = res.storedMisdiagnosis;
       }
     }
 
@@ -5060,21 +5044,25 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }
     }
 
+    function applyDocExtractionResult(res: { report?: import("../../importer/pipeline").ImportReport; message: string; isError?: boolean }, toastTime = 4000) {
+      if (res.report) {
+        importReport = res.report;
+        importText = "";
+        importSubTab = "standard";
+        selectedDocIds = {};
+        showMessage(res.message, 4200, "info");
+      } else {
+        showMessage(res.message, toastTime, res.isError ? "error" : "info");
+      }
+    }
+
     async function importSelectedDocs() {
       const ids = Object.keys(selectedDocIds);
       if (!ids.length || !app) return;
       siyuanDocBusy = true;
       try {
         const res = await extractFromBatchSiyuanDocs(app, ids);
-        if (res.report) {
-          importReport = res.report;
-          importText = "";
-          importSubTab = "standard";
-          selectedDocIds = {};
-          showMessage(res.message, 4200, "info");
-        } else {
-          showMessage(res.message, 4000, res.isError ? "error" : "info");
-        }
+        applyDocExtractionResult(res);
       } catch (e) {
         showMessage(`批量提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
@@ -5097,14 +5085,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       siyuanDocBusy = true;
       try {
         const res = await extractFromSingleSiyuanDoc(app, docId, title);
-        if (res.report) {
-          importReport = res.report;
-          importText = "";
-          importSubTab = "standard";
-          showMessage(res.message, 4000, "info");
-        } else {
-          showMessage(res.message, 4000, res.isError ? "error" : "info");
-        }
+        applyDocExtractionResult(res);
       } catch (e) {
         showMessage(`提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
@@ -5118,14 +5099,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       try {
         const docIds = siyuanDocCandidates.map((d) => d.id);
         const res = await extractFromBatchSiyuanDocs(app, docIds);
-        if (res.report) {
-          importReport = res.report;
-          importText = "";
-          importSubTab = "standard";
-          showMessage(res.message, 4200, "info");
-        } else {
-          showMessage(res.message, 3500, "info");
-        }
+        applyDocExtractionResult(res, 3500);
       } catch (e) {
         showMessage(`批量提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {

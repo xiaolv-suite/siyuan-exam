@@ -7,6 +7,10 @@ import {
   previewKpMergePlan,
   previewKpFillPlan,
   executeClusterMergeToTarget,
+  computePaperRecallPreview,
+  executeApplyPaperRecall,
+  executeApplyErrata,
+  executeApplyKpPlan,
 } from "@/ui/practice/services/bankGovernanceService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -189,5 +193,81 @@ describe("题库治理与考纲服务 (bankGovernanceService)", () => {
     expect(agreeRes.othersCount).toBe(1);
     expect(agreeRes.mergedAttemptsCount).toBe(3);
     expect(mockApp.mergeDuplicateQuestions).toHaveBeenCalledWith(targetQ, otherQ);
+  });
+
+  it("6. computePaperRecallPreview 与 executeApplyPaperRecall：纸笔回录解析预览与流水持久化", () => {
+    const t = (k: string) => `[${k}]`;
+    const q1: any = { id: "q-1", type: "single", answer: "A" };
+    const q2: any = { id: "q-2", type: "single", answer: "B" };
+    const qs = [q1, q2];
+
+    // 1. 空输入返回 null
+    expect(computePaperRecallPreview("   ", qs)).toBeNull();
+
+    // 2. 有效回录文本解析与判分
+    const text = "1 = A\n2 = C\n99 = A";
+    const pv = computePaperRecallPreview(text, qs);
+    expect(pv).not.toBeNull();
+    expect(pv?.items).toHaveLength(2);
+    expect(pv?.items[0].verdict).toBe("correct");
+    expect(pv?.items[1].verdict).toBe("wrong");
+    expect(pv?.outOfRange).toEqual([99]);
+
+    // 3. 应用回录流水
+    const mockApp = {
+      recordAttempt: vi.fn(),
+    } as unknown as ExamApp;
+    const applyRes = executeApplyPaperRecall(mockApp, pv!.items, t);
+    expect(applyRes.count).toBe(2);
+    expect(applyRes.note).toContain("[paper.applied]");
+    expect(mockApp.recordAttempt).toHaveBeenCalledTimes(2);
+
+    // 4. 空项返回未录入
+    const emptyApply = executeApplyPaperRecall(mockApp, [], t);
+    expect(emptyApply.count).toBe(0);
+    expect(emptyApply.note).toBe("[paper.none]");
+  });
+
+  it("7. executeApplyErrata：勘误批量应用、撤销生成与反馈消息", async () => {
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      applyBatchEdit: vi.fn().mockResolvedValue({ ok: 2, failed: 0 }),
+    } as unknown as ExamApp;
+
+    const fakePlan: any = {
+      changes: [
+        { qid: "q-1", blockId: "b-1", field: "stem", from: "旧题干", to: "新题干" },
+      ],
+    };
+
+    const res = await executeApplyErrata(mockApp, fakePlan, "bank-1", t);
+    expect(res.ok).toBe(2);
+    expect(res.failed).toBe(0);
+    expect(res.undo.bankId).toBe("bank-1");
+    expect(res.undo.changes[0].from).toBe("新题干");
+    expect(res.undo.changes[0].to).toBe("旧题干");
+    expect(res.note).toBe("[errata.applied]");
+    expect(mockApp.applyBatchEdit).toHaveBeenCalledWith(fakePlan.changes);
+  });
+
+  it("8. executeApplyKpPlan：考点批量修改应用与撤销基线构造", async () => {
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      applyBatchEdit: vi.fn().mockResolvedValue({ ok: 3, failed: 1 }),
+    } as unknown as ExamApp;
+
+    const fakePlan: any = {
+      changes: [
+        { qid: "q-1", blockId: "b-1", field: "kp", from: "旧考点", to: "新考点" },
+      ],
+    };
+
+    const res = await executeApplyKpPlan(mockApp, fakePlan, "bank-1", t);
+    expect(res.ok).toBe(3);
+    expect(res.failed).toBe(1);
+    expect(res.undo.bankId).toBe("bank-1");
+    expect(res.undo.changes).toEqual(fakePlan.changes);
+    expect(res.note).toBe("[batch.applied]");
+    expect(mockApp.applyBatchEdit).toHaveBeenCalledWith(fakePlan.changes);
   });
 });

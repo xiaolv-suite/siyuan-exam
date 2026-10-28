@@ -204,3 +204,20 @@ export async function executeMisdiagnosisWorkflow(
   return { text: "", error: res.error };
 }
 
+/**
+ * 提取指定题目的最近做题回执列表与最新错因假设
+ */
+export function queryQuestionReceipts(
+  app: ExamApp,
+  qid: string,
+): {
+  receipts: import("@/core/types").AttemptEvent[];
+  storedMisdiagnosis: { text: string; at: number; adoptedAt?: number } | null;
+} {
+  const receipts = app.attempts.all().filter((e) => e.qid === qid).slice(-10).reverse();
+  const rec = app.latestMisdiagnosis(qid);
+  const storedMisdiagnosis = rec ? { text: rec.text, at: rec.at, adoptedAt: rec.adoptedAt } : null;
+  return { receipts, storedMisdiagnosis };
+}
+
+

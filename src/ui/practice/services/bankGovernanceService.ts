@@ -2,10 +2,10 @@ import type { Question } from "@/core/types";
 import type { ExamApp } from "@/app";
 import { gapsToCsv, type SyllabusNode, type SyllabusMeta } from "@/core/syllabus";
 import { errataTemplateCsv, parseErrataCsv, planErrata, type ErrataPlan } from "@/core/errata";
-import type { BatchPlan } from "@/core/batchEdit";
+import { invertPlan, type BatchPlan, type BatchChange } from "@/core/batchEdit";
 import { planKpMerge, planEmptyKpFill } from "@/core/kpGovernance";
 import { buildQuestionSheet, buildAnswerSheet, buildAnswerCardSheet } from "@/core/printSheet";
-import type { PaperGradeItem } from "@/core/paperRecall";
+import { parsePaperAnswers, gradePaper, type PaperGradeItem } from "@/core/paperRecall";
 import { createQuestionVersionSnapshot } from "@/core/revision";
 import type { MessageReporter } from "./printPaperService";
 
@@ -249,5 +249,87 @@ export async function executeClusterMergeToTarget(
     mergedAttemptsCount: totalMergedAttempts,
   };
 }
+
+export interface PaperRecallPreview {
+  errors: Array<{ row: number; reason: string }>;
+  items: PaperGradeItem[];
+  outOfRange: number[];
+}
+
+/**
+ * 计算纸笔回录的预览结果
+ */
+export function computePaperRecallPreview(
+  text: string,
+  filteredQuestions: Question[],
+): PaperRecallPreview | null {
+  if (!text.trim()) return null;
+  const { rows, errors } = parsePaperAnswers(text);
+  const { items, outOfRange } = gradePaper(filteredQuestions, rows);
+  return { errors, items, outOfRange };
+}
+
+/**
+ * 应用纸笔回录流水
+ */
+export function executeApplyPaperRecall(
+  app: ExamApp,
+  items: PaperGradeItem[],
+  t: (k: string) => string,
+): { count: number; note: string } {
+  const count = recordPaperRecallAttempts(app, items);
+  if (!count) {
+    return { count: 0, note: t("paper.none") };
+  }
+  return {
+    count,
+    note: t("paper.applied").replace("{n}", String(count)),
+  };
+}
+
+export interface ApplyErrataResult {
+  ok: number;
+  failed: number;
+  undo: { changes: BatchChange[]; bankId: string; at: number };
+  note: string;
+}
+
+/**
+ * 应用勘误计划到题库，生成逆向撤销计划与反馈提示
+ */
+export async function executeApplyErrata(
+  app: ExamApp,
+  plan: ErrataPlan,
+  activeBankId: string,
+  t: (k: string) => string,
+): Promise<ApplyErrataResult> {
+  const r = await app.applyBatchEdit(plan.changes);
+  const undo = { changes: invertPlan(plan.changes), bankId: activeBankId, at: Date.now() };
+  const note = t("errata.applied").replace("{ok}", String(r.ok)).replace("{f}", String(r.failed));
+  return { ok: r.ok, failed: r.failed, undo, note };
+}
+
+export interface ApplyKpPlanResult {
+  ok: number;
+  failed: number;
+  undo: { changes: BatchChange[]; bankId: string; at: number };
+  note: string;
+}
+
+/**
+ * 应用考点治理批量修改，生成可撤销基线与反馈提示
+ */
+export async function executeApplyKpPlan(
+  app: ExamApp,
+  plan: BatchPlan,
+  activeBankId: string,
+  t: (k: string) => string,
+): Promise<ApplyKpPlanResult> {
+  const r = await app.applyBatchEdit(plan.changes);
+  const undo = { changes: plan.changes, bankId: activeBankId, at: Date.now() };
+  const note = t("batch.applied").replace("{n}", String(r.ok)).replace("{f}", String(r.failed));
+  return { ok: r.ok, failed: r.failed, undo, note };
+}
+
 
 
