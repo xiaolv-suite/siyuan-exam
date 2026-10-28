@@ -18,11 +18,18 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import { groupAdjacent } from "../../core/session";
     import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
     import {
-      parseRubricFromText, scoreRubric,
-      createRubricAssessmentSnapshot, isRubricDrifted, exportRubricBreakdownCsv,
-      DEFAULT_RUBRIC_LEVELS, type RubricSpec, type CriterionRating, type CriterionAssessment,
+      parseRubricFromText,
+      DEFAULT_RUBRIC_LEVELS, type RubricSpec, type CriterionRating,
       type RubricAssessmentSnapshot,
     } from "../../core/rubric";
+    import {
+      loadRubricArchiveAux,
+      calculateCurrentRubricScore,
+      recordRubricAssessmentAux,
+      autoAlignRubricEvaluation,
+      exportRubricBreakdownCsvFile,
+      isRubricDrifted,
+    } from "./services/rubricAssessmentService";
     import { startTrail, recordEdit, trailValue, withLastEditReason, type AnswerTrail } from "../../core/answerTrail";
     import { randomSeedId } from "../../core/random";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
@@ -776,16 +783,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let rubricSaveBusy = $state(false);
     let rubricEvalResult = $state<import("../../core/rubricEvaluator").RubricEvaluationResult | null>(null);
 
-    async function autoAlignRubric() {
+    function autoAlignRubric() {
       const curQ = session?.current;
       if (!curQ) return;
-      const { evaluateStudentAnswerAgainstRubric } = await import("../../core/rubricEvaluator");
       const ansText = isChoiceQuestion(curQ) ? selected : session?.getDraft(curQ.id) || selected;
-      const res = evaluateStudentAnswerAgainstRubric({
-        studentAnswer: ansText,
-        rubric: curQ.rubric,
-        fallbackAnalysis: curQ.analysis || curQ.answer,
-      });
+      const res = autoAlignRubricEvaluation(curQ, ansText);
       rubricEvalResult = res;
       rubricRatings = { ...rubricRatings, ...res.recommendedRatings };
       rubricSaved = false;
@@ -794,16 +796,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 当前题是否有 rubric 规格且在反馈态 */
     const currentRubric = $derived(session?.current?.rubric as RubricSpec | undefined);
     /** 当前题的自评计分（未评项不计入分母） */
-    const rubricScore = $derived.by(() => {
-      const q = session?.current;
-      if (!q?.rubric) return null;
-      const assessments: CriterionAssessment[] = Object.entries(rubricRatings).map(([criterionId, rating]) => ({
-        criterionId,
-        rating,
-        note: rubricNotes[criterionId] || undefined,
-      }));
-      return scoreRubric(q.rubric as RubricSpec, assessments, q.score);
-    });
+    const rubricScore = $derived(calculateCurrentRubricScore(session?.current, rubricRatings, rubricNotes));
     /** 当前题已记录的自评快照（从存档读回，记录后不随 UI 草稿变化） */
     const recordedRubricSnapshot = $derived.by(() => {
       const q = session?.current;
@@ -816,14 +809,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     );
 
     // ---------- 55-05 自评存档读写（aux 键 rubric/assessments；不污染 attempt 流水与统计） ----------
-    const RUBRIC_ARCHIVE_KEY = "rubric/assessments";
     async function loadRubricArchive() {
-      try {
-        const v = await app.loadAux<Record<string, RubricAssessmentSnapshot>>(RUBRIC_ARCHIVE_KEY);
-        rubricArchive = v && typeof v === "object" ? v : {};
-      } catch {
-        rubricArchive = {}; // 读取失败按空存档处理（不冒充已有自评）
-      }
+      rubricArchive = await loadRubricArchiveAux(app);
     }
     /** 记录当前题的自评（冻结快照；未评完也可记录，快照如实标注 unratedCount） */
     async function recordRubricAssessment() {
@@ -831,14 +818,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!q?.rubric || !rubricScore || rubricSaveBusy) return;
       rubricSaveBusy = true;
       try {
-        const snap = createRubricAssessmentSnapshot(rubricScore, q.rubric as RubricSpec);
-        rubricArchive = { ...rubricArchive, [q.id]: snap };
-        await app.saveAux(RUBRIC_ARCHIVE_KEY, rubricArchive);
+        const { nextArchive, snapshot } = await recordRubricAssessmentAux(app, rubricArchive, q, rubricScore);
+        rubricArchive = nextArchive;
         rubricSaved = true;
         showMessage(
-          snap.finalScore != null
-            ? t("rubric.recordedFinal").replace("{score}", String(snap.finalScore)).replace("{full}", String(snap.fullScore))
-            : t("rubric.recordedPartial").replace("{n}", String(snap.unratedCount)),
+          snapshot.finalScore != null
+            ? t("rubric.recordedFinal").replace("{score}", String(snapshot.finalScore)).replace("{full}", String(snapshot.fullScore))
+            : t("rubric.recordedPartial").replace("{n}", String(snapshot.unratedCount)),
           2600,
           "info",
         );
@@ -850,15 +836,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
     function exportCurrentRubricCsv() {
       if (!rubricScore) return;
-      const blob = new Blob([exportRubricBreakdownCsv(rubricScore)], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      a.href = url;
-      a.download = `小驴学习-主观题自评-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.hidden = true;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+      exportRubricBreakdownCsvFile(rubricScore);
       showMessage(t("rubric.exportReady"), 2600, "info");
     }
 
