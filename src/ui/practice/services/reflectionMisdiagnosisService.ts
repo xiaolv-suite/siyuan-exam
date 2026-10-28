@@ -146,3 +146,61 @@ export async function mergeAdoptedMisdiagnosis(
   showMessage(t("reflection.saved"), 2000, "info");
   return { text: merged, at: Date.now() };
 }
+
+/**
+ * 纯函数更新自诊断复盘状态映射字典（内容为空时自动清理键）
+ */
+export function updateReflectionMapState(
+  current: Record<string, { text: string; at: number }>,
+  qid: string,
+  entry: { text: string; at: number } | null,
+): Record<string, { text: string; at: number }> {
+  if (!entry) return current;
+  if (entry.text) {
+    return { ...current, [qid]: entry };
+  }
+  const next = { ...current };
+  delete next[qid];
+  return next;
+}
+
+export interface MisdiagnosisWorkflowOptions {
+  app: ExamApp;
+  q: Question;
+  myAnswer: string | null;
+  timeMs: number;
+  sessionId: string;
+  meta: { confidence?: "sure" | "fuzzy" | "guess"; helped?: boolean };
+  userThought?: string;
+  aiConfig: AiChannelConfig;
+  t: (k: string) => string;
+}
+
+/**
+ * 调度 AI 错因假设完整流程（含生成、用量记账与错误包装）
+ */
+export async function executeMisdiagnosisWorkflow(
+  options: MisdiagnosisWorkflowOptions,
+): Promise<{ text: string; error: string }> {
+  const { app, q, myAnswer, timeMs, sessionId, meta, userThought, aiConfig, t } = options;
+  const res = await executeMisdiagnosisTask({
+    q,
+    myAnswer,
+    timeMs,
+    sessionId,
+    meta,
+    userThought,
+    client: app.deps.client,
+    aiConfig,
+    app,
+    t,
+  });
+
+  if (res.text) {
+    void app.recordAiUsage(res.channelId, res.tokens, 1).catch(() => undefined);
+    return { text: res.text, error: "" };
+  }
+
+  return { text: "", error: res.error };
+}
+

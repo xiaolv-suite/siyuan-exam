@@ -5,6 +5,8 @@ import {
   queryAttemptMeta,
   executeMisdiagnosisTask,
   mergeAdoptedMisdiagnosis,
+  updateReflectionMapState,
+  executeMisdiagnosisWorkflow,
 } from "@/ui/practice/services/reflectionMisdiagnosisService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -103,5 +105,43 @@ describe("自诊断复盘与错因假设服务 (reflectionMisdiagnosisService)",
     expect(merged.text).toContain("假设：审题遗漏否定词");
     expect(mockApp.saveWrongReflection).toHaveBeenCalled();
     expect(msgs).toContain("[reflection.saved]");
+  });
+
+  it("4. updateReflectionMapState：增删复盘记录响应式字典", () => {
+    const initial = { "q-1": { text: "旧笔记", at: 100 } };
+    // 增加或更新
+    const updated = updateReflectionMapState(initial, "q-2", { text: "新笔记", at: 200 });
+    expect(updated["q-2"].text).toBe("新笔记");
+
+    // 清理空记录
+    const deleted = updateReflectionMapState(updated, "q-1", { text: "", at: 300 });
+    expect(deleted["q-1"]).toBeUndefined();
+    expect(deleted["q-2"]).toBeDefined();
+  });
+
+  it("5. executeMisdiagnosisWorkflow：错因生成并记录 AI 用量", async () => {
+    const mockApp = {
+      saveMisdiagnosis: vi.fn().mockResolvedValue(undefined),
+      recordAiUsage: vi.fn().mockResolvedValue(undefined),
+      deps: {
+        client: {
+          aiChat: vi.fn().mockResolvedValue({ status: "ok", content: "AI 错误分析" }),
+        },
+      },
+    } as unknown as ExamApp;
+
+    const res = await executeMisdiagnosisWorkflow({
+      app: mockApp,
+      q: fakeQuestion,
+      myAnswer: "C",
+      timeMs: 3000,
+      sessionId: "s1",
+      meta: {},
+      aiConfig: {},
+      t: (k) => `[${k}]`,
+    });
+
+    expect(res.text).toBe("AI 错误分析");
+    expect(mockApp.recordAiUsage).toHaveBeenCalled();
   });
 });

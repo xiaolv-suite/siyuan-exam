@@ -177,8 +177,9 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       editQuestionReflection,
       loadSessionReflections,
       queryAttemptMeta,
-      executeMisdiagnosisTask,
       mergeAdoptedMisdiagnosis,
+      updateReflectionMapState,
+      executeMisdiagnosisWorkflow,
     } from "./services/reflectionMisdiagnosisService";
     import {
       formatPlanReason,
@@ -1957,23 +1958,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (receiptBusy || !app.kernelOnline) return;
       receiptBusy = key;
       try {
-        const res = await executeMisdiagnosisTask({
+        const res = await executeMisdiagnosisWorkflow({
+          app,
           q,
           myAnswer: e.myAnswer ?? null,
           timeMs: e.timeMs,
           sessionId: e.sessionId,
           meta: { confidence: e.confidence, helped: !!e.help },
           userThought: reflections[e.qid]?.text,
-          client: app.deps.client,
           aiConfig: aiSettings(),
-          app,
           t,
         });
 
         if (res.text) {
           receiptMisdiagnosis = { ...receiptMisdiagnosis, [key]: res.text };
-          void app.recordAiUsage(res.channelId, res.tokens, 1).catch(() => undefined);
-        } else {
+        } else if (res.error) {
           showMessage(res.error, 3600, "error");
         }
       } catch (err) {
@@ -3254,12 +3253,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     async function editReflection(qid: string) {
       const res = await editQuestionReflection(app, qid, t);
       if (res === null) return;
-      if (res.text) reflections = { ...reflections, [qid]: res };
-      else {
-        const next = { ...reflections };
-        delete next[qid];
-        reflections = next;
-      }
+      reflections = updateReflectionMapState(reflections, qid, res);
       showMessage(t("reflection.saved"), 2400, "info");
     }
 
@@ -3288,23 +3282,21 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       misdiagnosisBusy = a.qid;
       try {
         const meta = attemptMeta(a.qid);
-        const res = await executeMisdiagnosisTask({
+        const res = await executeMisdiagnosisWorkflow({
+          app,
           q,
           myAnswer: a.grade.myAnswer ?? null,
           timeMs: a.timeMs,
           sessionId: session.id,
           meta,
           userThought: reflections[a.qid]?.text,
-          client: app.deps.client,
           aiConfig: aiSettings(),
-          app,
           t,
         });
 
         if (res.text) {
           misdiagnosisText = { ...misdiagnosisText, [a.qid]: res.text };
-          void app.recordAiUsage(res.channelId, res.tokens, 1).catch(() => undefined);
-        } else {
+        } else if (res.error) {
           showMessage(res.error, 3600, "error");
         }
       } catch (e) {
