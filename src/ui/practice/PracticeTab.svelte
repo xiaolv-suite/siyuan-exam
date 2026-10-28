@@ -133,6 +133,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       restoreWrongItemToActive,
       markWrongMastered,
     } from "./services/wrongbookDispositionService";
+    import {
+      generateFlashCandidates,
+      commitFlashCards,
+    } from "./services/flashCandidateService";
+    import {
+      copyChallengeCode as serviceCopyChallengeCode,
+      parseAndStartChallenge,
+    } from "./services/challengeService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -1879,40 +1887,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       }
       flashBusy = q.id;
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
-        const { buildFlashCandidateMessages, parseFlashCandidates, findCardLeaks } = await import("@/ai/flashCandidates");
-        const { AiTaskRunner, questionFingerprint } = await import("@/ai/task");
-        const endpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
-        const key = resolveAiKey(plugin);
-        const model = String(plugin.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key
-          ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
-        const reflection = (await app.loadWrongReflection(q.id))?.text;
-        const messages = buildFlashCandidateMessages(q, { reflection });
-        const reqCtx: import("@/ai/task").AiTaskContext = {
-          templateId: "practice.flash",
-          templateVersion: 1,
-          qid: q.id,
-          questionRevision: questionFingerprint(q),
-          learnerAnswer: null,
-          submitted: true, // 闪卡候选基于已提交知识的解析/反思（揭示闸门）
-          mode: "practice",
-          sessionId: "",
-        };
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
-        void logAiTask({ templateId: env.templateId, qid: q.id, status: env.status, tokens: env.tokens, messages });
-        if (env.status === "ok" && env.data.text) {
-          void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
-          const parsed = parseFlashCandidates(env.data.text);
-          const leaks = findCardLeaks(parsed.cards);
-          if (leaks.length) {
-            flashError = { ...flashError, [q.id]: t("flash.leak").replace("{r}", leaks.join("、")) };
-            return;
-          }
-          flashCandidates = { ...flashCandidates, [q.id]: parsed };
+        const res = await generateFlashCandidates({
+          q,
+          client: app.deps.client,
+          app,
+          aiConfig: aiSettings(),
+          t,
+        });
+        if (res.result) {
+          flashCandidates = { ...flashCandidates, [q.id]: res.result };
+          void app.recordAiUsage(res.channelId, res.tokens, 1).catch(() => undefined);
         } else {
-          flashError = { ...flashError, [q.id]: envStatusLine(env) };
+          flashError = { ...flashError, [q.id]: res.error };
         }
       } catch (e) {
         flashError = { ...flashError, [q.id]: String(e instanceof Error ? e.message : e) };
@@ -1932,7 +1918,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!ok) return;
       flashBusy = q.id;
       try {
-        const { blockIds } = await app.createFlashCards(bank.id, bank.name, result.cards);
+        const blockIds = await commitFlashCards(app, bank.id, bank.name, result.cards);
         flashCandidates = { ...flashCandidates, [q.id]: { ...result, cards: [] } };
         showMessage(t("flash.done").replace("{n}", String(blockIds.length)), 3200, "info");
       } catch (e) {
@@ -2727,24 +2713,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     const expKpRoots = $derived([...new Set(questions.map((q) => q.kp?.split("/")[0]).filter(Boolean))]);
 
     // ---------- 挑战码（友谊赛复制/导入：含答案，双方本地判分） ----------
-    function buildChallengePaper() {
-      const pool = questions.filter((q) => q.type !== "material").slice(0, 50);
-      return {
-        v: 1 as const, title: `${bankName} 挑战`, durationS: 600,
-        questions: pool.map((q) => ({ stem: q.stem, options: q.options, answer: q.answer, type: q.type, kp: q.kp })),
-      };
-    }
-
     async function copyChallengeCode() {
-      const paper = buildChallengePaper();
-      if (!paper.questions.length) { showMessage(t("state.emptyBank"), 2800, "info"); return; }
-      try {
-        const { encodeChallengeCopy } = await import("@/core/challenge");
-        await navigator.clipboard.writeText(encodeChallengeCopy(paper));
-        showMessage(t("challenge.copied"), 3600, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await serviceCopyChallengeCode(questions, bankName, showMessage, t);
     }
 
     async function importChallengeCode() {
@@ -2752,11 +2722,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const code = await inputDialogSync({ title: t("challenge.importTitle"), placeholder: t("challenge.importPlaceholder") });
       if (!code?.trim()) return;
       try {
-        const { decodeChallenge } = await import("@/core/challenge");
-        const paper = decodeChallenge(code.trim());
-        if (!paper) throw new Error(t("challenge.badCode"));
-        const qs: Question[] = paper.questions.map((q) => makeQuestion({ type: q.type, stem: q.stem, options: q.options, answer: q.answer, kp: q.kp }));
-        session = await app.startSession(qs, "challenge", activeBankId);
+        session = await parseAndStartChallenge(app, code, activeBankId, t);
         feedback = null; selected = ""; confidenceSel = ""; sessionDone = null;
         view = "session";
       } catch (e) {
