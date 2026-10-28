@@ -53,9 +53,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     import { upsertView, viewBankMismatch } from "@/core/smartViews";
     import { avgMsByType, estimatePlanMinutes } from "@/core/timeBudget";
     import { kpAudit, planKpMerge, planEmptyKpFill } from "@/core/kpGovernance";
-    import { gapsToCsv } from "@/core/syllabus";
-    import { parseErrataCsv, planErrata, errataTemplateCsv } from "@/core/errata";
-    import { buildQuestionSheet, buildAnswerSheet, buildAnswerCardSheet } from "@/core/printSheet";
+    import { parseErrataCsv, planErrata } from "@/core/errata";
     import { parsePaperAnswers, gradePaper } from "@/core/paperRecall";
     import { probeCheckinApi, syncCheckin, localDateKeyOf, bridgeEnabled, fetchStreak } from "@/core/checkinBridge";
     import { probeGlean, listLaterClips, formatClipsForSource, markClipDone, type GleanClip } from "@/core/gleanBridge";
@@ -81,6 +79,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       printSelectedTeacherPaper as servicePrintSelectedTeacherPaper,
       printSelectedHomeworkSheet as servicePrintSelectedHomeworkSheet,
     } from "./services/printPaperService";
+    import {
+      countSyllabusNodes,
+      exportSyllabusGapsCsv,
+      exportErrataTemplateCsv,
+      printFilteredQuestionSheet,
+      printFilteredAnswerSheet,
+      printFilteredAnswerCard,
+      recordPaperRecallAttempts,
+    } from "./services/bankGovernanceService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
     import Icon from "../shared/Icon.svelte";
@@ -999,10 +1006,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       return stats;
     });
 
-    function countSyllabusNodes(nodes: import("@/core/syllabus").SyllabusNode[]): number {
-      return nodes.reduce((s, n) => s + 1 + countSyllabusNodes(n.children), 0);
-    }
-
     function previewSyllabus() {
       sylError = "";
       try {
@@ -1030,14 +1033,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function downloadSyllabusGaps() {
-      if (!sylDoc.roots.length) return;
-      const csv = "\uFEFF" + gapsToCsv(sylDoc.roots, sylKpStats);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `考纲缺口清单 ${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      if (sylDoc?.roots) exportSyllabusGapsCsv(sylDoc.roots, sylKpStats);
     }
 
     // ---------- 勘误回导（57 lite）：导出模板（qid+当前值）→ 线下修订 → 回导 dry-run → 批量应用（撤销基线共用） ----------
@@ -1048,13 +1044,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     let errataNote = $state("");
 
     function exportErrataTemplate() {
-      const csv = "\uFEFF" + errataTemplateCsv(questions);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `勘误模板 ${bankName || "题库"} ${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      exportErrataTemplateCsv(questions, bankName);
     }
 
     async function onErrataFile(e: Event) {
@@ -1091,28 +1081,14 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     // ---------- 打印视图（68-01 lite）：题册/答案册分离，作用于当前筛选全集 ----------
-    // 注：闭合标签经 \u003c 转义构造——Svelte 解析器对脚本内裸 "</" 敏感
-    const LT = "\u003c";
-    const PRINT_HOOK = `${LT}script>window.onload = function () { window.print(); }${LT}/script>`;
-    const BODY_CLOSE = `${LT}/body>`;
-    function printSheet(html: string) {
-      const w = window.open("", "_blank");
-      if (!w) { showMessage(t("print.popupBlocked"), 3600, "error"); return; }
-      w.document.open();
-      w.document.write(html.replace(/<\/body>/, PRINT_HOOK + BODY_CLOSE));
-      w.document.close();
-    }
     function printQuestionSheet() {
-      if (!filteredQuestions.length) { showMessage(t("print.empty"), 2200, "info"); return; }
-      printSheet(buildQuestionSheet(`${bankName} · ${t("print.sheetTitle")}`, filteredQuestions));
+      printFilteredQuestionSheet(bankName, filteredQuestions, showMessage);
     }
     function printAnswerSheet() {
-      if (!filteredQuestions.length) { showMessage(t("print.empty"), 2200, "info"); return; }
-      printSheet(buildAnswerSheet(`${bankName} · ${t("print.sheetTitle")}`, filteredQuestions));
+      printFilteredAnswerSheet(bankName, filteredQuestions, showMessage);
     }
     function printAnswerCard() {
-      if (!filteredQuestions.length) { showMessage(t("print.empty"), 2200, "info"); return; }
-      printSheet(buildAnswerCardSheet(`${bankName} · ${t("print.sheetTitle")}`, filteredQuestions));
+      printFilteredAnswerCard(bankName, filteredQuestions, showMessage);
     }
 
     // ---------- 纸笔回录（68-02 lite）：题号=作答 → 判分预览 → append 流水（mode=paper，不覆盖任何线上数据） ----------
@@ -1128,22 +1104,17 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     });
     async function applyPaperRecall() {
       const pv = paperPreview;
-      if (!pv || paperBusy) return;
-      const graded = pv.items.filter((i) => i.verdict !== "not_attempted");
-      if (!graded.length) { paperNote = t("paper.none"); return; }
+      if (!pv || paperBusy || !app) return;
       paperBusy = true;
       try {
-        const sessionId = `s-paper-${Date.now().toString(36)}`;
-        for (const it of graded) {
-          app.recordAttempt({
-            qid: it.q.id, kind: "practice", mode: "paper", verdict: it.verdict,
-            myAnswer: it.given, sessionId, queue: "normal",
-            qVersion: createQuestionVersionSnapshot(it.q),
-          });
+        const count = recordPaperRecallAttempts(app, pv.items);
+        if (!count) {
+          paperNote = t("paper.none");
+          return;
         }
         dataRev++;
         paperText = "";
-        paperNote = t("paper.applied").replace("{n}", String(graded.length));
+        paperNote = t("paper.applied").replace("{n}", String(count));
       } finally { paperBusy = false; }
     }
 
