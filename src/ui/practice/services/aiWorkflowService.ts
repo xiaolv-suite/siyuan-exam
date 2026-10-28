@@ -243,3 +243,29 @@ export async function convertSingleQuestionToCard(
   }
 }
 
+/**
+ * 格式化多层渐进式提示展示文本（第 N 层提示：...）
+ */
+export function formatHintLayersDisplay(
+  texts: string[],
+  t: (k: string) => string,
+): string {
+  return texts
+    .map((s, i) => `${t("explain.hintLayer").replace("{n}", String(i + 1))}：${s}`)
+    .join("\n");
+}
+
+/**
+ * 格式化追问答复交互历史文本
+ */
+export function formatFollowUpInteractionText(
+  currentText: string,
+  prompt: string,
+  reply: string,
+  followUpTag: string,
+): string {
+  const prefix = currentText.endsWith(reply) ? currentText : (currentText ? currentText + "\n\n" : "");
+  return prefix + followUpTag + prompt + "\n" + reply;
+}
+
+

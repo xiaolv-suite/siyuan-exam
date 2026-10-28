@@ -108,7 +108,15 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       getHintButtonLabel,
       saveExplainToQuestionDoc,
       convertSingleQuestionToCard,
+      formatHintLayersDisplay,
+      formatFollowUpInteractionText,
     } from "./services/aiWorkflowService";
+    import {
+      loadReciteModeSetting,
+      saveReciteModeSetting,
+      buildQuestionTtsText,
+      canScheduleReciteSubmit,
+    } from "./services/reciteModeWorkflowService";
     import {
       changeQuestionLifecycle,
       flagQuestionDispute,
@@ -3035,10 +3043,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           }
           hintLevels.set(q.id, res.step.level);
           hintTexts.set(q.id, [...shownTexts, res.env.data.text]);
-          explainText = hintTexts
-            .get(q.id)!
-            .map((s, i) => `${t("explain.hintLayer").replace("{n}", String(i + 1))}：${s}`)
-            .join("\n");
+          explainText = formatHintLayersDisplay(hintTexts.get(q.id)!, t);
           helpShown.set(q.id, "hint");
           void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
         } else {
@@ -3055,10 +3060,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!q || !leakPending) return;
       hintLevels.set(q.id, leakPending.level);
       hintTexts.set(q.id, [...(hintTexts.get(q.id) ?? []), leakPending.text]);
-      explainText = hintTexts
-        .get(q.id)!
-        .map((s, i) => `${t("explain.hintLayer").replace("{n}", String(i + 1))}：${s}`)
-        .join("\n");
+      explainText = formatHintLayersDisplay(hintTexts.get(q.id)!, t);
       helpShown.set(q.id, "reveal");
       leakPending = null;
     }
@@ -3089,7 +3091,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
           const reply = res.env.data.text;
           explainHistory[q.id] = [...res.messages, { role: "assistant", content: reply }];
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
-          explainText = (explainText.endsWith(reply) ? explainText : explainText + "\n\n") + t("ai.followupTag") + prompt + "\n" + reply;
+          explainText = formatFollowUpInteractionText(explainText, prompt, reply, t("ai.followupTag"));
           explainFollowUp = "";
           void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
         } else {
@@ -3103,7 +3105,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     // ---------- 纯听题 lite（TTS + 遮罩） ----------
     let pureListen = $state(false);
     /** 背题模式（华图杀招，PRD §3）：开着时每题自动展示答案与解析，跳过提交判分，适合考前突击。localStorage 持久化 */
-    let reciteToggle = $state(readLocal("lv-exam/reciteMode") === "1");
+    let reciteToggle = $state(loadReciteModeSetting(readLocal));
     let reciteSubmitTimer: ReturnType<typeof setTimeout> | null = null;
     function clearReciteSubmitTimer() {
       if (speedTimer) { clearTimeout(speedTimer); speedTimer = null; }
@@ -3115,10 +3117,16 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       const targetSession = session;
       const targetQuestionId = targetSession?.current?.id;
       const targetCursor = targetSession?.state?.cursor;
-      if (!targetSession || view !== "session" || !reciteToggle || feedback || exitBusy) return;
+      if (!canScheduleReciteSubmit({
+        view, session, targetSession, targetQuestionId, targetCursor,
+        reciteToggle, hasFeedback: !!feedback, exitBusy,
+      })) return;
       reciteSubmitTimer = setTimeout(() => {
         reciteSubmitTimer = null;
-        if (view !== "session" || session !== targetSession || session?.current?.id !== targetQuestionId || session?.state?.cursor !== targetCursor || !reciteToggle || feedback || exitBusy) return;
+        if (!canScheduleReciteSubmit({
+          view, session, targetSession, targetQuestionId, targetCursor,
+          reciteToggle, hasFeedback: !!feedback, exitBusy,
+        })) return;
         submitAnswer();
       }, 50);
     }
@@ -3127,7 +3135,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     });
     function toggleRecite() {
       reciteToggle = !reciteToggle;
-      writeLocal("lv-exam/reciteMode", reciteToggle ? "1" : "0");
+      saveReciteModeSetting(writeLocal, reciteToggle);
       if (reciteToggle && !feedback) scheduleReciteSubmit();
       else clearReciteSubmitTimer();
     }
@@ -3136,7 +3144,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       if (!q) return;
       pureListen = !pureListen;
       void import("@/core/tts").then((m) => {
-        if (pureListen) m.ttsSpeak([q.stem, ...q.options].join(" "));
+        if (pureListen) m.ttsSpeak(buildQuestionTtsText(q));
         else m.ttsStop?.();
       });
     }
@@ -3144,7 +3152,7 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     $effect(() => {
       const q = view === "session" ? session?.current : null;
       if (!q || !pureListen) return;
-      void import("@/core/tts").then((m) => m.ttsSpeak([q.stem, ...q.options].join(" ")));
+      void import("@/core/tts").then((m) => m.ttsSpeak(buildQuestionTtsText(q)));
     });
 
     async function saveExplain() {

@@ -9,6 +9,8 @@ import {
   executeAiFollowUp,
   saveExplainToQuestionDoc,
   convertSingleQuestionToCard,
+  formatHintLayersDisplay,
+  formatFollowUpInteractionText,
 } from "@/ui/practice/services/aiWorkflowService";
 import type { KernelApiClient } from "@/kernel/client";
 import type { Question } from "@/core/types";
@@ -157,5 +159,18 @@ describe("AI 互动与试题导学服务 (aiWorkflowService)", () => {
     expect(res.isError).toBe(false);
     expect(res.resultText).toBe("[memory.toCardDone]");
     expect(mockApp.convertToCards).toHaveBeenCalledWith("bank-1", "题库", [fakeQuestion]);
+  });
+
+  it("7. formatHintLayersDisplay：多层递进提示排版", () => {
+    const t = (k: string) => `[${k}]`;
+    const res = formatHintLayersDisplay(["第一层提示", "第二层提示"], t);
+    expect(res).toContain("第一层提示");
+    expect(res).toContain("第二层提示");
+  });
+
+  it("8. formatFollowUpInteractionText：追问历史记录排版", () => {
+    const res = formatFollowUpInteractionText("基础讲解", "请问这一步依据？", "依据是定理1", "【追问】");
+    expect(res).toContain("基础讲解");
+    expect(res).toContain("【追问】请问这一步依据？\n依据是定理1");
   });
 });
