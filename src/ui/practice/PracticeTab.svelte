@@ -165,7 +165,6 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     } from "./services/variantDrillService";
     import {
       updateCorrectOptionIndex,
-      parseOcrTextToForm,
       processAndSaveManualQuestion,
       normalizeDraftFormulas,
       shouldConfirmTypeSwitch,
@@ -173,6 +172,11 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       saveManualDraftAux,
       clearManualDraftAux,
     } from "./services/manualStudioService";
+    import {
+      parseOcrFormResult,
+      processOcrImageUpload,
+      findImageInClipboard,
+    } from "./services/manualOcrService";
     import {
       editQuestionReflection,
       loadSessionReflections,
@@ -3626,8 +3630,8 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function applyOcrFill() {
-      if (!ocrInputText.trim()) return;
-      const parsed = parseOcrTextToForm(ocrInputText);
+      const parsed = parseOcrFormResult(ocrInputText);
+      if (!parsed) return;
       mType = parsed.type;
       mStem = parsed.stem;
       mOptions = parsed.options;
@@ -3646,18 +3650,18 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
       ocrUploadBusy = true;
       try {
         showMessage(t("manual.ocrUploading"), 3500, "info");
-        const q = await app.uploadAndOcrQuestion(file, (file as File).name || "pasted-question.png");
-        mType = q.type === "material" ? "single" : q.type;
-        mStem = q.stem;
-        mOptions = q.options.length >= 2 ? q.options : ["", ""];
-        mAnswer = q.answer;
-        if (q.analysis) mAnalysis = q.analysis;
-        if (q.kp) mKp = q.kp;
-        ocrModalOpen = false;
-        clearManualValidation();
-        showMessage(t("manual.ocrDone"), 3000, "info");
-      } catch (e) {
-        showMessage(`图片 OCR 识别失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        const res = await processOcrImageUpload(app, file, t);
+        if (res.form) {
+          mType = res.form.type;
+          mStem = res.form.stem;
+          mOptions = res.form.options;
+          mAnswer = res.form.answer;
+          if (res.form.analysis) mAnalysis = res.form.analysis;
+          if (res.form.kp) mKp = res.form.kp;
+          ocrModalOpen = false;
+          clearManualValidation();
+        }
+        showMessage(res.message, res.isError ? 4000 : 3000, res.isError ? "error" : "info");
       } finally {
         ocrUploadBusy = false;
       }
@@ -3673,17 +3677,10 @@ import { ttsSpeak, ttsSupported } from "@/core/tts";
     }
 
     function onManualPaste(e: ClipboardEvent) {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (const item of Array.from(items)) {
-        if (item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) {
-            e.preventDefault();
-            void handleOcrImageFile(file);
-            break;
-          }
-        }
+      const file = findImageInClipboard(e);
+      if (file) {
+        e.preventDefault();
+        void handleOcrImageFile(file);
       }
     }
 
