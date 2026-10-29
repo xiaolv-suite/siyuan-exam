@@ -284,3 +284,19 @@ export function extractNoteEditValues(n: MaterialNote): {
   };
 }
 
+/**
+ * 按搜索关键词过滤资料列表（大小写不敏感匹配标题、科目、章节与路径）
+ */
+export function filterMaterialsList(
+  materials: MaterialDoc[],
+  search: string,
+): MaterialDoc[] {
+  const kw = search.trim().toLowerCase();
+  if (!kw) return materials;
+  return materials.filter((m) =>
+    [m.title, m.subject, m.chapter, ...m.locations.map((l) => l.path)]
+      .filter(Boolean)
+      .some((s) => String(s).toLowerCase().includes(kw)),
+  );
+}
+

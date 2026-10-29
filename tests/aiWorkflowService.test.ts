@@ -11,6 +11,7 @@ import {
   convertSingleQuestionToCard,
   formatHintLayersDisplay,
   formatFollowUpInteractionText,
+  applyLeakedHintToState,
 } from "@/ui/practice/services/aiWorkflowService";
 import type { KernelApiClient } from "@/kernel/client";
 import type { Question } from "@/core/types";
@@ -172,5 +173,24 @@ describe("AI 互动与试题导学服务 (aiWorkflowService)", () => {
     const res = formatFollowUpInteractionText("基础讲解", "请问这一步依据？", "依据是定理1", "【追问】");
     expect(res).toContain("基础讲解");
     expect(res).toContain("【追问】请问这一步依据？\n依据是定理1");
+  });
+
+  it("9. applyLeakedHintToState：显式揭示被拦截的提示并更新层级与状态", () => {
+    const t = (k: string) => `[${k}]`;
+    const hintLevels = new Map<string, 0 | 1 | 2 | 3>();
+    const hintTexts = new Map<string, string[]>();
+
+    const res = applyLeakedHintToState(
+      "q-101",
+      { level: 2, text: "第二层被拦截的提示", reasons: "包含关键词" },
+      hintLevels,
+      hintTexts,
+      t,
+    );
+
+    expect(res.helpMode).toBe("reveal");
+    expect(res.explainText).toContain("第二层被拦截的提示");
+    expect(hintLevels.get("q-101")).toBe(2);
+    expect(hintTexts.get("q-101")).toEqual(["第二层被拦截的提示"]);
   });
 });

@@ -154,3 +154,59 @@ export async function executeMasterAllWrongWithConfirm(
   return { confirmed: true, ...res };
 }
 
+/**
+ * 单题标记为已掌握（经弹窗确认）
+ */
+export async function executeMasterSingleWrongWithConfirm(options: {
+  app: ExamApp;
+  qid: string;
+  stem: string;
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>;
+  showMessage: MessageReporter;
+  t: (k: string) => string;
+  offline: boolean;
+}): Promise<boolean> {
+  const { app, qid, stem, confirmFn, showMessage, t, offline } = options;
+  const ok = await confirmFn({
+    title: t("wrongbook.masterOneTitle"),
+    content: t("wrongbook.masterOneConfirm").replace("{question}", stem),
+  });
+  if (!ok) return false;
+  try {
+    await app.setWrongStatus(qid, "mastered");
+    showMessage(t("wrongbook.masteredDone"), 2400, "info");
+    return true;
+  } catch (e) {
+    showMessage(
+      t("wrongbook.masterFailed").replace(
+        "{message}",
+        offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e),
+      ),
+      4600,
+      "error",
+    );
+    return false;
+  }
+}
+
+/**
+ * 校验并提取外部移交的题目列表与缺失计数提示
+ */
+export function resolveExternalTargetQuestions(
+  allQuestions: Question[],
+  qids: string[],
+  t: (k: string) => string,
+): { picked: Question[]; missingNotice?: string; emptyNotice?: string } {
+  const byId = new Map(allQuestions.map((q) => [q.id, q]));
+  const picked = qids.flatMap((id) => {
+    const q = byId.get(id);
+    return q && q.type !== "material" ? [q] : [];
+  });
+  if (!picked.length) {
+    return { picked: [], emptyNotice: t("query.empty") };
+  }
+  const missingCount = qids.length - picked.length;
+  const missingNotice = missingCount > 0 ? t("query.missing").replace("{n}", String(missingCount)) : undefined;
+  return { picked, missingNotice };
+}
+

@@ -4,7 +4,7 @@
 // 纯逻辑解耦，不绑定 Svelte 渲染态
 // ============================================================
 
-import type { PaletteCommand } from "../../shared/Palette.svelte";
+import type { PaletteCommand } from "../../shared/paletteTypes";
 
 export interface PaletteActionHandlers {
   t: (k: string) => string;

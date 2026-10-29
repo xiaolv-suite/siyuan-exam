@@ -7,6 +7,7 @@ import {
   applyReparsedResultToReport,
   prepareRowFixInitialState,
   executeApplyRowFix,
+  executeSpotCheckRender,
 } from "@/ui/practice/services/importRepairService";
 import type { Question } from "@/core/types";
 import type { ImportReport } from "@/importer/pipeline";
@@ -158,6 +159,16 @@ describe("importRepairService", () => {
       expect(res.fixed).toBe(true);
       expect(res.nextReport.ok).toHaveLength(1);
       expect(res.nextReport.errors).toHaveLength(0);
+    });
+
+    it("executeSpotCheckRender：抽查题目并批量完成渲染", async () => {
+      const mockApp = {
+        renderStem: vi.fn().mockResolvedValue("<p>题干</p>"),
+      };
+      const qs = [{ id: "q-1" }, { id: "q-2" }] as Question[];
+      const res = await executeSpotCheckRender(mockApp, qs, 2);
+      expect(res.spotIds).toHaveLength(2);
+      expect(res.spotHtml["q-1"]).toBe("<p>题干</p>");
     });
   });
 });

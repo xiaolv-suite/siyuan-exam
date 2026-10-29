@@ -214,5 +214,21 @@ export function resolveGlobalTabDropAction(
   return { action: "unsupported", errorKey: "import.unsupportedDrop" };
 }
 
+/**
+ * 执行前 5 行试导入并返回读回结果与提示文案
+ */
+export async function executeTrialImport(
+  app: any,
+  targetBankId: string,
+  remainingQuestions: import("@/core/types").Question[],
+  batch: string,
+  t: (k: string) => string,
+): Promise<{ confirmedIds: string[]; note: string }> {
+  const trial = buildTrialImportReport(remainingQuestions, batch, 5);
+  const r = await app.commitImport(targetBankId, trial);
+  const note = formatTrialReadbackNote(r.readback.confirmed.length, r.readback.missing.length, r.readback.verified, t);
+  return { confirmedIds: r.readback.confirmed, note };
+}
+
 
 

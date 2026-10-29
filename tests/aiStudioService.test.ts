@@ -12,6 +12,7 @@ import {
   buildGenOptionsSnapshot,
   createAiCandidateEditDraft,
   executeRegenSingleCandidate,
+  extractAiSourceFromEditor,
   type AiReviewQueueState,
 } from "@/ui/practice/services/aiStudioService";
 import type { ExamApp } from "@/app";
@@ -220,5 +221,32 @@ describe("AI 出题工作台队列与审批服务 (aiStudioService)", () => {
 
     expect(res.channelId).toBe("siyuan");
     expect(res.approxTokens).toBeGreaterThanOrEqual(0);
+  });
+
+  it("9. extractAiSourceFromEditor：从活动编辑器提取内容与格式化出处", async () => {
+    const t = (k: string) => (k === "ai.sourceFromDocument" ? "来自文档：{title}" : `[${k}]`);
+    const mockClient = {
+      exportDocMarkdown: vi.fn().mockResolvedValue({
+        title: "高三一轮复习",
+        content: "# 正文内容",
+      }),
+    } as unknown as KernelApiClient;
+
+    const mockPlugin = {
+      app: {
+        ui: {
+          currentEditor: {
+            protyle: { block: { rootID: "root-doc-12345" } },
+          },
+        },
+      },
+    };
+
+    const res = await extractAiSourceFromEditor(mockPlugin, mockClient, t);
+    expect(res).not.toBeNull();
+    expect(res?.content).toBe("# 正文内容");
+    expect(res?.suggestedKp).toBe("高三一轮复习");
+    expect(res?.sourceOrigin).toContain("高三一轮复习");
+    expect(res?.toast).toContain("高三一轮复习");
   });
 });

@@ -158,3 +158,14 @@ export async function printSelectedHomeworkSheet(
     showMessage(`导出作业单失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
   }
 }
+
+/**
+ * 根据多选勾选状态过滤出试题数组
+ */
+export function filterSelectedQuestions(
+  questions: Question[],
+  selectedIds: Record<string, boolean>,
+): Question[] {
+  const ids = new Set(Object.keys(selectedIds).filter((id) => selectedIds[id]));
+  return questions.filter((q) => ids.has(q.id));
+}

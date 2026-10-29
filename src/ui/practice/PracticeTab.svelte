@@ -30,7 +30,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       exportRubricBreakdownCsvFile,
       isRubricDrifted,
     } from "./services/rubricAssessmentService";
-    import { startTrail, recordEdit, trailValue, withLastEditReason, type AnswerTrail } from "../../core/answerTrail";
+    import { recordAnswerTrailInput, assignLastEditReason, type AnswerTrail } from "./services/answerTrailService";
     import { randomSeedId } from "../../core/random";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
     import {
@@ -72,6 +72,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       printSelectedQuestionsPaper,
       printSelectedTeacherPaper as servicePrintSelectedTeacherPaper,
       printSelectedHomeworkSheet as servicePrintSelectedHomeworkSheet,
+      filterSelectedQuestions,
     } from "./services/printPaperService";
     import {
       exportSyllabusGapsCsv,
@@ -108,8 +109,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       readClipboardImportText,
       makeFileEventProxy,
       filterUnconfirmedQuestions,
-      buildTrialImportReport,
-      formatTrialReadbackNote,
+      executeTrialImport,
       importBankFromSyZipFile,
       processImportDrawerDrop,
       resolveGlobalTabDropAction,
@@ -130,6 +130,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       convertSingleQuestionToCard,
       formatHintLayersDisplay,
       formatFollowUpInteractionText,
+      applyLeakedHintToState,
     } from "./services/aiWorkflowService";
     import {
       loadReciteModeSetting,
@@ -138,11 +139,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       canScheduleReciteSubmit,
     } from "./services/reciteModeWorkflowService";
     import {
-      flagQuestionDispute,
-      resolveQuestionDispute,
-      clearQuestionDispute,
       exportItemAnalysisReportCsv,
       initDisputeFormValues,
+      validateAndFlagDispute,
+      validateAndResolveDispute,
+      handleClearDispute,
     } from "./services/disputeGovernanceService";
     import {
       extractNumericSpecFields,
@@ -151,11 +152,14 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeChangeQuestionLifecycle,
     } from "./services/questionEditService";
     import {
+      executeLoadQuestionRevisions,
+      executeRestoreQuestionRevision,
+    } from "./services/questionRevisionService";
+    import {
       archiveWrongItem,
       unarchiveWrongItem,
       snoozeWrongItem,
       restoreWrongItemToActive,
-      markWrongMastered,
       extractWrongQueueKpOptions,
       filterAndSortWrongQueue,
     } from "./services/wrongbookDispositionService";
@@ -177,6 +181,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       removeQuestionMaterialReference,
       resolveQuestionMaterialOpenUrl,
       initQrefFormState,
+      buildAllQuestionsMaterialSnapshot,
     } from "./services/questionMaterialLinkService";
     import {
       persistReviewQueue,
@@ -186,7 +191,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeAiIssueRepair,
       approveSingleQuestion,
       approveBatchQuestions,
-      fetchCurrentEditorDocContent,
+      extractAiSourceFromEditor,
       validateAndApplyCandidateEdit,
       verifyQueueBankMatch,
       ensureAiEndpointConsent,
@@ -206,8 +211,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     } from "./services/wrongbookEcosystemService";
     import {
       pickSameKpDrillQuestions,
-      executeVariantDrillLookup,
-      executeMotherQuestionLookup,
+      executeDrillVariantWorkflow,
+      executeMotherQuestionWorkflow,
     } from "./services/variantDrillService";
     import {
       updateCorrectOptionIndex,
@@ -239,6 +244,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       formatPlanReason,
       buildDailyPlanSchedule,
       updateDailyPlanTrace,
+      resolveDailyStudyQueue,
+      extractCriticalForgettingRescueQuestions,
+      formatWeekDayLabel,
     } from "./services/dailyPlanService";
     import {
       executeReciteRating,
@@ -262,6 +270,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       pickSameKpQuestions,
       toggleQuestionFavorite,
       executeMasterAllWrongWithConfirm,
+      executeMasterSingleWrongWithConfirm,
+      resolveExternalTargetQuestions,
     } from "./services/drillLauncherService";
     import {
       fetchGleanClips,
@@ -299,6 +309,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       getNoteDraftSignature,
       isNoteFormDirty,
       extractNoteEditValues,
+      filterMaterialsList,
     } from "./services/materialManagementService";
     import {
       loadSmartViewsAux,
@@ -324,8 +335,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       toggleSelectAllDocCandidates,
     } from "./services/docImportClozeService";
     import {
-      pickRandomSpotCheckQuestions,
-      renderSpotCheckHtml,
+      executeSpotCheckRender,
       prepareRowFixInitialState,
       executeApplyRowFix,
     } from "./services/importRepairService";
@@ -333,10 +343,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       parseSheetRowsWithStrategy,
       prepareMapAssignment,
       validateAndBuildManualMap,
+      readAndParseWorkbookFile,
     } from "./services/excelParseWorkflowService";
     import {
       resolveKeyboardAction,
       shouldBlockGlobalHotkeys,
+      detectHorizontalSwipe,
+      getNextStudyFontSize,
     } from "./services/practiceKeyboardService";
     import {
       fetchBlockBacklinks,
@@ -378,9 +391,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeCreateSampleBank,
       resolveRetainedSampleBank,
       formatSampleNoticeText,
+      executeCycleBankCategory,
+      executeSyncBankToDoc,
+      executeSaveWrongbookToDoc,
+      executeRemoveBankWithConfirm,
       type SampleBankKind,
     } from "./services/bankLifecycleService";
-    import { getBankCategoryMeta, type BankCategory } from "@/core/bankCategory";
+    import { getBankCategoryMeta } from "@/core/bankCategory";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
@@ -389,7 +406,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import { buildMaterialGroupContext, formatMaterialGroupHeader, type SiblingItem } from "@/core/materialContext";
     import { resolveFeedbackTimingMode, isGroupBatchBoundary, calculateGroupBatchSummary, type GroupBatchSummary, DEFAULT_GROUP_FEEDBACK_SIZE } from "@/core/feedbackTiming";
     import { analyzeQuestionUsage, type ItemAnalysisReport } from "@/core/itemAnalysis";
-    import { getQuestionLifecycle, isAttemptVersionDrifted, LIFECYCLE_LABELS, questionDraftFromRevision, type QuestionLifecycleStatus } from "@/core/revision";
+    import { getQuestionLifecycle, isAttemptVersionDrifted, LIFECYCLE_LABELS, type QuestionLifecycleStatus } from "@/core/revision";
     import { consumePendingPracticeView, isCurrentPracticeViewRequest } from "@/core/pluginTab";
     import { dailyTrend } from "@/core/weekly";
     import { playSuccessChime, playCelebrationChord } from "@/libs/sound";
@@ -424,7 +441,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let shortLinedPaper = $state(readLocal("lv-exam/lined-paper") === "1");
     let studyFontSize = $state<"normal" | "large" | "xlarge">((readLocal("lv-exam/font-scale") as any) || "normal");
     function cycleStudyFontSize() {
-      studyFontSize = studyFontSize === "normal" ? "large" : studyFontSize === "large" ? "xlarge" : "normal";
+      studyFontSize = getNextStudyFontSize(studyFontSize);
       writeLocal("lv-exam/font-scale", studyFontSize);
     }
 
@@ -440,22 +457,22 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     function onTouchEnd(e: TouchEvent) {
-      if (e.changedTouches.length !== 1) return;
       if (view !== "session" || !session) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      const deltaX = e.changedTouches[0].clientX - touchStartX;
-      const deltaY = e.changedTouches[0].clientY - touchStartY;
-      const deltaTime = Date.now() - touchStartTime;
+      const swipe = detectHorizontalSwipe(e, {
+        startX: touchStartX,
+        startY: touchStartY,
+        startTime: touchStartTime,
+      });
+      if (!swipe) return;
 
-      if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 2 && deltaTime < 600) {
-        if (deltaX < 0) {
-          if (feedback || (session?.current && !isChoiceQuestion(session.current))) {
-            nextQuestion();
-          }
-        } else {
-          previousQuestion();
+      if (swipe === "next") {
+        if (feedback || (session?.current && !isChoiceQuestion(session.current))) {
+          nextQuestion();
         }
+      } else {
+        previousQuestion();
       }
     }
 
@@ -484,9 +501,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     });
 
     async function rescueEbbinghausNow() {
-      if (!criticalForgettingKps.length) return;
-      const qids = criticalForgettingKps.flatMap((k) => k.candidateQids).slice(0, 10);
-      const qs = qids.map((id) => questionMap.get(id)).filter(Boolean) as Question[];
+      const qs = extractCriticalForgettingRescueQuestions(criticalForgettingKps, questionMap, 10);
       if (!qs.length) return;
       await safeStart(qs, "quick", () => {
         enterSessionView();
@@ -496,9 +511,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     function rescueEbbinghausRecite() {
-      if (!criticalForgettingKps.length) return;
-      const qids = criticalForgettingKps.flatMap((k) => k.candidateQids).slice(0, 10);
-      const qs = qids.map((id) => questionMap.get(id)).filter(Boolean) as Question[];
+      const qs = extractCriticalForgettingRescueQuestions(criticalForgettingKps, questionMap, 10);
       if (!qs.length) return;
       reciteQueue = qs;
       reciteCursor = 0; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
@@ -516,13 +529,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function cycleBankCategory(b: BankInfo) {
       if (!app) return;
-      const order: BankCategory[] = ["exam", "language", "teaching", "general"];
-      const curIdx = order.indexOf(b.category ?? "general");
-      const nextCategory = order[(curIdx + 1) % order.length];
       try {
-        await app.updateBankCategory(b.id, nextCategory);
-        banks = app.listBanks();
-        showMessage(`题库「${b.name}」场景分类已更新为：${getBankCategoryMeta(nextCategory).badge} ✓`, 2500, "info");
+        const res = await executeCycleBankCategory(app, b);
+        banks = res.banks;
+        showMessage(`题库「${b.name}」场景分类已更新为：${res.badge} ✓`, 2500, "info");
       } catch (e) {
         showMessage(`更新分类失败：${String(e instanceof Error ? e.message : e)}`, 3500, "error");
       }
@@ -531,7 +541,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     async function syncBankToDoc(bId: string) {
       if (!app) return;
       try {
-        const res = await app.syncBankToSiyuanDoc(bId);
+        const res = await executeSyncBankToDoc(app, bId);
         showMessage(`已同步为思源笔记文档：《${res.title}》✓`, 3500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
@@ -541,13 +551,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     async function saveWrongbookAsDoc() {
       if (!app || !filteredWrongQueue.length) return;
       try {
-        const qs = questions.filter((q) => filteredWrongQueue.some((w) => w.qid === q.id));
-        const res = await app.saveQuestionsToSiyuanDoc(
-          `${bankName || "小驴题库"} · 错题攻坚手册（${qs.length}题）`,
-          qs,
-          { bankId: activeBankId, isMock: false },
-        );
-        showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
+        const res = await executeSaveWrongbookToDoc(app, {
+          bankName,
+          activeBankId,
+          questions,
+          wrongQids: filteredWrongQueue.map((w) => w.qid),
+        });
+        if (res) showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
       }
@@ -675,11 +685,12 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       await loadRevisions(qid);
     }
     async function loadRevisions(qid: string) {
+      if (!app) return;
       const request = ++revLoadSeq;
       revLoadingFor = qid;
       revLoadError = { ...revLoadError, [qid]: "" };
       try {
-        const revisions = await app.questionRevisions(qid);
+        const revisions = await executeLoadQuestionRevisions(app, qid);
         if (request === revLoadSeq) revLoaded = { ...revLoaded, [qid]: revisions };
       } catch (e) {
         if (request === revLoadSeq) {
@@ -690,26 +701,19 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }
     }
     async function restoreRevision(q: Question & { blockId: string }, rev: import("../../core/revision").QuestionRevision) {
+      if (!app) return;
       const key = `${q.id}#${rev.ts}`;
       if (revRestoreKey) return;
       revRestoreKey = key;
       revRestoreError = { ...revRestoreError, [q.id]: "" };
       revRestoreFailedKey = "";
       try {
-        const { confirmDialogSync } = await import("../../libs/dialog");
-        const confirmContent = rev.summary
-          ? t("rev.restoreConfirmFull").replace("{summary}", rev.summary)
-          : t("rev.restoreConfirm").replace("{a}", escapeHtml(rev.answer));
-        if (!(await confirmDialogSync({ title: t("rev.restoreTitle"), content: confirmContent }))) return;
-        const next = await app.updateQuestionContent(q, questionDraftFromRevision(q, rev));
-        questions = questions.map((x) => (x.id === q.id ? { ...x, ...next } : x));
-        showMessage(t("rev.restored"), 2400, "info");
-        try {
-          revLoaded = { ...revLoaded, [q.id]: await app.questionRevisions(q.id) };
+        const res = await executeRestoreQuestionRevision({ app, q, rev, t, showMessage });
+        if (res.cancelled) return;
+        if (res.next) questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.next } : x));
+        if (res.reloaded) {
+          revLoaded = { ...revLoaded, [q.id]: res.reloaded };
           revLoadError = { ...revLoadError, [q.id]: "" };
-        } catch (e) {
-          // The write succeeded; keep its success receipt separate from a later history-read failure.
-          revLoadError = { ...revLoadError, [q.id]: String(e instanceof Error ? e.message : e) };
         }
       } catch (e) {
         revRestoreError = { ...revRestoreError, [q.id]: String(e instanceof Error ? e.message : e) };
@@ -722,24 +726,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     const trails = new SvelteMap<string, AnswerTrail>();
     let reasonPromptQid = $state("");
     function trailInput(qid: string, value: string) {
-      const v = String(value ?? "");
-      if (!v) return;
-      const existing = trails.get(qid);
-      if (!existing) {
-        trails.set(qid, startTrail(v));
-        return;
-      }
-      const before = trailValue(existing);
-      if (v === before) return; // 取消/重复：不产生轨迹事件（63-03 边界）
-      const next = recordEdit(existing, v);
-      if (next !== existing) {
-        trails.set(qid, next);
-        if (next.edits.length > existing.edits.length) reasonPromptQid = qid; // 真实修改 → 询问原因
-      }
+      const res = recordAnswerTrailInput(trails, qid, value);
+      if (res.promptReason) reasonPromptQid = qid;
     }
     function setEditReason(qid: string, reason: "unsure" | "evidence" | "misclick") {
-      const t = trails.get(qid);
-      if (t) trails.set(qid, withLastEditReason(t, reason));
+      assignLastEditReason(trails, qid, reason);
       reasonPromptQid = "";
     }
     let sessionDone = $state<null | {
@@ -1082,8 +1073,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let batchCardBusy = $state(false);
     async function batchConvertToCards() {
       if (!selectedCount || batchCardBusy || !activeBankId) return;
-      const ids = new Set(Object.keys(selectedIds));
-      const targetQuestions = questions.filter((q) => ids.has(q.id));
+      const targetQuestions = filterSelectedQuestions(questions, selectedIds);
       if (!targetQuestions.length) return;
       batchCardBusy = true;
       try {
@@ -1129,22 +1119,19 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function printSelectedQuestions() {
       if (!selectedCount) return;
-      const ids = new Set(Object.keys(selectedIds));
-      const targetQuestions = questions.filter((q) => ids.has(q.id));
+      const targetQuestions = filterSelectedQuestions(questions, selectedIds);
       await printSelectedQuestionsPaper(bankName, targetQuestions, showMessage);
     }
 
     async function printSelectedTeacherPaper() {
       if (!selectedCount) return;
-      const ids = new Set(Object.keys(selectedIds));
-      const targetQuestions = questions.filter((q) => ids.has(q.id));
+      const targetQuestions = filterSelectedQuestions(questions, selectedIds);
       await servicePrintSelectedTeacherPaper(bankName, targetQuestions, showMessage);
     }
 
     async function printSelectedHomeworkSheet() {
       if (!selectedCount) return;
-      const ids = new Set(Object.keys(selectedIds));
-      const targetQuestions = questions.filter((q) => ids.has(q.id));
+      const targetQuestions = filterSelectedQuestions(questions, selectedIds);
       await servicePrintSelectedHomeworkSheet(bankName, targetQuestions, showMessage);
     }
 
@@ -1477,12 +1464,16 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function submitFlagDispute(q: Question & { blockId: string }) {
       if (disputeBusy || !app) return;
-      if (!disputeNote.trim()) { disputeError = t("dispute.notePlaceholder"); return; }
       disputeBusy = true; disputeError = "";
       try {
-        const updated = await flagQuestionDispute(app, q, disputeReason, disputeNote, showMessage, t);
-        questions = questions.map((x) => (x.id === q.id ? { ...x, ...updated } : x));
-        disputeFormOpenFor = "";
+        const res = await validateAndFlagDispute({
+          app, q, reason: disputeReason, note: disputeNote, showMessage, t,
+        });
+        if (res.error) { disputeError = res.error; return; }
+        if (res.updated) {
+          questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.updated } : x));
+          disputeFormOpenFor = "";
+        }
       } catch (e) {
         disputeError = String(e instanceof Error ? e.message : e);
       } finally { disputeBusy = false; }
@@ -1490,12 +1481,16 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function submitResolveDispute(q: Question & { blockId: string }) {
       if (disputeBusy || !app) return;
-      if (!disputeResolution.trim()) { disputeError = t("dispute.resolutionPlaceholder"); return; }
       disputeBusy = true; disputeError = "";
       try {
-        const updated = await resolveQuestionDispute(app, q, disputeResolution, showMessage, t);
-        questions = questions.map((x) => (x.id === q.id ? { ...x, ...updated } : x));
-        disputeFormOpenFor = "";
+        const res = await validateAndResolveDispute({
+          app, q, resolution: disputeResolution, showMessage, t,
+        });
+        if (res.error) { disputeError = res.error; return; }
+        if (res.updated) {
+          questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.updated } : x));
+          disputeFormOpenFor = "";
+        }
       } catch (e) {
         disputeError = String(e instanceof Error ? e.message : e);
       } finally { disputeBusy = false; }
@@ -1505,8 +1500,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (disputeBusy || !app) return;
       disputeBusy = true; disputeError = "";
       try {
-        const updated = await clearQuestionDispute(app, q, showMessage, t);
-        questions = questions.map((x) => (x.id === q.id ? { ...x, ...updated } : x));
+        const res = await handleClearDispute({ app, q, showMessage, t });
+        questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.updated } : x));
         disputeFormOpenFor = "";
       } catch (e) {
         disputeError = String(e instanceof Error ? e.message : e);
@@ -1858,9 +1853,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       return computeQuestionMaterialSnapshot(app, qid);
     }
     function rebuildQrefView() {
-      const next: Record<string, { title: string; label: string; stale: boolean } | null> = {};
-      for (const q of questions) next[q.id] = qrefSnapshot(q.id);
-      qrefView = next;
+      if (!app) return;
+      qrefView = buildAllQuestionsMaterialSnapshot(app, questions);
     }
     function refreshQref(qid: string) {
       qrefView = { ...qrefView, [qid]: qrefSnapshot(qid) };
@@ -2074,21 +2068,22 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     /** 移出题库管理（app.removeBank）：仅移出注册表，笔记本本体保留可手动删 */
     async function removeActiveBank() {
-      if (!activeBankId || importBusy || mSaving || aiMutationBusy) return;
+      if (!activeBankId || !app || importBusy || mSaving || aiMutationBusy) return;
       const { confirmDialogSync } = await import("../../libs/dialog");
-      if (!(await confirmDialogSync({ title: t("bank.removeTitle"), content: t("bank.removeConfirm").replace("{name}", escapeHtml(bankName)) }))) return;
-      if (importBusy || mSaving || aiMutationBusy) return;
-      try {
-        await app.removeBank(activeBankId);
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4600, "error");
-        return;
+      const res = await executeRemoveBankWithConfirm({
+        app,
+        activeBankId,
+        bankName,
+        confirmDialogSync,
+        showMessage,
+        t,
+      });
+      if (res.removed && res.nextBanks) {
+        banks = res.nextBanks;
+        activeBankId = res.nextActiveBankId ?? "";
+        rememberBank(activeBankId);
+        emitExamEvent("bank-changed", { bank: activeBankId });
       }
-      banks = app.listBanks();
-      activeBankId = banks[0]?.id ?? "";
-      rememberBank(activeBankId);
-      emitExamEvent("bank-changed", { bank: activeBankId });
-      showMessage(t("bank.removed"), 2800, "info");
     }
 
     /** 44-03 lite：材料组排序策略（设置项）——false=分块连排（默认）/ true=交错打散 */
@@ -2119,10 +2114,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     });
     const weekAttemptTotal = $derived(weekTrend.reduce((total, day) => total + day.attempts, 0));
     const weekAttemptMax = $derived(Math.max(1, ...weekTrend.map((day) => day.attempts)));
-    function weekDayLabel(dateKey: string) {
-      const [year, month, day] = dateKey.split("-").map(Number);
-      return ["日", "一", "二", "三", "四", "五", "六"][new Date(year, month - 1, day, 12).getDay()];
-    }
+    const weekDayLabel = formatWeekDayLabel;
     const dailyGoalN = $derived(Math.max(1, Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10) || 10));
     const goalPct = $derived(Math.min(100, Math.round((todayDone / dailyGoalN) * 100)));
     const streakDays = $derived.by(() => {
@@ -2140,9 +2132,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     const practiceQuestions = $derived(questions.filter((q) => q.type !== "material"));
     const cramCount = $derived(app ? app.cramDrill(practiceQuestions).length : 0);
     function todayQueueFor(available: Question[], planned?: Question[]) {
-      // 传入计划时即使为空也保持空队列；仅未生成计划时才使用题库前 10 题兜底。
-      const source = planned !== undefined ? planned : available.slice(0, 10);
-      return groupAdjacent(source.filter((q) => q.type !== "material"));
+      return groupAdjacent(resolveDailyStudyQueue(available, planned));
     }
     // 备考计划状态在驾驶舱 widgets 与入口卡片之间共享。
     let plan = $state<ReturnType<typeof import("@/core/planner").planToday> | null>(null);
@@ -2319,16 +2309,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         // 这样冲突对话框取消时不会让现有会话与顶部题库选择器错位。
         const all = (bankId === activeBankId ? await loadQuestions() : await app.listQuestions(bankId)) as typeof questions;
         if (bankId === activeBankId && questionsError) throw new Error(questionsError);
-        const byId = new Map(all.map((q) => [q.id, q]));
-        const picked = qids.flatMap((id) => {
-          const q = byId.get(id);
-          return q && q.type !== "material" ? [q] : [];
-        });
-        if (picked.length < qids.length) {
-          showMessage(t("query.missing").replace("{n}", String(qids.length - picked.length)), 3600, "info");
-        }
+        const { picked, missingNotice, emptyNotice } = resolveExternalTargetQuestions(all, qids, t);
+        if (missingNotice) showMessage(missingNotice, 3600, "info");
         if (!picked.length) {
-          showMessage(t("query.empty"), 3200, "info");
+          if (emptyNotice) showMessage(emptyNotice, 3200, "info");
           loading = false;
           return;
         }
@@ -2438,18 +2422,24 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let wrongBusyId = $state("");
     /** 错题手动处置（已掌握）：确认后写入；失败时保留队列项并允许重试 */
     async function masterWrong(qid: string) {
-      if (wrongBusyId) return;
+      if (wrongBusyId || !app) return;
       wrongBusyId = qid;
       try {
         const question = questionMap.get(qid);
         const { confirmDialogSync } = await import("../../libs/dialog");
-        if (!(await confirmDialogSync({
-          title: t("wrongbook.masterOneTitle"),
-          content: t("wrongbook.masterOneConfirm").replace("{question}", escapeHtml(question?.stem.slice(0, 100) ?? qid)),
-        }))) return;
-        await markWrongMastered(app, qid, showMessage, t, offline);
-        dataRev++;
-        if (soundEnabled) playCelebrationChord();
+        const confirmed = await executeMasterSingleWrongWithConfirm({
+          app,
+          qid,
+          stem: escapeHtml(question?.stem.slice(0, 100) ?? qid),
+          confirmFn: confirmDialogSync,
+          showMessage,
+          t,
+          offline,
+        });
+        if (confirmed) {
+          dataRev++;
+          if (soundEnabled) playCelebrationChord();
+        }
       } finally { wrongBusyId = ""; }
     }
 
@@ -2925,10 +2915,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     function viewLeakedHint() {
       const q = session?.current;
       if (!q || !leakPending) return;
-      hintLevels.set(q.id, leakPending.level);
-      hintTexts.set(q.id, [...(hintTexts.get(q.id) ?? []), leakPending.text]);
-      explainText = formatHintLayersDisplay(hintTexts.get(q.id)!, t);
-      helpShown.set(q.id, "reveal");
+      const res = applyLeakedHintToState(q.id, leakPending, hintLevels, hintTexts, t);
+      explainText = res.explainText;
+      helpShown.set(q.id, res.helpMode);
       leakPending = null;
     }
 
@@ -3532,25 +3521,21 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     async function drillVariantFor(q: Question) {
-      if (!q) return;
-      try {
-        const res = await executeVariantDrillLookup(app, q, 5);
-        if (res.emptyNotice) { showMessage(res.emptyNotice, 2500, "info"); return; }
-        await startQuickPractice(res.questions, res.toastMessage);
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
-      }
+      await executeDrillVariantWorkflow({
+        app,
+        q,
+        showMessage,
+        startPractice: (qs, toast) => startQuickPractice(qs, toast),
+      });
     }
 
     async function traceMotherQuestion(target: Question) {
-      if (!target || !app) return;
-      try {
-        const res = await executeMotherQuestionLookup(app, target);
-        if (res.emptyNotice) { showMessage(res.emptyNotice, 3000, "info"); return; }
-        await startQuickPractice([res.motherQuestion!], res.toastMessage);
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
-      }
+      await executeMotherQuestionWorkflow({
+        app,
+        target,
+        showMessage,
+        startPractice: (qs, toast) => startQuickPractice(qs, toast),
+      });
     }
 
     async function printWrongSheet(type: "question" | "answer" | "retest") {
@@ -3847,18 +3832,15 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 材料源扩展（v1.x）：从当前打开的文档载入（research/28 citation 载体；块引用随 v1.x 深化） */
     async function aiSourceFromCurrentDoc() {
       try {
-        const sApp = (plugin as any).app ?? plugin;
-        const ed = sApp?.ui?.currentEditor ?? sApp?.ui?.lastEditor ?? null;
-        const rootId: string | undefined = ed?.protyle?.block?.rootID;
-        const res = await fetchCurrentEditorDocContent(app.deps.client, rootId);
+        const res = await extractAiSourceFromEditor(plugin, app.deps.client, t);
         if (!res) {
           showMessage(t("ai.noCurrentDoc"), 3600, "error");
           return;
         }
         aiSource = res.content;
-        aiSourceOrigin = `${t("ai.sourceFromDocument").replace("{title}", res.title || rootId!.slice(0, 8))}`;
-        if (!aiKp.trim() && res.title) aiKp = res.title;
-        showMessage(`${t("ai.sourceLoaded")} ${res.title || rootId!.slice(0, 8)}`, 2600, "info");
+        aiSourceOrigin = res.sourceOrigin;
+        if (!aiKp.trim() && res.suggestedKp) aiKp = res.suggestedKp;
+        showMessage(res.toast, 2600, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
       }
@@ -4046,30 +4028,22 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (importBusy) return;
       importError = ""; importResult = null; importReport = null; retryPool = []; trialConfirmed = []; trialNote = "";
       // 清理上次导入残留（TODO 27 组：多 Sheet 残留状态 bug 预防）
-      sheetNames = []; sheetRowsCache = new Map();
+      sheetRowsCache = new Map();
       manualMap = null; mapEditorOpen = false; mapErrors = []; // 38-02：手动映射随文件更换重置
       const input = e.target as HTMLInputElement;
       const file = input.files?.[0];
       if (!file) return;
       importParsing = true; updateResult = null;
       try {
-        // 38-01：xlsx/xls 走二进制读取，仅 CSV 做编码/分隔符探测
-        //（此前 xlsx 也过 decodeCsv 文本路径，真 XLSX 报 Bad compressed size）
-        const XLSX = await import("xlsx");
-        const { parseWorkbookFile } = await import("@/importer/workbookFile");
-        const buf = await file.arrayBuffer();
-        const parsed = await parseWorkbookFile(XLSX, buf, file.name);
-        if (parsed.garbled) showMessage(t("import.garbledWarning"), 5200, "info");
-        sheetNames = parsed.sheetNames;
+        const parsed = await readAndParseWorkbookFile(file, t, showMessage);
         sheetRowsCache = parsed.sheets;
-        activeSheet = sheetNames[0];
+        activeSheet = parsed.activeSheet;
         parseActiveSheet();
       } catch (e) { importError = String(e instanceof Error ? e.message : e); }
       finally { importParsing = false; input.value = ""; }
     }
 
     /** 多 Sheet 支持（TODO 12 组）：读文件时缓存各行，选择工作表重解析 */
-    let sheetNames = $state<string[]>([]);
     let activeSheet = $state("");
     let sheetRowsCache = $state(new Map<string, string[][]>());
 
@@ -4172,15 +4146,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 六七批：资料搜索（标题/科目/章节/位置，大小写不敏感） */
     let materialsSearch = $state("");
     let selectedMaterialId = $state("");
-    const materialsFiltered = $derived.by(() => {
-      const kw = materialsSearch.trim().toLowerCase();
-      if (!kw) return materialsList;
-      return materialsList.filter((m) =>
-        [m.title, m.subject, m.chapter, ...m.locations.map((l) => l.path)]
-          .filter(Boolean)
-          .some((s) => String(s).toLowerCase().includes(kw)),
-      );
-    });
+    const materialsFiltered = $derived(filterMaterialsList(materialsList, materialsSearch));
     const selectedMaterial = $derived(materialsFiltered.find((m) => m.id === selectedMaterialId) ?? materialsFiltered[0] ?? null);
 
     function loadMaterials() {
@@ -4844,13 +4810,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     async function trialImport5() {
       if (!importReport || importBusy || !remainingImportQuestions.length) return;
       if (importPreviewBankId !== activeBankId) { importError = t("import.bankChanged"); return; }
-      const targetBankId = activeBankId;
       trialBusy = true; importError = ""; trialNote = "";
       try {
-        const trial = buildTrialImportReport(remainingImportQuestions, importReport.batch, 5);
-        const r = await app.commitImport(targetBankId, trial);
-        trialConfirmed = [...new Set([...trialConfirmed, ...r.readback.confirmed])];
-        trialNote = formatTrialReadbackNote(r.readback.confirmed.length, r.readback.missing.length, r.readback.verified, t);
+        const res = await executeTrialImport(app, activeBankId, remainingImportQuestions, importReport.batch, t);
+        trialConfirmed = [...new Set([...trialConfirmed, ...res.confirmedIds])];
+        trialNote = res.note;
         await refreshQuestionsAfterWrite(0);
       } catch (e) {
         importError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
@@ -4931,18 +4895,22 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }
     }
 
-    async function importSelectedDocs() {
-      const ids = Object.keys(selectedDocIds);
-      if (!ids.length || !app) return;
+    async function runDocExtract(extractFn: () => Promise<import("./services/docImportClozeService").DocExtractResult>, failPrefix: string, toastTime = 4000) {
+      if (!app) return;
       siyuanDocBusy = true;
       try {
-        const res = await extractFromBatchSiyuanDocs(app, ids);
-        applyDocExtractionResult(res);
+        const res = await extractFn();
+        applyDocExtractionResult(res, toastTime);
       } catch (e) {
-        showMessage(`批量提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        showMessage(`${failPrefix}：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
         siyuanDocBusy = false;
       }
+    }
+
+    async function importSelectedDocs() {
+      const ids = Object.keys(selectedDocIds);
+      if (ids.length) await runDocExtract(() => extractFromBatchSiyuanDocs(app, ids), "批量提取失败");
     }
 
     function toggleSelectAllDocs() {
@@ -4950,30 +4918,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     async function pickAndImportSiyuanDoc(docId: string, title: string) {
-      if (!app) return;
-      siyuanDocBusy = true;
-      try {
-        const res = await extractFromSingleSiyuanDoc(app, docId, title);
-        applyDocExtractionResult(res);
-      } catch (e) {
-        showMessage(`提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      } finally {
-        siyuanDocBusy = false;
-      }
+      await runDocExtract(() => extractFromSingleSiyuanDoc(app, docId, title), "提取失败");
     }
 
     async function importAllSearchedDocs() {
-      if (!siyuanDocCandidates.length || !app) return;
-      siyuanDocBusy = true;
-      try {
-        const docIds = siyuanDocCandidates.map((d) => d.id);
-        const res = await extractFromBatchSiyuanDocs(app, docIds);
-        applyDocExtractionResult(res, 3500);
-      } catch (e) {
-        showMessage(`批量提取失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      } finally {
-        siyuanDocBusy = false;
-      }
+      if (!siyuanDocCandidates.length) return;
+      const docIds = siyuanDocCandidates.map((d) => d.id);
+      await runDocExtract(() => extractFromBatchSiyuanDocs(app, docIds), "批量提取失败", 3500);
     }
 
     function toggleClozeMode(mode: "highlight" | "curly" | "bracket") {
@@ -5089,9 +5040,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!importReport?.ok.length || spotBusy) return;
       spotBusy = true;
       try {
-        const picks = pickRandomSpotCheckQuestions(importReport.ok, 3);
-        spotIds = picks.map((q) => q.id);
-        spotHtml = await renderSpotCheckHtml(app, picks);
+        const res = await executeSpotCheckRender(app, importReport.ok, 3);
+        spotIds = res.spotIds;
+        spotHtml = res.spotHtml;
       } finally { spotBusy = false; }
     }
 

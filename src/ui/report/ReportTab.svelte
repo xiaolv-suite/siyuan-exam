@@ -13,7 +13,7 @@
     import { recentExposureList } from "../../core/exposure";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
-    import type { PaletteCommand } from "../shared/Palette.svelte";
+    import type { PaletteCommand } from "../shared/paletteTypes";
     import { heatmap, masteryByKp, weakTop, hourly, calibration, confidentWrongList, uncertainCorrectList, delayedRecall, exposureStats, type CalibrationReport } from "@/core/report";
     import { extractRadarDimensions, buildRadarChartModel, exportRadarDimensionsCsv } from "@/core/radar";
     import { trendToCsv, heatmapToCsv, hourlyToCsv } from "@/core/exportMd";

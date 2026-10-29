@@ -268,4 +268,24 @@ export function formatFollowUpInteractionText(
   return prefix + followUpTag + prompt + "\n" + reply;
 }
 
+/**
+ * 显式揭示被拦截的泄露提示并推进层级与文本展示
+ */
+export function applyLeakedHintToState(
+  qId: string,
+  leakPending: { level: 1 | 2 | 3; text: string; reasons: string },
+  hintLevels: Map<string, 0 | 1 | 2 | 3>,
+  hintTexts: Map<string, string[]>,
+  t: (k: string) => string,
+): { explainText: string; helpMode: "reveal" } {
+  hintLevels.set(qId, leakPending.level);
+  const updatedTexts = [...(hintTexts.get(qId) ?? []), leakPending.text];
+  hintTexts.set(qId, updatedTexts);
+  return {
+    explainText: formatHintLayersDisplay(updatedTexts, t),
+    helpMode: "reveal",
+  };
+}
+
+
 

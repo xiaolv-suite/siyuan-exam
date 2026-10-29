@@ -13,6 +13,7 @@ import {
   getNoteDraftSignature,
   isNoteFormDirty,
   extractNoteEditValues,
+  filterMaterialsList,
 } from "@/ui/practice/services/materialManagementService";
 import type { MaterialDoc } from "@/core/materials";
 import type { MaterialNote } from "@/core/materialNotes";
@@ -340,6 +341,50 @@ describe("materialManagementService", () => {
       expect(extracted.time).toBe("1:05");
       expect(extracted.quote).toBe("引理");
       expect(extracted.tags).toBe("重点，常考");
+    });
+  });
+
+  describe("filterMaterialsList", () => {
+    const list: MaterialDoc[] = [
+      {
+        id: "m-1",
+        title: "高等数学第一册",
+        subject: "高数",
+        chapter: "极限",
+        kind: "pdf",
+        storage: { type: "asset", assetPath: "calc.pdf", mime: "application/pdf", size: 10, sha256: "1" },
+        locations: [{ path: "docs/calc.pdf", mime: "application/pdf", size: 10, primary: true }],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "m-2",
+        title: "线性代数",
+        subject: "线代",
+        chapter: "矩阵",
+        kind: "pdf",
+        storage: { type: "asset", assetPath: "linear.pdf", mime: "application/pdf", size: 10, sha256: "2" },
+        locations: [{ path: "docs/linear.pdf", mime: "application/pdf", size: 10, primary: true }],
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ];
+
+    it("filters materials by title, subject, chapter, or path (case-insensitive)", () => {
+      // 1. 空搜索返回全集
+      expect(filterMaterialsList(list, "")).toHaveLength(2);
+
+      // 2. 按标题搜索
+      expect(filterMaterialsList(list, "高等数学")).toHaveLength(1);
+
+      // 3. 按章节搜索
+      expect(filterMaterialsList(list, "矩阵")).toHaveLength(1);
+
+      // 4. 按路径子串搜索
+      expect(filterMaterialsList(list, "linear")).toHaveLength(1);
+
+      // 5. 不匹配项
+      expect(filterMaterialsList(list, "概率论")).toHaveLength(0);
     });
   });
 });

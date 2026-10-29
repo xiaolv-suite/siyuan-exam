@@ -89,3 +89,54 @@ export function initDisputeFormValues(q: Question): {
   };
 }
 
+/**
+ * 校验并标记题目争议
+ */
+export async function validateAndFlagDispute(options: {
+  app: ExamApp;
+  q: Question & { blockId: string };
+  reason: DisputeReason;
+  note: string;
+  showMessage: MessageReporter;
+  t: (k: string) => string;
+}): Promise<{ updated?: Partial<Question>; error?: string }> {
+  const { app, q, reason, note, showMessage, t } = options;
+  if (!note.trim()) {
+    return { error: t("dispute.notePlaceholder") };
+  }
+  const updated = await flagQuestionDispute(app, q, reason, note, showMessage, t);
+  return { updated };
+}
+
+/**
+ * 校验并登记题目争议处置结论
+ */
+export async function validateAndResolveDispute(options: {
+  app: ExamApp;
+  q: Question & { blockId: string };
+  resolution: string;
+  showMessage: MessageReporter;
+  t: (k: string) => string;
+}): Promise<{ updated?: Partial<Question>; error?: string }> {
+  const { app, q, resolution, showMessage, t } = options;
+  if (!resolution.trim()) {
+    return { error: t("dispute.resolutionPlaceholder") };
+  }
+  const updated = await resolveQuestionDispute(app, q, resolution, showMessage, t);
+  return { updated };
+}
+
+/**
+ * 确认并清除题目争议标记
+ */
+export async function handleClearDispute(options: {
+  app: ExamApp;
+  q: Question & { blockId: string };
+  showMessage: MessageReporter;
+  t: (k: string) => string;
+}): Promise<{ updated: Partial<Question> }> {
+  const { app, q, showMessage, t } = options;
+  const updated = await clearQuestionDispute(app, q, showMessage, t);
+  return { updated };
+}
+

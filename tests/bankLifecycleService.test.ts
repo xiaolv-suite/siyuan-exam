@@ -6,6 +6,10 @@ import {
   executeCreateSampleBank,
   resolveRetainedSampleBank,
   formatSampleNoticeText,
+  executeCycleBankCategory,
+  executeSyncBankToDoc,
+  executeSaveWrongbookToDoc,
+  executeRemoveBankWithConfirm,
 } from "@/ui/practice/services/bankLifecycleService";
 import type { ExamApp } from "@/app";
 
@@ -84,5 +88,89 @@ describe("题库生命周期服务 (bankLifecycleService)", () => {
 
     const pending = formatSampleNoticeText(4, 10, false, dummyT);
     expect(pending).toBe("[guard.samplePending]");
+  });
+
+  it("7. executeCycleBankCategory：题库分类顺次轮转并更新元数据", async () => {
+    const mockApp = {
+      updateBankCategory: vi.fn().mockResolvedValue(undefined),
+      listBanks: vi.fn().mockReturnValue([{ id: "b-1", name: "题库1", category: "language" }]),
+    } as unknown as ExamApp;
+
+    const res = await executeCycleBankCategory(mockApp, { id: "b-1", name: "题库1", category: "exam" } as any);
+    expect(res.nextCategory).toBe("language");
+    expect(res.badge).toBeDefined();
+    expect(mockApp.updateBankCategory).toHaveBeenCalledWith("b-1", "language");
+  });
+
+  it("8. executeSyncBankToDoc：同步题库到思源笔记文档", async () => {
+    const mockApp = {
+      syncBankToSiyuanDoc: vi.fn().mockResolvedValue({ title: "题库同步文档" }),
+    } as unknown as ExamApp;
+
+    const res = await executeSyncBankToDoc(mockApp, "b-1");
+    expect(res.title).toBe("题库同步文档");
+    expect(mockApp.syncBankToSiyuanDoc).toHaveBeenCalledWith("b-1");
+  });
+
+  it("9. executeSaveWrongbookToDoc：错题集生成文档（含空列表守卫）", async () => {
+    const mockApp = {
+      saveQuestionsToSiyuanDoc: vi.fn().mockResolvedValue({ title: "错题集文档" }),
+    } as unknown as ExamApp;
+
+    const empty = await executeSaveWrongbookToDoc(mockApp, {
+      bankName: "测试库",
+      activeBankId: "b-1",
+      questions: [{ id: "q-1" } as any],
+      wrongQids: [],
+    });
+    expect(empty).toBeNull();
+
+    const res = await executeSaveWrongbookToDoc(mockApp, {
+      bankName: "测试库",
+      activeBankId: "b-1",
+      questions: [{ id: "q-1" } as any, { id: "q-2" } as any],
+      wrongQids: ["q-1"],
+    });
+    expect(res).not.toBeNull();
+    expect(res?.count).toBe(1);
+    expect(mockApp.saveQuestionsToSiyuanDoc).toHaveBeenCalled();
+  });
+
+  it("10. executeRemoveBankWithConfirm：确认与取消移出题库管理", async () => {
+    const showMessage = vi.fn();
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      removeBank: vi.fn().mockResolvedValue(undefined),
+      listBanks: vi.fn().mockReturnValue([{ id: "b-2", name: "剩余题库" }]),
+    } as unknown as ExamApp;
+
+    // 1. 取消
+    const cancelConfirm = vi.fn().mockResolvedValue(false);
+    const cancelRes = await executeRemoveBankWithConfirm({
+      app: mockApp,
+      activeBankId: "b-1",
+      bankName: "待删题库",
+      confirmDialogSync: cancelConfirm,
+      showMessage,
+      t,
+    });
+    expect(cancelRes.removed).toBe(false);
+    expect(mockApp.removeBank).not.toHaveBeenCalled();
+
+    // 2. 确认移出
+    const okConfirm = vi.fn().mockResolvedValue(true);
+    const okRes = await executeRemoveBankWithConfirm({
+      app: mockApp,
+      activeBankId: "b-1",
+      bankName: "待删题库",
+      confirmDialogSync: okConfirm,
+      showMessage,
+      t,
+    });
+    expect(okRes.removed).toBe(true);
+    expect(okRes.nextBanks).toHaveLength(1);
+    expect(okRes.nextActiveBankId).toBe("b-2");
+    expect(mockApp.removeBank).toHaveBeenCalledWith("b-1");
+    expect(showMessage).toHaveBeenCalledWith("[bank.removed]", 2800, "info");
   });
 });

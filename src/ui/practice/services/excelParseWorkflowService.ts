@@ -150,3 +150,27 @@ export function validateAndBuildManualMap(
   };
 }
 
+/**
+ * 读取二进制文件并解析为各工作表数据结构
+ */
+export async function readAndParseWorkbookFile(
+  file: File,
+  t: (k: string) => string,
+  showMessage: (msg: string, time?: number, type?: string) => void,
+): Promise<{
+  sheetNames: string[];
+  sheets: Map<string, string[][]>;
+  activeSheet: string;
+}> {
+  const XLSX = await import("xlsx");
+  const { parseWorkbookFile } = await import("@/importer/workbookFile");
+  const buf = await file.arrayBuffer();
+  const parsed = await parseWorkbookFile(XLSX, buf, file.name);
+  if (parsed.garbled) showMessage(t("import.garbledWarning"), 5200, "info");
+  return {
+    sheetNames: parsed.sheetNames,
+    sheets: parsed.sheets,
+    activeSheet: parsed.sheetNames[0] || "",
+  };
+}
+

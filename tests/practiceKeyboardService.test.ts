@@ -5,6 +5,8 @@ import {
   resolveKeyboardAction,
   isInputTarget,
   shouldBlockGlobalHotkeys,
+  detectHorizontalSwipe,
+  getNextStudyFontSize,
 } from "@/ui/practice/services/practiceKeyboardService";
 import type { Question } from "@/core/types";
 
@@ -208,6 +210,40 @@ describe("practiceKeyboardService", () => {
         target: innerBtn,
         paletteOpen: true,
       })).toBe(true);
+    });
+  });
+
+  describe("detectHorizontalSwipe and getNextStudyFontSize", () => {
+    it("detectHorizontalSwipe：精确检测向左/向右滑动手势并过滤抖动", () => {
+      const startState = { startX: 100, startY: 100, startTime: Date.now() - 100 };
+
+      // 1. 多个 touch 或不是 1 个 -> null
+      const multiTouch = { changedTouches: [{}, {}] } as any;
+      expect(detectHorizontalSwipe(multiTouch, startState)).toBeNull();
+
+      // 2. 水平向左划（deltaX < -60 且 deltaX 占主导）
+      const swipeLeft = {
+        changedTouches: [{ clientX: 30, clientY: 105 }],
+      } as any;
+      expect(detectHorizontalSwipe(swipeLeft, startState)).toBe("next");
+
+      // 3. 水平向右划（deltaX > 60 且占主导）
+      const swipeRight = {
+        changedTouches: [{ clientX: 180, clientY: 102 }],
+      } as any;
+      expect(detectHorizontalSwipe(swipeRight, startState)).toBe("prev");
+
+      // 4. 纵向滑动或幅度太小 -> null
+      const verticalScroll = {
+        changedTouches: [{ clientX: 105, clientY: 200 }],
+      } as any;
+      expect(detectHorizontalSwipe(verticalScroll, startState)).toBeNull();
+    });
+
+    it("getNextStudyFontSize：循环切换自习字号", () => {
+      expect(getNextStudyFontSize("normal")).toBe("large");
+      expect(getNextStudyFontSize("large")).toBe("xlarge");
+      expect(getNextStudyFontSize("xlarge")).toBe("normal");
     });
   });
 });

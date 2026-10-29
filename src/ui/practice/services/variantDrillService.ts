@@ -104,3 +104,43 @@ export async function executeMotherQuestionLookup(
   };
 }
 
+/**
+ * 完整举一反三变式训练调度工作流
+ */
+export async function executeDrillVariantWorkflow(options: {
+  app: any;
+  q: Question;
+  showMessage: (msg: string, time?: number, type?: string) => void;
+  startPractice: (qs: Question[], toast?: string) => Promise<void>;
+}): Promise<void> {
+  const { app, q, showMessage, startPractice } = options;
+  if (!q) return;
+  try {
+    const res = await executeVariantDrillLookup(app, q, 5);
+    if (res.emptyNotice) { showMessage(res.emptyNotice, 2500, "info"); return; }
+    await startPractice(res.questions, res.toastMessage);
+  } catch (e) {
+    showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
+  }
+}
+
+/**
+ * 完整母题溯源调度工作流
+ */
+export async function executeMotherQuestionWorkflow(options: {
+  app: any;
+  target: Question;
+  showMessage: (msg: string, time?: number, type?: string) => void;
+  startPractice: (qs: Question[], toast?: string) => Promise<void>;
+}): Promise<void> {
+  const { app, target, showMessage, startPractice } = options;
+  if (!target || !app) return;
+  try {
+    const res = await executeMotherQuestionLookup(app, target);
+    if (res.emptyNotice) { showMessage(res.emptyNotice, 3000, "info"); return; }
+    await startPractice([res.motherQuestion!], res.toastMessage);
+  } catch (e) {
+    showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
+  }
+}
+

@@ -18,7 +18,7 @@
     import { estimateScore, normalizeEstimateInput } from "../../core/estimate";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
-    import type { PaletteCommand } from "../shared/Palette.svelte";
+    import type { PaletteCommand } from "../shared/paletteTypes";
     import SaveStatus from "../shared/SaveStatus.svelte";
     import { mockSectionsToCsv, mockHistoryToCsv } from "../../core/exportMd";
     import { renderInlineText } from "../../libs/sanitize";

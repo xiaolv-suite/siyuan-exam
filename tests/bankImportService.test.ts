@@ -5,6 +5,7 @@ import {
   exportBankPackageZip,
   readClipboardImportText,
   makeFileEventProxy,
+  executeTrialImport,
 } from "@/ui/practice/services/bankImportService";
 import type { ExamApp } from "@/app";
 import type { ImportReport } from "@/importer/pipeline";
@@ -209,5 +210,24 @@ describe("题库导入与模板分享服务 (bankImportService)", () => {
     // 4. 有题库拖入不支持类型
     const res4 = resolveGlobalTabDropAction("paper.pdf", pdfFile, true);
     expect(res4.action).toBe("unsupported");
+  });
+
+  it("11. executeTrialImport：执行试导前5题并返回确认清单与提示", async () => {
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      commitImport: vi.fn().mockResolvedValue({
+        readback: { confirmed: ["q-1", "q-2"], missing: [], verified: true },
+      }),
+    };
+    const remaining = [
+      { id: "q-1" },
+      { id: "q-2" },
+      { id: "q-3" },
+    ] as any;
+
+    const res = await executeTrialImport(mockApp, "b-1", remaining, "batch-1", t);
+    expect(mockApp.commitImport).toHaveBeenCalled();
+    expect(res.confirmedIds).toEqual(["q-1", "q-2"]);
+    expect(res.note).toBe("[import.trialDone]");
   });
 });

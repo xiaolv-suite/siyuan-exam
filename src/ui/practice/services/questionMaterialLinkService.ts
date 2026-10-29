@@ -103,3 +103,17 @@ export function initQrefFormState(
   };
 }
 
+/**
+ * 批量构建全部题目的学习资料引用快照映射
+ */
+export function buildAllQuestionsMaterialSnapshot(
+  app: ExamApp,
+  questions: Array<{ id: string }>,
+): Record<string, QrefSnapshotItem | null> {
+  const result: Record<string, QrefSnapshotItem | null> = {};
+  for (const q of questions) {
+    result[q.id] = computeQuestionMaterialSnapshot(app, q.id);
+  }
+  return result;
+}
+

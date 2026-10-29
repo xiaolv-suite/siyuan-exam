@@ -5,6 +5,10 @@
 // ============================================================
 
 import type { ExamApp, BankInfo } from "@/app";
+import type { Question } from "@/core/types";
+import { getBankCategoryMeta, type BankCategory } from "@/core/bankCategory";
+import { escapeHtml } from "@/libs/sanitize";
+import type { MessageReporter } from "./printPaperService";
 import { SAMPLE_BANK_NAME, SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
 import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_QUESTION_COUNT } from "@/core/cantoneseSample";
 import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_QUESTION_COUNT } from "@/core/englishSample";
@@ -101,4 +105,85 @@ export function formatSampleNoticeText(
     return t("guard.sampleReady").replace("{n}", String(targetCount));
   }
   return t("guard.samplePending").replace("{n}", String(actualLength)).replace("{total}", String(targetCount));
+}
+
+/**
+ * 轮转题库场景分类（exam -> language -> teaching -> general）
+ */
+export async function executeCycleBankCategory(
+  app: ExamApp,
+  b: BankInfo,
+): Promise<{ nextCategory: BankCategory; banks: BankInfo[]; badge: string }> {
+  const order: BankCategory[] = ["exam", "language", "teaching", "general"];
+  const curIdx = order.indexOf((b.category as BankCategory) ?? "general");
+  const nextCategory = order[(curIdx + 1) % order.length];
+  await app.updateBankCategory(b.id, nextCategory);
+  const banks = app.listBanks();
+  const badge = getBankCategoryMeta(nextCategory).badge;
+  return { nextCategory, banks, badge };
+}
+
+/**
+ * 将整个题库同步导出为思源笔记文档
+ */
+export async function executeSyncBankToDoc(
+  app: ExamApp,
+  bId: string,
+): Promise<{ title: string }> {
+  return await app.syncBankToSiyuanDoc(bId);
+}
+
+/**
+ * 将错题队列中的试题保存为思源笔记错题手册文档
+ */
+export async function executeSaveWrongbookToDoc(
+  app: ExamApp,
+  options: {
+    bankName: string;
+    activeBankId: string;
+    questions: Question[];
+    wrongQids: string[];
+  },
+): Promise<{ title: string; count: number } | null> {
+  const { bankName, activeBankId, questions, wrongQids } = options;
+  const wrongSet = new Set(wrongQids);
+  const qs = questions.filter((q) => wrongSet.has(q.id));
+  if (!qs.length) return null;
+  const title = `${bankName || "小驴题库"} · 错题攻坚手册（${qs.length}题）`;
+  const res = await app.saveQuestionsToSiyuanDoc(title, qs, {
+    bankId: activeBankId,
+    isMock: false,
+  });
+  return { title: res.title, count: qs.length };
+}
+
+/**
+ * 确认并移出题库管理（保留思源笔记物理文档）
+ */
+export async function executeRemoveBankWithConfirm(options: {
+  app: ExamApp;
+  activeBankId: string;
+  bankName: string;
+  confirmDialogSync: (opts: { title: string; content: string }) => Promise<boolean>;
+  showMessage: MessageReporter;
+  t: (k: string) => string;
+}): Promise<{ removed: boolean; nextBanks?: BankInfo[]; nextActiveBankId?: string }> {
+  const { app, activeBankId, bankName, confirmDialogSync, showMessage, t } = options;
+  const ok = await confirmDialogSync({
+    title: t("bank.removeTitle"),
+    content: t("bank.removeConfirm").replace("{name}", escapeHtml(bankName)),
+  });
+  if (!ok) return { removed: false };
+
+  try {
+    await app.removeBank(activeBankId);
+  } catch (e) {
+    showMessage(String(e instanceof Error ? e.message : e), 4600, "error");
+    return { removed: false };
+  }
+
+  const nextBanks = app.listBanks();
+  const nextActiveBankId = nextBanks[0]?.id ?? "";
+  showMessage(t("bank.removed"), 2800, "info");
+  return { removed: true, nextBanks, nextActiveBankId };
 }

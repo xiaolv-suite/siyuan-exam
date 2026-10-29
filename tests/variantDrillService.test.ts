@@ -5,6 +5,8 @@ import {
   pickSameKpDrillQuestions,
   executeVariantDrillLookup,
   executeMotherQuestionLookup,
+  executeDrillVariantWorkflow,
+  executeMotherQuestionWorkflow,
 } from "@/ui/practice/services/variantDrillService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -105,5 +107,45 @@ describe("变式题训练与母题溯源服务 (variantDrillService)", () => {
     const emptyRes = await executeMotherQuestionLookup(mockApp, fakeQuestion);
     expect(emptyRes.motherQuestion).toBeNull();
     expect(emptyRes.emptyNotice).toBe("该题已是基础概念");
+  });
+
+  it("6. executeDrillVariantWorkflow：变式特训启动工作流", async () => {
+    const mockApp = {
+      pickVariantQuestions: vi.fn().mockResolvedValue({
+        questions: [fakeQuestion],
+        reason: "同考点变式题",
+      }),
+    };
+    const showMessage = vi.fn();
+    const startPractice = vi.fn().mockResolvedValue(undefined);
+
+    await executeDrillVariantWorkflow({
+      app: mockApp,
+      q: fakeQuestion,
+      showMessage,
+      startPractice,
+    });
+
+    expect(startPractice).toHaveBeenCalledWith([fakeQuestion], "⚡ 同考点变式题");
+  });
+
+  it("7. executeMotherQuestionWorkflow：母题溯源启动工作流", async () => {
+    const mockApp = {
+      findFoundationMotherQuestion: vi.fn().mockResolvedValue({
+        motherQuestion: fakeQuestion,
+        reason: "溯源至基础母题",
+      }),
+    };
+    const showMessage = vi.fn();
+    const startPractice = vi.fn().mockResolvedValue(undefined);
+
+    await executeMotherQuestionWorkflow({
+      app: mockApp,
+      target: fakeQuestion,
+      showMessage,
+      startPractice,
+    });
+
+    expect(startPractice).toHaveBeenCalledWith([fakeQuestion], "🌱 溯源至基础母题");
   });
 });

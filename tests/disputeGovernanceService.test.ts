@@ -6,6 +6,9 @@ import {
   clearQuestionDispute,
   exportItemAnalysisReportCsv,
   initDisputeFormValues,
+  validateAndFlagDispute,
+  validateAndResolveDispute,
+  handleClearDispute,
 } from "@/ui/practice/services/disputeGovernanceService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -139,5 +142,68 @@ describe("题目生命周期与争议处置单服务 (disputeGovernanceService)"
       note: "旧大纲题目",
       resolution: "已剔除",
     });
+  });
+
+  it("5. validateAndFlagDispute / validateAndResolveDispute / handleClearDispute：输入校验与包装", async () => {
+    const showMessage = vi.fn();
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      flagQuestionDispute: vi.fn().mockResolvedValue({ dispute: { status: "flagged" } }),
+      resolveQuestionDispute: vi.fn().mockResolvedValue({ dispute: { status: "resolved" } }),
+      clearQuestionDispute: vi.fn().mockResolvedValue({ dispute: undefined }),
+    } as unknown as ExamApp;
+
+    // 1. 空备注拦截
+    const emptyFlag = await validateAndFlagDispute({
+      app: mockApp,
+      q: fakeQuestion,
+      reason: "wrong_answer",
+      note: "  ",
+      showMessage,
+      t,
+    });
+    expect(emptyFlag.error).toBe("[dispute.notePlaceholder]");
+    expect(mockApp.flagQuestionDispute).not.toHaveBeenCalled();
+
+    // 2. 正常标记
+    const okFlag = await validateAndFlagDispute({
+      app: mockApp,
+      q: fakeQuestion,
+      reason: "wrong_answer",
+      note: "答案解析冲突",
+      showMessage,
+      t,
+    });
+    expect(okFlag.updated).toBeDefined();
+
+    // 3. 空结论拦截
+    const emptyResolve = await validateAndResolveDispute({
+      app: mockApp,
+      q: fakeQuestion,
+      resolution: "   ",
+      showMessage,
+      t,
+    });
+    expect(emptyResolve.error).toBe("[dispute.resolutionPlaceholder]");
+    expect(mockApp.resolveQuestionDispute).not.toHaveBeenCalled();
+
+    // 4. 正常解决
+    const okResolve = await validateAndResolveDispute({
+      app: mockApp,
+      q: fakeQuestion,
+      resolution: "已重新核验",
+      showMessage,
+      t,
+    });
+    expect(okResolve.updated).toBeDefined();
+
+    // 5. 清除
+    const okClear = await handleClearDispute({
+      app: mockApp,
+      q: fakeQuestion,
+      showMessage,
+      t,
+    });
+    expect(okClear.updated).toBeDefined();
   });
 });

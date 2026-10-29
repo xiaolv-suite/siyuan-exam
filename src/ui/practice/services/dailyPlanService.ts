@@ -110,3 +110,31 @@ export async function updateDailyPlanTrace(
   await app.saveAux("plan/trace", trace);
   return trace;
 }
+
+/**
+ * 根据计划队列与可用题目计算今日练习队列（传入计划时优先遵循计划，未生成计划时前 10 题兜底）
+ */
+export function resolveDailyStudyQueue(available: Question[], planned?: Question[]): Question[] {
+  const source = planned !== undefined ? planned : available.slice(0, 10);
+  return source.filter((q) => q.type !== "material");
+}
+
+/**
+ * 提取艾宾浩斯临界遗忘风险考点的特训急救题目列表
+ */
+export function extractCriticalForgettingRescueQuestions(
+  criticalKps: Array<{ candidateQids: string[] }>,
+  questionMap: Map<string, Question>,
+  limit = 10,
+): Question[] {
+  const qids = criticalKps.flatMap((k) => k.candidateQids).slice(0, limit);
+  return qids.map((id) => questionMap.get(id)).filter((q): q is Question => Boolean(q));
+}
+
+/**
+ * 格式化周度趋势图表单日星期标签
+ */
+export function formatWeekDayLabel(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return ["日", "一", "二", "三", "四", "五", "六"][new Date(year, month - 1, day, 12).getDay()];
+}

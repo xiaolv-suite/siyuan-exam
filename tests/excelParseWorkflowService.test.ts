@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   isColumnMapOutOfBounds,
   parseSheetRowsWithStrategy,
   prepareMapAssignment,
   validateAndBuildManualMap,
+  readAndParseWorkbookFile,
 } from "@/ui/practice/services/excelParseWorkflowService";
 import type { ExcelColumnMap } from "@/importer/pipeline";
 
@@ -214,6 +215,19 @@ describe("excelParseWorkflowService", () => {
       const resFail = validateAndBuildManualMap(invalidAssign, 5);
       expect(resFail.valid).toBe(false);
       expect(resFail.errors.length).toBeGreaterThan(0);
+    });
+
+    it("readAndParseWorkbookFile：解析工作簿并提示乱码警告", async () => {
+      const showMessage = vi.fn();
+      const dummyFile = {
+        name: "test.csv",
+        arrayBuffer: vi.fn().mockResolvedValue(new TextEncoder().encode("题型,题干,答案\n判断,测试,对")),
+      } as unknown as File;
+
+      const res = await readAndParseWorkbookFile(dummyFile, dummyT, showMessage);
+      expect(res.sheetNames.length).toBeGreaterThanOrEqual(1);
+      expect(res.activeSheet).toBeDefined();
+      expect(res.sheets.has(res.activeSheet)).toBe(true);
     });
   });
 });

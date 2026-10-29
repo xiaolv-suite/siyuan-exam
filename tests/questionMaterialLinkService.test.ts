@@ -5,6 +5,7 @@ import {
   removeQuestionMaterialReference,
   resolveQuestionMaterialOpenUrl,
   initQrefFormState,
+  buildAllQuestionsMaterialSnapshot,
 } from "@/ui/practice/services/questionMaterialLinkService";
 import type { ExamApp } from "@/app";
 
@@ -122,5 +123,20 @@ describe("题目↔学习资料关联引用服务 (questionMaterialLinkService)"
     expect(form.materialId).toBe("mat-2");
     expect(form.page).toBe("12");
     expect(form.time).toBe("2:05");
+  });
+
+  it("6. buildAllQuestionsMaterialSnapshot：批量计算题目资料快照映射", () => {
+    const mockApp = {
+      questionMaterialRef: vi.fn().mockImplementation((id: string) => {
+        if (id === "q-1") return { materialId: "mat-1", locator: { page: 1 } };
+        return null;
+      }),
+      listMaterials: vi.fn().mockReturnValue([fakeMaterial]),
+    } as unknown as ExamApp;
+
+    const res = buildAllQuestionsMaterialSnapshot(mockApp, [{ id: "q-1" }, { id: "q-2" }]);
+    expect(res["q-1"]).not.toBeNull();
+    expect(res["q-1"]?.title).toBe("高数精讲第一章.pdf");
+    expect(res["q-2"]).toBeNull();
   });
 });

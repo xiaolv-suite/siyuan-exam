@@ -6,6 +6,8 @@ import {
   toggleQuestionFavorite,
   executeMasterAllWrong,
   executeMasterAllWrongWithConfirm,
+  executeMasterSingleWrongWithConfirm,
+  resolveExternalTargetQuestions,
 } from "@/ui/practice/services/drillLauncherService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -155,5 +157,60 @@ describe("练习会话调度与定向刷题服务 (drillLauncherService)", () =>
     const resAgree = await executeMasterAllWrongWithConfirm(mockApp, [{ qid: "q-1" }], agreeConfirm, showMessage, t);
     expect(resAgree.confirmed).toBe(true);
     expect(resAgree.ok).toBe(1);
+  });
+
+  it("6. executeMasterSingleWrongWithConfirm：单题确认并标为已掌握", async () => {
+    const msgs: string[] = [];
+    const showMessage = (m: string) => msgs.push(m);
+    const t = (k: string) => `[${k}]`;
+    const mockApp = { setWrongStatus: vi.fn().mockResolvedValue(undefined) } as unknown as ExamApp;
+
+    // 1. 取消
+    const cancelConfirm = vi.fn().mockResolvedValue(false);
+    const resCancel = await executeMasterSingleWrongWithConfirm({
+      app: mockApp,
+      qid: "q-1",
+      stem: "题目内容",
+      confirmFn: cancelConfirm,
+      showMessage,
+      t,
+      offline: false,
+    });
+    expect(resCancel).toBe(false);
+
+    // 2. 确认
+    const agreeConfirm = vi.fn().mockResolvedValue(true);
+    const resAgree = await executeMasterSingleWrongWithConfirm({
+      app: mockApp,
+      qid: "q-1",
+      stem: "题目内容",
+      confirmFn: agreeConfirm,
+      showMessage,
+      t,
+      offline: false,
+    });
+    expect(resAgree).toBe(true);
+    expect(mockApp.setWrongStatus).toHaveBeenCalledWith("q-1", "mastered");
+    expect(msgs).toContain("[wrongbook.masteredDone]");
+  });
+
+  it("7. resolveExternalTargetQuestions：提取外部题目与缺题提示", () => {
+    const t = (k: string) => `[${k}]`;
+    const qs = [
+      { id: "q-1", type: "single" },
+      { id: "q-2", type: "material" },
+      { id: "q-3", type: "judge" },
+    ] as Question[];
+
+    // 1. 全部空
+    const emptyRes = resolveExternalTargetQuestions(qs, ["q-not-found", "q-2"], t);
+    expect(emptyRes.picked).toHaveLength(0);
+    expect(emptyRes.emptyNotice).toBe("[query.empty]");
+
+    // 2. 部分匹配并报缺失
+    const partialRes = resolveExternalTargetQuestions(qs, ["q-1", "q-4"], t);
+    expect(partialRes.picked).toHaveLength(1);
+    expect(partialRes.picked[0].id).toBe("q-1");
+    expect(partialRes.missingNotice).toBe("[query.missing]");
   });
 });

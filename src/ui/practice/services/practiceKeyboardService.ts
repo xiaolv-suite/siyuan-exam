@@ -210,3 +210,39 @@ export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAct
 
   return null;
 }
+
+export interface SwipeGestureState {
+  startX: number;
+  startY: number;
+  startTime: number;
+}
+
+/**
+ * 检测移动端左右滑动手势（用于切题导航）
+ */
+export function detectHorizontalSwipe(
+  e: TouchEvent,
+  startState: SwipeGestureState,
+): "next" | "prev" | null {
+  if (e.changedTouches.length !== 1) return null;
+  const touch = e.changedTouches[0];
+  const deltaX = touch.clientX - startState.startX;
+  const deltaY = touch.clientY - startState.startY;
+  const deltaTime = Date.now() - startState.startTime;
+
+  if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 2 && deltaTime < 600) {
+    return deltaX < 0 ? "next" : "prev";
+  }
+  return null;
+}
+
+/**
+ * 轮转自习字号设置（normal -> large -> xlarge -> normal）
+ */
+export function getNextStudyFontSize(
+  current: "normal" | "large" | "xlarge",
+): "normal" | "large" | "xlarge" {
+  if (current === "normal") return "large";
+  if (current === "large") return "xlarge";
+  return "normal";
+}

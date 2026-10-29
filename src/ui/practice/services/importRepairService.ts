@@ -38,6 +38,18 @@ export async function renderSpotCheckHtml(
   return htmlMap;
 }
 
+/** 执行试题抽查渲染，返回抽检题目ID与对应的题干渲染HTML */
+export async function executeSpotCheckRender(
+  app: any,
+  questions: Question[],
+  count = 3,
+): Promise<{ spotIds: string[]; spotHtml: Record<string, string> }> {
+  const picks = pickRandomSpotCheckQuestions(questions, count);
+  const spotIds = picks.map((q) => q.id);
+  const spotHtml = await renderSpotCheckHtml(app, picks);
+  return { spotIds, spotHtml };
+}
+
 /** 重新解析单行修复后的 Excel 单元格 */
 export function reparseFixedExcelRow(
   cells: string[],

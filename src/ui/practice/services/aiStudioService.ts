@@ -333,5 +333,33 @@ export async function executeRegenSingleCandidate(options: {
   };
 }
 
+/**
+ * 从思源活动编辑器提取文档源码并格式化材料来源与提示
+ */
+export async function extractAiSourceFromEditor(
+  plugin: any,
+  client: KernelApiClient,
+  t: (k: string) => string,
+): Promise<{
+  content: string;
+  sourceOrigin: string;
+  suggestedKp: string;
+  toast: string;
+} | null> {
+  const sApp = plugin.app ?? plugin;
+  const ed = sApp?.ui?.currentEditor ?? sApp?.ui?.lastEditor ?? null;
+  const rootId: string | undefined = ed?.protyle?.block?.rootID;
+  const res = await fetchCurrentEditorDocContent(client, rootId);
+  if (!res) return null;
+  const displayTitle = res.title || rootId!.slice(0, 8);
+  return {
+    content: res.content,
+    sourceOrigin: t("ai.sourceFromDocument").replace("{title}", displayTitle),
+    suggestedKp: res.title || "",
+    toast: `${t("ai.sourceLoaded")} ${displayTitle}`,
+  };
+}
+
+
 
 

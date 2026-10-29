@@ -3,6 +3,9 @@ import {
   formatPlanReason,
   buildDailyPlanSchedule,
   updateDailyPlanTrace,
+  resolveDailyStudyQueue,
+  extractCriticalForgettingRescueQuestions,
+  formatWeekDayLabel,
 } from "@/ui/practice/services/dailyPlanService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -96,5 +99,43 @@ describe("今日备考计划与目标调度服务 (dailyPlanService)", () => {
     expect(trace).toBeDefined();
     expect(mockApp.saveAux).toHaveBeenCalledWith("plan/trace", expect.any(Object));
     expect(savedTrace).toBe(trace);
+  });
+
+  it("4. resolveDailyStudyQueue：计划队列与可用题目的排版解析", () => {
+    const qs = [
+      { id: "q-1", type: "single" },
+      { id: "q-2", type: "material" },
+      { id: "q-3", type: "judge" },
+    ] as Question[];
+
+    // 1. 无计划时前 10 题兜底并过滤 material
+    const fallback = resolveDailyStudyQueue(qs);
+    expect(fallback).toHaveLength(2);
+    expect(fallback.map((x) => x.id)).toEqual(["q-1", "q-3"]);
+
+    // 2. 提供计划队列时遵循计划队列
+    const planned = [{ id: "q-3", type: "judge" }] as Question[];
+    const withPlan = resolveDailyStudyQueue(qs, planned);
+    expect(withPlan).toHaveLength(1);
+    expect(withPlan[0].id).toBe("q-3");
+  });
+
+  it("5. extractCriticalForgettingRescueQuestions：提取艾宾浩斯临界题", () => {
+    const map = new Map<string, Question>([
+      ["q-1", { id: "q-1", stem: "题1" } as any],
+      ["q-2", { id: "q-2", stem: "题2" } as any],
+    ]);
+    const criticalKps = [{ candidateQids: ["q-1", "q-missing", "q-2"] }];
+
+    const res = extractCriticalForgettingRescueQuestions(criticalKps, map, 10);
+    expect(res).toHaveLength(2);
+    expect(res.map((x) => x.id)).toEqual(["q-1", "q-2"]);
+  });
+
+  it("6. formatWeekDayLabel：星期标签格式化", () => {
+    // 2026-10-25 是周日
+    expect(formatWeekDayLabel("2026-10-25")).toBe("日");
+    // 2026-10-26 是周一
+    expect(formatWeekDayLabel("2026-10-26")).toBe("一");
   });
 });
