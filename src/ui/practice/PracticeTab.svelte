@@ -3195,6 +3195,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }
       sessionRev++;
       await app.saveSession().catch(() => undefined);
+      await app.flush().catch(() => undefined);
       showMessage(t("session.undoDone"), 2400, "info");
     }
 
@@ -4558,6 +4559,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     /** 键盘流（docs/11 映射表）：会话 A-F/⏎/J；背诵 空格翻开、1-4 自评；composition（中文输入法）期间不响应 */
     function onKeydown(e: KeyboardEvent) {
+      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) { e.preventDefault(); paletteOpen = !paletteOpen; return; }
       if (activePeekQuestion && handleModalDrawerKeydown(e, peekDrawerEl, closePeekDrawer)) return;
       if (shouldBlockGlobalHotkeys({
         tabRoot,

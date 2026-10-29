@@ -148,4 +148,27 @@ describe("attempts 落盘 v2 信封与迁移（TODO 0 组 schemaVersion）", () 
     expect(migrateAttemptLog({ v: 2, events: [ev(1)] }).kind).toBe("envelope");
     expect(migrateAttemptLog("garbage").kind).toBe("invalid");
   });
+
+  it("popLatest 与 remapQuestionId 能够标记 dirty 并排期落盘，重载不复活旧数据", async () => {
+    const s = new MemoryStorage();
+    const a = log(s);
+    a.append({ qid: "q1", kind: "practice", mode: "m", verdict: "correct", myAnswer: null, sessionId: "s" });
+    a.append({ qid: "q2", kind: "practice", mode: "m", verdict: "wrong", myAnswer: null, sessionId: "s" });
+    await a.flush();
+
+    // 撤回最后一题
+    const popped = a.popLatest("s", "q2");
+    expect(popped?.qid).toBe("q2");
+    expect(a.dirty).toBe(true);
+
+    // 等待或显式 flush 落盘
+    await a.flush();
+    expect(a.dirty).toBe(false);
+
+    // 重新加载验证磁盘数据不再包含 q2
+    const reloaded = log(s);
+    await reloaded.load("d1");
+    expect(reloaded.size).toBe(1);
+    expect(reloaded.all()[0].qid).toBe("q1");
+  });
 });

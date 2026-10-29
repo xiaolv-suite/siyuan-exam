@@ -280,10 +280,16 @@ export function segmentExamPaper(
       finalType = cleanStem.includes("____") || cleanStem.includes("（   ）") || cleanStem.includes("()") ? "fill" : "short";
     }
 
-    // 答案归一化
+    // 答案归一化与缺答案保护（防静默填补假答案与破坏客观题真实性）
+    let qStatus: Question["status"] = "published";
     if (finalType === "judge") {
       if (answer === "√" || answer.toLowerCase() === "true" || answer === "正确") answer = "对";
-      if (answer === "×" || answer.toLowerCase() === "false" || answer === "错误") answer = "错";
+      else if (answer === "×" || answer.toLowerCase() === "false" || answer === "错误") answer = "错";
+    }
+
+    if (!answer && (finalType === "single" || finalType === "multiple" || finalType === "judge")) {
+      qStatus = "draft";
+      warnings.push(`第 ${d.num} 题未提取到有效答案，已降级为草稿 (draft) 存盘，请在入库后核验补录。`);
     }
 
     const analysis = d.analysisLines.join("\n").trim();
@@ -293,13 +299,13 @@ export function segmentExamPaper(
       type: finalType,
       stem: cleanStem,
       options: d.options,
-      answer: answer || (finalType === "single" ? "A" : finalType === "judge" ? "对" : ""),
+      answer: answer || "",
       analysis,
       kp: d.kp || defaultKp,
       difficulty: 3,
       score: d.score,
       source: sourceName,
-      status: "published",
+      status: qStatus,
       origin: "imported",
       hash: questionHash(cleanStem, d.options),
     };

@@ -179,6 +179,13 @@ export class AttemptLog {
     this.seen.delete(last.eid);
     this.generation++;
     this.dirty = true;
+    this.flushTimer ??= setTimeout(
+      () =>
+        void this.flush().catch(() => {
+          /* 后台节流失败：dirty 保持，由下次 flush 重试 */
+        }),
+      this.flushDelayMs,
+    );
     return last;
   }
 
@@ -195,6 +202,13 @@ export class AttemptLog {
     if (count > 0) {
       this.generation++;
       this.dirty = true;
+      this.flushTimer ??= setTimeout(
+        () =>
+          void this.flush().catch(() => {
+            /* 后台节流失败：dirty 保持，由下次 flush 重试 */
+          }),
+        this.flushDelayMs,
+      );
     }
     return count;
   }

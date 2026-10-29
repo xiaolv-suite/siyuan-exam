@@ -94,6 +94,14 @@ describe("Excel 解析", () => {
     const r = parseExcelRows(rows, auto.map);
     expect(r.ok[0].answer).toBe("ABD");
   });
+  it("Excel 单元格内换行保留在题干与解析中，选项保持单行", () => {
+    const rows = [["1", "单选", "代码段：\nconst a = 1;\nconsole.log(a);", "A\n1", "B\n2", "", "", "A", "步骤一：声明\n步骤二：输出", "", ""]];
+    const r = parseExcelRows(rows, auto.map);
+    expect(r.ok).toHaveLength(1);
+    expect(r.ok[0].stem).toBe("代码段：\nconst a = 1;\nconsole.log(a);");
+    expect(r.ok[0].analysis).toBe("步骤一：声明\n步骤二：输出");
+    expect(r.ok[0].options[0]).toBe("A 1");
+  });
 });
 
 describe("块模板往返", () => {

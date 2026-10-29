@@ -23,6 +23,8 @@
   }: Props = $props();
 </script>
 
+<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); onclose(); } }} />
+
 {#if open && session}
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={onclose}></button>
   <div class="lv-hotkeys-wrap">

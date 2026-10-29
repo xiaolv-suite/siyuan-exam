@@ -351,13 +351,23 @@ export class ExamApp {
   private readonly storageWriteTails = new Map<string, Promise<void>>();
   /** 读取失败与“键不存在”必须区分；出现读取错误时阻止后续写入覆盖未知的磁盘数据。 */
   readonly storageReadErrors = new Map<string, string>();
+  /** 关键核心持久化存储键（若读取失败则全局锁定以防数据覆写） */
+  private static readonly CRITICAL_STORAGE_KEYS = new Set([
+    "banks",
+    "attempts/log",
+    "session/running",
+    "mock/running",
+  ]);
   kernelOnline = false;
   probeMessage = "";
   /** 最近一次内核故障；保留分类让 UI 能区分离线、授权、权限和校验错误。 */
   lastKernelError: KernelError | null = null;
 
   get storageReadonly(): boolean {
-    return this.storageReadErrors.size > 0;
+    for (const key of this.storageReadErrors.keys()) {
+      if (ExamApp.CRITICAL_STORAGE_KEYS.has(key)) return true;
+    }
+    return false;
   }
 
   /** UI-only auxiliary data still goes through the same read/write gate as
@@ -375,6 +385,9 @@ export class ExamApp {
   }
 
   async saveAux<T>(key: string, value: T | null): Promise<void> {
+    if (this.storageReadErrors.has(key)) {
+      throw new Error(`辅助数据 [${key}] 读取失败，已暂停覆盖写入；请重载思源后重试。`);
+    }
     this.assertStorageWritable();
     await this.queueStorageWrite(key, () => this.saves.runLatest(key, () => this.deps.storage.save(key, value)));
   }

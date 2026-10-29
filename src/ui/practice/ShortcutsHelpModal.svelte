@@ -13,6 +13,8 @@
   let hotkeyCategory = $state<"all" | "session" | "recite" | "nav">("all");
 </script>
 
+<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); onclose(); } }} />
+
 {#if open}
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={onclose}></button>
   <div class="lv-hotkeys-wrap" role="dialog" aria-modal="true" aria-labelledby="lv-hotkeys-title">

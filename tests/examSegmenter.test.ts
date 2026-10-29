@@ -161,4 +161,28 @@ A. 3.14    B. 6.28    C. 4.71    D. 7.71
     expect(q2.answer).toBe("C");
     expect(q2.analysis).toContain("y = 2*2 + 1 = 5");
   });
+
+  it("5. 缺答案保护：单选题与判断题无答案时降级为 draft 草稿，杜绝伪造假答案", () => {
+    const rawNoAnswer = `
+一、单项选择题
+1. 某未知题目没有提供参考答案
+A. 选项一
+B. 选项二
+
+二、判断题
+2. 某未提供答案的判断题。
+`;
+    const res = segmentExamPaper(rawNoAnswer);
+    expect(res.questions).toHaveLength(2);
+
+    const q1 = res.questions[0];
+    expect(q1.answer).toBe("");
+    expect(q1.status).toBe("draft");
+
+    const q2 = res.questions[1];
+    expect(q2.answer).toBe("");
+    expect(q2.status).toBe("draft");
+
+    expect(res.warnings.some((w) => w.includes("降级为草稿"))).toBe(true);
+  });
 });

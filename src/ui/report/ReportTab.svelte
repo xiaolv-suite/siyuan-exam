@@ -160,8 +160,8 @@
       }
       showMessage(
         role === "teacher"
-          ? "已切换至【👨‍🏫 教师教研模式】：全库质量诊断、试题区分度与大纲缺口审计已就绪"
-          : "已切换至【👨‍🎓 备考学员模式】：备考完备度体检、考点雷达与成长手账已就绪",
+          ? "已切换至【教师教研模式】：全库质量诊断、试题区分度与大纲缺口审计已就绪"
+          : "已切换至【备考学员模式】：备考完备度体检、考点雷达与成长手账已就绪",
         2500,
         "info",
       );
@@ -267,6 +267,8 @@
       const allQids = forgettingReport.urgentRescueKps.flatMap((k) => k.candidateQids);
       const rescueQs = questions.filter((q) => allQids.includes(q.id));
       if (!rescueQs.length) return;
+      plugin.pendingPractice = rescueQs;
+      plugin.pendingPracticeBankId = bankId || undefined;
       plugin.openPractice?.();
       showMessage(`⚡ 已筛选出 ${rescueQs.length} 道临界遗忘考点题目，正在前往练习台抢救…`, 3500, "info");
     }
@@ -610,11 +612,12 @@
         openActionList = await app.listOpenActions();
         mockHistory = await app.listMockResults();
         typeByQid.clear();
-        // qid→题型映射全库加载；单库读失败不阻塞整份报告。
-        for (const b of bankOptions) {
-          try {
-            for (const q of await app.listQuestions(b.id)) typeByQid.set(q.id, q.type);
-          } catch { /* 单库读取失败跳过 */ }
+        // qid→题型映射全库并发加载；单库读失败不阻塞整份报告。
+        const bankQuestionLists = await Promise.all(
+          bankOptions.map((b) => app.listQuestions(b.id).catch(() => [] as Question[])),
+        );
+        for (const qs of bankQuestionLists) {
+          for (const q of qs) typeByQid.set(q.id, q.type);
         }
         await reloadBankScope(d);
         computeReport();
@@ -977,6 +980,13 @@
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 </script>
+
+<svelte:window onkeydown={(e) => {
+  if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    paletteOpen = !paletteOpen;
+  }
+}} />
 
 <div class="fn__flex-1 lv-exam-tab">
   <div class="block__icons">
@@ -1903,7 +1913,7 @@
     </div>
 
     {#if reportSection === "quality"}
-      <!-- 👨‍🏫 教师教研专属：试题质量与区分度控制台 -->
+      <!-- 教师教研专属：试题质量与区分度控制台 -->
       <div class="lv-card lv-section" style="margin-bottom:12px;padding:18px">
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 12px;flex-wrap:wrap;gap:8px">
           <div>

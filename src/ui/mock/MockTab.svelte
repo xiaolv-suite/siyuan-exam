@@ -417,6 +417,8 @@
       }
 
       return () => {
+        if (timer) { clearInterval(timer); timer = null; }
+        if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
         document.removeEventListener("fullscreenchange", updateFullscreenState);
         offs.forEach((off) => off());
       };
@@ -615,8 +617,8 @@
       } catch { /* 容错 */ }
       showMessage(
         role === "teacher"
-          ? "已切换至【👨‍🏫 教师教研模式】：考卷管理、A/B 卷分化与讲义排版工具已就绪"
-          : "已切换至【👨‍🎓 备考学员模式】：全真限时模考、自适应冲刺密卷与自评已就绪",
+          ? "已切换至【教师教研模式】：考卷管理、A/B 卷分化与讲义排版工具已就绪"
+          : "已切换至【备考学员模式】：全真限时模考、自适应冲刺密卷与自评已就绪",
         2500,
         "info",
       );
@@ -1380,7 +1382,7 @@
       if (!score) return;
       const passText = score.pass ? "及格" : "未及格";
       const lines = [
-        `### 📝 小驴学习 · 全真模考战报`,
+        `### 小驴学习 · 全真模考战报`,
         `- **考试科目**：${bp.name || "全真模拟卷"}`,
         `- **交卷时间**：${new Date().toLocaleString()}`,
         `- **最终成绩**：**${score.total} / ${score.full}**（得分率 ${score.percent}% · ${passText}）`,
@@ -1437,6 +1439,14 @@
 
     /** 40-06：模考键盘作答与 CBT 盲打引擎接线（委托纯函数 resolveCbtKeyAction） */
     function onExamKey(e: KeyboardEvent) {
+      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) {
+        if (!tabRoot?.getClientRects().length) return;
+        const tgt = e.target as HTMLElement | null;
+        if (tgt && tgt !== document.body && !tabRoot.contains(tgt)) return;
+        e.preventDefault();
+        paletteOpen = !paletteOpen;
+        return;
+      }
       if (view !== "exam" || !session || !currentQ || examLocked) return;
       if (!tabRoot?.getClientRects().length) return;
       const tgt = e.target as HTMLElement | null;
@@ -1745,17 +1755,17 @@
         <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
         <select class="lv-select" style="max-width:180px" onchange={(e) => void onPresetSelected((e.target as HTMLSelectElement).value)}>
           <option value="">{t("mock.pickPreset")}</option>
-          <optgroup label="📜 职业考证">
+          <optgroup label="职业考证">
             {#each presetOptions.filter((p) => p.category === "qualification") as opt (opt.id)}
               <option value={opt.id}>{opt.title}</option>
             {/each}
           </optgroup>
-          <optgroup label="🎓 大学与考研硕博">
+          <optgroup label="大学与考研硕博">
             {#each presetOptions.filter((p) => p.category === "academic" || p.category === "postgraduate") as opt (opt.id)}
               <option value={opt.id}>{opt.title}</option>
             {/each}
           </optgroup>
-          <optgroup label="🎒 K12 基础教育">
+          <optgroup label="K12 基础教育">
             {#each presetOptions.filter((p) => p.category === "k12") as opt (opt.id)}
               <option value={opt.id}>{opt.title}</option>
             {/each}
@@ -2017,7 +2027,7 @@
               {@const gridModel = generatePaperGrid(answeredMap[current] ?? "", { columns: 20 })}
               <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
-                  <b style="font-size:12px">📝 考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）</b>
+                  <b style="font-size:12px">考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）</b>
                   <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (mockPaperGridOpen = false)}>✕</button>
                 </div>
                 <div class="lv-grid-paper" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:6px;background:var(--lv-surface);border-radius:4px;border:1px solid var(--lv-border)">
@@ -2463,7 +2473,7 @@
                   {#if answeredMap[w.qid]}<span class="lv-chip lv-chip--red num">考生作答: {answeredMap[w.qid]}</span>{/if}
                   {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
                 </div>
-                {#if q?.analysis}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px">💡 {q.analysis}</div>{/if}
+                {#if q?.analysis}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px"><span class="lv-badge" style="margin-right:4px">解析</span>{q.analysis}</div>{/if}
               </div>
             {/each}
           </div>

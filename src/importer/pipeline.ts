@@ -256,12 +256,13 @@ export function parseExcelRows(rows: string[][], map: ExcelColumnMap, opt: Impor
 
   rows.forEach((row, i) => {
     const rowNo = i + 2; // 首行表头
-    // Alt+Enter 净化：Excel 单元格内 \r\n 换行 → 空格（选项/答案不含换行符）
+    // Alt+Enter 净化：选项/答案/属性单行化；题干与解析保留真实换行（\r\n 归一为 \n）
     const cell = (n?: number) => (n == null ? "" : String(row[n] ?? "").replace(/\r\n?/g, " ").replace(/\n/g, " ").trim());
+    const multilineCell = (n?: number) => (n == null ? "" : String(row[n] ?? "").replace(/\r\n?/g, "\n").trim());
     try {
       const type = parseType(cell(map.type));
       if (!type) throw new Error(`题型无法识别："${cell(map.type)}"`);
-      const stem = cell(map.stem);
+      const stem = multilineCell(map.stem);
       const options = map.options.map((n) => cell(n)).filter((s) => s !== "");
       // 共用题干（医考材料组范式）：材料行开启新组；其后子题自动携带组 ID 与材料考点；
       // 子题带「不同」考点时结束该组（考点相同/为空 → 仍在组内）
@@ -287,7 +288,7 @@ export function parseExcelRows(rows: string[][], map: ExcelColumnMap, opt: Impor
           stem,
           options,
           answer,
-          analysis: cell(map.analysis),
+          analysis: multilineCell(map.analysis),
           difficulty: Number.isFinite(diffRaw) ? Math.min(5, Math.max(1, diffRaw)) : undefined,
           kp: cell(map.kp) || (group ? lastKp : ""),
           score: Number.isFinite(scoreRaw) && scoreRaw > 0 ? scoreRaw : undefined,

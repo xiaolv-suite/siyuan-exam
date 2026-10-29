@@ -66,6 +66,8 @@
   }
 </script>
 
+<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); onclose(); } }} />
+
 {#if open}
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={onclose}></button>
   <div class="lv-hotkeys-wrap">
@@ -83,19 +85,19 @@
           全部 ({banks.length})
         </button>
         <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} aria-selected={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} onclick={() => bankFilterCategory = "exam"}>
-          🎯 资格考证 ({banks.filter((b) => b.category === "exam" || b.category === "certificate").length})
+          <Icon name="award" size={12} /> 资格考证 ({banks.filter((b) => b.category === "exam" || b.category === "certificate").length})
         </button>
         <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "k12" || bankFilterCategory === "higher"} aria-selected={bankFilterCategory === "k12" || bankFilterCategory === "higher"} onclick={() => bankFilterCategory = "higher"}>
-          🎓 升学学术 ({banks.filter((b) => b.category === "k12" || b.category === "higher").length})
+          <Icon name="book" size={12} /> 升学学术 ({banks.filter((b) => b.category === "k12" || b.category === "higher").length})
         </button>
         <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "language"} aria-selected={bankFilterCategory === "language"} onclick={() => bankFilterCategory = "language"}>
-          🗣️ 语言 ({banks.filter((b) => b.category === "language").length})
+          <Icon name="volume" size={12} /> 语言 ({banks.filter((b) => b.category === "language").length})
         </button>
         <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "teaching"} aria-selected={bankFilterCategory === "teaching"} onclick={() => bankFilterCategory = "teaching"}>
-          👨‍🏫 教研 ({banks.filter((b) => b.category === "teaching").length})
+          <Icon name="users" size={12} /> 教研 ({banks.filter((b) => b.category === "teaching").length})
         </button>
         <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "general"} aria-selected={bankFilterCategory === "general"} onclick={() => bankFilterCategory = "general"}>
-          🧠 通识 ({banks.filter((b) => (b.category || "general") === "general").length})
+          <Icon name="grid" size={12} /> 通识 ({banks.filter((b) => (b.category || "general") === "general").length})
         </button>
       </div>
       <div class="lv-row" style="margin:0 0 12px;gap:8px;flex-wrap:wrap">
