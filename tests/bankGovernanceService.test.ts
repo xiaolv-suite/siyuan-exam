@@ -16,6 +16,8 @@ import {
   executeApplyBatchChanges,
   loadBatchUndoAux,
   saveBatchUndoAux,
+  computeSyllabusKpStats,
+  parseErrataFileInput,
 } from "@/ui/practice/services/bankGovernanceService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -379,5 +381,42 @@ describe("题库治理与考纲服务 (bankGovernanceService)", () => {
     expect(undoLoaded?.changes).toHaveLength(1);
     await saveBatchUndoAux(mockApp, undoLoaded);
     expect(mockApp.saveAux).toHaveBeenCalledWith("batchedit/last", undoLoaded);
+  });
+
+  it("12. computeSyllabusKpStats：计算考点覆盖度与掌握度统计", () => {
+    const mockApp = {
+      attempts: {
+        all: () => [
+          { qid: "q-1", verdict: "correct", help: null },
+          { qid: "q-2", verdict: "wrong", help: null },
+        ],
+      },
+    } as unknown as ExamApp;
+
+    const qs = [
+      { id: "q-1", kp: "代数/方程", source: "教材" },
+      { id: "q-2", kp: "代数/方程", source: "" },
+    ] as any;
+
+    const stats = computeSyllabusKpStats(mockApp, qs);
+    expect(stats["代数/方程"]).toBeDefined();
+    expect(stats["代数/方程"].total).toBe(2);
+    expect(stats["代数/方程"].learned).toBe(1);
+    expect(stats["代数/方程"].noSource).toBe(1);
+  });
+
+  it("13. parseErrataFileInput：读取并解析勘误文件", async () => {
+    const csvContent =
+      "题目ID,考点,难度\n" +
+      "q-12345678,新考点,4\n";
+    const dummyFile = {
+      text: vi.fn().mockResolvedValue(csvContent),
+    } as unknown as File;
+    const qs = [{ id: "q-12345678", blockId: "b-1", kp: "旧考点", difficulty: 3 }] as any;
+
+    const res = await parseErrataFileInput(dummyFile, qs);
+    expect(res.plan).toBeDefined();
+    expect(res.errors).toHaveLength(0);
+    expect(res.plan?.changes.length).toBe(2);
   });
 });

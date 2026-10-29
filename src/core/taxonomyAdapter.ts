@@ -476,3 +476,147 @@ export function getStandardMathTaxonomyPreset(): {
   };
 }
 
+/**
+ * ============================================================
+ * 国家公务员与省考行政职业能力测验 (行测) 知识图谱预设
+ * 覆盖言语理解、数量关系、判断推理、资料分析四大核心考点先修链
+ * ============================================================
+ */
+export const STANDARD_CIVIL_SERVICE_TAXONOMY_TOPICS: readonly TaxonomyTopic[] = [
+  {
+    id: "cs_verbal_context",
+    name: "语境转折与呼应解释词义辨析",
+    domain: "言语理解与表达",
+    chapter: "第一章 逻辑填空",
+    mastery_criteria: ["能根据转折关联词、递进关系及解释说明对应寻找文段提示词"],
+  },
+  {
+    id: "cs_verbal_central_idea",
+    name: "主旨概括与中心议题提炼",
+    domain: "言语理解与表达",
+    chapter: "第二章 片段阅读",
+    mastery_criteria: ["能识别对策句、转折之后重点及反面论证推导作者意图"],
+  },
+  {
+    id: "cs_quant_proportion",
+    name: "比例法与特值法工程模型",
+    domain: "数量关系",
+    chapter: "第一章 比例与工程问题",
+    mastery_criteria: ["能设工作总量为完工时间公倍数，用效率比求解多主体合作问题"],
+  },
+  {
+    id: "cs_quant_itinerary",
+    name: "路程速度时间正反比相遇追及模型",
+    domain: "数量关系",
+    chapter: "第二章 行程问题",
+    mastery_criteria: ["掌握S=vt下两地相向而行与同向追及公式模型"],
+  },
+  {
+    id: "cs_logic_syllogism",
+    name: "假言命题与逆否命题等价推导",
+    domain: "判断推理",
+    chapter: "第一章 必然性推理",
+    mastery_criteria: ["熟练掌握“如果P则Q”为真时，“非Q则非P”必然为真的推理规则"],
+  },
+  {
+    id: "cs_logic_strengthen_weaken",
+    name: "加强与削弱论证因果链分析",
+    domain: "判断推理",
+    chapter: "第二章 可能性推理",
+    mastery_criteria: ["掌握因果倒置、另有他因、没因没果等削弱论题与论据方法"],
+  },
+  {
+    id: "cs_data_growth_rate",
+    name: "基期量与现期增长率逆向速算",
+    domain: "资料分析",
+    chapter: "第一章 增长与基期",
+    mastery_criteria: ["掌握基期量=现期量/(1+增长率)，化除为乘公式及截位直除技巧"],
+  },
+  {
+    id: "cs_data_proportion_change",
+    name: "两期比重差值与升降方向判定",
+    domain: "资料分析",
+    chapter: "第二章 比重与倍数",
+    mastery_criteria: ["掌握部分增长率a大于整体增长率b时，现期比重大于基期比重的定理"],
+  },
+];
+
+export const STANDARD_CIVIL_SERVICE_TAXONOMY_DEPENDENCIES: readonly TaxonomyDependency[] = [
+  // 言语：语境逻辑填空 -> 片段阅读主旨 (soft)
+  { topicId: "cs_verbal_central_idea", prerequisiteId: "cs_verbal_context", strength: "soft", reason: "词义与关联词语境是读懂文段核心论述的基础" },
+  // 数量：工程比例模型 -> 行程正反比 (soft)
+  { topicId: "cs_quant_itinerary", prerequisiteId: "cs_quant_proportion", strength: "soft", reason: "工程效率比例法思维直接平移到速度与时间正反比" },
+  // 判断：假言命题逆否推理 -> 加强与削弱逻辑 (hard)
+  { topicId: "cs_logic_strengthen_weaken", prerequisiteId: "cs_logic_syllogism", strength: "hard", reason: "论证的前提假设推导依托命题假言充要条件理解" },
+  // 资料：基期与增长率 -> 两期比重升降判定 (hard)
+  { topicId: "cs_data_proportion_change", prerequisiteId: "cs_data_growth_rate", strength: "hard", reason: "两期比重比较公式严格建立在分子分母各自的增长率速算基础上" },
+];
+
+export const STANDARD_CIVIL_SERVICE_TAXONOMY_QUESTIONS: readonly TaxonomyQuestionItem[] = [
+  {
+    topicId: "cs_logic_syllogism",
+    stem: "“只要努力拼搏，就一定能取得成功。”若上述断定为真，则下列各项中必然为真的是？",
+    type: "single",
+    options: [
+      "如果不努力拼搏，就一定不能取得成功",
+      "如果取得了成功，说明一定努力拼搏了",
+      "如果不成功，说明一定没有努力拼搏",
+      "努力拼搏了，但没有取得成功",
+    ],
+    answer: "C",
+    analysis: "“只要P就Q”是充分条件假言命题，其等价逆否命题为“非Q则非P”，即“不成功则没有努力拼搏”。A和B犯了否前和肯后的逻辑错误，D与题干直接矛盾。",
+    difficulty: "basic",
+  },
+  {
+    topicId: "cs_data_proportion_change",
+    stem: "2025年某市高新技术产业增加值同比增长12.5%，占全市规模以上工业增加值的比重为35.2%。已知同期该市规模以上工业增加值同比增长8.2%。问：2025年该市高新技术产业占规模以上工业增加值的比重比上年？",
+    type: "single",
+    options: ["上升了", "下降了", "持平", "无法判断"],
+    answer: "A",
+    analysis: "部分增长率 a = 12.5%，整体增长率 b = 8.2%。因为 a > b，所以两期比重必然上升。故选A。",
+    difficulty: "standard",
+  },
+];
+
+/**
+ * 获取开箱即用的公考行测标准知识图谱预设套装
+ */
+export function getStandardCivilServiceTaxonomyPreset(): {
+  topics: readonly TaxonomyTopic[];
+  dependencies: readonly TaxonomyDependency[];
+  syllabusRoots: SyllabusNode[];
+  relations: KpRelation[];
+  sampleQuestions: Question[];
+} {
+  const kpMap = buildTaxonomyKpMap(STANDARD_CIVIL_SERVICE_TAXONOMY_TOPICS);
+  const syllabusRoots = convertTaxonomyToSyllabus(STANDARD_CIVIL_SERVICE_TAXONOMY_TOPICS);
+  const relations = convertTaxonomyDependencies(STANDARD_CIVIL_SERVICE_TAXONOMY_DEPENDENCIES, kpMap, {
+    nowMs: 1761600000000,
+  });
+  const sampleQuestions = convertTaxonomyQuestions(STANDARD_CIVIL_SERVICE_TAXONOMY_QUESTIONS, kpMap, {
+    source: "国家公务员考试行政职业能力测验标准考纲",
+    defaultScore: 2,
+  });
+
+  return {
+    topics: STANDARD_CIVIL_SERVICE_TAXONOMY_TOPICS,
+    dependencies: STANDARD_CIVIL_SERVICE_TAXONOMY_DEPENDENCIES,
+    syllabusRoots,
+    relations,
+    sampleQuestions,
+  };
+}
+
+/**
+ * 统一获取指定学科领域的知识图谱预设套装
+ */
+export function getStandardTaxonomyPreset(kind: "math" | "civil_service" = "math"): {
+  topics: readonly TaxonomyTopic[];
+  dependencies: readonly TaxonomyDependency[];
+  syllabusRoots: SyllabusNode[];
+  relations: KpRelation[];
+  sampleQuestions: Question[];
+} {
+  return kind === "civil_service" ? getStandardCivilServiceTaxonomyPreset() : getStandardMathTaxonomyPreset();
+}
+

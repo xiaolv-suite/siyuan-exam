@@ -6,6 +6,7 @@ import {
   recordRubricAssessmentAux,
   autoAlignRubricEvaluation,
   exportRubricBreakdownCsvFile,
+  executeRecordRubricAssessment,
   RUBRIC_ARCHIVE_KEY,
 } from "@/ui/practice/services/rubricAssessmentService";
 import type { Question } from "@/core/types";
@@ -116,5 +117,27 @@ describe("主观题量规与自评管理服务 (rubricAssessmentService)", () =>
     const score = calculateCurrentRubricScore(fakeQuestion, { c1: "full" as const, c2: "half" as const }, {})!;
     // 验证在 JSDOM 下执行无抛错
     expect(() => exportRubricBreakdownCsvFile(score)).not.toThrow();
+  });
+
+  it("6. executeRecordRubricAssessment：自评持久化全流程与通知", async () => {
+    const showMessage = vi.fn();
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      saveAux: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ExamApp;
+    const score = calculateCurrentRubricScore(fakeQuestion, { c1: "full" as const, c2: "full" as const }, {})!;
+
+    const res = await executeRecordRubricAssessment({
+      app: mockApp,
+      rubricArchive: {},
+      q: fakeQuestion,
+      rubricScore: score,
+      showMessage,
+      t,
+    });
+
+    expect(res.saved).toBe(true);
+    expect(res.nextArchive["q-sub-1"]).toBeDefined();
+    expect(showMessage).toHaveBeenCalledWith(expect.stringContaining("[rubric.recordedFinal]"), 2600, "info");
   });
 });

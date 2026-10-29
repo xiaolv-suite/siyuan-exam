@@ -10,6 +10,7 @@ import {
   executeSyncBankToDoc,
   executeSaveWrongbookToDoc,
   executeRemoveBankWithConfirm,
+  resolveInitialActiveBankId,
 } from "@/ui/practice/services/bankLifecycleService";
 import type { ExamApp } from "@/app";
 
@@ -172,5 +173,39 @@ describe("题库生命周期服务 (bankLifecycleService)", () => {
     expect(okRes.nextActiveBankId).toBe("b-2");
     expect(mockApp.removeBank).toHaveBeenCalledWith("b-1");
     expect(showMessage).toHaveBeenCalledWith("[bank.removed]", 2800, "info");
+  });
+
+  it("11. resolveInitialActiveBankId：按优先级解析启动时的活动题库", () => {
+    const banks = [{ id: "b-1" }, { id: "b-2" }, { id: "b-3" }];
+
+    // 1. 优先 pendingViewBankId
+    expect(resolveInitialActiveBankId({
+      banks,
+      pendingViewBankId: "b-2",
+      rememberedBankId: "b-3",
+    })).toBe("b-2");
+
+    // 2. 次优 pendingPracticeBankId
+    expect(resolveInitialActiveBankId({
+      banks,
+      pendingPracticeBankId: "b-3",
+      rememberedBankId: "b-1",
+    })).toBe("b-3");
+
+    // 3. 次优 rememberedBankId
+    expect(resolveInitialActiveBankId({
+      banks,
+      rememberedBankId: "b-2",
+    })).toBe("b-2");
+
+    // 4. 回退 banks[0].id
+    expect(resolveInitialActiveBankId({
+      banks,
+    })).toBe("b-1");
+
+    // 5. 空列表
+    expect(resolveInitialActiveBankId({
+      banks: [],
+    })).toBe("");
   });
 });

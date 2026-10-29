@@ -504,5 +504,39 @@ export async function saveBatchUndoAux(app: ExamApp, data: any): Promise<void> {
   }
 }
 
+/**
+ * 汇总考点覆盖与独立掌握统计字典（kp → { 题数, 已独立掌握, 缺来源 }）
+ */
+export function computeSyllabusKpStats(
+  app: ExamApp | null,
+  questions: Question[],
+): Record<string, { total: number; learned: number; noSource: number }> {
+  if (!app) return {};
+  const independentCorrect = new Set(
+    app.attempts.all().filter((e) => e.verdict === "correct" && !e.help).map((e) => e.qid),
+  );
+  const stats: Record<string, { total: number; learned: number; noSource: number }> = {};
+  for (const q of questions) {
+    const k = (q.kp || "").trim();
+    if (!k) continue;
+    const s = (stats[k] ??= { total: 0, learned: 0, noSource: 0 });
+    s.total++;
+    if (independentCorrect.has(q.id)) s.learned++;
+    if (!q.source) s.noSource++;
+  }
+  return stats;
+}
+
+/**
+ * 读取并规划勘误文件内容
+ */
+export async function parseErrataFileInput(
+  file: File,
+  questions: Array<Question & { blockId?: string }>,
+): Promise<{ plan: ErrataPlan | null; errors: Array<{ row: number; reason: string }> }> {
+  const text = await file.text();
+  return planErrataFromText(text, questions);
+}
+
 
 

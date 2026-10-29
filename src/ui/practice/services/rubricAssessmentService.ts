@@ -102,3 +102,30 @@ export function exportRubricBreakdownCsvFile(rubricScore: RubricScoreResult): vo
 }
 
 export { isRubricDrifted };
+
+/**
+ * 执行自评快照持久化并返回结果与通知
+ */
+export async function executeRecordRubricAssessment(options: {
+  app: ExamApp;
+  rubricArchive: Record<string, RubricAssessmentSnapshot>;
+  q: Question;
+  rubricScore: RubricScoreResult | null;
+  showMessage: (msg: string, time?: number, type?: string) => void;
+  t: (k: string) => string;
+}): Promise<{ nextArchive: Record<string, RubricAssessmentSnapshot>; saved: boolean }> {
+  const { app, rubricArchive, q, rubricScore, showMessage, t } = options;
+  if (!q?.rubric || !rubricScore) return { nextArchive: rubricArchive, saved: false };
+  try {
+    const { nextArchive, snapshot } = await recordRubricAssessmentAux(app, rubricArchive, q, rubricScore);
+    const msg =
+      snapshot.finalScore != null
+        ? t("rubric.recordedFinal").replace("{score}", String(snapshot.finalScore)).replace("{full}", String(snapshot.fullScore))
+        : t("rubric.recordedPartial").replace("{n}", String(snapshot.unratedCount));
+    showMessage(msg, 2600, "info");
+    return { nextArchive, saved: true };
+  } catch (e) {
+    showMessage(t("rubric.recordFailed").replace("{message}", String(e instanceof Error ? e.message : e)), 3200, "error");
+    return { nextArchive: rubricArchive, saved: false };
+  }
+}

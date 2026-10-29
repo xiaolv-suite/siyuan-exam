@@ -131,4 +131,34 @@ A. 3.14    B. 6.28    C. 4.71    D. 7.71
     expect(emptyRes.questions).toHaveLength(0);
     expect(emptyRes.warnings).toHaveLength(1);
   });
+
+  it("4. 容错增强：支持带括号题号 (1)/（1）、带括号选项 (A) 与【参考答案及解析】专区", () => {
+    const rawExam = `
+一、单项选择题
+(1) 设集合 M = {x | x > 0}，则下列属于集合 M 的是（   ）
+(A) -1    (B) 0    (C) 1    (D) -3
+
+（2） 已知函数 y = 2x + 1，当 x = 2 时，y 的值为（   ）
+（A） 3    （B） 4    （C） 5    （D） 6
+
+【参考答案及解析】
+1. C
+【解析】1 大于 0，属于集合 M。
+2. C
+【解析】代入 x = 2，y = 2*2 + 1 = 5。
+`;
+
+    const res = segmentExamPaper(rawExam);
+    expect(res.questions).toHaveLength(2);
+
+    const q1 = res.questions[0];
+    expect(q1.options).toEqual(["-1", "0", "1", "-3"]);
+    expect(q1.answer).toBe("C");
+    expect(q1.analysis).toContain("属于集合 M");
+
+    const q2 = res.questions[1];
+    expect(q2.options).toEqual(["3", "4", "5", "6"]);
+    expect(q2.answer).toBe("C");
+    expect(q2.analysis).toContain("y = 2*2 + 1 = 5");
+  });
 });

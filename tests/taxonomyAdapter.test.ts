@@ -5,9 +5,12 @@ import {
   convertTaxonomyDependencies,
   convertTaxonomyQuestions,
   getStandardMathTaxonomyPreset,
+  getStandardCivilServiceTaxonomyPreset,
+  getStandardTaxonomyPreset,
   STANDARD_MATH_TAXONOMY_TOPICS,
   STANDARD_MATH_TAXONOMY_DEPENDENCIES,
   STANDARD_MATH_TAXONOMY_QUESTIONS,
+  STANDARD_CIVIL_SERVICE_TAXONOMY_TOPICS,
   type TaxonomyTopic,
   type TaxonomyDependency,
   type TaxonomyQuestionItem,
@@ -194,5 +197,31 @@ describe("中国学科知识图谱与课程标准适配器 (taxonomyAdapter)", (
       expect(q.answer).toBeTruthy();
       expect(q.status).toBe("published");
     }
+  });
+
+  it("6. getStandardCivilServiceTaxonomyPreset 与 getStandardTaxonomyPreset：公考行测知识图谱预设", () => {
+    expect(STANDARD_CIVIL_SERVICE_TAXONOMY_TOPICS.length).toBeGreaterThan(0);
+
+    const csPreset = getStandardCivilServiceTaxonomyPreset();
+    expect(csPreset.topics.length).toBeGreaterThanOrEqual(8);
+    expect(csPreset.syllabusRoots.length).toBeGreaterThan(0);
+    const domainTitles = csPreset.syllabusRoots.map((r) => r.title);
+    expect(domainTitles).toContain("言语理解与表达");
+    expect(domainTitles).toContain("数量关系");
+    expect(domainTitles).toContain("判断推理");
+    expect(domainTitles).toContain("资料分析");
+
+    // 拓扑检环
+    const cycles = detectPrereqCycles(csPreset.relations);
+    expect(cycles).toEqual([]); // 严格 DAG 无环
+
+    // 题目
+    expect(csPreset.sampleQuestions.length).toBeGreaterThanOrEqual(2);
+
+    // 通用获取
+    const math = getStandardTaxonomyPreset("math");
+    expect(math.topics).toEqual(STANDARD_MATH_TAXONOMY_TOPICS);
+    const cs = getStandardTaxonomyPreset("civil_service");
+    expect(cs.topics).toEqual(STANDARD_CIVIL_SERVICE_TAXONOMY_TOPICS);
   });
 });

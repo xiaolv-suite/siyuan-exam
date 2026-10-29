@@ -25,9 +25,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import {
       loadRubricArchiveAux,
       calculateCurrentRubricScore,
-      recordRubricAssessmentAux,
       autoAlignRubricEvaluation,
       exportRubricBreakdownCsvFile,
+      executeRecordRubricAssessment,
       isRubricDrifted,
     } from "./services/rubricAssessmentService";
     import { recordAnswerTrailInput, assignLastEditReason, type AnswerTrail } from "./services/answerTrailService";
@@ -72,7 +72,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       printFilteredAnswerCard,
       previewSyllabusText,
       importSyllabusToApp,
-      planErrataFromText,
+      parseErrataFileInput,
       previewKpMergePlan,
       previewKpFillPlan,
       executeClusterMergeToTarget,
@@ -85,6 +85,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeApplyBatchChanges,
       loadBatchUndoAux,
       saveBatchUndoAux,
+      computeSyllabusKpStats,
     } from "./services/bankGovernanceService";
     import {
       printWrongSheet as servicePrintWrongSheet,
@@ -221,6 +222,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       normalizeDraftFormulas,
       executeSwitchManualTypeWithConfirm,
       saveManualDraftAux,
+      loadManualDraftAux,
       clearManualDraftAux,
       createBlankManualFormState,
       createManualDraftSnapshot,
@@ -400,6 +402,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeSyncBankToDoc,
       executeSaveWrongbookToDoc,
       executeRemoveBankWithConfirm,
+      resolveInitialActiveBankId,
       type SampleBankKind,
     } from "./services/bankLifecycleService";
     import { getBankCategoryMeta } from "@/core/bankCategory";
@@ -819,21 +822,19 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 记录当前题的自评（冻结快照；未评完也可记录，快照如实标注 unratedCount） */
     async function recordRubricAssessment() {
       const q = session?.current;
-      if (!q?.rubric || !rubricScore || rubricSaveBusy) return;
+      if (!q?.rubric || !rubricScore || rubricSaveBusy || !app) return;
       rubricSaveBusy = true;
       try {
-        const { nextArchive, snapshot } = await recordRubricAssessmentAux(app, rubricArchive, q, rubricScore);
-        rubricArchive = nextArchive;
-        rubricSaved = true;
-        showMessage(
-          snapshot.finalScore != null
-            ? t("rubric.recordedFinal").replace("{score}", String(snapshot.finalScore)).replace("{full}", String(snapshot.fullScore))
-            : t("rubric.recordedPartial").replace("{n}", String(snapshot.unratedCount)),
-          2600,
-          "info",
-        );
-      } catch (e) {
-        showMessage(t("rubric.recordFailed").replace("{message}", String(e instanceof Error ? e.message : e)), 3200, "error");
+        const res = await executeRecordRubricAssessment({
+          app,
+          rubricArchive,
+          q,
+          rubricScore,
+          showMessage,
+          t,
+        });
+        rubricArchive = res.nextArchive;
+        rubricSaved = res.saved;
       } finally {
         rubricSaveBusy = false;
       }
@@ -1118,22 +1119,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let sylNote = $state("");
     const sylDoc = $derived(app ? app.syllabusDoc() : null);
     // 51-03 后半：kp → { 题数, 已独立掌握, 缺来源 }（独立=存在无受助的答对记录；练一题≠掌握节点，只报覆盖）
-    const sylKpStats = $derived.by(() => {
-      if (!app) return {};
-      const independentCorrect = new Set(
-        app.attempts.all().filter((e) => e.verdict === "correct" && !e.help).map((e) => e.qid),
-      );
-      const stats: Record<string, { total: number; learned: number; noSource: number }> = {};
-      for (const q of questions) {
-        const k = (q.kp || "").trim();
-        if (!k) continue;
-        const s = (stats[k] ??= { total: 0, learned: 0, noSource: 0 });
-        s.total++;
-        if (independentCorrect.has(q.id)) s.learned++;
-        if (!q.source) s.noSource++;
-      }
-      return stats;
-    });
+    const sylKpStats = $derived.by(() => computeSyllabusKpStats(app, questions));
 
     function previewSyllabus() {
       const res = previewSyllabusText(app, sylText, t);
@@ -1179,8 +1165,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!file) return;
       errataBusy = true; errataNote = "";
       try {
-        const text = await file.text();
-        const res = planErrataFromText(text, questions as (Question & { blockId?: string })[]);
+        const res = await parseErrataFileInput(file, questions as (Question & { blockId?: string })[]);
         errataErrors = res.errors;
         errataPlan = res.plan;
       } finally { errataBusy = false; }
@@ -1227,14 +1212,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       } finally { paperBusy = false; }
     }
 
-    function previewKpMerge() {
-      const res = previewKpMergePlan(questions, kpMergeFrom, kpMergeTo, t);
-      kpNote = res.note; kpMergePlan = res.plan;
-    }
-    function previewKpFill() {
-      const res = previewKpFillPlan(questions, kpFillKp, t);
-      kpNote = res.note; kpFillPlan = res.plan;
-    }
+    const previewKpMerge = () => { const res = previewKpMergePlan(questions, kpMergeFrom, kpMergeTo, t); kpNote = res.note; kpMergePlan = res.plan; };
+    const previewKpFill = () => { const res = previewKpFillPlan(questions, kpFillKp, t); kpNote = res.note; kpFillPlan = res.plan; };
     /** 应用治理变更：与批量编辑共用 SaveGate 闸与撤销基线（撤销走同一 batchedit/last） */
     async function applyKpPlan(plan: import("@/core/batchEdit").BatchPlan) {
       if (kpBusy || !app.kernelOnline) { kpNote = t("state.offlineHint"); return; }
@@ -1374,13 +1353,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }
     }
 
-    async function submitFlagDispute(q: Question & { blockId: string }) {
+    async function runDisputeMutation(q: Question & { blockId: string }, mutateFn: () => Promise<{ updated?: Partial<Question>; error?: string }>) {
       if (disputeBusy || !app) return;
       disputeBusy = true; disputeError = "";
       try {
-        const res = await validateAndFlagDispute({
-          app, q, reason: disputeReason, note: disputeNote, showMessage, t,
-        });
+        const res = await mutateFn();
         if (res.error) { disputeError = res.error; return; }
         if (res.updated) {
           questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.updated } : x));
@@ -1391,34 +1368,14 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       } finally { disputeBusy = false; }
     }
 
-    async function submitResolveDispute(q: Question & { blockId: string }) {
-      if (disputeBusy || !app) return;
-      disputeBusy = true; disputeError = "";
-      try {
-        const res = await validateAndResolveDispute({
-          app, q, resolution: disputeResolution, showMessage, t,
-        });
-        if (res.error) { disputeError = res.error; return; }
-        if (res.updated) {
-          questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.updated } : x));
-          disputeFormOpenFor = "";
-        }
-      } catch (e) {
-        disputeError = String(e instanceof Error ? e.message : e);
-      } finally { disputeBusy = false; }
-    }
+    const submitFlagDispute = (q: Question & { blockId: string }) =>
+      runDisputeMutation(q, () => validateAndFlagDispute({ app, q, reason: disputeReason, note: disputeNote, showMessage, t }));
 
-    async function submitClearDispute(q: Question & { blockId: string }) {
-      if (disputeBusy || !app) return;
-      disputeBusy = true; disputeError = "";
-      try {
-        const res = await handleClearDispute({ app, q, showMessage, t });
-        questions = questions.map((x) => (x.id === q.id ? { ...x, ...res.updated } : x));
-        disputeFormOpenFor = "";
-      } catch (e) {
-        disputeError = String(e instanceof Error ? e.message : e);
-      } finally { disputeBusy = false; }
-    }
+    const submitResolveDispute = (q: Question & { blockId: string }) =>
+      runDisputeMutation(q, () => validateAndResolveDispute({ app, q, resolution: disputeResolution, showMessage, t }));
+
+    const submitClearDispute = (q: Question & { blockId: string }) =>
+      runDisputeMutation(q, () => handleClearDispute({ app, q, showMessage, t }));
 
     // ---------- 章节树过滤（TODO 2.2：notebook→doc→heading） ----------
     let sectionOpen = $state(false);
@@ -1457,9 +1414,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
           void loadRubricArchive(); // 55-05：读回已记录的主观题自评存档
           // 45-06：恢复未提交的录题草稿（切视图/重载不丢输入）
           try {
-            const d = await app.loadAux<
-              | { type: string; stem: string; options: string[]; answer: string; analysis: string; kp: string; source: string; group: string; specOpen?: boolean; specUnit?: string; specAbsTol?: string; specRelPct?: string; specAltUnits?: string; rubricOpen?: boolean; rubricText?: string }
-              | undefined>("draft/manual");
+            const d = await loadManualDraftAux(app);
             if (d?.stem?.trim()) {
               mType = (d.type as typeof mType) ?? "single";
               mStem = d.stem; mOptions = d.options?.length ? d.options : ["", ""];
@@ -1472,19 +1427,18 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
           } catch { /* 草稿读取失败静默 */ }
         })();
         banks = app.listBanks();
-        // 记忆上次使用的题库：重载后回落 banks[0] 会静默切换库（真机走查发现）
-        const rememberedBank = readLocal(BANK_PREF_KEY);
         const pendingPracticeView = plugin?.pendingPracticeView;
         const pendingPracticeViewIsCurrent = pendingPracticeView?.id === plugin?.practiceViewRequestId;
-        const pendingViewBankId = pendingPracticeViewIsCurrent ? pendingPracticeView?.bankId : undefined;
-        const pendingPracticeBankId = plugin?.pendingPracticeBankId;
-        if (pendingViewBankId && banks.some((b) => b.id === pendingViewBankId)) activeBankId = pendingViewBankId;
-        else if (pendingPracticeBankId && banks.some((b) => b.id === pendingPracticeBankId)) activeBankId = pendingPracticeBankId;
-        else if (rememberedBank && banks.some((b) => b.id === rememberedBank)) activeBankId = rememberedBank;
-        else if (banks.length) activeBankId = banks[0].id;
-        // 首次打开已有题库也要先读回题目，避免首页把可练入口误显示为禁用。
-        if (activeBankId) void refreshQuestionsAfterWrite(0);
-        if (activeBankId) rememberBank(activeBankId);
+        activeBankId = resolveInitialActiveBankId({
+          banks,
+          rememberedBankId: readLocal(BANK_PREF_KEY),
+          pendingViewBankId: pendingPracticeViewIsCurrent ? pendingPracticeView?.bankId : undefined,
+          pendingPracticeBankId: plugin?.pendingPracticeBankId,
+        });
+        if (activeBankId) {
+          void refreshQuestionsAfterWrite(0);
+          rememberBank(activeBankId);
+        }
 
         // 恢复未完成会话（37-05：校验题库归属，缺题剔除后提示）
         app.resumeSession(async (qids) => {

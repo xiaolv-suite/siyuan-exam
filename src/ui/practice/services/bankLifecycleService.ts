@@ -187,3 +187,21 @@ export async function executeRemoveBankWithConfirm(options: {
   showMessage(t("bank.removed"), 2800, "info");
   return { removed: true, nextBanks, nextActiveBankId };
 }
+
+/**
+ * 解析并确定工作区启动时优先激活的目标题库 ID
+ */
+export function resolveInitialActiveBankId(options: {
+  banks: Array<{ id: string }>;
+  rememberedBankId?: string;
+  pendingViewBankId?: string;
+  pendingPracticeBankId?: string;
+}): string {
+  const { banks, rememberedBankId, pendingViewBankId, pendingPracticeBankId } = options;
+  if (!banks.length) return "";
+  const bankIds = new Set(banks.map((b) => b.id));
+  if (pendingViewBankId && bankIds.has(pendingViewBankId)) return pendingViewBankId;
+  if (pendingPracticeBankId && bankIds.has(pendingPracticeBankId)) return pendingPracticeBankId;
+  if (rememberedBankId && bankIds.has(rememberedBankId)) return rememberedBankId;
+  return banks[0].id;
+}
