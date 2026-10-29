@@ -7,6 +7,16 @@ import { planKpMerge, planEmptyKpFill } from "@/core/kpGovernance";
 import { buildQuestionSheet, buildAnswerSheet, buildAnswerCardSheet } from "@/core/printSheet";
 import { parsePaperAnswers, gradePaper, type PaperGradeItem } from "@/core/paperRecall";
 import { createQuestionVersionSnapshot } from "@/core/revision";
+import {
+  bankHealthReport,
+  answerDistribution,
+  unreviewedStats,
+  coverageStats,
+  detectOrphans,
+  type BankHealthReport,
+  type OrphanDiagnosis,
+} from "@/core/bankHealth";
+import { escapeHtml } from "@/libs/sanitize";
 import type { MessageReporter } from "./printPaperService";
 
 /**
@@ -329,6 +339,169 @@ export async function executeApplyKpPlan(
   const undo = { changes: plan.changes, bankId: activeBankId, at: Date.now() };
   const note = t("batch.applied").replace("{n}", String(r.ok)).replace("{f}", String(r.failed));
   return { ok: r.ok, failed: r.failed, undo, note };
+}
+
+export interface BankHealthMetricsBundle {
+  health: BankHealthReport | null;
+  answerDist: ReturnType<typeof answerDistribution> | null;
+  unreviewed: ReturnType<typeof unreviewedStats> | null;
+  coverage: ReturnType<typeof coverageStats> | null;
+  orphanDiag: OrphanDiagnosis | null;
+}
+
+/**
+ * 诊断孤儿题目与材料引用完整性
+ */
+export function diagnoseQuestionOrphans(
+  app: ExamApp | null,
+  questions: Question[],
+): OrphanDiagnosis | null {
+  if (!questions.length) return null;
+  const knownMaterialIds = new Set(app?.listMaterials().map((m) => m.id) ?? []);
+  const links = new Map<string, string>();
+  if (app) {
+    for (const q of questions) {
+      const ref = app.questionMaterialRef(q.id);
+      if (ref?.materialId) links.set(q.id, ref.materialId);
+    }
+  }
+  return detectOrphans(questions, {
+    knownMaterialIds,
+    questionMaterialLinks: links,
+  });
+}
+
+/**
+ * 计算题库已做考点覆盖概览
+ */
+export function computeBankCoverageStats(
+  app: ExamApp | null,
+  questions: Question[],
+): ReturnType<typeof coverageStats> | null {
+  if (!questions.length || !app) return null;
+  const attempted = new Set<string>();
+  for (const e of app.attempts.all()) {
+    if (e.verdict !== "not_attempted") attempted.add(e.qid);
+  }
+  return coverageStats(questions, attempted);
+}
+
+/**
+ * 集中聚合计算题库健康体检指标（重复聚类、答案分布、未审校统计、考点覆盖与孤儿诊断）
+ */
+export function computeBankHealthMetricsBundle(
+  app: ExamApp | null,
+  questions: Question[],
+  healthOpen: boolean,
+): BankHealthMetricsBundle {
+  if (!healthOpen || !questions.length) {
+    return {
+      health: null,
+      answerDist: null,
+      unreviewed: null,
+      coverage: null,
+      orphanDiag: null,
+    };
+  }
+  return {
+    health: bankHealthReport(questions),
+    answerDist: answerDistribution(questions),
+    unreviewed: unreviewedStats(questions),
+    coverage: computeBankCoverageStats(app, questions),
+    orphanDiag: diagnoseQuestionOrphans(app, questions),
+  };
+}
+
+/**
+ * 执行批次回滚（带二次确认与提示）
+ */
+export async function executeRollbackBatchWithConfirm(options: {
+  app: ExamApp;
+  activeBankId: string;
+  batch: string;
+  questions: Question[];
+  confirmDialogSync: (opts: { title: string; content: string }) => Promise<boolean>;
+  showMessage: MessageReporter;
+  offline: boolean;
+  t: (k: string) => string;
+}): Promise<boolean> {
+  const { app, activeBankId, batch, questions, confirmDialogSync, showMessage, offline, t } = options;
+  const n = questions.filter((q) => q.batch === batch).length;
+  const ok = await confirmDialogSync({
+    title: t("import.rollback"),
+    content: t("import.rollbackConfirm").replace("{n}", String(n)).replace("{b}", escapeHtml(batch.slice(0, 16))),
+  });
+  if (!ok) return false;
+
+  try {
+    const r = await app.rollbackBatch(activeBankId, batch);
+    showMessage(
+      t("import.rollbackDone").replace("{d}", String(r.deleted)).replace("{f}", String(r.failed)),
+      4600,
+      r.failed ? "error" : "info",
+    );
+    return true;
+  } catch (e) {
+    showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4600, "error");
+    return false;
+  }
+}
+
+export interface BatchApplyResult {
+  ok: number;
+  failed: number;
+  appliedChanges: BatchChange[];
+  undo: { changes: BatchChange[]; bankId: string; at: number } | null;
+  note: string;
+}
+
+/**
+ * 执行批量编辑修改或撤销修改
+ */
+export async function executeApplyBatchChanges(options: {
+  app: ExamApp;
+  changes: BatchChange[];
+  undo: boolean;
+  activeBankId: string;
+  t: (k: string) => string;
+}): Promise<BatchApplyResult> {
+  const { app, changes, undo, activeBankId, t } = options;
+  const r = await app.applyBatchEdit(changes);
+  const note = undo
+    ? t("batch.undone").replace("{n}", String(r.ok)).replace("{f}", String(r.failed))
+    : t("batch.applied").replace("{n}", String(r.ok)).replace("{f}", String(r.failed));
+  return {
+    ok: r.ok,
+    failed: r.failed,
+    appliedChanges: undo ? [] : changes,
+    undo: undo ? null : { changes, bankId: activeBankId, at: Date.now() },
+    note,
+  };
+}
+
+/**
+ * 加载最近一次批量修改撤销快照
+ */
+export async function loadBatchUndoAux(
+  app: ExamApp,
+): Promise<{ changes: BatchChange[]; bankId: string; at: number } | null> {
+  try {
+    const v = await app.loadAux<any>("batchedit/last");
+    return v && Array.isArray(v.changes) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 持久化保存批量修改撤销快照
+ */
+export async function saveBatchUndoAux(app: ExamApp, data: any): Promise<void> {
+  try {
+    await app.saveAux("batchedit/last", data);
+  } catch {
+    // 容错静默
+  }
 }
 
 

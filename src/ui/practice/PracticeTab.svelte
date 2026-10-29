@@ -33,16 +33,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import { recordAnswerTrailInput, assignLastEditReason, type AnswerTrail } from "./services/answerTrailService";
     import { randomSeedId } from "../../core/random";
     import { ELIMINATE_STREAK, localDate, streak, wrongReasonMix } from "../../core/replayer";
-    import {
-      bankHealthReport,
-      coverageStats,
-      answerDistribution,
-      unreviewedStats,
-      detectOrphans,
-      type BankHealthReport,
-      type OrphanDiagnosis,
-      type OrphanKind,
-    } from "../../core/bankHealth";
+    import type { OrphanKind } from "../../core/bankHealth";
     import { planBatchEdit, invertPlan } from "../../core/batchEdit";
     import { queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
     import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
@@ -89,6 +80,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeApplyPaperRecall,
       executeApplyErrata,
       executeApplyKpPlan,
+      computeBankHealthMetricsBundle,
+      executeRollbackBatchWithConfirm,
+      executeApplyBatchChanges,
+      loadBatchUndoAux,
+      saveBatchUndoAux,
     } from "./services/bankGovernanceService";
     import {
       printWrongSheet as servicePrintWrongSheet,
@@ -850,57 +846,21 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     // 题库健康（TODO 2.2）：重复聚类 + 缺字段清单（纯函数，浏览视图按需展开）
     let healthOpen = $state(false);
-    const health = $derived<BankHealthReport | null>(healthOpen && questions.length ? bankHealthReport(questions) : null);
-    // 67-03 lite：答案分布异常 + 未审校比例（题库健康面板质量卡）
-    const answerDist = $derived(healthOpen && questions.length ? answerDistribution(questions) : null);
-    const unreviewed = $derived(healthOpen && questions.length ? unreviewedStats(questions) : null);
-    /** 43-04 lite：生产者覆盖概览（与健康面板同开）；51-03 lite：注入作答集算已学考点覆盖 */
-    const coverage = $derived.by(() => {
-      if (!healthOpen || !questions.length) return null;
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived 内累加集（重算即弃，非跨状态）
-      const attempted = new Set<string>();
-      for (const e of app.attempts.all()) {
-        if (e.verdict !== "not_attempted") attempted.add(e.qid);
-      }
-      return coverageStats(questions, attempted);
-    });
-
-    /** 43-04：孤儿题目与引用完整性诊断队列（无母块材料/空材料/断链资料/缺答案/缺选项） */
-    const orphanDiag = $derived.by<OrphanDiagnosis | null>(() => {
-      if (!healthOpen || !questions.length) return null;
-      const knownMaterialIds = new Set(app?.listMaterials().map((m) => m.id) ?? []);
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived 内累加映射（重算即弃，非跨状态）
-      const links = new Map<string, string>();
-      if (app) {
-        for (const q of questions) {
-          const ref = app.questionMaterialRef(q.id);
-          if (ref?.materialId) links.set(q.id, ref.materialId);
-        }
-      }
-      return detectOrphans(questions, {
-        knownMaterialIds,
-        questionMaterialLinks: links,
-      });
-    });
+    const healthBundle = $derived.by(() => computeBankHealthMetricsBundle(app, questions, healthOpen));
+    const health = $derived(healthBundle.health);
+    const answerDist = $derived(healthBundle.answerDist);
+    const unreviewed = $derived(healthBundle.unreviewed);
+    const coverage = $derived(healthBundle.coverage);
+    const orphanDiag = $derived(healthBundle.orphanDiag);
     let filterOrphanKind = $state<OrphanKind | "">("");
-    function drillOrphanKind(kind: OrphanKind) {
-      filterOrphanKind = filterOrphanKind === kind ? "" : kind;
-    }
-    function clearOrphanFilter() {
-      filterOrphanKind = "";
-    }
-    function downloadHealthCsv() {
-      if (!health) return;
-      exportHealthCsvFile(health, orphanDiag ?? undefined);
-    }
+    const drillOrphanKind = (kind: OrphanKind) => { filterOrphanKind = filterOrphanKind === kind ? "" : kind; };
+    const clearOrphanFilter = () => { filterOrphanKind = ""; };
+    const downloadHealthCsv = () => { if (health) exportHealthCsvFile(health, orphanDiag ?? undefined); };
 
     // ---------- 43-07 重复簇合并助手 ----------
     let activeClusterIndex = $state(-1);
     let mergeBusy = $state(false);
-
-    function toggleCluster(index: number) {
-      activeClusterIndex = activeClusterIndex === index ? -1 : index;
-    }
+    const toggleCluster = (index: number) => { activeClusterIndex = activeClusterIndex === index ? -1 : index; };
 
     async function mergeClusterToTarget(targetQ: Question & { blockId: string }, clusterIds: string[]) {
       if (!app || mergeBusy) return;
@@ -998,20 +958,14 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let rollbackBusy = $state("");
 
     async function undoBatch(batch: string) {
-      const n = questions.filter((q) => q.batch === batch).length;
-      // 45-04 lite：原生 confirm → 可访问确认对话框（键盘/Esc 可取消）
-      const { confirmDialogSync } = await import("../../libs/dialog");
-      if (!(await confirmDialogSync({
-        title: t("import.rollback"),
-        content: t("import.rollbackConfirm").replace("{n}", String(n)).replace("{b}", escapeHtml(batch.slice(0, 16))),
-      }))) return;
+      if (rollbackBusy || !app) return;
       rollbackBusy = batch;
       try {
-        const r = await app.rollbackBatch(activeBankId, batch);
-        showMessage(t("import.rollbackDone").replace("{d}", String(r.deleted)).replace("{f}", String(r.failed)), 4600, r.failed ? "error" : "info");
-        await loadQuestions();
-      } catch (e) {
-        showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4600, "error");
+        const { confirmDialogSync } = await import("../../libs/dialog");
+        const ok = await executeRollbackBatchWithConfirm({
+          app, activeBankId, batch, questions, confirmDialogSync, showMessage, offline, t,
+        });
+        if (ok) await loadQuestions();
       } finally { rollbackBusy = ""; }
     }
 
@@ -1115,7 +1069,6 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function applyBatch(undo = false) {
       if (batchBusy || !app.kernelOnline) { batchNote = t("state.offlineHint"); return; }
-      // 撤销基线（43-06）：优先本次会话已应用的计划；无则回退持久化的最近一次（重载后仍可撤销）
       let changes = undo ? invertPlan(appliedChanges) : batchPreview?.changes ?? [];
       if (undo && !changes.length && batchUndo && batchUndo.bankId === activeBankId) {
         changes = invertPlan(batchUndo.changes);
@@ -1123,19 +1076,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!changes.length) return;
       batchBusy = true; batchNote = "";
       try {
-        const r = await app.applyBatchEdit(changes);
-        batchNote = undo
-          ? t("batch.undone").replace("{n}", String(r.ok)).replace("{f}", String(r.failed))
-          : t("batch.applied").replace("{n}", String(r.ok)).replace("{f}", String(r.failed));
-        if (undo) {
-          appliedChanges = [];      // 撤销后基线清空（重置为存储基线）
-          batchUndo = null;
-          await saveBatchUndo();
-        } else {
-          appliedChanges = changes;      // 撤销基线 = 最近一次成功应用的计划
-          batchUndo = { changes, bankId: activeBankId, at: Date.now() };
-          await saveBatchUndo();
-        }
+        const res = await executeApplyBatchChanges({ app, changes, undo, activeBankId, t });
+        batchNote = res.note;
+        appliedChanges = res.appliedChanges;
+        batchUndo = res.undo;
+        await saveBatchUndo();
         await loadQuestions();
       } catch (e) {
         batchNote = String(e instanceof Error ? e.message : e);
@@ -1146,13 +1091,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let batchUndo = $state<null | { changes: import("@/core/batchEdit").BatchChange[]; bankId: string; at: number }>(null);
     const batchUndoHere = $derived(!!batchUndo && batchUndo.bankId === activeBankId);
     async function loadBatchUndo() {
-      try {
-        const v = await app.loadAux<typeof batchUndo>("batchedit/last");
-        batchUndo = v && Array.isArray(v.changes) ? v : null;
-      } catch { batchUndo = null; }
+      batchUndo = await loadBatchUndoAux(app);
     }
     async function saveBatchUndo() {
-      try { await app.saveAux("batchedit/last", batchUndo); } catch { /* 撤销基线失败不阻断当前批量操作 */ }
+      await saveBatchUndoAux(app, batchUndo);
     }
 
     // ---------- 考点治理（51-02 lite）：kp 概览/同义名合并/空考点填充（复用批量编辑 dry-run+撤销） ----------

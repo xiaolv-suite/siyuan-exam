@@ -11,6 +11,11 @@ import {
   executeApplyPaperRecall,
   executeApplyErrata,
   executeApplyKpPlan,
+  computeBankHealthMetricsBundle,
+  executeRollbackBatchWithConfirm,
+  executeApplyBatchChanges,
+  loadBatchUndoAux,
+  saveBatchUndoAux,
 } from "@/ui/practice/services/bankGovernanceService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -269,5 +274,110 @@ describe("题库治理与考纲服务 (bankGovernanceService)", () => {
     expect(res.undo.changes).toEqual(fakePlan.changes);
     expect(res.note).toBe("[batch.applied]");
     expect(mockApp.applyBatchEdit).toHaveBeenCalledWith(fakePlan.changes);
+  });
+
+  it("9. computeBankHealthMetricsBundle：聚合计算题库健康指标包", () => {
+    const mockApp = {
+      attempts: { all: () => [] },
+      listMaterials: () => [],
+      questionMaterialRef: () => null,
+    } as unknown as ExamApp;
+
+    // 1. healthOpen = false 时全部为 null
+    const closed = computeBankHealthMetricsBundle(mockApp, [{ id: "q-1" } as any], false);
+    expect(closed.health).toBeNull();
+    expect(closed.orphanDiag).toBeNull();
+
+    // 2. healthOpen = true 且有题目时返回完整指标包
+    const qs = [
+      { id: "q-1", type: "single", answer: "A", stem: "题1", options: ["A", "B"], status: "published", origin: "manual", hash: "h1" },
+    ] as any;
+    const opened = computeBankHealthMetricsBundle(mockApp, qs, true);
+    expect(opened.health).not.toBeNull();
+    expect(opened.answerDist).toBeDefined();
+    expect(opened.unreviewed).toBeDefined();
+    expect(opened.coverage).toBeDefined();
+    expect(opened.orphanDiag).toBeDefined();
+  });
+
+  it("10. executeRollbackBatchWithConfirm：带弹窗确认的批次回滚", async () => {
+    const showMessage = vi.fn();
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      rollbackBatch: vi.fn().mockResolvedValue({ deleted: 2, failed: 0 }),
+    } as unknown as ExamApp;
+    const qs = [
+      { id: "q-1", batch: "b-101" },
+      { id: "q-2", batch: "b-101" },
+    ] as any;
+
+    // 1. 取消
+    const cancelConfirm = vi.fn().mockResolvedValue(false);
+    const cancelRes = await executeRollbackBatchWithConfirm({
+      app: mockApp,
+      activeBankId: "bank-1",
+      batch: "b-101",
+      questions: qs,
+      confirmDialogSync: cancelConfirm,
+      showMessage,
+      offline: false,
+      t,
+    });
+    expect(cancelRes).toBe(false);
+    expect(mockApp.rollbackBatch).not.toHaveBeenCalled();
+
+    // 2. 确认
+    const okConfirm = vi.fn().mockResolvedValue(true);
+    const okRes = await executeRollbackBatchWithConfirm({
+      app: mockApp,
+      activeBankId: "bank-1",
+      batch: "b-101",
+      questions: qs,
+      confirmDialogSync: okConfirm,
+      showMessage,
+      offline: false,
+      t,
+    });
+    expect(okRes).toBe(true);
+    expect(mockApp.rollbackBatch).toHaveBeenCalledWith("bank-1", "b-101");
+    expect(showMessage).toHaveBeenCalled();
+  });
+
+  it("11. executeApplyBatchChanges 与 undo 读写：批量编辑应用与撤销快照持久化", async () => {
+    const t = (k: string) => `[${k}]`;
+    const mockApp = {
+      applyBatchEdit: vi.fn().mockResolvedValue({ ok: 5, failed: 0 }),
+      loadAux: vi.fn().mockResolvedValue({ changes: [{ qid: "q-1" }], bankId: "b-1", at: 123 }),
+      saveAux: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ExamApp;
+
+    // 1. 正常应用
+    const applyRes = await executeApplyBatchChanges({
+      app: mockApp,
+      changes: [{ qid: "q-1" } as any],
+      undo: false,
+      activeBankId: "b-1",
+      t,
+    });
+    expect(applyRes.ok).toBe(5);
+    expect(applyRes.undo).toBeDefined();
+
+    // 2. 撤销应用
+    const undoRes = await executeApplyBatchChanges({
+      app: mockApp,
+      changes: [{ qid: "q-1" } as any],
+      undo: true,
+      activeBankId: "b-1",
+      t,
+    });
+    expect(undoRes.ok).toBe(5);
+    expect(undoRes.undo).toBeNull();
+    expect(undoRes.appliedChanges).toEqual([]);
+
+    // 3. 撤销快照读写
+    const undoLoaded = await loadBatchUndoAux(mockApp);
+    expect(undoLoaded?.changes).toHaveLength(1);
+    await saveBatchUndoAux(mockApp, undoLoaded);
+    expect(mockApp.saveAux).toHaveBeenCalledWith("batchedit/last", undoLoaded);
   });
 });
