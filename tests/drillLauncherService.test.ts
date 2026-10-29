@@ -8,6 +8,7 @@ import {
   executeMasterAllWrongWithConfirm,
   executeMasterSingleWrongWithConfirm,
   resolveExternalTargetQuestions,
+  resolveFilteredWrongDrillQuestions,
 } from "@/ui/practice/services/drillLauncherService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -212,5 +213,17 @@ describe("练习会话调度与定向刷题服务 (drillLauncherService)", () =>
     expect(partialRes.picked).toHaveLength(1);
     expect(partialRes.picked[0].id).toBe("q-1");
     expect(partialRes.missingNotice).toBe("[query.missing]");
+  });
+
+  it("8. resolveFilteredWrongDrillQuestions：根据错题队列提取完整题目列表", () => {
+    const qs = [
+      { id: "q-1", stem: "题1" },
+      { id: "q-2", stem: "题2" },
+    ] as Question[];
+
+    const wrongQueue = [{ qid: "q-2" }, { qid: "q-not-exist" }];
+    const res = resolveFilteredWrongDrillQuestions(qs, wrongQueue);
+    expect(res).toHaveLength(1);
+    expect(res[0].id).toBe("q-2");
   });
 });

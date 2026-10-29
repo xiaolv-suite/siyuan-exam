@@ -138,3 +138,39 @@ export function formatWeekDayLabel(dateKey: string): string {
   const [year, month, day] = dateKey.split("-").map(Number);
   return ["日", "一", "二", "三", "四", "五", "六"][new Date(year, month - 1, day, 12).getDay()];
 }
+
+/**
+ * 提取今日已作答题目 ID 集合
+ */
+export function queryTodayAnsweredIds(app: ExamApp | null | undefined, nowMs: number = Date.now()): Set<string> {
+  const today = localDateKeyOf(nowMs);
+  const ids = new Set<string>();
+  if (!app) return ids;
+  try {
+    for (const event of app.attempts.all()) {
+      if (event.verdict !== "not_attempted" && localDateKeyOf(event.ts) === today) {
+        ids.add(event.qid);
+      }
+    }
+  } catch {
+    // 读取异常保持空集合
+  }
+  return ids;
+}
+
+/**
+ * 组装今日推荐练习队列
+ */
+export function computeTodayPracticeQueue(options: {
+  plan: PlanResult | null;
+  practiceQuestions: Question[];
+  todayAnsweredIds: Set<string>;
+  groupAdjacentFn: (qs: Question[]) => Question[];
+}): Question[] {
+  const { plan, practiceQuestions, todayAnsweredIds, groupAdjacentFn } = options;
+  if (!plan) {
+    return groupAdjacentFn(resolveDailyStudyQueue(practiceQuestions));
+  }
+  const remaining = remainingPlan(plan, todayAnsweredIds);
+  return groupAdjacentFn(resolveDailyStudyQueue(practiceQuestions, remaining.queue));
+}

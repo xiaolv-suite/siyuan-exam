@@ -287,5 +287,63 @@ export function applyLeakedHintToState(
   };
 }
 
+export interface AiFollowUpResult {
+  reply?: string;
+  updatedMessages?: import("@/ai/client").AiMessage[];
+  newExplainText?: string;
+  env?: any;
+  error?: string;
+  chId?: string;
+  tokens?: number;
+}
+
+/**
+ * 完整处理 AI 多轮追问交互逻辑并更新对话历史与文本
+ */
+export async function executeAiFollowUpWorkflow(options: {
+  q: Question;
+  learnerAnswer: string | null;
+  submitted: boolean;
+  sessionId: string;
+  history: import("@/ai/client").AiMessage[];
+  prompt: string;
+  client: KernelApiClient;
+  aiConfig: AiChannelConfig;
+  currentExplainText: string;
+  t: (k: string) => string;
+}): Promise<AiFollowUpResult> {
+  const { q, learnerAnswer, submitted, sessionId, history, prompt, client, aiConfig, currentExplainText, t } = options;
+  const res = await executeAiFollowUp({
+    q,
+    learnerAnswer,
+    submitted,
+    sessionId,
+    history,
+    prompt,
+    client,
+    aiConfig,
+  });
+
+  if (res.env.status === "ok" && res.env.data.text) {
+    const reply = res.env.data.text;
+    const updatedMessages = [...res.messages, { role: "assistant" as const, content: reply }];
+    const newExplainText = formatFollowUpInteractionText(currentExplainText, prompt, reply, t("ai.followupTag"));
+    return {
+      reply,
+      updatedMessages,
+      newExplainText,
+      env: res.env,
+      chId: res.ch.id,
+      tokens: res.env.tokens,
+    };
+  }
+
+  const errorLine = (currentExplainText ? currentExplainText + "\n\n" : "") + formatEnvStatusLine(res.env, t);
+  return {
+    error: errorLine,
+    env: res.env,
+  };
+}
+
 
 

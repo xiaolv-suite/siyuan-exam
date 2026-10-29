@@ -37,9 +37,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import { planBatchEdit, invertPlan } from "../../core/batchEdit";
     import { queueSemantics, writeBackReceipt } from "../../core/queueIdentity";
     import { RatingGuard, type RatingOutcomeView } from "../../core/ratingOutcome";
-    import { remainingPlan } from "@/core/planner";
     import { kpAudit } from "@/core/kpGovernance";
-    import { localDateKeyOf } from "@/core/checkinBridge";
     import { probeGlean, type GleanClip } from "@/core/gleanBridge";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
@@ -121,14 +119,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import {
       executeAiExplain,
       executeAiHint,
-      executeAiFollowUp,
       formatEnvStatusLine,
       getHintButtonLabel,
       saveExplainToQuestionDoc,
       convertSingleQuestionToCard,
       formatHintLayersDisplay,
-      formatFollowUpInteractionText,
       applyLeakedHintToState,
+      executeAiFollowUpWorkflow,
     } from "./services/aiWorkflowService";
     import {
       loadReciteModeSetting,
@@ -249,6 +246,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       resolveDailyStudyQueue,
       extractCriticalForgettingRescueQuestions,
       formatWeekDayLabel,
+      queryTodayAnsweredIds,
+      computeTodayPracticeQueue,
     } from "./services/dailyPlanService";
     import {
       executeReciteRating,
@@ -274,6 +273,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeMasterAllWrongWithConfirm,
       executeMasterSingleWrongWithConfirm,
       resolveExternalTargetQuestions,
+      resolveFilteredWrongDrillQuestions,
     } from "./services/drillLauncherService";
     import {
       fetchGleanClips,
@@ -1997,28 +1997,20 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     });
     const practiceQuestions = $derived(questions.filter((q) => q.type !== "material"));
     const cramCount = $derived(app ? app.cramDrill(practiceQuestions).length : 0);
-    function todayQueueFor(available: Question[], planned?: Question[]) {
-      return groupAdjacent(resolveDailyStudyQueue(available, planned));
-    }
+    const todayQueueFor = (available: Question[], planned?: Question[]) => groupAdjacent(resolveDailyStudyQueue(available, planned));
     // 备考计划状态在驾驶舱 widgets 与入口卡片之间共享。
     let plan = $state<ReturnType<typeof import("@/core/planner").planToday> | null>(null);
     const todayAnsweredIds = $derived.by(() => {
       void dataRev;
-      const today = localDateKeyOf(Date.now());
-      // Snapshot is intentionally a plain Set: this derived value is consumed as an immutable filter.
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity
-      const ids = new Set<string>();
-      try {
-        for (const event of app?.attempts.all() ?? []) {
-          if (event.verdict !== "not_attempted" && localDateKeyOf(event.ts) === today) ids.add(event.qid);
-        }
-      } catch { /* 读取流水失败时保持原计划，不阻断练习入口 */ }
-      return ids;
+      return queryTodayAnsweredIds(app);
     });
     const todayQueue = $derived(
-      plan
-        ? todayQueueFor(practiceQuestions, remainingPlan(plan, todayAnsweredIds).queue)
-        : todayQueueFor(practiceQuestions),
+      computeTodayPracticeQueue({
+        plan,
+        practiceQuestions,
+        todayAnsweredIds,
+        groupAdjacentFn: groupAdjacent,
+      }),
     );
     const favoriteCount = $derived(practiceQuestions.filter((q) => q.fav).length);
     /** 错因计数：口径在 core/wrongReasonMix（reasons map 优先 → 遗留字段 → 未标注桶） */
@@ -2059,25 +2051,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       sortMode: wbSortMode,
     }));
 
-    async function archiveWrong(qid: string) {
-      await archiveWrongItem(app, qid, showMessage, t);
-      dataRev++;
-    }
-
-    async function unarchiveWrong(qid: string) {
-      await unarchiveWrongItem(app, qid, showMessage, t);
-      dataRev++;
-    }
-
-    async function snoozeWrong(qid: string, days = 7) {
-      await snoozeWrongItem(app, qid, days, showMessage, t);
-      dataRev++;
-    }
-
-    async function restoreWrongToActive(qid: string) {
-      await restoreWrongItemToActive(app, qid, showMessage);
-      dataRev++;
-    }
+    const archiveWrong = async (qid: string) => { await archiveWrongItem(app, qid, showMessage, t); dataRev++; };
+    const unarchiveWrong = async (qid: string) => { await unarchiveWrongItem(app, qid, showMessage, t); dataRev++; };
+    const snoozeWrong = async (qid: string, days = 7) => { await snoozeWrongItem(app, qid, days, showMessage, t); dataRev++; };
+    const restoreWrongToActive = async (qid: string) => { await restoreWrongItemToActive(app, qid, showMessage); dataRev++; };
 
     function switchView(next: View) {
       errorMsg = "";
@@ -2274,13 +2251,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function startFilteredWrongDrill() {
       if (!filteredWrongQueue.length) { showMessage(t("wrongbook.noFiltered"), 2600, "info"); return; }
-      const qids = filteredWrongQueue.map((w) => w.qid);
       const all = await loadQuestions();
-      const qs = qids.map((id) => all.find((x) => x.id === id)).filter(Boolean) as Question[];
+      const qs = resolveFilteredWrongDrillQuestions(all, filteredWrongQueue);
       if (!qs.length) return;
-      await safeStart(qs, "wrong", () => {
-        enterSessionView();
-      });
+      await safeStart(qs, "wrong", () => enterSessionView());
     }
 
     let wrongBusyId = $state("");
@@ -2789,7 +2763,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
       try {
         const prompt = explainFollowUp.trim();
-        const res = await executeAiFollowUp({
+        const res = await executeAiFollowUpWorkflow({
           q,
           learnerAnswer: feedback?.myAnswer ?? null,
           submitted: !!feedback,
@@ -2798,18 +2772,20 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
           prompt,
           client: app.deps.client,
           aiConfig: aiSettings(),
+          currentExplainText: explainText,
+          t,
         });
-        void logAiTask({ templateId: res.env.templateId, qid: res.reqCtx.qid, status: res.env.status, tokens: res.env.tokens, messages: res.messages });
-
-        if (res.env.status === "ok" && res.env.data.text) {
-          const reply = res.env.data.text;
-          explainHistory[q.id] = [...res.messages, { role: "assistant", content: reply }];
+        if (res.env) {
+          void logAiTask({ templateId: res.env.templateId, qid: q.id, status: res.env.status, tokens: res.env.tokens, messages: history });
+        }
+        if (res.reply && res.updatedMessages && res.newExplainText) {
+          explainHistory[q.id] = res.updatedMessages;
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
-          explainText = formatFollowUpInteractionText(explainText, prompt, reply, t("ai.followupTag"));
+          explainText = res.newExplainText;
           explainFollowUp = "";
-          void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
-        } else {
-          explainText = (explainText ? explainText + "\n\n" : "") + formatEnvStatusLine(res.env, t);
+          if (res.chId && res.tokens) void app.recordAiUsage(res.chId, res.tokens, 1).catch(() => undefined);
+        } else if (res.error) {
+          explainText = res.error;
         }
       } catch (e) {
         explainText = String(e instanceof Error ? e.message : e);

@@ -12,6 +12,7 @@ import {
   formatHintLayersDisplay,
   formatFollowUpInteractionText,
   applyLeakedHintToState,
+  executeAiFollowUpWorkflow,
 } from "@/ui/practice/services/aiWorkflowService";
 import type { KernelApiClient } from "@/kernel/client";
 import type { Question } from "@/core/types";
@@ -192,5 +193,33 @@ describe("AI 互动与试题导学服务 (aiWorkflowService)", () => {
     expect(res.explainText).toContain("第二层被拦截的提示");
     expect(hintLevels.get("q-101")).toBe(2);
     expect(hintTexts.get("q-101")).toEqual(["第二层被拦截的提示"]);
+  });
+
+  it("10. executeAiFollowUpWorkflow：多轮追问交互流程", async () => {
+    const t = (k: string) => `[${k}]`;
+    const mockClient = {
+      aiChat: vi.fn().mockResolvedValue({
+        status: "ok",
+        content: "依据是勾股定理 a^2+b^2=c^2。",
+      }),
+    } as unknown as KernelApiClient;
+
+    const res = await executeAiFollowUpWorkflow({
+      q: fakeQuestion,
+      learnerAnswer: "A",
+      submitted: true,
+      sessionId: "s-1",
+      history: [{ role: "user", content: "请问这道题怎么做？" }],
+      prompt: "定理依据是什么？",
+      client: mockClient,
+      aiConfig: {},
+      currentExplainText: "基础讲解文本",
+      t,
+    });
+
+    expect(res.reply).toBe("依据是勾股定理 a^2+b^2=c^2。");
+    expect(res.updatedMessages).toHaveLength(3);
+    expect(res.newExplainText).toContain("基础讲解文本");
+    expect(res.newExplainText).toContain("依据是勾股定理 a^2+b^2=c^2。");
   });
 });

@@ -6,6 +6,8 @@ import {
   resolveDailyStudyQueue,
   extractCriticalForgettingRescueQuestions,
   formatWeekDayLabel,
+  queryTodayAnsweredIds,
+  computeTodayPracticeQueue,
 } from "@/ui/practice/services/dailyPlanService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -137,5 +139,51 @@ describe("今日备考计划与目标调度服务 (dailyPlanService)", () => {
     expect(formatWeekDayLabel("2026-10-25")).toBe("日");
     // 2026-10-26 是周一
     expect(formatWeekDayLabel("2026-10-26")).toBe("一");
+  });
+
+  it("7. queryTodayAnsweredIds：过滤提取今日已答题目集合", () => {
+    const fixedNow = new Date(2026, 9, 29, 12, 0, 0).getTime();
+    const mockApp = {
+      attempts: {
+        all: () => [
+          { qid: "q-1", ts: fixedNow, verdict: "correct" },
+          { qid: "q-2", ts: fixedNow, verdict: "not_attempted" }, // 排除
+          { qid: "q-3", ts: fixedNow - 86400000 * 2, verdict: "correct" }, // 排除旧事件
+        ],
+      },
+    } as unknown as ExamApp;
+
+    const ids = queryTodayAnsweredIds(mockApp, fixedNow);
+    expect(ids.has("q-1")).toBe(true);
+    expect(ids.has("q-2")).toBe(false);
+    expect(ids.has("q-3")).toBe(false);
+  });
+
+  it("8. computeTodayPracticeQueue：根据计划与今日已答题目组装最终推荐题", () => {
+    const groupAdjacentFn = (qs: any[]) => qs;
+    const practiceQuestions = [{ id: "q-1", type: "single" }, { id: "q-2", type: "single" }] as any;
+
+    // 1. 无计划时直接兜底
+    const fallback = computeTodayPracticeQueue({
+      plan: null,
+      practiceQuestions,
+      todayAnsweredIds: new Set(),
+      groupAdjacentFn,
+    });
+    expect(fallback).toHaveLength(2);
+
+    // 2. 有计划时扣除今日已答
+    const fakePlan: any = {
+      queue: [{ id: "q-1", type: "single" }, { id: "q-2", type: "single" }],
+      queueKinds: [],
+    };
+    const withPlan = computeTodayPracticeQueue({
+      plan: fakePlan,
+      practiceQuestions,
+      todayAnsweredIds: new Set(["q-1"]),
+      groupAdjacentFn,
+    });
+    expect(withPlan).toHaveLength(1);
+    expect(withPlan[0].id).toBe("q-2");
   });
 });

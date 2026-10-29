@@ -210,3 +210,14 @@ export function resolveExternalTargetQuestions(
   return { picked, missingNotice };
 }
 
+/**
+ * 提取错题队列中有效题目的完整对象列表
+ */
+export function resolveFilteredWrongDrillQuestions(
+  allQuestions: Question[],
+  wrongQueue: Array<{ qid: string }>,
+): Question[] {
+  const map = new Map(allQuestions.map((q) => [q.id, q]));
+  return wrongQueue.map((w) => map.get(w.qid)).filter((q): q is Question => Boolean(q));
+}
+
