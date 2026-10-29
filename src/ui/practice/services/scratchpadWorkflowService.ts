@@ -44,8 +44,10 @@ export async function copyScratchpadText(
       showMessage(t("scratchpad.copied"), 2000, "info");
       return true;
     }
+    showMessage("当前环境不支持自动剪贴板，请手动选中文本复制", 3000, "error");
     return false;
   } catch {
+    showMessage("复制失败，请检查剪贴板权限或手动复制", 3000, "error");
     return false;
   }
 }

@@ -656,44 +656,49 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 16px;
-    padding: 16px 20px;
-    margin-bottom: 16px;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--lv-brand-soft, rgba(2,132,199,0.08)) 85%, var(--lv-surface)), var(--lv-surface));
-    border: 1px solid color-mix(in srgb, var(--lv-brand) 22%, var(--lv-border));
-    border-radius: var(--lv-r-3);
-    box-shadow: var(--lv-sh-1), var(--lv-inset-card);
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    background: var(--lv-surface);
+    border: 1px solid var(--lv-border);
+    border-left: 3.5px solid var(--lv-brand);
+    border-radius: var(--lv-r-2);
+    box-shadow: var(--lv-sh-1);
   }
   .lv-sample-welcome-main { flex: 1; min-width: 0; }
   .lv-sample-welcome-lead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .lv-sample-welcome-title { font-size: var(--lv-font-size-md); font-weight: 600; color: var(--lv-text); }
   .lv-ebbinghaus-banner {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     padding: 12px 18px;
-    border-left: 4px solid var(--lv-accent-seal);
-    border-color: color-mix(in srgb, var(--lv-accent-seal) 30%, var(--lv-border));
-    background: linear-gradient(135deg, color-mix(in srgb, var(--lv-accent-seal-soft) 40%, var(--lv-surface)), var(--lv-surface));
+    border: 1px solid var(--lv-border-subtle, var(--lv-border));
+    border-left: 3.5px solid var(--lv-accent-seal);
+    background: color-mix(in srgb, var(--lv-accent-seal-soft) 30%, var(--lv-surface));
     border-radius: var(--lv-r-2);
-    box-shadow: 0 2px 12px color-mix(in srgb, var(--lv-accent-seal) 10%, transparent);
+    box-shadow: var(--lv-sh-1);
   }
   .lv-entry-overview { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr); gap: var(--lv-space-loose); align-items: stretch; margin-bottom: 18px; }
-  .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 24px 28px; position: relative; overflow: hidden; background: linear-gradient(135deg, color-mix(in srgb, var(--lv-brand-soft) 45%, var(--lv-surface)) 0%, var(--lv-surface) 100%); border-color: color-mix(in srgb, var(--lv-brand) 25%, var(--lv-border)); border-radius: var(--lv-r-3); box-shadow: var(--lv-sh-card), var(--lv-inset-card); }
-  .lv-entry-hero::after { content: ''; position: absolute; right: -80px; top: -80px; width: 260px; height: 260px; border-radius: var(--lv-radius-round); background: radial-gradient(closest-side, color-mix(in srgb, var(--lv-brand) 12%, transparent), transparent); pointer-events: none; }
-  .lv-entry-main { min-width: 0; }
-  .lv-entry-reason { font-size: 20px; font-weight: var(--lv-font-weight-semibold); letter-spacing: -.3px; line-height: 1.45; margin: 8px 0 14px; overflow-wrap: anywhere; }
-  .lv-entry-num { border-left: 1px solid var(--lv-border); padding: 5px 0 5px 28px; display: flex; flex-direction: column; gap: 7px; align-self: stretch; justify-content: center; }
+  .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 26px 30px; position: relative; overflow: hidden; background: var(--lv-darkcard-bg); border: 1px solid var(--lv-darkcard-border); border-radius: var(--lv-r-card, 20px); box-shadow: var(--lv-darkcard-shadow); color: var(--lv-darkcard-text); }
+  .lv-entry-hero::after { content: ''; position: absolute; right: -70px; top: -70px; width: 240px; height: 240px; border-radius: var(--lv-radius-round); background: radial-gradient(closest-side, var(--lv-darkcard-accent-soft), transparent); pointer-events: none; }
+  .lv-entry-main { min-width: 0; position: relative; z-index: 1; }
+  .lv-entry-hero .lv-focus-label { color: var(--lv-darkcard-accent); }
+  .lv-entry-reason { font-size: 20px; font-weight: var(--lv-font-weight-semibold); letter-spacing: -.3px; line-height: 1.45; margin: 8px 0 14px; overflow-wrap: anywhere; color: var(--lv-darkcard-text); }
+  .lv-entry-num { border-left: 1px solid var(--lv-darkcard-border); padding: 5px 0 5px 28px; display: flex; flex-direction: column; gap: 7px; align-self: stretch; justify-content: center; position: relative; z-index: 1; }
   .lv-entry-countwrap { display: flex; align-items: baseline; gap: var(--lv-space-2); }
-  .lv-entry-count { font-size: var(--lv-font-size-display); font-weight: var(--lv-font-weight-semibold); letter-spacing: -2px; line-height: 1.05; font-variant-numeric: tabular-nums; }
-  .lv-entry-unit { font-size: var(--lv-font-size-sm); color: var(--lv-text-3); }
-  .lv-entry-label { font-size: var(--lv-font-size-label); letter-spacing: 0.6px; color: var(--lv-text-3); }
-  .lv-entry-week { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; padding: 20px 20px; border-radius: var(--lv-r-3); background: var(--lv-surface); border: 1px solid var(--lv-border); box-shadow: var(--lv-sh-card), var(--lv-inset-card); }
+  .lv-entry-count { font-size: 46px; font-weight: 700; letter-spacing: -2px; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--lv-data-accent-hi, #7dd3fc); }
+  .lv-entry-unit { font-size: var(--lv-font-size-sm); color: var(--lv-darkcard-text-muted); }
+  .lv-entry-label { font-size: var(--lv-font-size-label); letter-spacing: 0.6px; color: var(--lv-darkcard-text-muted); text-transform: uppercase; font-weight: 600; }
+  .lv-entry-hero .lv-hero-actions .lv-btn--ghost { color: var(--lv-darkcard-text-muted); }
+  .lv-entry-hero .lv-hero-actions .lv-btn--ghost:hover { color: var(--lv-darkcard-text); background: var(--lv-darkcard-surface); }
+  .lv-entry-week { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; padding: 22px; border-radius: var(--lv-r-card, 20px); background: var(--lv-surface); border: 1px solid var(--lv-border); box-shadow: var(--lv-sh-card), var(--lv-inset-card); }
+  .lv-entry-week::after { content: ''; position: absolute; right: -25px; top: -25px; width: 100px; height: 100px; border-radius: var(--lv-radius-round); background: radial-gradient(closest-side, color-mix(in srgb, var(--lv-data-accent) 12%, transparent), transparent); pointer-events: none; }
   .lv-entry-week-head { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); font-size: var(--lv-font-size-body-compact); }
   .lv-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 12px 0 10px; }
   .lv-week-day { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--lv-text-3); font-size: 11px; }
-  .lv-week-count { display: grid; place-items: center; width: 30px; height: 32px; border-radius: 8px; background: var(--lv-surface-2); color: var(--lv-text-3); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; transition: all var(--lv-dur-micro) ease; }
-  .lv-week-count.has-attempts { background: color-mix(in srgb, var(--lv-brand) 85%, transparent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-brand) 30%, transparent); }
-  .lv-week-day.is-today .lv-week-count { box-shadow: 0 0 0 2px var(--lv-brand), 0 3px 10px color-mix(in srgb, var(--lv-brand) 30%, transparent); }
-  .lv-week-day.is-today:not(:has(.has-attempts)) .lv-week-count { background: var(--lv-brand-soft); color: var(--lv-brand); }
-  .lv-week-day-label.today-text { color: var(--lv-brand); font-weight: 700; }
+  .lv-week-count { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--lv-r-2, 10px); background: var(--lv-surface-2); color: var(--lv-text-3); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; transition: all var(--lv-dur-micro) ease; }
+  .lv-week-count.has-attempts { background: var(--lv-data-accent); color: var(--lv-on-data, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-data-accent) 35%, transparent); }
+  .lv-week-day.is-today .lv-week-count { box-shadow: 0 0 0 2px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 30%, transparent); }
+  .lv-week-day.is-today:not(:has(.has-attempts)) .lv-week-count { background: var(--lv-accent-soft); color: var(--lv-accent); }
+  .lv-week-day-label.today-text { color: var(--lv-accent); font-weight: 700; }
   .lv-week-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--lv-text-3); }
   @container lv-exam (max-width: 960px) { .lv-entry-overview { grid-template-columns: minmax(0, 1fr); } }
   .lv-hero-actions { margin-top: 18px; }

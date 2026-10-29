@@ -6,7 +6,7 @@ import { KernelApiClient, KernelError } from "./kernel/client";
 import type { StorageAdapter } from "./core/attemptLog";
 import { AttemptLog } from "./core/attemptLog";
 import type { AttemptEvent, Question, ReplayResult, WrongItem, SessionState } from "./core/types";
-import { replay, activeWrongItems } from "./core/replayer";
+import { replay } from "./core/replayer";
 import { reportDateKey, reportWindowStart } from "./core/reportWindow";
 import { PracticeSession, pickRandom, groupAdjacent } from "./core/session";
 import { randomSeedId, seededPickN } from "./core/random";
@@ -355,7 +355,9 @@ export class ExamApp {
   private static readonly CRITICAL_STORAGE_KEYS = new Set([
     "banks",
     "attempts/log",
+    "session/active",
     "session/running",
+    "mock/run",
     "mock/running",
   ]);
   kernelOnline = false;
@@ -445,7 +447,20 @@ export class ExamApp {
   }
 
   constructor(readonly deps: ExamAppDeps) {
-    this.attempts = new AttemptLog(deps.storage, "attempts/log", deps.now ?? (() => Date.now()));
+    this.attempts = new AttemptLog(
+      deps.storage,
+      "attempts/log",
+      deps.now ?? (() => Date.now()),
+      10,
+      30_000,
+      (err) => {
+        this.noteStorageReadError("attempts/log", err);
+        emitExamEvent("kernel-connection", { online: false });
+      },
+      () => {
+        this.storageReadErrors.delete("attempts/log");
+      },
+    );
   }
 
   /** 启动：能力探测 → 流水加载 → 重算 → 会话恢复（任何一步失败都不阻塞后续） */
@@ -704,6 +719,14 @@ export class ExamApp {
     this.assertStorageWritable();
     const before = this.banks.length;
     const previous = this.banks;
+    let qidsToClean: Set<string> | null = null;
+    try {
+      const qs = await this.listQuestions(id);
+      if (qs.length) qidsToClean = new Set(qs.map((q) => q.id));
+    } catch {
+      /* 题库文件若已被物理删除，静默跳过题目提取 */
+    }
+
     this.banks = this.banks.filter((b) => b.id !== id);
     if (this.banks.length !== before) {
       try {
@@ -712,9 +735,80 @@ export class ExamApp {
         this.banks = previous;
         throw e;
       }
+      if (qidsToClean && qidsToClean.size > 0) {
+        void this.cleanupBankAuxData(qidsToClean).catch((err) => {
+          console.warn("[LvExam] cleanupBankAuxData error:", err);
+        });
+      }
       return true;
     }
     return false;
+  }
+
+  /** 级联清理已被移除题库的孤儿辅助数据（错因、反思、覆盖层、材料引用） */
+  private async cleanupBankAuxData(qids: Set<string>): Promise<void> {
+    if (!qids.size) return;
+    try {
+      // 1. 清理 wrongbook/reasons
+      await this.queueStorageWrite(WRONG_REASON_KEY, async () => {
+        const reasons = await this.loadAux<Record<string, unknown>>(WRONG_REASON_KEY);
+        if (reasons) {
+          let changed = false;
+          for (const qid of qids) {
+            if (qid in reasons) { delete reasons[qid]; changed = true; }
+          }
+          if (changed) {
+            await this.saves.runLatest(WRONG_REASON_KEY, () => this.deps.storage.save(WRONG_REASON_KEY, reasons));
+            this.wrongReasons = reasons as any;
+          }
+        }
+      });
+      // 2. 清理 wrongbook/reflections
+      await this.queueStorageWrite("wrongbook/reflections", async () => {
+        const refs = await this.loadAux<Record<string, unknown>>("wrongbook/reflections");
+        if (refs) {
+          let changed = false;
+          for (const qid of qids) {
+            if (qid in refs) { delete refs[qid]; changed = true; }
+          }
+          if (changed) {
+            await this.saves.runLatest("wrongbook/reflections", () => this.deps.storage.save("wrongbook/reflections", refs));
+            this.wrongReflections = refs as any;
+          }
+        }
+      });
+      // 3. 清理 wrongbook/overlays
+      await this.queueStorageWrite("wrongbook/overlays", async () => {
+        const overlays = await this.loadAux<Record<string, unknown>>("wrongbook/overlays");
+        if (overlays) {
+          let changed = false;
+          for (const qid of qids) {
+            if (qid in overlays) { delete overlays[qid]; changed = true; }
+          }
+          if (changed) {
+            await this.saves.runLatest("wrongbook/overlays", () => this.deps.storage.save("wrongbook/overlays", overlays));
+            this.wrongOverlay = new Map(Object.entries(overlays as any));
+          }
+        }
+      });
+      // 4. 清理 materials/qrefs
+      await this.queueStorageWrite(MATERIAL_QREFS_KEY, async () => {
+        const raw = await this.loadAux<unknown>(MATERIAL_QREFS_KEY);
+        if (raw && typeof raw === "object") {
+          let changed = false;
+          const copy = { ...(raw as Record<string, unknown>) };
+          for (const qid of qids) {
+            if (qid in copy) { delete copy[qid]; changed = true; }
+          }
+          if (changed) {
+            await this.saves.runLatest(MATERIAL_QREFS_KEY, () => this.deps.storage.save(MATERIAL_QREFS_KEY, copy));
+            this.materialLinkStore = parseLinkStore(copy).store;
+          }
+        }
+      });
+    } catch {
+      /* 辅助数据清理属于尽力而为的 GC，不阻断主流程 */
+    }
   }
 
   async renameBank(id: string, newName: string): Promise<BankInfo> {
@@ -1282,10 +1376,10 @@ export class ExamApp {
     const now = this.deps.now?.() ?? Date.now();
     // 39-05：手动处置覆盖层按时效契约判定——lastWrongAt 晚于处置时刻或错次递增时，覆盖失效自动回册
     return filterEffectiveActiveWrongs(
-      activeWrongItems(this.derived()),
+      [...this.derived().wrongbook.values()],
       this.wrongOverlay as Map<string, WrongOverlayRecord>,
       now,
-    );
+    ).sort((a, b) => b.wrongCount - a.wrongCount || b.firstWrongAt - a.firstWrongAt);
   }
 
   /** 获取处于封存归档状态的错题清单（52-06 顽固题归档） */
@@ -1345,8 +1439,14 @@ export class ExamApp {
       const v = await this.loadAux<Record<string, { status: string; at: number; wrongCount: number; until?: number }>>(key);
       const previous = this.wrongOverlay;
       const map = { ...(v ?? {}) };
-      if (status === "active") delete map[qid];
-      else {
+      if (status === "active") {
+        if (current?.status === "eliminated" || current?.status === "mastered") {
+          const at = Math.max(this.deps.now?.() ?? Date.now(), current?.lastWrongAt ?? 0);
+          map[qid] = { status: "active", at, wrongCount: current?.wrongCount ?? 0 };
+        } else {
+          delete map[qid];
+        }
+      } else {
         const at = Math.max(this.deps.now?.() ?? Date.now(), current?.lastWrongAt ?? 0);
         map[qid] = { status, at, wrongCount: current?.wrongCount ?? 0 };
       }

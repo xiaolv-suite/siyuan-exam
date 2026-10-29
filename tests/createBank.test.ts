@@ -253,4 +253,39 @@ describe("显式示例题库", () => {
     expect(bank.name).toContain("粤语");
     expect(bank.sampleState).toBe("ready");
   });
+
+  it("removeBank 级联清理已被移除题库题目的错因、反思与材料关联等孤儿辅助数据", async () => {
+    const { client, questions } = sampleClient();
+    const storage = new SnapshotStorage();
+    const app = mkApp(client, storage);
+    const bank = await app.createSampleBank();
+
+    const sampleQ = questions[0];
+    expect(sampleQ).toBeDefined();
+
+    // 写入该题目的辅助映射
+    await app.saveWrongReason(sampleQ.id, "careless");
+    await app.saveWrongReflection(sampleQ.id, "考前注意公式推导");
+    await app.saveAux("materials/qrefs", { [sampleQ.id]: [{ materialId: "mat-1", locator: { page: 12 } }] });
+
+    expect(storage.map.get("wrongbook/reasons")).toHaveProperty(sampleQ.id);
+    expect(storage.map.get("wrongbook/reflections")).toHaveProperty(sampleQ.id);
+    expect(storage.map.get("materials/qrefs")).toHaveProperty(sampleQ.id);
+
+    // 删除题库
+    const removed = await app.removeBank(bank.id);
+    expect(removed).toBe(true);
+
+    // 等待异步清理任务完成
+    await new Promise((r) => setTimeout(r, 50));
+
+    // 验证孤儿数据已被级联清理
+    const reasonsAfter = storage.map.get("wrongbook/reasons") as Record<string, unknown>;
+    const reflectionsAfter = storage.map.get("wrongbook/reflections") as Record<string, unknown>;
+    const qrefsAfter = storage.map.get("materials/qrefs") as Record<string, unknown>;
+
+    expect(reasonsAfter?.[sampleQ.id]).toBeUndefined();
+    expect(reflectionsAfter?.[sampleQ.id]).toBeUndefined();
+    expect(qrefsAfter?.[sampleQ.id]).toBeUndefined();
+  });
 });

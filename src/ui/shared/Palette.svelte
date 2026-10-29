@@ -7,7 +7,6 @@
   import { tick } from "svelte";
   import Icon from "./Icon.svelte";
   import type { PaletteCommand } from "./paletteTypes";
-  export type { PaletteCommand };
 
   let {
     commands,
@@ -177,6 +176,9 @@
           aria-controls={"lv-palette-list-" + uid}
           aria-activedescendant={shown[sel] ? `lv-palette-opt-${uid}-${sel}` : undefined}
         />
+        {#if q}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { q = ""; sel = 0; inputEl?.focus(); }} title="清空输入" style="min-width:28px;min-height:28px;padding:2px 6px">✕</button>
+        {/if}
         <span class="lv-kbd">Esc</span>
       </div>
       <div class="lv-palette-list" role="listbox" id={"lv-palette-list-" + uid}>

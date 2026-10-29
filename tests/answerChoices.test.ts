@@ -45,4 +45,13 @@ describe("删除选项时迁移正确答案", () => {
     }
     expect(removeChoiceOption("judge", options, "对", 0).answer).toBe("对");
   });
+
+  it("填空题判分清洗：自动过滤零宽字符（\\u200B/\\u200C/\\u200D/\\uFEFF），避免同字误判", () => {
+    const q = makeQuestion({
+      type: "fill",
+      stem: "我国的根本政治制度是____。",
+      answer: "人民\u200B代表大会\uFEFF制度",
+    });
+    expect(grade(q, "人民代表大会制度").verdict).toBe("correct");
+  });
 });

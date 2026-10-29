@@ -52,9 +52,12 @@ export function replay(
     // 日统计：任一事件（含背诵自评）计活动；对错仅判分口径
     const day = localDate(e.ts);
     const d = days.get(day) ?? { date: day, attempts: 0, correct: 0 };
-    if (e.verdict !== "not_attempted") {
+    const isActivity = e.verdict !== "not_attempted" || e.kind === "recite" || e.kind === "card" || e.selfRating != null;
+    if (isActivity) {
       d.attempts++;
-      if (e.verdict === "correct") d.correct++;
+      if (e.verdict === "correct" || e.selfRating === 3 || e.selfRating === 4) {
+        d.correct++;
+      }
     }
     days.set(day, d);
 

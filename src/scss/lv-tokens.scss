@@ -33,6 +33,7 @@
   --lv-r54-amber-soft: #fff0d4;
   --lv-r54-overlay: rgba(17, 21, 40, .46);
   /* —— 小驴学习专属独立美学色彩体系（不随第三方宿主杂乱主题漂移） —— */
+  /* [操作语义色]：负责交互、按钮、选中、焦点光圈、主导航 */
   --lv-accent: #4f46e5;
   --lv-accent-hi: #6366f1;
   --lv-accent-soft: rgba(79, 70, 229, 0.08);
@@ -40,6 +41,23 @@
   --lv-accent-deep: #4338ca;
   --lv-btn-primary-bg: #4f46e5;
   --lv-on-accent: #ffffff;
+
+  /* [数据语义色]：由主题色逆时针偏移 28° 派生，专属负责正确率、连续天数、掌握度 KPI 与正向数据 */
+  --lv-data-accent: #0284c7;
+  --lv-data-accent-hi: #38bdf8;
+  --lv-data-soft: rgba(2, 132, 199, 0.08);
+  --lv-on-data: #ffffff;
+
+  /* —— 重点对比块（深色重音卡片：明度 12% 的紫玄墨底，非死黑） —— */
+  --lv-darkcard-bg: #141324;
+  --lv-darkcard-surface: #1d1b33;
+  --lv-darkcard-border: rgba(255, 255, 255, 0.08);
+  --lv-darkcard-text: #f5f3ff;
+  --lv-darkcard-text-muted: #a5a1c0;
+  --lv-darkcard-accent: #818cf8;
+  --lv-darkcard-accent-soft: rgba(129, 140, 248, 0.16);
+  --lv-darkcard-shadow: 0 4px 16px -2px rgba(14, 13, 24, 0.25), 0 12px 32px -4px rgba(14, 13, 24, 0.4);
+
   --lv-green: #059669;
   --lv-green-soft: rgba(5, 150, 105, 0.1);
   --lv-on-green: #ffffff;
@@ -68,22 +86,28 @@
   --lv-accent-seal: #e11d48; /* 朱砂红满分印 */
   --lv-accent-seal-soft: rgba(225, 29, 72, 0.1);
 
-  /* —— 表面与文字（独立三档对比体系） —— */
-  --lv-canvas: #f8fafc;
+  /* —— 表面与文字（浅色同族底托底 + 纯白浮起卡片，明度差 < 3%） —— */
+  --lv-canvas: #f8f8fc;
   --lv-surface: #ffffff;
-  --lv-surface-2: #f1f5f9;
-  --lv-border: #e2e8f0;
-  --lv-ctl-border: #cbd5e1;
-  --lv-text: #0f172a;
-  --lv-text-2: #475569;
-  --lv-text-3: #64748b;
-  --lv-inset-card: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --lv-surface-1: #ffffff;
+  --lv-surface-2: #f1f1f9;
+  --lv-border: #e6e5f0;
+  --lv-ctl-border: #d4d3e3;
+  --lv-text: #181824;
+  --lv-text-2: #3f3d52;
+  --lv-text-3: #58556d;
+  --lv-inset-card: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 
-  /* —— 圆角体系（r-3=卡片，对齐原型 .card 18px） —— */
-  --lv-r-1: 8px;
-  --lv-r-2: 12px;
-  --lv-r-3: 18px;
+  /* 舒适阅读行宽约束 */
+  --lv-max-reading-width: 820px;
+  --lv-max-stem-width: 780px;
+
+  /* —— 大圆角体系与嵌套几何（卡片 20px，内嵌递减） —— */
+  --lv-r-card: 20px;
   --lv-r-4: 20px;
+  --lv-r-3: 16px;
+  --lv-r-2: 10px;
+  --lv-r-1: 6px;
 
   /* —— 4px spacing grid / semantic geometry —— */
   --lv-space-1: 4px;
@@ -129,24 +153,30 @@
   --lv-font-size-stat: 19px;
   --lv-font-size-kpi: 30px;
   --lv-font-size-kpi-mobile: 24px;
+  --lv-font-size-paper: 18px;
   --lv-line-height-tight: 1.35;
   --lv-line-height-snug: 1.5;
   --lv-line-height-body: 1.65;
   --lv-line-height-relaxed: 1.8;
   --lv-line-height-loose: 2.05;
+  /* —— 中文字重收敛（严格三档：常规400、中黑600、半粗700） —— */
   --lv-font-weight-regular: 400;
-  --lv-font-weight-medium: 550;
-  --lv-font-weight-semibold: 650;
+  --lv-font-weight-medium: 600;
+  --lv-font-weight-semibold: 600;
   --lv-font-weight-bold: 700;
   --lv-letter-tight: -0.02em;
   --lv-letter-label: 0.6px;
 
-  /* —— 动效（规范 v6 三档：140/220/320ms，统一曲线） —— */
-  --lv-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --lv-ease-spring: cubic-bezier(0.3, 1.4, 0.4, 1);
-  --lv-dur-micro: 140ms;
-  --lv-dur-view: 220ms;
-  --lv-dur-slow: 320ms;
+  /* —— 动效（不对称曲线：入场 140ms 柔和慢出，出场 100ms 干脆快捷） —— */
+  --lv-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --lv-ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --lv-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --lv-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --lv-dur-micro: 130ms;
+  --lv-dur-fast: 140ms;
+  --lv-dur-exit: 100ms;
+  --lv-dur-view: 200ms;
+  --lv-dur-slow: 280ms;
   --lv-duration-micro: var(--lv-dur-micro);
   --lv-duration-view: var(--lv-dur-view);
   --lv-duration-slow: var(--lv-dur-slow);
@@ -176,12 +206,12 @@
   --lv-overlay: rgba(17, 21, 40, 0.46);
 }
 
-/* 深浅两档阴影（自主独立现代软阴影，不依赖第三方思源主题） */
+/* 深浅两档阴影（统一多层叠加：近距小模糊加远距大模糊，方向统一向下） */
 :root {
-  --lv-sh-1: 0 1px 3px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
-  --lv-sh-2: 0 3px 6px -1px rgba(15, 23, 42, 0.05), 0 10px 24px -4px rgba(15, 23, 42, 0.06);
-  --lv-sh-card: 0 1px 3px rgba(15, 23, 42, 0.03), 0 8px 24px -4px rgba(15, 23, 42, 0.04);
-  --lv-sh-pop: 0 10px 30px -6px rgba(15, 23, 42, 0.12), 0 24px 60px -12px rgba(15, 23, 42, 0.18);
+  --lv-sh-1: 0 1px 2px rgba(24, 24, 36, 0.03), 0 2px 6px -1px rgba(24, 24, 36, 0.025);
+  --lv-sh-2: 0 3px 6px -1px rgba(24, 24, 36, 0.04), 0 10px 24px -4px rgba(24, 24, 36, 0.05);
+  --lv-sh-card: 0 1px 2px rgba(24, 24, 36, 0.02), 0 8px 24px -4px rgba(24, 24, 36, 0.04);
+  --lv-sh-pop: 0 4px 12px -2px rgba(24, 24, 36, 0.08), 0 20px 48px -8px rgba(24, 24, 36, 0.12);
   /* 主按钮投影：自主现代靛蓝柔光微阴影 */
   --lv-btn-primary-shadow:
     0 1px 2px rgba(79, 70, 229, 0.2),
@@ -234,14 +264,29 @@ html[data-theme-mode="dark"] {
   --lv-accent-seal: #fb7185;
   --lv-accent-seal-soft: rgba(251, 113, 133, 0.15);
 
-  --lv-canvas: #090d16;
-  --lv-surface: #131b2e;
-  --lv-surface-2: #1e293b;
-  --lv-border: #243049;
-  --lv-ctl-border: #334155;
+  --lv-data-accent: #38bdf8;
+  --lv-data-accent-hi: #7dd3fc;
+  --lv-data-soft: rgba(56, 189, 248, 0.14);
+  --lv-on-data: #090d16;
+
+  --lv-darkcard-bg: #0e0d18;
+  --lv-darkcard-surface: #171626;
+  --lv-darkcard-border: rgba(255, 255, 255, 0.1);
+  --lv-darkcard-text: #f5f3ff;
+  --lv-darkcard-text-muted: #9d99b8;
+  --lv-darkcard-accent: #a5b4fc;
+  --lv-darkcard-accent-soft: rgba(165, 180, 252, 0.16);
+  --lv-darkcard-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  --lv-canvas: #111119;
+  --lv-surface: #1a1a26;
+  --lv-surface-1: #1a1a26;
+  --lv-surface-2: #232334;
+  --lv-border: #2c2b3d;
+  --lv-ctl-border: #3b3a4f;
   --lv-text: #f8fafc;
-  --lv-text-2: #94a3b8;
-  --lv-text-3: #64748b;
+  --lv-text-2: #cbd5e1;
+  --lv-text-3: #94a3b8;
   --lv-inset-card: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 0.8px var(--b3-border-color);
   --lv-r54-overlay: rgba(0, 0, 0, .58);
   --lv-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);

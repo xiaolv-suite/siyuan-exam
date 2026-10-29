@@ -129,8 +129,8 @@
             <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
               <div style="flex:1;min-width:0;margin-right:8px">
                 {#if renamingBankId === b.id}
-                  <div class="lv-row" style="margin:0;gap:4px">
-                    <input class="lv-input" style="max-width:180px;height:28px" bind:value={renameInputName} placeholder="输入新题库名…" />
+                  <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+                    <input class="lv-input sm" style="max-width:180px" bind:value={renameInputName} placeholder="输入新题库名…" />
                     <button class="lv-btn sm lv-btn--primary" onclick={() => void submitRename(b.id)}>保存</button>
                     <button class="lv-btn sm lv-btn--ghost" onclick={() => { renamingBankId = ""; }}>取消</button>
                   </div>

@@ -67,6 +67,7 @@ function parseTwoColumn(
       if (row.length < 2) throw new Error("列数不足两列（需要问答两列）");
       const stem = html ? stripHtml(row[0] ?? "") : (row[0] ?? "").trim();
       const answer = html ? stripHtml(row[1] ?? "") : (row[1] ?? "").trim();
+      const rawTag = (row[2] ?? "").trim();
       if (!stem) throw new Error("题干为空");
       if (!answer) throw new Error("答案列为空（Anki 问答卡第 2 列）");
       const q: Question = {
@@ -78,7 +79,7 @@ function parseTwoColumn(
         score: 1,
         source: "TSV 导入",
         sourceKind: "mock",
-        kp: opt.kp,
+        kp: opt.kp || (rawTag ? rawTag.replace(/\s+/g, "/") : undefined),
         origin: "imported",
         batch,
         hash: questionHash(stem, []),
@@ -133,10 +134,18 @@ export function parseTsv(text: string, opt: ImportOptions = {}): ImportReport {
     }
     return parseExcelRows(rows.slice(1), map as ExcelColumnMap, opt);
   }
-  // Anki 问答两列模式 → 填空题；首行若是 front/back 表头对则跳过
-  const isTwoColCandidate = rows.every((r) => r.length === 2) || (rows.length >= 2 && rows.filter((r) => r.length === 2).length >= rows.length * 0.7);
-  if (isTwoColCandidate) {
-    const isHeaderPair = /^(front|frontside)$/i.test(rows[0][0] ?? "") && /^(back|backside)$/i.test(rows[0][1] ?? "");
+  // Anki 问答卡模式（支持 2 列纯问答；若声明了 #tags 或带 front/back 表头，亦支持第 3 列为标签）
+  const hasAnkiTagsHeader = headerLines.some((l) => /#tags/i.test(l));
+  const isHeaderPair =
+    /^(front|frontside|question|q)$/i.test(rows[0]?.[0] ?? "") &&
+    /^(back|backside|answer|a)$/i.test(rows[0]?.[1] ?? "");
+
+  const isCardCandidate =
+    rows.every((r) => r.length === 2) ||
+    ((hasAnkiTagsHeader || isHeaderPair) && rows.every((r) => r.length === 2 || r.length === 3)) ||
+    (rows.length >= 2 && rows.filter((r) => r.length === 2).length >= rows.length * 0.7);
+
+  if (isCardCandidate) {
     return parseTwoColumn(isHeaderPair ? rows.slice(1) : rows, html, opt);
   }
   return {

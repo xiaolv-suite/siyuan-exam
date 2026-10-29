@@ -185,4 +185,61 @@ B. 选项二
 
     expect(res.warnings.some((w) => w.includes("降级为草稿"))).toBe(true);
   });
+
+  it("5. 答案专区多选题顿号与逗号分隔提取支持", () => {
+    const rawExam = `
+一、多项选择题
+1. 下列属于计算机输入设备的有（   ）
+A. 键盘    B. 鼠标    C. 显示器    D. 扫描仪
+
+2. 下列关于光的表述正确的有（   ）
+A. 光在真空中传播最快    B. 光是电磁波    C. 光线是真实存在的
+
+【参考答案与解析】
+1. A、B、D
+【解析】显示器是输出设备。
+2. A, B
+【解析】光线是理想模型，不是真实存在的实体。
+`;
+
+    const res = segmentExamPaper(rawExam);
+    expect(res.questions).toHaveLength(2);
+
+    expect(res.questions[0].answer).toBe("A, B, D");
+    expect(res.questions[0].analysis).toContain("显示器是输出设备");
+
+    expect(res.questions[1].answer).toBe("A, B");
+    expect(res.questions[1].analysis).toContain("光线是理想模型");
+  });
+
+  it("6. 解答题小问编号 (1)/(2) 不冲垮母题并完整保留在题干中", () => {
+    const rawExam = `
+一、单项选择题
+1. 2 + 2 = (   )
+A. 3    B. 4    C. 5    D. 6
+
+二、解答题
+15. 解下列方程组：
+(1) 2x + y = 5
+(2) x - y = 1
+
+【参考答案】
+1. B
+15. x = 2, y = 1
+`;
+
+    const res = segmentExamPaper(rawExam);
+    expect(res.questions).toHaveLength(2);
+
+    // 第 1 题单选没有被 (1) 冲垮
+    expect(res.questions[0].type).toBe("single");
+    expect(res.questions[0].stem).toContain("2 + 2 =");
+    expect(res.questions[0].answer).toBe("B");
+
+    // 第 15 题解答题包含子小问
+    expect(res.questions[1].type).toBe("short");
+    expect(res.questions[1].stem).toContain("(1) 2x + y = 5");
+    expect(res.questions[1].stem).toContain("(2) x - y = 1");
+    expect(res.questions[1].answer).toBe("x = 2, y = 1");
+  });
 });

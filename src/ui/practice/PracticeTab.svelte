@@ -9,6 +9,7 @@ import { renderMathInText } from "@/core/math";
 import { renderMathDiagramsInText } from "@/core/mathDiagram";
 import { auditForgettingRisks } from "@/core/forgettingRisk";
 import { sanitizeRichHtml } from "@/libs/sanitize";
+import { confirmDialogSync } from "@/libs/dialog";
     import { ttsSpeak, ttsStop, ttsSupported } from "@/core/tts";
     import type { ExamApp, BankInfo } from "../../app";
     import type { Question } from "../../core/types";
@@ -441,6 +442,21 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     type View = "entry" | "session" | "browse" | "import" | "recite" | "manual" | "ai" | "materials" | "wrongbook";
     let view: View = $state("entry");
     let soundEnabled = $state(readLocal("lv-exam/sound") !== "0");
+    $effect(() => {
+      writeLocal("lv-exam/sound", soundEnabled ? "1" : "0");
+      if (plugin.settingUtils?.set) {
+        plugin.settingUtils.set("soundEnabled", soundEnabled);
+      }
+    });
+
+    function handleTtsSpeak(text: string, opt?: any) {
+      const defaultRate = Number(plugin.settingUtils?.get?.("ttsRate") ?? 1);
+      const defaultLang = String(plugin.settingUtils?.get?.("ttsLang") ?? "zh-CN");
+      let finalOpt: any = typeof opt === "number" ? { rate: opt } : { ...(opt || {}) };
+      finalOpt.rate ??= ttsSlowRate ? 0.85 : defaultRate;
+      finalOpt.lang ??= defaultLang;
+      ttsSpeak(text, finalOpt);
+    }
     let speedDrillEnabled = $state(readLocal("lv-exam/speed-drill") === "1");
     let userRole = $state<"student" | "teacher">(readLocal("lv-exam/role") === "teacher" ? "teacher" : "student");
     let hotkeysHelpOpen = $state(false);
@@ -1401,6 +1417,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       const initAppData = () => {
         if (!app || appInitStarted) return;
         appInitStarted = true;
+        if (plugin.settingUtils?.get?.("soundEnabled") !== undefined) {
+          soundEnabled = Boolean(plugin.settingUtils.get("soundEnabled"));
+        }
         errorMsg = "";
         void (async () => {
           try { explainHistory = (await app.loadAux<Record<string, import("@/ai/client").AiMessage[]>>("ai/explain-history")) ?? {}; } catch { /* 忽略 */ }
@@ -1589,6 +1608,11 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         onExamEvent("open-view", onOpenView),
         onExamEvent("session-ended", onDataChanged),
         onExamEvent("wrongbook-changed", onDataChanged),
+        onExamEvent<{ role: "student" | "teacher" }>("role-changed", (env) => {
+          if (env.payload.role && env.payload.role !== userRole) {
+            userRole = env.payload.role;
+          }
+        }),
       ];
 
       // 移动端虚拟键盘避让：监听 visualViewport 动态抬升底边距，防遮挡按钮
@@ -1933,22 +1957,25 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     /** 移出题库管理（app.removeBank）：仅移出注册表，笔记本本体保留可手动删 */
-    async function removeActiveBank() {
-      if (!activeBankId || !app || importBusy || mSaving || aiMutationBusy) return;
-      const { confirmDialogSync } = await import("../../libs/dialog");
+    async function removeActiveBank(bankIdToRemove?: string) {
+      const targetId = bankIdToRemove || activeBankId;
+      if (!targetId || !app || importBusy || mSaving || aiMutationBusy) return;
+      const targetBank = banks.find((b) => b.id === targetId);
       const res = await executeRemoveBankWithConfirm({
         app,
-        activeBankId,
-        bankName,
+        activeBankId: targetId,
+        bankName: targetBank?.name ?? bankName,
         confirmDialogSync,
         showMessage,
         t,
       });
       if (res.removed && res.nextBanks) {
         banks = res.nextBanks;
-        activeBankId = res.nextActiveBankId ?? "";
-        rememberBank(activeBankId);
-        emitExamEvent("bank-changed", { bank: activeBankId });
+        if (activeBankId === targetId) {
+          activeBankId = res.nextActiveBankId ?? "";
+          rememberBank(activeBankId);
+          emitExamEvent("bank-changed", { bank: activeBankId });
+        }
       }
     }
 
@@ -2082,6 +2109,27 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       copyTodayReportMarkdown,
       openMock: plugin.openMock,
       openReport: plugin.openReport,
+      openSettings: () => {
+        plugin.openSetting?.();
+      },
+      resetSettings: async () => {
+        const ok = await confirmDialogSync({
+          title: "恢复默认设置",
+          content: "确定要恢复小驴考试的全部默认参数配置吗？（AI 密钥将被妥善保留，不会清空）",
+        });
+        if (ok) {
+          for (const [key, def] of (plugin as any).settingDefaults ?? []) {
+            if (key === "aiKey") continue;
+            plugin.settingUtils?.set?.(key, def);
+          }
+          try {
+            await plugin.settingUtils?.save?.();
+            showMessage(t("setting.resetDone", "已恢复默认设置（AI Key 兜底副本保留，未清除）"), 4000, "info");
+          } catch (e) {
+            showMessage(String(e instanceof Error ? e.message : e), 5000, "error");
+          }
+        }
+      },
     }));
 
     function onTaskNav(target: "today" | "bank" | "create" | "mock" | "report") {
@@ -2493,6 +2541,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         enterSessionView();
       } catch (e) {
         errorMsg = String(e instanceof Error ? e.message : e);
+        showMessage(`导入挑战码失败：${errorMsg}`, 4000, "error");
       }
     }
 
@@ -3472,8 +3521,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         }
 
         mSaved = res.question!.id;
+        showMessage(statusToSave === "draft" ? "试题已成功保存为草稿 ✓" : "试题已成功入库 ✓", 2800, "info");
         if (signature === JSON.stringify(currentManualFormData(statusToSave))) {
-          blankManualDraft();
+          clearManualFormWithoutConfirm();
         }
         await refreshQuestionsAfterWrite(questions.length + 1);
       } catch (e) {
@@ -3481,7 +3531,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       } finally { mSaving = false; }
     }
 
-    function blankManualDraft() {
+    function clearManualFormWithoutConfirm() {
       const b = createBlankManualFormState();
       mStem = b.stem; mOptions = b.options; mAnswer = b.answer; mAnalysis = b.analysis;
       mSpecOpen = b.specOpen; mSpecUnit = b.specUnit; mSpecAbsTol = b.specAbsTol; mSpecRelPct = b.specRelPct; mSpecAltUnits = b.specAltUnits;
@@ -3491,6 +3541,19 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       draftRestored = false;
       clearManualValidation();
       void clearManualDraftAux(app);
+    }
+
+    async function blankManualDraft() {
+      const isDirty = Boolean(mStem.trim() || mAnswer.trim() || mAnalysis.trim());
+      if (isDirty) {
+        const ok = await confirmDialogSync({
+          title: "清空并录入新题",
+          content: "当前表单中有正在编辑的试题内容，清空后将无法找回。确定要换一道新题吗？",
+        });
+        if (!ok) return;
+      }
+      clearManualFormWithoutConfirm();
+      showMessage("已准备好空白录题表单", 2000, "info");
     }
 
     // ---------- AI 出题（v0.4：双通道 + 待审核队列，Inbox 式永不直接入库） ----------
@@ -4334,7 +4397,24 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       smartViewBusy = true; smartViewError = "";
       try {
         const { inputDialogSync } = await import("../../libs/dialog");
-        const res = await executeSaveNamedViewWithPrompt(app, smartViews, activeBankId, { search: searchText, favOnly, sectionSel }, inputDialogSync, t);
+        const res = await executeSaveNamedViewWithPrompt(
+          app,
+          smartViews,
+          activeBankId,
+          {
+            search: searchText,
+            favOnly,
+            sectionSel,
+            types: filterType === "all" ? undefined : [filterType as any],
+            source: filterSource || undefined,
+            sourceKind: (filterSource === "real" || filterSource === "mock") ? (filterSource as any) : undefined,
+            onlyWrong: filterWrong,
+            onlyDisputed: filterDispute,
+            lifecycle: filterStatus ? (filterStatus as any) : undefined,
+          },
+          inputDialogSync,
+          t,
+        );
         if (res?.savedName) {
           smartViews = res.nextViews;
           selectedView = res.savedName;
@@ -4359,6 +4439,14 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       setSearch(v.search ?? "");
       favOnly = !!v.favOnly;
       sectionSel = v.section ? { ...v.section } : null;
+      if (v.types && v.types[0]) filterType = v.types[0];
+      filterSource = v.source ?? (v.sourceKind && sourceOptions.includes(v.sourceKind) ? v.sourceKind : "");
+      if (v.onlyWrong !== undefined) filterWrong = v.onlyWrong;
+      if (v.onlyDisputed !== undefined) filterDispute = v.onlyDisputed;
+      if (v.lifecycle) filterStatus = v.lifecycle;
+      filterHelp = false;
+      filterDays = 0;
+      filterUserTag = "";
     }
     /** 一键放宽：清空全部浏览筛选（搜索/题型/来源/仅错题/仅受助/时间/收藏/章节/命名视图） */
     function clearBrowseFilters() {
@@ -4593,8 +4681,16 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
           break;
         case "record_wrong_reason":
           if (session?.current) {
-            void app?.saveWrongReason(session.current.id, action.reason).catch(() => undefined);
-            savedReason = action.reason;
+            const qid = session.current.id;
+            const r = action.reason;
+            app?.saveWrongReason(qid, r)
+              .then(() => {
+                savedReason = r;
+                showMessage(`已记录错因：${t("reason." + r)}`, 2000, "info");
+              })
+              .catch((err) => {
+                showMessage(`错因保存失败：${String(err instanceof Error ? err.message : err)}`, 3500, "error");
+              });
           }
           break;
         case "pick_choice": {
@@ -5010,6 +5106,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
             if (userRole !== "student") {
               userRole = "student";
               writeLocal("lv-exam/role", "student");
+              emitExamEvent("role-changed", { role: "student" });
               showMessage("已切换至【备考学员模式】：专注于每日计划、极速刷题与错题攻坚", 2500, "info");
             }
           }}
@@ -5028,6 +5125,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
             if (userRole !== "teacher") {
               userRole = "teacher";
               writeLocal("lv-exam/role", "teacher");
+              emitExamEvent("role-changed", { role: "teacher" });
               showMessage("已切换至【教师教研模式】：出题工作台、质量审校与排版工具已就绪", 2500, "info");
             }
           }}
@@ -5261,7 +5359,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       oneditReflection={(qid) => void editReflection(qid)}
       onrunMisdiagnosis={(a) => void runMisdiagnosis(a)}
       onadoptMisdiagnosis={(qid) => void adoptMisdiagnosis(qid)}
-      onttsSpeak={(text, opt) => ttsSpeak(text, opt)}
+      onttsSpeak={handleTtsSpeak}
       ontoggleTtsSlow={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }}
       oncycleStudyFontSize={cycleStudyFontSize}
       onstartSpeech={(target, lang) => startSpeechRecognition(target, lang)}
@@ -5294,7 +5392,17 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       onrubricRatingChange={(critId, lvl) => { rubricRatings = { ...rubricRatings, [critId]: lvl }; rubricSaved = false; }}
       onrecordRubricAssessment={() => void recordRubricAssessment()}
       onexportRubricCsv={exportCurrentRubricCsv}
-      onsaveWrongReason={async (r) => { if (curQ) { await app?.saveWrongReason(curQ.id, r as any); savedReason = r; } }}
+      onsaveWrongReason={async (r) => {
+        if (curQ && app) {
+          try {
+            await app.saveWrongReason(curQ.id, r as any);
+            savedReason = r;
+            showMessage(`已记录错因：${t("reason." + r)}`, 2000, "info");
+          } catch (e) {
+            showMessage(`错因保存失败：${String(e instanceof Error ? e.message : e)}`, 3500, "error");
+          }
+        }
+      }}
       onconfidenceSelect={(c) => { confidenceSel = c; }}
       onsubmitAnswer={submitAnswer}
       onrequestHint={requestHint}
@@ -5337,7 +5445,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       oncycleStudyFontSize={cycleStudyFontSize}
       onstartSpeech={(target, lang) => startSpeechRecognition(target, lang)}
       onjumpSource={jumpToSource}
-      onttsSpeak={(text, opt) => ttsSpeak(text, opt)}
+      onttsSpeak={handleTtsSpeak}
       onretryForgot={retryForgotRecite}
       onforgotToCard={reciteForgotToCard}
       onforgotToActions={reciteForgotToActions}
@@ -5497,7 +5605,17 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       oncancel={cancelAiGenerate}
       onretryRejected={retryRejected}
       onapproveAll={approveAllAi}
-      onclearQueue={() => { aiQueue = []; void persistAiQueue(); }}
+      onclearQueue={async () => {
+        if (aiQueue.length === 0) return;
+        const ok = await confirmDialogSync({
+          title: "清空 AI 候选池",
+          content: `确定要清空当前 ${aiQueue.length} 道 AI 生成的候选题目吗？未采纳的题目将被丢弃。`,
+        });
+        if (ok) {
+          aiQueue = [];
+          void persistAiQueue();
+        }
+      }}
       onstartEdit={(q) => startEditAi(q)}
       onsaveEdit={(q) => saveEditAi(q)}
       oncancelEdit={cancelEditAi}
@@ -5768,7 +5886,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       onnextPeek={nextPeekQuestion}
       ontoggleFavQuestion={(q) => void toggleFavQuestion(q)}
       onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
-      onttsSpeak={(text, opt) => ttsSpeak(text, opt)}
+      onttsSpeak={handleTtsSpeak}
       onsaveEdit={(q) => void saveEdit(q)}
       oncloseEditForm={closeEditForm}
       onsnoozeWrong={(qid, days) => void snoozeWrong(qid, days)}
@@ -5953,10 +6071,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }}
       oncycleBankCategory={cycleBankCategory}
       onsyncBankToDoc={syncBankToDoc}
-      onremoveBank={async (id) => {
-        activeBankId = id;
-        await removeActiveBank();
-      }}
+      onremoveBank={removeActiveBank}
     />
     <ShortcutsHelpModal
       open={hotkeysHelpOpen}

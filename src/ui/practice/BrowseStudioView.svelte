@@ -487,8 +487,13 @@
     <h1 class="lv-h1">{t("head.browse.title")}</h1>
     <p>{t("head.browse.desc")}</p>
   </div>
-  <div class="lv-row" style="margin:0 0 8px;gap:8px">
-    <input class="lv-input" style="flex:1;min-width:180px" placeholder={t("browse.searchPlaceholder")} bind:value={searchText} />
+  <div class="lv-row" style="margin:0 0 8px;gap:8px;align-items:center">
+    <div style="position:relative;flex:1;min-width:180px;display:flex;align-items:center">
+      <input class="lv-input" style="width:100%;padding-right:32px" placeholder={t("browse.searchPlaceholder")} bind:value={searchText} />
+      {#if searchText}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { searchText = ""; }} title="清空搜索" style="position:absolute;right:6px;padding:2px 6px;min-width:24px;min-height:24px">✕</button>
+      {/if}
+    </div>
     <select class="lv-select" style="max-width:115px" bind:value={filterType} onchange={onbrowseLimit200}>
       <option value="">{t("browse.fAnyType")}</option>
       {#each ["single", "multiple", "judge", "fill", "short", "material"] as tp, _i (_i)}
@@ -664,6 +669,10 @@
     onexportErrataTemplate={onexportErrataTemplate}
     onerrataFile={onerrataFile}
     onapplyErrata={onapplyErrata}
+    oncloseSection={() => sectionOpen = false}
+    oncloseKp={() => kpOpen = false}
+    onclosePaper={() => paperOpen = false}
+    oncloseErrata={() => errataOpen = false}
     onselectAllCurrentPage={onselectAllCurrentPage}
     onclearSelection={onclearSelection}
     onbatchConvertToCards={onbatchConvertToCards}

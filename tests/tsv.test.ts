@@ -75,6 +75,19 @@ describe("TSV / Anki 导出解析（TODO 2.3 / 42-04，廿五批）", () => {
     expect(r.ok[1].stem).toBe("问题二");
     expect(r.ok[1].answer).toBe("答案二");
   });
+
+  it("支持 Anki 3 列标准导出卡包导入（front、back、tags），并将第 3 列作为考点标签", () => {
+    const text = "#separator:tab\n#html:true\n#tags column:3\n光合作用场所\t叶绿体\t生物学/细胞\n人体最大的器官\t皮肤\t生理学";
+    const r = parseTsv(text);
+    expect(r.errors).toHaveLength(0);
+    expect(r.ok).toHaveLength(2);
+    expect(r.ok[0].stem).toBe("光合作用场所");
+    expect(r.ok[0].answer).toBe("叶绿体");
+    expect(r.ok[0].kp).toBe("生物学/细胞");
+    expect(r.ok[1].stem).toBe("人体最大的器官");
+    expect(r.ok[1].answer).toBe("皮肤");
+    expect(r.ok[1].kp).toBe("生理学");
+  });
 });
 
 describe("parseText 内容分流（廿五批）", () => {

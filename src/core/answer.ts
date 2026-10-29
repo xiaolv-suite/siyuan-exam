@@ -54,6 +54,7 @@ export function pinyinToNumbered(text: string): string {
 /** 全角转半角 + 折叠空白 */
 export function foldText(s: string): string {
   return s
+    .replace(/[\u200B-\u200D\uFEFF]/g, "") // 剥离零宽字符（Zero-width space/joiner/non-joiner/BOM）
     .replace(/\u3000/g, " ")
     .replace(/[\uff01-\uff5e]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
     .replace(/\s+/g, " ")

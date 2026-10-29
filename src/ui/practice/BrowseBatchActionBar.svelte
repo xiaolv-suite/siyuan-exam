@@ -27,7 +27,7 @@
 </script>
 
 <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:95;width:min(680px, calc(100vw - 32px));animation:lv-appear 0.2s var(--lv-ease-out)">
-  <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 22px);border:1px solid var(--lv-border);background:var(--lv-surface)">
+  <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 20px);border:1px solid var(--lv-border-subtle, var(--lv-border));background:color-mix(in srgb, var(--lv-surface) 92%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
     <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div class="lv-row" style="margin:0;gap:6px">
         <span class="lv-chip lv-chip--acc num">已选 {selectedCount} 题</span>

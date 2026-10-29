@@ -184,7 +184,9 @@ export class MockSession {
   cursor = 0;
   readonly byId: Map<string, Question>;
   private readonly indefinite: Set<string>;
-  private readonly sectionStart: Record<string, number> = {}; // section 名 → 进入时刻（相对 ms）
+  readonly sectionStart: Record<string, number> = {}; // 兼容旧快照：section 名 → 进入时刻（相对 ms）
+  private readonly sectionDwell = new Map<string, number>(); // 段名 → 累计驻留用时 ms
+  private currentSection: { name: string; enteredAt: number } = { name: "", enteredAt: 0 };
   /** 逐题驻留计时（40-03）：导航切题时结算上一题，作答时刻取真实累计 */
   private readonly dwell = new Map<string, number>();
   private currentEnter: { qid: string; at: number } = { qid: "", at: 0 };
@@ -216,7 +218,10 @@ export class MockSession {
     }
     if (bp.sectionTimed && paper[0]) {
       const first = this.sectionOf.get(paper[0].id);
-      if (first) this.sectionStart[first] = 0;
+      if (first) {
+        this.sectionStart[first] = 0;
+        this.currentSection = { name: first, enteredAt: startedAt };
+      }
     }
     if (paper[0]) this.currentEnter = { qid: paper[0].id, at: startedAt };
   }
@@ -252,20 +257,32 @@ export class MockSession {
     return this.state.extraTimeS;
   }
 
-  /** 当前段剩余（分段计时模式）：按该段题量折算份额（含延时按比例摊入）；归零即应跳段 */
+  /** 当前段剩余（分段计时模式）：按该段题量折算份额（含延时按比例摊入）；归零即应跳段
+   *  以各段真实累计活跃用时（sectionDwell）结算，支持自由切段检查且不误触发超时驱逐 */
   sectionRemaining(section: string, now: number): number | null {
     if (!this.bp.sectionTimed) return null;
     const totalQ = this.state.qids.length || 1;
     const secQ = this.state.qids.filter((id) => this.sectionOf.get(id) === section).length || 1;
     const budget = ((this.bp.durationS + (this.state.extraTimeS ?? 0)) * 1000 * secQ) / totalQ;
-    const spent = this.elapsed(now) - (this.sectionStart[section] ?? 0);
+    let spent = this.sectionDwell.get(section) ?? 0;
+    if (this.currentSection.name === section) {
+      spent += Math.max(0, now - this.currentSection.enteredAt);
+    }
     return budget - spent;
   }
 
-  /** 段切换：记录新段起始（UI 跳段时调用） */
+  /** 段切换：结算上一段驻留增量并记录新段起始 */
   enterSection(section: string, now: number) {
-    if (this.bp.sectionTimed && this.sectionStart[section] === undefined) {
+    if (!this.bp.sectionTimed) return;
+    if (this.sectionStart[section] === undefined) {
       this.sectionStart[section] = this.elapsed(now);
+    }
+    if (this.currentSection.name && this.currentSection.name !== section) {
+      const prev = this.sectionDwell.get(this.currentSection.name) ?? 0;
+      this.sectionDwell.set(this.currentSection.name, prev + Math.max(0, now - this.currentSection.enteredAt));
+    }
+    if (this.currentSection.name !== section) {
+      this.currentSection = { name: section, enteredAt: now };
     }
   }
 
@@ -363,6 +380,7 @@ export class MockSession {
         required: number;
         short: boolean;
         correct: number;
+        partial?: number;
         total: number;
         timeSpentMs: number;
         overtimeQ: number;
@@ -381,6 +399,7 @@ export class MockSession {
           required: bpSec?.count ?? 0,
           short: false,
           correct: 0,
+          partial: 0,
           total: 0,
           timeSpentMs: 0,
           overtimeQ: 0,
@@ -397,6 +416,8 @@ export class MockSession {
       sec.timeSpentMs += a.timeMs;
       if (a.verdict === "correct") {
         sec.correct++;
+      } else if (a.factor > 0) {
+        sec.partial++;
       }
       // 55-04 / 40-01：版本化评分政策与模块不定项驱动计分（全对/部分分/倒扣分/保底）
       const defaultPolicy = this.bp.scoringPolicy ?? DEFAULT_SCORING_POLICY;
@@ -474,6 +495,11 @@ export class MockSession {
 
   /** 导出运行快照（JSON 可序列化；runId 由调用方生成，一次考试固定） */
   toSnapshot(runId: string, now: number = Date.now()): MockRunSnapshot {
+    if (this.currentSection.name) {
+      const prev = this.sectionDwell.get(this.currentSection.name) ?? 0;
+      this.sectionDwell.set(this.currentSection.name, prev + Math.max(0, now - this.currentSection.enteredAt));
+      this.currentSection.enteredAt = now;
+    }
     return {
       v: SCHEMA_VERSION,
       runId,
@@ -488,6 +514,7 @@ export class MockSession {
       flags: [...this.flags],
       cursor: this.cursor,
       sectionStart: { ...this.sectionStart },
+      sectionDwell: Object.fromEntries(this.sectionDwell),
       screenSwitches: this.screenSwitches,
       dwell: Object.fromEntries(this.dwell),
       currentEnter: { ...this.currentEnter },
@@ -527,6 +554,14 @@ export class MockSession {
     for (const f of snap.flags) session.flags.add(f);
     session.cursor = Math.max(0, Math.min(found.length - 1, snap.cursor));
     for (const [k, v] of Object.entries(snap.sectionStart)) session.sectionStart[k] = v;
+    if (snap.sectionDwell) {
+      for (const [k, v] of Object.entries(snap.sectionDwell)) session.sectionDwell.set(k, v);
+    }
+    const curQ = found[session.cursor];
+    const curSec = curQ ? session.sectionOfQ(curQ.id) : "";
+    if (curSec) {
+      session.currentSection = { name: curSec, enteredAt: snap.savedAt };
+    }
     session.screenSwitches = snap.screenSwitches;
     for (const [qid, ms] of Object.entries(snap.dwell ?? {})) session.dwell.set(qid, ms);
     if (snap.currentEnter?.qid) session.currentEnter = { qid: snap.currentEnter.qid, at: snap.currentEnter.at };
@@ -559,6 +594,8 @@ export interface MockScore {
     /** 40-02：实际卷面 < 要求 → 短路段如实标注 */
     short: boolean;
     correct: number;
+    /** 少选等部分得分题数 */
+    partial?: number;
     total: number;
     timeSpentMs: number;
     overtimeQ: number;
@@ -587,6 +624,8 @@ export interface MockRunSnapshot {
   flags: string[];
   cursor: number;
   sectionStart: Record<string, number>;
+  /** 分段累计驻留毫秒（支持多段反复切换复查，旧快照缺省） */
+  sectionDwell?: Record<string, number>;
   screenSwitches: number;
   /** 逐题驻留毫秒（40-03；旧快照缺省 = 恢复后重新累计） */
   dwell?: Record<string, number>;

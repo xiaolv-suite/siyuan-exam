@@ -43,7 +43,35 @@ describe("练习工作区命令面板与导航服务 (practicePaletteService)", 
     expect(handlers.openMock).toHaveBeenCalled();
   });
 
-  it("2. resolveTaskNavigation：分流外部选项卡与内部视图跳转", () => {
+  it("2. buildPracticePaletteCommands：支持打开插件设置与恢复默认配置动作", () => {
+    const openSettings = vi.fn();
+    const resetSettings = vi.fn();
+    const handlers = {
+      t: dummyT,
+      switchView: vi.fn(),
+      loadQuestions: vi.fn(),
+      loadMaterials: vi.fn(),
+      startDrill: vi.fn(),
+      startRecite: vi.fn(),
+      syncBankDocs: vi.fn(),
+      copyTodayReportMarkdown: vi.fn(),
+      openSettings,
+      resetSettings,
+    };
+
+    const commands = buildPracticePaletteCommands(handlers);
+    const settingCmd = commands.find((c) => c.label === "打开插件设置");
+    expect(settingCmd).toBeDefined();
+    settingCmd?.run();
+    expect(openSettings).toHaveBeenCalled();
+
+    const resetCmd = commands.find((c) => c.label === "恢复插件默认设置");
+    expect(resetCmd).toBeDefined();
+    resetCmd?.run();
+    expect(resetSettings).toHaveBeenCalled();
+  });
+
+  it("3. resolveTaskNavigation：分流外部选项卡与内部视图跳转", () => {
     const openMock = vi.fn();
     const openReport = vi.fn();
 

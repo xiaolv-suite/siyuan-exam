@@ -64,7 +64,8 @@ export function isOverlayEffective(
 }
 
 /**
- * 过滤出真正活跃的错题（排除生效中的 mastered/removed/snoozed/archived 覆盖）。
+ * 过滤出真正活跃的错题（排除生效中的 mastered/removed/snoozed/archived 覆盖，
+ * 并纳入被 active 覆盖手动恢复在册的消灭题）。
  * 满足 39-05 验收：手动处置后再错的题必然出现在本列表中。
  */
 export function filterEffectiveActiveWrongs(
@@ -72,14 +73,24 @@ export function filterEffectiveActiveWrongs(
   overlays: WrongOverlayMap,
   now: number = Date.now(),
 ): WrongItem[] {
-  if (!overlays.size) return items.filter((w) => w.status === "active");
-  return items.filter((w) => {
-    if (w.status !== "active") return false;
+  const result: WrongItem[] = [];
+  for (const w of items) {
     const o = overlays.get(w.qid);
-    if (!o) return true;
-    // 覆盖有效时排除；覆盖失效（如处置后再错）时保留在册
-    return !isOverlayEffective(o, w, now);
-  });
+    if (w.status === "active") {
+      if (!o || !isOverlayEffective(o, w, now)) {
+        result.push(w);
+      }
+    } else if (w.status === "eliminated" || w.status === "mastered") {
+      // 原生已被消灭或掌握：若用户手动执行过"恢复在册"（overlay status 为 active）
+      if (o && o.status === "active") {
+        result.push({
+          ...w,
+          status: "active",
+        });
+      }
+    }
+  }
+  return result;
 }
 
 /** 检查某题是否处于手动抑制中（mastered 或 removed，且覆盖依然有效） */

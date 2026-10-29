@@ -155,6 +155,37 @@ describe("AttemptLog 存储异常与数据读写韧性", () => {
     expect(log.dirty).toBe(false);
     expect(storage.get("exam-attempt-log-batch")).toBeDefined();
   });
+
+  it("存储写入失败时触发 onFlushError 回调，恢复成功时触发 onFlushSuccess", async () => {
+    const storage = new FlakyStorage();
+    let errorCaught: string | null = null;
+    let successTriggered = false;
+
+    const log = new AttemptLog(
+      storage,
+      "exam-attempt-log-hook",
+      () => Date.now(),
+      1,
+      10_000,
+      (err) => { errorCaught = err.message; },
+      () => { successTriggered = true; },
+    );
+
+    // 1. 设置存储故障
+    storage.failSavesRemaining = 1;
+    log.append(makeEvent({ qid: "q-fail" }));
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(errorCaught).toContain("disk I/O write error");
+    expect(log.lastFlushError).toContain("disk I/O write error");
+    expect(log.dirty).toBe(true);
+
+    // 2. 存储恢复正常，重试 flush
+    await log.flush();
+    expect(successTriggered).toBe(true);
+    expect(log.lastFlushError).toBe("");
+    expect(log.dirty).toBe(false);
+  });
 });
 
 describe("migrateAttemptLog 数据迁移与残缺数据容错", () => {

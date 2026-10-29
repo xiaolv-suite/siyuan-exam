@@ -219,4 +219,70 @@ describe("模考会话", () => {
     s.submit(start + 3_600_001);
     expect(s.shouldAutoSubmit(start + 3_600_002)).toBe(false);
   });
+
+  it("分段计时模式：自由跨段切换复查时，段剩余时间按真实累计驻留计算，不误判超时", () => {
+    const { s, start } = build();
+    // 言语段与判断段各 3 题，duration 3600s，每段 budget 1800s
+    // 1. 0~60s 在言语段
+    expect(s.sectionRemaining("言语", start + 60_000)).toBeCloseTo(1740_000, -3);
+
+    // 2. 第 60s 切换到判断段（题号 3 为判断题）
+    s.navigateTo(3, start + 60_000);
+
+    // 3. 在判断段停留 1200s（此时为 start + 1260s）
+    expect(s.sectionRemaining("判断", start + 1260_000)).toBeCloseTo(600_000, -3);
+
+    // 4. 切回言语段复查（题号 0）
+    s.navigateTo(0, start + 1260_000);
+
+    // 关键断言：切回言语段时，言语段只用过了 60s，剩余时间约为 1800 - 60 = 1740s
+    const remYan = s.sectionRemaining("言语", start + 1260_000);
+    expect(remYan).toBeCloseTo(1740_000, -3);
+
+    // 快照序列化与恢复测试
+    const snap = s.toSnapshot("run-1", start + 1260_000);
+    expect(snap.sectionDwell).toBeDefined();
+    expect(snap.sectionDwell?.["判断"]).toBeCloseTo(1200_000, -3);
+  });
+
+  it("模考不定项多选少选：段成绩正确记录 partial 部分得分题数", () => {
+    const qIndef = q("m-indef", "multiple", "mock", "综合");
+    qIndef.options = ["A", "B", "C", "D"];
+    qIndef.answer = "A, B";
+    const testBp: Blueprint = {
+      ...bp,
+      sections: [{ name: "综合", count: 1, scoreEach: 2, source: "mixed", types: ["multiple"], indefinite: true }],
+    };
+    const s = new MockSession(testBp, [qIndef], {
+      sectionOf: new Map([[qIndef.id, "综合"]]),
+      scoreOf: new Map([[qIndef.id, 2]]),
+    }, 1000);
+
+    // 少选 A（正解为 A, B）
+    s.setAnswer(qIndef.id, "A", 2000);
+    s.submit(3000);
+
+    const score = s.score();
+    const sec = score.sections[0];
+    expect(sec.score).toBe(1); // 2分 * 0.5 = 1分
+    expect(sec.correct).toBe(0); // 并非全对
+    expect(sec.partial).toBe(1); // 成功记录部分分题数
+  });
+
+  it("错题特训模考卷闭环：convertWrongbookToMockBlueprint 组装的蓝图可直接被 assemble 且段落题数准确", async () => {
+    const { convertWrongbookToMockBlueprint } = await import("../src/core/examPresets");
+    const wrongItems = [
+      { qid: "r1", wrongCount: 2, lastAt: Date.now(), status: "active" as const },
+      { qid: "m2", wrongCount: 1, lastAt: Date.now(), status: "active" as const },
+    ];
+    const { blueprint, targetQuestions, totalCount } = convertWrongbookToMockBlueprint(wrongItems, bank);
+    expect(totalCount).toBe(2);
+    expect(targetQuestions).toHaveLength(2);
+    expect(blueprint.name).toContain("错题攻坚全真限时卷");
+    expect(blueprint.passLine).toBe(70);
+
+    const assembled = assemble(blueprint, targetQuestions, () => 0.5);
+    expect(assembled.paper).toHaveLength(2);
+    expect(assembled.shortages).toHaveLength(0);
+  });
 });

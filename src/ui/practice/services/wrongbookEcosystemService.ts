@@ -88,7 +88,7 @@ export async function pushSessionWrongsToActions(
 export async function assembleAndLaunchWrongMock(
   app: ExamApp,
   bankId: string,
-  openMock: (() => void) | undefined,
+  openMock: ((blueprint?: import("@/core/mock").Blueprint) => void) | undefined,
   showMessage: MessageReporter,
   t: (k: string) => string,
 ): Promise<number> {
@@ -98,7 +98,7 @@ export async function assembleAndLaunchWrongMock(
       showMessage(t("wrongbook.noFiltered"), 2500, "info");
       return 0;
     }
-    openMock?.();
+    openMock?.(result.blueprint);
     showMessage(`已为 ${result.totalCount} 道错题生成专属限时特训卷！正在进入模考考场…`, 3500, "info");
     return result.totalCount;
   } catch (e) {
@@ -117,8 +117,9 @@ export function countEliminatedWrongs(
   if (!app) return 0;
   const ids = new Set(questions.map((q) => q.id));
   try {
+    const overlay = (app as any).wrongOverlay as Map<string, any> | undefined;
     return [...app.derived().wrongbook.values()].filter(
-      (w) => ids.has(w.qid) && w.status === "eliminated",
+      (w) => ids.has(w.qid) && w.status === "eliminated" && overlay?.get(w.qid)?.status !== "active",
     ).length;
   } catch {
     return 0;
@@ -158,8 +159,9 @@ export function queryEliminatedWrongList(
   if (!app) return [];
   const ids = new Set(questions.map((q) => q.id));
   try {
+    const overlay = (app as any).wrongOverlay as Map<string, any> | undefined;
     return [...app.derived().wrongbook.values()]
-      .filter((w) => ids.has(w.qid) && w.status === "eliminated")
+      .filter((w) => ids.has(w.qid) && w.status === "eliminated" && overlay?.get(w.qid)?.status !== "active")
       .sort((a, b) => b.lastWrongAt - a.lastWrongAt);
   } catch {
     return [];

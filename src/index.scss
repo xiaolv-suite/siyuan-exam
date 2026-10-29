@@ -12,33 +12,7 @@
   --lv-tasknav-height: calc(57px + max(4px, env(safe-area-inset-bottom, 0px)));
   container-name: lv-exam;
   container-type: inline-size;
-  /* R54 owns its work surface so unrelated host theme accents do not change the UI. */
-  --lv-canvas: var(--lv-r54-canvas);
-  --lv-surface: var(--lv-r54-surface);
-  --lv-surface-2: var(--lv-r54-soft);
-  --lv-text: var(--lv-r54-ink);
-  --lv-text-2: var(--lv-r54-ink-2);
-  --lv-text-3: var(--lv-r54-muted);
-  --lv-border: var(--lv-r54-line);
-  --lv-ctl-border: var(--lv-r54-control);
-  --lv-accent: var(--lv-r54-accent);
-  --lv-accent-hi: var(--lv-r54-accent-hi);
-  --lv-accent-soft: var(--lv-r54-lavender);
-  --lv-accent-grad: var(--lv-accent);
-  --lv-accent-deep: var(--lv-r54-accent-deep);
-  --lv-on-accent: var(--lv-r54-on-accent);
-  --lv-on-green: var(--lv-r54-on-green);
-  --lv-on-red: var(--lv-r54-on-red);
-  --lv-btn-primary-bg: var(--lv-accent);
-  --lv-btn-primary-shadow: none;
-  --lv-btn-primary-shadow-hover: none;
-  --lv-green: var(--lv-r54-green);
-  --lv-green-soft: var(--lv-r54-green-soft);
-  --lv-red: var(--lv-r54-red);
-  --lv-red-soft: var(--lv-r54-red-soft);
-  --lv-amber: var(--lv-r54-amber);
-  --lv-amber-soft: var(--lv-r54-amber-soft);
-  --lv-overlay: var(--lv-r54-overlay);
+  /* 继承 lv-tokens.scss 定义的自适应暗亮色色彩系统，支持宿主模式自愈 */
   background: var(--lv-canvas);
   color: var(--lv-text);
 }

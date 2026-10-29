@@ -83,7 +83,7 @@
     <div class="lv-guard-title" style="color:var(--lv-brand);display:flex;align-items:center;justify-content:center;gap:6px">
       <Icon name="trophy" size={20} />
       <span>{t("session.done")}</span>
-      <span style="font-size:13px;opacity:0.85">· {sessionDone.wrong === 0 ? "满分通关！" : sessionDone.correct >= sessionDone.wrong ? "战绩优异！" : "查漏补缺！"}</span>
+      <span style="font-size:13px;opacity:0.85">· {sessionDone.correct > 0 && sessionDone.wrong === 0 ? "满分通关！" : sessionDone.wrong === 0 ? "完成自评！" : sessionDone.correct >= sessionDone.wrong ? "战绩优异！" : "查漏补缺！"}</span>
     </div>
     <!-- 战报成就胶囊矩阵（9999px） -->
     <div class="lv-row" style="justify-content:center;gap:6px;margin:8px 0 14px;flex-wrap:wrap">
@@ -164,7 +164,7 @@
       </div>
     {/if}
     {#if sessionDone.wrong > 0}
-      <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border)">
+      <div class="lv-card" style="margin:12px 0 10px;padding:16px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle, var(--lv-border))">
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:6px">
           <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
             <Icon name="target" size={14} /> 发现 {sessionDone.wrong} 道错题 · 推荐即时强化
@@ -173,11 +173,11 @@
             {reviewOpen ? "▾ 收起错题" : "▸ " + t("session.reviewWrongs")}
           </button>
         </div>
-        <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" onclick={onsameKpSession}>
-          <Icon name="rotate" size={15} /> {t("memory.sameKp")}
+        <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" disabled={actionBusy} onclick={onsameKpSession}>
+          <Icon name="rotate" size={15} /> {actionBusy ? "正在发起同考点特训…" : t("memory.sameKp")}
         </button>
         <div class="lv-row" style="margin:0;gap:6px;justify-content:center;flex-wrap:wrap">
-          <button class="lv-btn sm lv-btn--ghost" onclick={onwrongsToCard} title="将错题推送到思源闪卡"><Icon name="layers" size={13} /> {t("session.wrongsToCard")}</button>
+          <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} onclick={onwrongsToCard} title="将错题推送到思源闪卡"><Icon name="layers" size={13} /> {actionBusy ? "…" : t("session.wrongsToCard")}</button>
           <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} onclick={onwrongsToActions} title="加入待办错题列表"><Icon name="pin" size={13} /> {actionBusy ? "…" : t("action.addWrong")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={onopenReport} title="查看学情诊断报告"><Icon name="chart" size={13} /> 学情报告</button>
         </div>

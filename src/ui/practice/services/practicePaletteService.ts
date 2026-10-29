@@ -17,6 +17,8 @@ export interface PaletteActionHandlers {
   copyTodayReportMarkdown: () => void;
   openMock?: () => void;
   openReport?: () => void;
+  openSettings?: () => void;
+  resetSettings?: () => void;
 }
 
 /**
@@ -34,6 +36,8 @@ export function buildPracticePaletteCommands(handlers: PaletteActionHandlers): P
     copyTodayReportMarkdown,
     openMock,
     openReport,
+    openSettings,
+    resetSettings,
   } = handlers;
 
   return [
@@ -54,6 +58,8 @@ export function buildPracticePaletteCommands(handlers: PaletteActionHandlers): P
     { group: t("palette.actions"), icon: "copy", label: t("entry.copyReport"), keywords: "copy today study report diary", run: () => void copyTodayReportMarkdown() },
     { group: t("palette.tabs"), icon: "clock", label: t("tab.mock"), keywords: "mock exam", run: () => openMock?.() },
     { group: t("palette.tabs"), icon: "chart", label: t("tab.report"), keywords: "report stats", run: () => openReport?.() },
+    ...(openSettings ? [{ group: t("palette.actions"), icon: "settings" as any, label: "打开插件设置", keywords: "settings config preference 设置 配置", run: () => openSettings() }] : []),
+    ...(resetSettings ? [{ group: t("palette.actions"), icon: "rotate" as any, label: "恢复插件默认设置", keywords: "reset restore default settings 重置 恢复 默认", run: () => resetSettings() }] : []),
   ];
 }
 

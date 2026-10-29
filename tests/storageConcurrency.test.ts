@@ -126,4 +126,20 @@ describe("ExamApp 持久化并发保护", () => {
       process.off("unhandledRejection", onUnhandled);
     }
   });
+
+  it("session/active 与 mock/run 属于 CRITICAL_STORAGE_KEYS，读取错误时触发 storageReadonly 保护", () => {
+    const { app } = appWith();
+    expect(app.storageReadonly).toBe(false);
+
+    // 注入 session/active 损坏读取记录
+    (app.storageReadErrors as Map<string, string>).set("session/active", "corrupted JSON");
+    expect(app.storageReadonly).toBe(true);
+
+    (app.storageReadErrors as Map<string, string>).delete("session/active");
+    expect(app.storageReadonly).toBe(false);
+
+    // 注入 mock/run 损坏读取记录
+    (app.storageReadErrors as Map<string, string>).set("mock/run", "truncated JSON");
+    expect(app.storageReadonly).toBe(true);
+  });
 });

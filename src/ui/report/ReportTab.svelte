@@ -155,6 +155,7 @@
           localStorage.setItem("lv-exam/role", role);
         }
       } catch { /* 容错 */ }
+      emitExamEvent("role-changed", { role });
       if (role === "teacher") {
         void loadDiscriminationAudit();
       }
@@ -188,8 +189,10 @@
     import { auditForgettingRisks, exportForgettingRiskMarkdown } from "@/core/forgettingRisk";
     import { buildFullReportHtml } from "@/core/fullReportHtml";
 
+    let fullHtmlExportBusy = $state(false);
     async function exportFullHtmlReport() {
-      if (!app) return;
+      if (fullHtmlExportBusy || !app) return;
+      fullHtmlExportBusy = true;
       try {
         const banks = app.listBanks();
         const curBank = banks.find((b) => b.id === bankId) ?? banks[0];
@@ -241,6 +244,8 @@
         }
       } catch (e) {
         showMessage(`生成学情报告失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        fullHtmlExportBusy = false;
       }
     }
 
@@ -661,6 +666,12 @@
           bankId = event.payload.bank;
           refreshAfterChange();
         }),
+        onExamEvent<{ role: "student" | "teacher" }>("role-changed", (event) => {
+          if (event?.payload?.role && event.payload.role !== userRole) {
+            userRole = event.payload.role;
+            if (userRole === "teacher") void loadDiscriminationAudit();
+          }
+        }),
       ];
       return () => offs.forEach((off) => off());
     });
@@ -997,9 +1008,6 @@
       <span class="lv-crumb-current">{t("tab.report")}</span>
     </div>
     {#if app}<SaveStatus gate={app.saves} {t} />{/if}
-    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K">
-      <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
-    </button>
     <!-- 39-06 lite：统计日期范围（消灭错题/连续天数为状态类指标保持全局） -->
     <select class="lv-select" bind:value={rangeDays} onchange={onRangeChange} disabled={loading || reportRefreshing} title={t("report.rangeTip")}>
       <option value={0}>{t("report.rangeAll")}</option>
@@ -1044,6 +1052,9 @@
       </button>
     </div>
     <span class="fn__flex-1"></span>
+    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K">
+      <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
+    </button>
     <!-- 角色专属快捷导出与体检工具 -->
     {#if userRole === "teacher"}
       <button class="lv-btn sm" onclick={exportDiscriminationReport} disabled={discriminationExportBusy} title="导出全库试题区分度与难度系数 CSV 清单">
@@ -1056,8 +1067,8 @@
       <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
         <Icon name="star" size={13} /> 勋章墙
       </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} title="导出备考完备度体检报告">
-        <Icon name="activity" size={13} /> {t("report.readinessReport")}
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} title="导出备考完备度体检报告">
+        <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
       </button>
     {/if}
     <!-- 117-01 T11 / 117-02：AI 解读与 AI 下一行动（按当前统计范围；只解释/建议，不重算不虚构） -->
@@ -1067,8 +1078,8 @@
     <button class="lv-btn sm" onclick={() => void runNextAction()} disabled={!app || loading || reportRefreshing || scopeLoading || nextActionBusy} aria-busy={nextActionBusy}>
       <Icon name="target" size={13} /> {nextActionBusy ? "…" : t("nextAction.ask")}
     </button>
-    <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} title="一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）">
-      <Icon name="file" size={13} /> {t("report.fullHtmlReport")}
+    <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} title="一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）">
+      <Icon name="file" size={13} /> {fullHtmlExportBusy ? "导出中…" : t("report.fullHtmlReport")}
     </button>
     <span class="lv-chip">{t("report.dataFromLog")}</span>
   </div>
@@ -2066,10 +2077,10 @@
   .lv-card-title { display: inline-flex; align-items: center; gap: var(--lv-space-compact); }
   .lv-inline-icon { display: inline-flex; margin-right: 5px; }
   .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) 22px; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-card); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); margin-bottom: var(--lv-space-3); }
-  .lv-kpi { display: flex; flex-direction: column; justify-content: space-between; gap: var(--lv-space-2); border-radius: var(--lv-r-3); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-kpi:hover { transform: translateY(-2px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-2); }
-  .lv-kpi .v { font-size: 28px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.025em; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .lv-kpi .l { display: flex; align-items: center; justify-content: space-between; color: var(--lv-text-3); font-size: var(--lv-font-size-caption); font-weight: var(--lv-font-weight-medium); }
+  .lv-kpi { display: flex; flex-direction: column; justify-content: space-between; gap: var(--lv-space-2); border-radius: var(--lv-r-card, 20px); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
+  .lv-kpi:hover { transform: translateY(-1px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-2); }
+  .lv-kpi .v { font-size: 36px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--lv-data-accent); }
+  .lv-kpi .l { display: flex; align-items: center; justify-content: space-between; color: var(--lv-text-3); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
   .lv-row.low-sample { opacity: .55; }
   .lv-section b { display: block; font-size: var(--lv-font-size-h3); font-weight: var(--lv-font-weight-semibold); letter-spacing: -.2px; margin-bottom: 12px; }
   .lv-chip { display: inline-flex; align-items: center; gap: var(--lv-space-1); padding: 3px var(--lv-space-3); border-radius: var(--lv-r-1); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-medium); color: var(--lv-text-2); background: var(--lv-surface-2); border: 1px solid transparent; }
@@ -2077,18 +2088,18 @@
   .lv-chip.lv-chip--red { color: var(--lv-red); background: var(--lv-red-soft); }
   /* —— 63-01 四象限（现代微质感指标卡） —— */
   .lv-quad-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--lv-space-3); }
-  .lv-quad { border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: 16px 18px; background: var(--lv-surface); box-shadow: var(--lv-sh-card), var(--lv-inset-card); display: flex; flex-direction: column; gap: var(--lv-space-2); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-quad:hover { transform: translateY(-2px); box-shadow: var(--lv-sh-2); }
-  .lv-quad .v { font-size: 26px; font-weight: var(--lv-font-weight-bold); letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .lv-quad .l { font-size: var(--lv-font-size-caption); color: var(--lv-text-3); font-weight: var(--lv-font-weight-medium); }
-  .lv-quad--grn { background: color-mix(in srgb, var(--lv-green-soft) 55%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-green) 24%, var(--lv-border)); } .lv-quad--grn .v { color: var(--lv-green); }
-  .lv-quad--red { background: color-mix(in srgb, var(--lv-red-soft) 55%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-red) 24%, var(--lv-border)); } .lv-quad--red .v { color: var(--lv-red); }
-  .lv-quad--amb { background: color-mix(in srgb, var(--lv-amber-soft) 55%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-amber) 24%, var(--lv-border)); } .lv-quad--amb .v { color: var(--lv-amber); }
+  .lv-quad { border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-card, 20px); padding: 18px 20px; background: var(--lv-surface); box-shadow: var(--lv-sh-card), var(--lv-inset-card); display: flex; flex-direction: column; gap: var(--lv-space-2); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
+  .lv-quad:hover { transform: translateY(-1px); box-shadow: var(--lv-sh-2); }
+  .lv-quad .v { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .lv-quad .l { font-size: 11px; color: var(--lv-text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .lv-quad--grn { background: color-mix(in srgb, var(--lv-green-soft) 22%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-green) 20%, var(--lv-border)); } .lv-quad--grn .v { color: var(--lv-green); }
+  .lv-quad--red { background: color-mix(in srgb, var(--lv-red-soft) 22%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-red) 20%, var(--lv-border)); } .lv-quad--red .v { color: var(--lv-red); }
+  .lv-quad--amb { background: color-mix(in srgb, var(--lv-amber-soft) 22%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-amber) 20%, var(--lv-border)); } .lv-quad--amb .v { color: var(--lv-amber); }
   @container lv-exam (max-width: 960px) { .lv-quad-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .lv-heat { display: grid; grid-template-columns: repeat(53, 1fr); gap: 2.5px; }
   /* 空格子 = 卡片上的轻微抬升（border 混合），暗色不再呈黑洞；有值格子在抬升底上叠主色 */
   .lv-heat i { aspect-ratio: 1; border-radius: 3px; background: color-mix(in srgb, var(--lv-border) 45%, var(--lv-surface)); transition: transform var(--lv-dur-micro) var(--lv-ease-out), filter var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); position: relative; }
-  .lv-heat i:hover { transform: scale(1.45); filter: brightness(1.2); z-index: 3; box-shadow: 0 0 6px color-mix(in srgb, var(--lv-accent) 45%, transparent); cursor: pointer; }
+  .lv-heat i:hover { transform: scale(1.15); filter: brightness(1.1); z-index: 3; box-shadow: 0 0 4px color-mix(in srgb, var(--lv-accent) 40%, transparent); cursor: pointer; }
   .lv-heat i.l1 { background: color-mix(in srgb, var(--lv-accent) 26%, color-mix(in srgb, var(--lv-border) 45%, var(--lv-surface))); }
   .lv-heat i.l2 { background: color-mix(in srgb, var(--lv-accent) 48%, color-mix(in srgb, var(--lv-border) 45%, var(--lv-surface))); }
   .lv-heat i.l3 { background: color-mix(in srgb, var(--lv-accent) 72%, color-mix(in srgb, var(--lv-border) 45%, var(--lv-surface))); }
@@ -2101,9 +2112,10 @@
   /* —— 考点掌握度行：五列栅格（考点/条/掌握度/题数/独立题·覆盖），窄屏末列折行 —— */
   .lv-mastery-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 52px 64px minmax(0, 150px); gap: var(--lv-space-relaxed); align-items: center; margin: 8px 0; font-size: var(--lv-font-size-meta); }
   .lv-mastery-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lv-mastery-row > span.num { text-align: right; font-variant-numeric: tabular-nums; }
   @container lv-exam (max-width: 720px) {
     .lv-mastery-row { grid-template-columns: 72px minmax(0, 1fr) 48px; }
-    .lv-mastery-row > span:last-child { grid-column: 2 / -1; }
+    .lv-mastery-row > span:last-child { grid-column: 2 / -1; padding-left: 8px; text-align: left; }
   }
   .lv-error { margin: 8px 0; padding: 10px 14px; border-radius: var(--lv-r-2); background: var(--lv-red-soft); color: var(--lv-red); font-size: var(--lv-font-size-body-compact); }
   .lv-skeleton { height: 160px; border-radius: var(--lv-r-3); background: linear-gradient(100deg, var(--lv-surface-2) 40%, var(--lv-surface) 50%, var(--lv-surface-2) 60%); background-size: 200% 100%; animation: lv-shim 1.4s infinite; }

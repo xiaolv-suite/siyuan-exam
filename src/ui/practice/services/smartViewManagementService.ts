@@ -72,6 +72,7 @@ export function createNamedSmartView(
   search: string,
   favOnly: boolean,
   section: any,
+  extra?: Partial<SmartView>,
 ): SmartView[] {
   return upsertView(currentViews, {
     name,
@@ -81,6 +82,13 @@ export function createNamedSmartView(
     favOnly,
     section: section ? JSON.parse(JSON.stringify(section)) : null,
     createdAt: Date.now(),
+    ...(extra?.types ? { types: extra.types } : {}),
+    ...(extra?.kpPrefix ? { kpPrefix: extra.kpPrefix } : {}),
+    ...(extra?.sourceKind ? { sourceKind: extra.sourceKind } : {}),
+    ...(extra?.source ? { source: extra.source } : {}),
+    ...(extra?.onlyWrong !== undefined ? { onlyWrong: extra.onlyWrong } : {}),
+    ...(extra?.onlyDisputed !== undefined ? { onlyDisputed: extra.onlyDisputed } : {}),
+    ...(extra?.lifecycle ? { lifecycle: extra.lifecycle } : {}),
   });
 }
 
@@ -153,7 +161,7 @@ export function cloneQuestionToManualDraft(q: Question): {
     answer: q.answer || "",
     analysis: q.analysis ? `【母题解析】：${q.analysis}` : "",
     kp: q.kp || "",
-    source: q.blockId ? `(( ${q.blockId} '${q.stem.slice(0, 20)}...' ))` : (q.source || ""),
+    source: q.blockId ? `((${q.blockId} '${q.stem.replace(/'/g, "").slice(0, 20)}...'))` : (q.source || ""),
     status: "draft",
     toast: "已将该题载入手工录题台，并自动建立母题溯源反链！",
   };
@@ -210,13 +218,40 @@ export async function executeSaveNamedViewWithPrompt(
   app: any,
   smartViews: SmartView[],
   activeBankId: string,
-  criteria: { search: string; favOnly: boolean; sectionSel: any },
+  criteria: {
+    search: string;
+    favOnly: boolean;
+    sectionSel: any;
+    types?: any[];
+    kpPrefix?: string;
+    source?: string;
+    sourceKind?: "real" | "mock";
+    onlyWrong?: boolean;
+    onlyDisputed?: boolean;
+    lifecycle?: any;
+  },
   promptFn: (opts: { title: string; placeholder: string }) => Promise<string | undefined>,
   t: (k: string) => string,
 ): Promise<{ nextViews: SmartView[]; savedName: string; toast?: string; error?: string } | null> {
   const name = (await promptFn({ title: t("view.saveTitle"), placeholder: t("view.namePlaceholder") }))?.trim();
   if (!name) return null;
-  const next = createNamedSmartView(smartViews, activeBankId, name, criteria.search, criteria.favOnly, criteria.sectionSel);
+  const next = createNamedSmartView(
+    smartViews,
+    activeBankId,
+    name,
+    criteria.search,
+    criteria.favOnly,
+    criteria.sectionSel,
+    {
+      types: criteria.types,
+      kpPrefix: criteria.kpPrefix,
+      sourceKind: criteria.sourceKind,
+      source: criteria.source,
+      onlyWrong: criteria.onlyWrong,
+      onlyDisputed: criteria.onlyDisputed,
+      lifecycle: criteria.lifecycle,
+    },
+  );
   const saveRes = await saveSmartViewsAux(app, next, t);
   if (!saveRes.success) {
     return { nextViews: smartViews, savedName: "", error: saveRes.error };

@@ -89,6 +89,17 @@ describe("39-05 错题状态机与手动处置覆盖层时效契约", () => {
       const wElim = makeItem({ qid: "qE", status: "eliminated" });
       expect(filterEffectiveActiveWrongs([wElim], new Map())).toEqual([]);
     });
+
+    it("原生 eliminated 状态的题，若带有手动 active 覆盖标记，恢复为 active 活跃错题", () => {
+      const wElim = makeItem({ qid: "qE", status: "eliminated", wrongCount: 3 });
+      const overlays = new Map<string, WrongOverlayRecord>([
+        ["qE", { status: "active", at: 5000, wrongCount: 3 }],
+      ]);
+      const active = filterEffectiveActiveWrongs([wElim], overlays, 5000);
+      expect(active).toHaveLength(1);
+      expect(active[0].qid).toBe("qE");
+      expect(active[0].status).toBe("active");
+    });
   });
 
   describe("isWrongSuppressed / isWrongSnoozed / isWrongArchived 独立判定", () => {

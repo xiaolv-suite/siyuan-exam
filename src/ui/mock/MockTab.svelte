@@ -3,8 +3,18 @@
     // 规格见 docs/11 S5/S6/S7；引擎见 src/core/mock.ts（53 项单测覆盖）
     import { onDestroy, onMount } from "svelte";
 
-    /** 切屏计数（docs/11 S6：失焦计次进报告，不阻断） */
-    function onBlur() { if (view === "exam" && session && !session.submitted) session.screenSwitches++; }
+    /** 切屏计数（docs/11 S6：失焦与后台切屏计次进报告，不阻断） */
+    function recordScreenSwitch() {
+      if (view === "exam" && session && !session.submitted) {
+        session.screenSwitches++;
+      }
+    }
+    function onBlur() { recordScreenSwitch(); }
+    function onVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        recordScreenSwitch();
+      }
+    }
     import type { ExamApp } from "../../app";
     import Rail from "../shared/Rail.svelte";
     import type { Question, QuestionType } from "../../core/types";
@@ -103,7 +113,9 @@
       try {
         await navigator.clipboard.writeText(text);
         showMessage(t("scratchpad.copied"), 2000, "info");
-      } catch { /* 静默 */ }
+      } catch {
+        showMessage("复制失败，请手动选择复制", 3000, "error");
+      }
     }
 
     let session: MockSession | null = $state(null);
@@ -311,7 +323,8 @@
     }
 
     /** 读取当前题库并恢复进行中的模考。索引尚未完成时允许在当前页重试。 */
-    async function loadMockData() {
+    async function loadMockData(requestedId?: string) {
+      if (requestedId) pendingBankId = requestedId;
       if (view !== "config" || starting || resumeBusy || discardBusy || mockDataLoading) {
         bankDataDirty = true;
         return;
@@ -325,6 +338,7 @@
       errorMsg = "";
       try {
         const banks = app.listBanks();
+        banksList = banks;
         if (!banks.length) {
           questions = [];
           activeBankId = "";
@@ -385,19 +399,41 @@
         void loadPresets();
         void loadMockData();
         void loadEstimateHistory();
+        if (plugin?.pendingMockBlueprint) {
+          bp = plugin.pendingMockBlueprint;
+          plugin.pendingMockBlueprint = undefined;
+          view = "config";
+          showMessage(`已载入试卷蓝图：${bp.name}`, 3000, "info");
+        }
       };
       if (app) initMock();
       document.addEventListener("fullscreenchange", updateFullscreenState);
+      document.addEventListener("visibilitychange", onVisibilityChange);
       const offs = [
         onExamEvent("app-ready", () => {
           appOverride = plugin?.examApp ?? null;
           if (appOverride) initMock();
+        }),
+        onExamEvent<{ blueprint: Blueprint; bankId?: string }>("apply-blueprint", (event) => {
+          if (event?.payload?.blueprint) {
+            bp = event.payload.blueprint;
+            if (event.payload.bankId) {
+              activeBankId = event.payload.bankId;
+            }
+            view = "config";
+            showMessage(`已载入试卷蓝图：${bp.name}`, 3000, "info");
+          }
         }),
         onExamEvent<{ bank: string }>("bank-changed", (event) => {
           bankDataDirty = true;
           pendingBankId = event.payload.bank;
           // 考试与成绩页都保留本次卷面、题库和蓝图，回到配置页后再读取。
           refreshPendingBankData();
+        }),
+        onExamEvent<{ role: "student" | "teacher" }>("role-changed", (event) => {
+          if (event?.payload?.role && event.payload.role !== userRole) {
+            userRole = event.payload.role;
+          }
         }),
       ];
       // 移动端虚拟键盘避让：监听 visualViewport 动态抬升底边距，防遮挡操作
@@ -420,6 +456,7 @@
         if (timer) { clearInterval(timer); timer = null; }
         if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
         document.removeEventListener("fullscreenchange", updateFullscreenState);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
         offs.forEach((off) => off());
       };
     });
@@ -615,6 +652,7 @@
           localStorage.setItem("lv-exam/role", role);
         }
       } catch { /* 容错 */ }
+      emitExamEvent("role-changed", { role });
       showMessage(
         role === "teacher"
           ? "已切换至【教师教研模式】：考卷管理、A/B 卷分化与讲义排版工具已就绪"
@@ -684,13 +722,15 @@
       } catch { /* 忽略 */ }
     }
 
-    async function onPresetSelected(presetId: string) {
+    async function onPresetSelected(presetId: string, selectEl?: HTMLSelectElement) {
       if (!presetId || !app) return;
       try {
         bp = await app.applyBlueprintPreset(presetId, activeBankId);
         showMessage("已成功套用标准化考试蓝图！", 2500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
+      } finally {
+        if (selectEl) selectEl.value = "";
       }
     }
 
@@ -892,7 +932,7 @@
         runId = newRunId();
         bp = workingBp; // 本次考试使用去重/剔除后的蓝图（保存蓝图仍由用户显式操作）
         session = new MockSession(bp, r.paper, { sectionOf: r.sectionOf, scoreOf: r.scoreOf }, startedAt);
-        cursor = 0; selected = ""; answeredMap = {}; score = null;
+        cursor = 0; selected = ""; answeredMap = {}; score = null; attemptsRecorded = false;
         session.enterSection(bp.sections[0]?.name ?? "", startedAt);
         lastSnapAt = 0;
         persistRun();
@@ -1022,8 +1062,16 @@
       persistRun();
     }
 
+    let attemptsRecorded = false;
+
     async function finishExam(auto = false) {
-      if (submitting || !session || session.submitted) return;   // 双击/计时器竞态：只交一次（U20 幂等交卷）
+      if (submitting || !session) return;
+      if (session.submitted) {
+        if (submitError) {
+          await retryFinishExam();
+        }
+        return;
+      }
       // 提前交卷二次确认（TODO 27：未答完且非自动交卷；45-04 lite 可访问对话框）
       if (!auto && !session.shouldAutoSubmit(Date.now())) {
         if (handInConfirming) return;
@@ -1053,30 +1101,33 @@
         session.submit(Date.now());
         // 作答写流水（kind=mock；模考错题自动进错题本——replayer 收录）；examId=runId 与蓝图分离
         const effectiveRunId = runId || "mock-" + bp.id;
-        for (const a of session.answers.values()) {
-          const q = session.byId.get(a.qid);
-          const frozen = session.qVersions.get(a.qid);
-          app.recordAttempt({
-            qid: a.qid, kind: "mock", mode: "paper",
-            verdict: a.verdict, myAnswer: a.answer,
-            sessionId: effectiveRunId, examId: effectiveRunId,
-            queue: "normal", changes: a.changes,
-            qVersion: q ? createQuestionVersionSnapshot(q) : (frozen ? { hash: frozen.hash, answer: frozen.answer } : undefined),
-          });
-        }
-        // 未答题落 not_attempted 审计轨（40-03：进考试分母但不冒充已答；replayer 跳过不计统计分母）
-        for (const qid of session.state.qids) {
-          if (!session.answers.has(qid)) {
-            const q = session.byId.get(qid);
-            const frozen = session.qVersions.get(qid);
+        if (!attemptsRecorded) {
+          for (const a of session.answers.values()) {
+            const q = session.byId.get(a.qid);
+            const frozen = session.qVersions.get(a.qid);
             app.recordAttempt({
-              qid, kind: "mock", mode: "paper",
-              verdict: "not_attempted", myAnswer: null,
+              qid: a.qid, kind: "mock", mode: "paper",
+              verdict: a.verdict, myAnswer: a.answer,
               sessionId: effectiveRunId, examId: effectiveRunId,
-              queue: "normal",
+              queue: "normal", changes: a.changes,
               qVersion: q ? createQuestionVersionSnapshot(q) : (frozen ? { hash: frozen.hash, answer: frozen.answer } : undefined),
             });
           }
+          // 未答题落 not_attempted 审计轨（40-03：进考试分母但不冒充已答；replayer 跳过不计统计分母）
+          for (const qid of session.state.qids) {
+            if (!session.answers.has(qid)) {
+              const q = session.byId.get(qid);
+              const frozen = session.qVersions.get(qid);
+              app.recordAttempt({
+                qid, kind: "mock", mode: "paper",
+                verdict: "not_attempted", myAnswer: null,
+                sessionId: effectiveRunId, examId: effectiveRunId,
+                queue: "normal",
+                qVersion: q ? createQuestionVersionSnapshot(q) : (frozen ? { hash: frozen.hash, answer: frozen.answer } : undefined),
+              });
+            }
+          }
+          attemptsRecorded = true;
         }
         await app.flush();
         score = session.score();
@@ -1253,6 +1304,7 @@
     let estimateBusy = $state(false);
     let estFromBank = $state(false);
     let activeBankId = $state("");
+    let banksList = $state<any[]>([]);
     let estSourceFilter = $state("");
     let estHistory = $state<any[]>([]);
     let estHistoryLoading = $state(false);
@@ -1471,6 +1523,12 @@
         },
       );
 
+      if (e.key === "Escape" && mockMiniSheetOpen) {
+        e.preventDefault();
+        mockMiniSheetOpen = false;
+        return;
+      }
+
       if (action.type === "ignore") return;
 
       if (action.type === "toggle_scratchpad") {
@@ -1586,6 +1644,31 @@
         title={t("role.teacher")}
       >
         <Icon name="teacher" size={13} /> <b>{t("role.teacher")}</b>
+      </button>
+    </div>
+    <div class="lv-row lv-focus-context lv-bank-picker-group" style="margin:0;gap:6px;align-items:center">
+      {#if banksList.length > 1}
+        <select
+          class="lv-select sm"
+          style="max-width:160px;height:28px;font-size:12px;padding:2px 8px"
+          bind:value={activeBankId}
+          onchange={(e) => {
+            const id = (e.target as HTMLSelectElement).value;
+            if (id && id !== activeBankId) {
+              void loadMockData(id);
+              emitExamEvent("bank-changed", { bank: id });
+            }
+          }}
+          disabled={view === "exam"}
+          title={view === "exam" ? "模考进行中不可切换题库" : "选择模考目标题库"}
+        >
+          {#each banksList as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+        </select>
+      {:else if activeBankName}
+        <span class="lv-chip sm">{activeBankName}</span>
+      {/if}
+      <button class="lv-btn sm lv-btn--ghost" onclick={() => { plugin.openPractice?.(); }} title="打开题库画廊管理">
+        <Icon name="folder" size={13} /> {t("bank.hubTitle", "题库管理")}
       </button>
     </div>
     <span class="fn__flex-1"></span>
@@ -1753,7 +1836,7 @@
     <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0 8px">
       <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
         <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
-        <select class="lv-select" style="max-width:180px" onchange={(e) => void onPresetSelected((e.target as HTMLSelectElement).value)}>
+        <select class="lv-select" style="max-width:180px" onchange={(e) => { const el = e.target as HTMLSelectElement; void onPresetSelected(el.value, el); }}>
           <option value="">{t("mock.pickPreset")}</option>
           <optgroup label="职业考证">
             {#each presetOptions.filter((p) => p.category === "qualification") as opt (opt.id)}
@@ -1899,6 +1982,13 @@
     {/if}
     {#if restoreNote}<div class="lv-error">{restoreNote}</div>{/if}
     <div class="lv-card lv-question">
+      {#if !currentQ}
+        <div class="lv-empty" style="padding:48px 16px">
+          <Icon name="alert-triangle" size={32} />
+          <p style="margin:12px 0 16px">{t("mock.emptyPaper", "当前考卷试题内容为空或无法读取")}</p>
+          <button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button>
+        </div>
+      {:else}
       {#if scratchpadOpen}
         <!-- 52-08 模考电子草稿纸浮层 -->
         <div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:10px 14px">
@@ -2048,6 +2138,7 @@
         {/if}
       {/if}
       {/key}
+      {/if}
     </div>
     <!-- 答题卡与速查筛选 -->
     <div class="lv-sheet-bar">
@@ -2167,7 +2258,7 @@
     {#if mockMiniSheetOpen && session}
       <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭答题卡" onclick={() => (mockMiniSheetOpen = false)}></button>
       <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="考场快捷答题卡" style="width:min(460px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:16px;border-radius:var(--lv-r-3);box-shadow:var(--lv-sh-pop)">
+        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="考场快捷答题卡" style="width:min(520px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-4, 22px);border:1px solid var(--lv-border);box-shadow:var(--lv-sh-pop)">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px">
             <div class="lv-dialog-title-wrap">
               <span class="lv-dialog-title-icon"><Icon name="edit" size={13} /></span>
@@ -2523,10 +2614,12 @@
   .lv-chip { display: inline-flex; align-items: center; gap: var(--lv-space-1); padding: 3px var(--lv-space-3); border-radius: var(--lv-r-1); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-medium); color: var(--lv-text-2); background: var(--lv-surface-2); border: 1px solid transparent; }
   .lv-chip.grn { color: var(--lv-green); background: var(--lv-green-soft); }
   .lv-chip.red { color: var(--lv-red); background: var(--lv-red-soft); }
+  .lv-chip--amb { color: var(--lv-amber); background: var(--lv-amber-soft); border-color: color-mix(in srgb, var(--lv-amber) 25%, transparent); }
+  .lv-chip--red { color: var(--lv-red); background: var(--lv-red-soft); border-color: color-mix(in srgb, var(--lv-red) 25%, transparent); }
   .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) var(--lv-space-6); box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-highlight, inset 0 1px 0 transparent); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -.2px; margin-bottom: 16px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; }
   .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
-  .lv-opt:hover { border-color: var(--lv-border-hover, var(--lv-accent)); background: color-mix(in srgb, var(--lv-accent) 4%, var(--lv-surface)); transform: translateY(-1.5px) translateX(2px); box-shadow: var(--lv-sh-card); }
+  .lv-opt:hover { border-color: var(--lv-border-hover, var(--lv-accent)); background: color-mix(in srgb, var(--lv-accent) 4%, var(--lv-surface)); transform: translateY(-1px); box-shadow: var(--lv-sh-2); }
   .lv-opt:active { transform: scale(0.985); }
   .lv-opt .key { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 13px; font-weight: var(--lv-font-weight-bold, 700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--lv-surface-2); color: var(--lv-text-2); border: 1px solid var(--lv-border); box-shadow: var(--lv-keycap-shadow); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease; }
   .lv-opt-check { width: 18px; height: 18px; border-radius: var(--lv-radius-round); border: 1.5px solid var(--lv-ctl-border); background: var(--lv-surface); flex: none; display: grid; place-items: center; transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease; }
@@ -2535,10 +2628,10 @@
   .lv-opt-check.box::after { border-radius: 1.5px; }
   .lv-opt.sel .lv-opt-check { border-color: transparent; background: var(--lv-accent); }
   .lv-opt.sel .lv-opt-check::after { transform: scale(1); }
-  .lv-opt.sel { border-color: var(--lv-accent); background: var(--lv-accent-soft); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 6px 18px -2px color-mix(in srgb, var(--lv-accent) 24%, transparent); }
+  .lv-opt.sel { border-color: var(--lv-accent); background: var(--lv-accent-soft); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 4px 14px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
   .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 6px color-mix(in srgb, var(--lv-accent) 28%, transparent); }
-  .lv-bp-table { border: 1px solid var(--lv-border); border-radius: 12px; overflow-x: auto; margin: 10px 0; }
-  .lv-bp-row { display: grid; grid-template-columns: 1.1fr .5fr .5fr .8fr 1fr 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px dashed var(--lv-border); align-items: center; min-width: 560px; }
+  .lv-bp-table { border: 1px solid var(--lv-border); border-radius: 12px; overflow-x: auto; margin: 10px 0; background: var(--lv-surface); }
+  .lv-bp-row { display: grid; grid-template-columns: 1.1fr .5fr .5fr .8fr 1fr 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border)); align-items: center; min-width: 560px; }
   .lv-bp-row:last-child { border-bottom: none; }
   .lv-bp-row:not(.head):hover { background: var(--lv-surface-2); }
   .lv-bp-row.head { background: var(--lv-surface-2); font-size: var(--lv-font-size-caption); font-weight: var(--lv-font-weight-bold); color: var(--lv-text-3); border-bottom: 1px solid var(--lv-border); }
@@ -2554,15 +2647,11 @@
   .lv-legend { display: inline-flex; align-items: center; gap: 6px; font-weight: var(--lv-font-weight-medium); }
   .lv-legend .dot { display: inline-block; width: 12px; height: 12px; border-radius: 4px; flex: none; box-shadow: var(--lv-sh-1); }
   .lv-cell { min-width: 44px; min-height: 44px; border-radius: 12px; border: 1px solid var(--lv-ctl-border); background: var(--lv-surface); font-size: var(--lv-font-size-body-compact); font-weight: var(--lv-font-weight-semibold); font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; color: var(--lv-text-2); cursor: pointer; box-shadow: var(--lv-sh-1), var(--lv-inset-subtle, inset 0 1px 0 transparent); transition: background-color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-cell:hover:not(:disabled) { transform: translateY(-1.5px); box-shadow: var(--lv-sh-2); border-color: var(--lv-border-hover, var(--lv-accent)); }
+  .lv-cell:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--lv-sh-2); border-color: var(--lv-border-hover, var(--lv-accent)); }
   .lv-cell:active:not(:disabled) { transform: scale(0.96); }
   .lv-cell.done { background: var(--lv-accent-soft); color: var(--lv-accent); border-color: color-mix(in srgb, var(--lv-accent) 36%, transparent); font-weight: var(--lv-font-weight-bold); }
-  .lv-cell.flag { outline: 2px solid var(--lv-amber); outline-offset: -2px; box-shadow: 0 0 8px color-mix(in srgb, var(--lv-amber) 35%, transparent); }
-  .lv-cell.cur { background: var(--lv-accent); color: var(--lv-on-accent, #fff); border-color: transparent; box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4.5px var(--lv-accent), 0 2px 10px color-mix(in srgb, var(--lv-accent) 35%, transparent); animation: lv-radar-pulse 2.2s infinite ease-in-out; transform: scale(1.04); z-index: 2; }
-  @keyframes lv-radar-pulse {
-    0%, 100% { box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4px var(--lv-accent), 0 2px 10px color-mix(in srgb, var(--lv-accent) 30%, transparent); }
-    50% { box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 5.5px color-mix(in srgb, var(--lv-accent) 75%, transparent), 0 4px 16px color-mix(in srgb, var(--lv-accent) 45%, transparent); }
-  }
+  .lv-cell.flag { outline: 2px solid var(--lv-amber); outline-offset: -2px; border-color: var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 40%, var(--lv-surface)); box-shadow: 0 0 6px color-mix(in srgb, var(--lv-amber) 25%, transparent); }
+  .lv-cell.cur { background: var(--lv-accent); color: var(--lv-on-accent, #fff); border-color: transparent; box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4.5px var(--lv-accent), var(--lv-sh-2); transform: translateY(-1px); z-index: 2; }
   .lv-card.lv-question { box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
   .lv-score-card { box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
   .lv-score-card .lv-chip.grn { background: var(--lv-green-soft); color: var(--lv-green); font-weight: var(--lv-font-weight-semibold); box-shadow: 0 0 10px color-mix(in srgb, var(--lv-green) 35%, transparent); }

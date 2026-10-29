@@ -50,6 +50,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   pendingQuestionId?: string;
   pendingPracticeView?: PracticeViewRequest;
   practiceViewRequestId?: string;
+  pendingMockBlueprint?: import("./core/mock").Blueprint;
   private isMobile: boolean;
   settingUtils: SettingUtils;
   isUnloaded = false;
@@ -101,7 +102,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       },
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.examDate.title"],
+      title: `[考期与目标] ${this.i18n["setting.examDate.title"]}`,
       description: this.i18n["setting.examDate.desc"],
       type: "textinput",
       key: "examDate",
@@ -110,7 +111,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.sprintDays.title"],
+      title: `[考期与目标] ${this.i18n["setting.sprintDays.title"]}`,
       description: this.i18n["setting.sprintDays.desc"],
       type: "number",
       key: "sprintDays",
@@ -118,7 +119,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.dailyGoal.title"],
+      title: `[考期与目标] ${this.i18n["setting.dailyGoal.title"]}`,
       description: this.i18n["setting.dailyGoal.desc"],
       type: "number",
       key: "dailyGoal",
@@ -126,7 +127,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.reciteGroup.title"],
+      title: `[做题偏好] ${this.i18n["setting.reciteGroup.title"]}`,
       description: this.i18n["setting.reciteGroup.desc"],
       type: "number",
       key: "reciteGroupSize",
@@ -134,7 +135,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.perQuestionTimeout.title"],
+      title: `[做题偏好] ${this.i18n["setting.perQuestionTimeout.title"]}`,
       description: this.i18n["setting.perQuestionTimeout.desc"],
       type: "number",
       key: "perQuestionTimeoutS",
@@ -142,7 +143,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.feedbackTiming.title"],
+      title: `[做题偏好] ${this.i18n["setting.feedbackTiming.title"]}`,
       description: this.i18n["setting.feedbackTiming.desc"],
       type: "select",
       key: "feedbackTiming",
@@ -155,7 +156,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.materialInterleave.title"],
+      title: `[做题偏好] ${this.i18n["setting.materialInterleave.title"]}`,
       description: this.i18n["setting.materialInterleave.desc"],
       type: "checkbox",
       key: "materialInterleave",
@@ -163,7 +164,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.examProfiles.title"],
+      title: `[考期与目标] ${this.i18n["setting.examProfiles.title"]}`,
       description: this.i18n["setting.examProfiles.desc"],
       type: "textarea",
       key: "examProfiles",
@@ -172,7 +173,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     });
     this.settingUtils.addItem({
       // 65-06 lite：快速刷题去重窗口（天；0=关闭去重）
-      title: this.i18n["setting.quickAvoidDays.title"],
+      title: `[做题偏好] ${this.i18n["setting.quickAvoidDays.title"]}`,
       description: this.i18n["setting.quickAvoidDays.desc"],
       type: "number",
       key: "quickAvoidDays",
@@ -180,7 +181,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.checkinItemId.title"],
+      title: `[生态联动] ${this.i18n["setting.checkinItemId.title"]}`,
       description: this.i18n["setting.checkinItemId.desc"],
       type: "textinput",
       key: "checkinItemId",
@@ -188,7 +189,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.checkinThreshold.title"],
+      title: `[生态联动] ${this.i18n["setting.checkinThreshold.title"]}`,
       description: this.i18n["setting.checkinThreshold.desc"],
       type: "number",
       key: "checkinThreshold",
@@ -196,7 +197,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.retention.title"],
+      title: `[算法调度] ${this.i18n["setting.retention.title"]}`,
       description: this.i18n["setting.retention.desc"],
       type: "slider",
       key: "desiredRetention",
@@ -205,7 +206,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       slider: { min: 0.85, max: 0.97, step: 0.01 },
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.aiEndpoint.title"],
+      title: `[AI智能体] ${this.i18n["setting.aiEndpoint.title"]}`,
       description: this.i18n["setting.aiEndpoint.desc"],
       type: "textinput",
       key: "aiEndpoint",
@@ -213,7 +214,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.aiModel.title"],
+      title: `[AI智能体] ${this.i18n["setting.aiModel.title"]}`,
       description: this.i18n["setting.aiModel.desc"],
       type: "textinput",
       key: "aiModel",
@@ -221,7 +222,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.aiCustomHint.title"],
+      title: `[AI智能体] ${this.i18n["setting.aiCustomHint.title"]}`,
       description: this.i18n["setting.aiCustomHint.desc"],
       type: "textarea",
       key: "aiCustomHint",
@@ -229,13 +230,44 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
-      title: this.i18n["setting.aiKey.title"],
+      title: `[AI智能体] ${this.i18n["setting.aiKey.title"]}`,
       description: this.i18n["setting.aiKey.desc"],
       type: "textinput",
       key: "aiKey",
       value: "",
       direction: "row",
       password: true,
+    });
+    this.settingUtils.addItem({
+      title: `[语音音效] ${this.i18n["setting.ttsLang.title"]}`,
+      description: this.i18n["setting.ttsLang.desc"],
+      type: "select",
+      key: "ttsLang",
+      value: "zh-CN",
+      options: {
+        "zh-CN": this.i18n["setting.ttsLang.mandarin"],
+        "zh-HK": this.i18n["setting.ttsLang.cantonese"],
+        "en-US": this.i18n["setting.ttsLang.english"],
+        "ja-JP": this.i18n["setting.ttsLang.japanese"],
+      },
+      direction: "row",
+    });
+    this.settingUtils.addItem({
+      title: `[语音音效] ${this.i18n["setting.ttsRate.title"]}`,
+      description: this.i18n["setting.ttsRate.desc"],
+      type: "slider",
+      key: "ttsRate",
+      value: 1.0,
+      direction: "row",
+      slider: { min: 0.8, max: 1.5, step: 0.05 },
+    });
+    this.settingUtils.addItem({
+      title: `[语音音效] ${this.i18n["setting.soundEnabled.title"]}`,
+      description: this.i18n["setting.soundEnabled.desc"],
+      type: "checkbox",
+      key: "soundEnabled",
+      value: true,
+      direction: "row",
     });
 
     this.registerTabs();
@@ -376,7 +408,6 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onunload() {
-    this.isUnloaded = true;
     this.eventBus.off("click-blockicon", this.boundBlockIcon);
     this.eventBus.off("open-menu-image", this.boundImageMenu);
     this.eventBus.off("click-flashcard-action", this.boundFlashcardAction);
@@ -398,8 +429,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       delete w.xiaolvExam;
       delete w.lvExam;
     }
-    // 37-02 卸载顺序：先最终落盘（此时 dirty 仍在），再 dispose 清定时器——
-    // 反过来 dispose 先清 dirty 会让随后的 flush 变成空操作，未落盘事件全部丢失
+    // 37-02 卸载顺序：先最终落盘（此时 dirty 仍在且 isUnloaded 仍为 false 允许物理存储写入），
+    // 再 dispose 清定时器，最后设置 isUnloaded 栅栏
     try {
       await this.examApp?.flush();
     } catch {
@@ -415,6 +446,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     } catch (error) {
       console.error("[LvExam] failed to unmount tabs during unload", error);
     }
+    this.isUnloaded = true;
   }
 
   /** 唯一顶栏入口：点击后直接进入小驴考试主页面。 */
@@ -858,7 +890,11 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   openWrongbook(): void {
     openPracticeView(this, "wrongbook");
   }
-  openMock() {
+  openMock(blueprint?: import("./core/mock").Blueprint) {
+    if (blueprint) {
+      this.pendingMockBlueprint = blueprint;
+      emitExamEvent("apply-blueprint", { blueprint });
+    }
     this.openTabByType(TAB_MOCK, "iconMock", this.i18n["tab.mock"]);
   }
   openReport() {

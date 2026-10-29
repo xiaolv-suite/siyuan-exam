@@ -678,7 +678,7 @@
               {#if feedback.verdict === "wrong"}
                 <button class="lv-btn" onclick={ondrillVariant} title={t("session.drillVariantTip")}><Icon name="layers" size={15} /> {t("session.drillVariant")}</button>
                 <button class="lv-btn" onclick={ontraceMother} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
-                <button class="lv-btn" onclick={ontoCard}><Icon name="layers" size={16} /> {t("memory.toCard")}</button>
+                <button class="lv-btn" onclick={ontoCard} disabled={cardResult === "…"}><Icon name="layers" size={16} /> {cardResult === "…" ? "制卡中…" : t("memory.toCard")}</button>
                 {#if cardResult}<span class="lv-muted">{cardResult}</span>{/if}
                 <button class="lv-btn" onclick={() => onexplainCurrent("explain")} disabled={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
                 <button class="lv-btn" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
@@ -779,9 +779,9 @@
   .lv-pure .lv-opt .key { filter: none; }
   .lv-pure .lv-opt { justify-content: center; }
   .lv-question { margin-top: 10px; }
-  .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; }
-  .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
-  .lv-opt:hover:not([disabled]) { border-color: var(--lv-border-hover, var(--lv-accent)); background: color-mix(in srgb, var(--lv-accent) 4.5%, var(--lv-surface)); transform: translateY(-1.5px) translateX(2px); box-shadow: var(--lv-sh-card); }
+  .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; max-width: var(--lv-max-stem-width, 780px); }
+  .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; max-width: var(--lv-max-reading-width, 820px); text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
+  .lv-opt:hover:not([disabled]) { border-color: var(--lv-border-hover, var(--lv-accent)); background: color-mix(in srgb, var(--lv-accent) 4.5%, var(--lv-surface)); transform: translateY(-1px); box-shadow: var(--lv-sh-2); }
   .lv-opt:active:not([disabled]) { transform: scale(0.985); }
   .lv-opt .key { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 13px; font-weight: var(--lv-font-weight-bold, 700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--lv-surface-2); color: var(--lv-text-2); border: 1px solid var(--lv-border); box-shadow: var(--lv-keycap-shadow); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
   /* —— 选项圆点指示（规范 v6 .option：radio 圆 / checkbox 方；随四态着色） —— */
@@ -794,14 +794,16 @@
   .lv-opt.right .lv-opt-check { background: var(--lv-green); }
   .lv-opt.wrong .lv-opt-check { background: var(--lv-red); }
   .lv-opt.sel .lv-opt-check::after, .lv-opt.right .lv-opt-check::after, .lv-opt.wrong .lv-opt-check::after { transform: scale(1); }
-  .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 6px 18px -2px color-mix(in srgb, var(--lv-accent) 24%, transparent); }
+  .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
   .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
   .lv-opt.right { border-color: var(--lv-green); background: var(--lv-green-soft); box-shadow: 0 0 0 1px var(--lv-green), 0 4px 14px color-mix(in srgb, var(--lv-green) 18%, transparent); }
   .lv-opt.right .key { background: var(--lv-green); border-color: var(--lv-green); color: var(--lv-on-green, #fff); }
   .lv-opt.wrong { border-color: var(--lv-red); background: var(--lv-red-soft); box-shadow: 0 0 0 1px var(--lv-red), 0 4px 14px color-mix(in srgb, var(--lv-red) 18%, transparent); }
   .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, #fff); }
-  .lv-feedback { margin: 16px 0 12px; padding: 16px 20px; border: 1px solid color-mix(in srgb, var(--lv-red) 26%, var(--lv-border)); border-left: 4px solid var(--lv-red); border-radius: var(--lv-r-3); font-weight: var(--lv-font-weight-semibold); font-size: var(--lv-font-size-md); background: color-mix(in srgb, var(--lv-red-soft) 85%, var(--lv-surface)); color: var(--lv-red); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-red) 12%, transparent); animation: lv-appear var(--lv-dur-view) var(--lv-ease-out); }
-  .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: 0 2px 10px color-mix(in srgb, var(--lv-green) 12%, transparent); }
+  .lv-feedback { margin: 16px 0 12px; padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--lv-red) 26%, var(--lv-border)); border-left: 3.5px solid var(--lv-red); border-radius: var(--lv-r-2); font-weight: var(--lv-font-weight-semibold); font-size: var(--lv-font-size-md); background: color-mix(in srgb, var(--lv-red-soft) 85%, var(--lv-surface)); color: var(--lv-red); box-shadow: var(--lv-sh-1); animation: lv-appear var(--lv-dur-view) var(--lv-ease-out); max-width: var(--lv-max-reading-width, 820px); }
+  .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: var(--lv-sh-1); }
+  .lv-chip--amb { color: var(--lv-amber); background: var(--lv-amber-soft); border-color: color-mix(in srgb, var(--lv-amber) 25%, transparent); }
+  .lv-chip--red { color: var(--lv-red); background: var(--lv-red-soft); border-color: color-mix(in srgb, var(--lv-red) 25%, transparent); }
   /* —— 作答动作区（吸收小驴闪卡 Floating Dock 浮岛悬浮底座质感：圆角聚拢 + 毛玻璃 + 微微弹性） —— */
   .lv-answer-actions {
     margin-top: 18px;

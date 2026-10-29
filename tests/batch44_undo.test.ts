@@ -62,6 +62,37 @@ describe("44-09 快速撤销作答（四四批撤销回滚）", () => {
       expect(session.state.cursor).toBe(0);
       expect(session.getDraft(q1.id)).toBe("B");
     });
+
+    it("错题回炉重测答完后撤销：不误删队尾试题，游标保持在队尾且不越界", () => {
+      const q1 = makeQuestion({ type: "single", stem: "题1", options: ["A", "B"], answer: "A" });
+      const q2 = makeQuestion({ type: "single", stem: "题2", options: ["A", "B"], answer: "B" });
+      const session = new PracticeSession([q1, q2], "quick");
+
+      // 1. 第一题答错 -> 追加到队尾，队列变为 [q1, q2, q1]
+      session.submit("B", 1000);
+      session.next();
+
+      // 2. 第二题答对
+      session.submit("B", 1000);
+      session.next();
+
+      // 此时游标在位置 2（队尾的回炉题 q1）
+      expect(session.state.cursor).toBe(2);
+      expect(session.current?.id).toBe(q1.id);
+
+      // 3. 在队尾回炉题作答
+      session.submit("A", 1200);
+      expect(session.answered).toHaveLength(3);
+
+      // 4. 撤销在队尾回炉题上的作答
+      const undone = session.undoLastSubmit();
+      expect(undone).toEqual({ qid: q1.id, restoredAnswer: "A" });
+      // 关键断言：队尾回炉题绝不能被误删，试卷长度仍然为 3！
+      expect(session.state.qids).toEqual([q1.id, q2.id, q1.id]);
+      // 游标恢复在位置 2，current 仍然是 q1 而不是 null/越界！
+      expect(session.state.cursor).toBe(2);
+      expect(session.current?.id).toBe(q1.id);
+    });
   });
 
   describe("AttemptLog.popLatest 流水回滚", () => {

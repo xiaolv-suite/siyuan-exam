@@ -58,13 +58,25 @@ function parseGiftBody(body: string): GiftParsed | null {
     return { type: "short", stem, options: [], answer: shorts.join("|"), analysis: analysisParts.join(" ") };
   }
 
-  // 选择题：= 正确 / ~ 干扰
+  // 选择题：= 正确 / ~ 干扰 / ~%50% 多选部分分
   const opts: { text: string; correct: boolean }[] = [];
   const analysisParts: string[] = [];
   for (const line of rawOpts) {
-    const isCorrect = line.startsWith("=");
-    if (!isCorrect && !line.startsWith("~")) continue;
-    let text = line.slice(1).trim();
+    let isCorrect = line.startsWith("=");
+    let lineRest = line.slice(1).trim();
+    if (!isCorrect) {
+      if (!line.startsWith("~")) continue;
+      // 兼容 Moodle GIFT 多选加权分值语法，如 ~%50% 或 ~%50.00% 表示正确选项
+      const weightMatch = lineRest.match(/^%(-?\d+(?:\.\d+)?)%/);
+      if (weightMatch) {
+        const weightVal = parseFloat(weightMatch[1]);
+        if (weightVal > 0) {
+          isCorrect = true;
+        }
+        lineRest = lineRest.slice(weightMatch[0].length).trim();
+      }
+    }
+    let text = lineRest;
     const hashIdx = text.indexOf("#");
     if (hashIdx > 0) {
       const fb = text.slice(hashIdx + 1).trim();

@@ -283,5 +283,24 @@ describe("CramScheduler 考前急救冲刺与动态间隔压缩引擎 (53-04 / 3
       expect(variants.questions).toEqual([]);
       expect(variants.count).toBe(0);
     });
+
+    it("extractVariantQuestions 支持母题双向反查：传入母题时能精准反查其衍生的全部子变式题", () => {
+      const qMother = createMockQuestion("q-mother", { kp: "数学/微积分" });
+      const qChild1 = createMockQuestion("q-child-1", {
+        kp: "数学/微积分",
+        family: { parentId: "q-mother" },
+      });
+      const qChild2 = createMockQuestion("q-child-2", {
+        kp: "数学/微积分",
+        family: { parentId: "q-mother" },
+      });
+      const qOther = createMockQuestion("q-other", { kp: "语文/阅读" });
+
+      const res = extractVariantQuestions([qMother, qChild1, qChild2, qOther], qMother, 5);
+      expect(res.count).toBe(2);
+      expect(res.questions.map((q) => q.id)).toContain("q-child-1");
+      expect(res.questions.map((q) => q.id)).toContain("q-child-2");
+      expect(res.reason).toContain("同族变式题");
+    });
   });
 });

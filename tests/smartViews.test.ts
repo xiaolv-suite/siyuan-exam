@@ -80,6 +80,15 @@ describe("命名智能视图（43-05 lite，廿六批）", () => {
     expect(applyView(v3, questions).map((q) => q.id)).toEqual(["q1"]);
   });
 
+  it("支持具体试题来源名称（source）精准过滤", () => {
+    const questions = [
+      { id: "q1", stem: "题1", options: [], source: "2023年国考真题" },
+      { id: "q2", stem: "题2", options: [], source: "2024年省考模拟" },
+    ];
+    const v = view({ source: "2023年国考真题" });
+    expect(applyView(v, questions).map((q) => q.id)).toEqual(["q1"]);
+  });
+
   it("65-07 导出与导入：跨工作区 JSON 导入导出与目标题库自动适配", () => {
     const list = [view({ name: "视图A", kpPrefix: "常识", bankId: "old-bank" })];
     const json = exportSmartViewsJson(list);

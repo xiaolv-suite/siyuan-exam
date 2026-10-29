@@ -179,6 +179,14 @@
     onGoPractice,
     onGoBrowse,
   }: Props = $props();
+
+  let docSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  function handleDocSearchInput(val: string) {
+    if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer);
+    docSearchDebounceTimer = setTimeout(() => {
+      onDoSearchDocs(val);
+    }, 250);
+  }
 </script>
 
 <div class="lv-pad">
@@ -243,9 +251,12 @@
           <div class="lv-chip lv-chip--grn" style="font-size:11px;padding:4px 8px;margin-bottom:4px" role="note">
             {t("import.siyuanDocSafety")}
           </div>
-          <div class="lv-row" style="margin:0">
-            <input class="lv-input" style="flex:1" placeholder={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => onDoSearchDocs((e.target as HTMLInputElement).value)} />
-            <button class="lv-btn sm" onclick={() => onDoSearchDocs(docSearchQuery)} disabled={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
+          <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+            <input class="lv-input sm" style="flex:1" placeholder={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
+            {#if docSearchQuery}
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索">✕</button>
+            {/if}
+            <button class="lv-btn sm" onclick={() => { if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer); onDoSearchDocs(docSearchQuery); }} disabled={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
           </div>
           <div class="stack-sm" style="max-height:360px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2);padding:6px;background:var(--lv-surface)">
             {#if siyuanDocCandidates.length === 0}
@@ -263,11 +274,11 @@
                 <div class="lv-row" style="margin:0;gap:6px">
                   {#if selectedDocCount > 0}
                     <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} onclick={onImportSelectedDocs}>
-                      <Icon name="import" size={12} /> 提取已选 ({selectedDocCount})
+                      <Icon name="import" size={12} /> {siyuanDocBusy ? "正在提取…" : `提取已选 (${selectedDocCount})`}
                     </button>
                   {/if}
                   <button class="lv-btn sm lv-btn--ghost" disabled={siyuanDocBusy} onclick={onImportAllSearchedDocs}>
-                    <Icon name="layers" size={12} /> 全部提取 ({siyuanDocCandidates.length})
+                    <Icon name="layers" size={12} /> {siyuanDocBusy ? "正在提取…" : `全部提取 (${siyuanDocCandidates.length})`}
                   </button>
                 </div>
               </div>
@@ -285,7 +296,7 @@
                     </div>
                   </div>
                   <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} onclick={() => onPickAndImportSiyuanDoc(doc.id, doc.title)}>
-                    <Icon name="import" size={12} /> 提取此篇
+                    <Icon name="import" size={12} /> {siyuanDocBusy ? "提取中…" : "提取此篇"}
                   </button>
                 </div>
               {/each}

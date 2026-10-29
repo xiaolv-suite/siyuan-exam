@@ -9,9 +9,9 @@
 > **Personal Notes → Independent Retrieval → Reflective Action → Scheduled Retest → Knowledge Compounding**  
 > Your questions live in your own SiYuan notebooks — every question is a searchable, linkable, syncable **SiYuan block**, not rows in someone else's cloud.
 
-[![Release](https://img.shields.io/github/v/release/ai68298100/siyuan-exam?logo=github)](https://github.com/ai68298100/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.13.0-blue.svg)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1411%20passed-brightgreen)](#-development)
+[![Tests](https://img.shields.io/badge/tests-1768%20passed-brightgreen)](#-development)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
 
@@ -23,17 +23,22 @@
 
 ---
 
-## 🌟 Latest Release: v0.12.3 (2026-10-27)
+## 🌟 Latest Release: v0.13.0 (2026-10-30)
 
-This release delivers the third wave of batch architectural decoupling: modularized Question Peek Drawer, Floating Batch Action Bar, and Bank Maintenance Drawers, shedding another 700+ lines.
-
-- **Batch Architecture Decoupling (Wave 3 · 700+ Lines Shed):**
-  - Extracted `QuestionPeekDrawer.svelte` (full question inspection drawer, multi-dimensional self-test masks, CTT item analysis, attempt receipt drill-down, and FSRS flashcard generation, 450+ lines).
-  - Extracted `BrowseBatchActionBar.svelte` (floating batch actions bar, focus drills, A4 double-column print, and teacher keys, 50+ lines).
-  - Extracted `BrowseMaintenanceDrawers.svelte` (6-in-1 governance drawers: heading trees, KP merging/filling, paper recall, errata import, batch edits, and cluster deduplication, 410+ lines).
-  - Over 2300+ total lines decoupled from the main tab across iterations, condensing `PracticeTab.svelte` into 8320 lines.
-- **Automated Verification:**
-  - 100% green test suite across **181 test files and 1411 unit tests**.
+Major Visual Design Overhaul & Functional Usability Integrity Release:
+- **R54 Design System Full Deployment**:
+  - Two-tier floating surface over neutral canvas (`#f8f8fc`), strict dual-tone division (indigo accent for operations vs sky blue `--lv-data-accent` for stats/streaks/KPIs).
+  - 20px primary card radius with strict nested geometry deduction (`inner = outer - padding`), multi-layered micro+macro soft shadows (`--lv-sh-1/2/pop`), asymmetric damping transitions (`--lv-ease-enter: cubic-bezier(0.16,1,0.3,1)` 140ms / exit 100ms) with `prefers-reduced-motion` instantaneous fallback.
+  - High-DPI 0.5px hairline border rules, 25ms staggered list item entry animation, and strict 3-tier font weight normalization (400, 600, 700).
+- **Usability Integrity Fixes**:
+  - Fixed cross-tab wrongbook mock blueprint drop (P0): custom wrongbook sprint exams now load 100% reliably in MockTab via `pendingMockBlueprint` and bus events.
+  - Fixed mock blueprint preset dropdown reset failure preventing re-applying presets (P1).
+  - Enhanced TSV / Anki card parser tolerance for 2-to-3 column decks (P1).
+  - Added explicit toast confirmations and error recovery for wrong reason shortcuts (keys 1-3) and scratchpad clipboard copying (P2).
+- **Settings Taxonomy Overhaul**:
+  - All 18 settings grouped into 5 clear mental categories: `[Exam & Target]`, `[Practice Preferences]`, `[AI Assistant]`, `[Speech & Audio]`, and `[Ecosystem Integration]` with instant reactivity via Svelte 5 `$derived`.
+- **Automated Verification**:
+  - 100% green test suite across **228 test files and 1768 unit tests**. Zero bare color violations across 37 style files.
 
 ---
 

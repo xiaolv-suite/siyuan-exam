@@ -126,8 +126,9 @@ export class PracticeSession {
     const lastStateAnswer = (this.state.answered ?? []).pop();
     const qid = lastAnswer.qid;
 
-    // 若该题此前因为答错被追加到了队尾，且当前队尾最后一题确实是该 qid，安全撤销重排
-    if (this.requeued.has(qid)) {
+    // 只有当撤销的是首次触发重排的答错提交（此时 answered 中已无更早作答）时，才撤销队尾重排
+    const hasPriorAttempt = this.answered.some((a) => a.qid === qid);
+    if (!hasPriorAttempt && this.requeued.has(qid)) {
       const lastQid = this.state.qids[this.state.qids.length - 1];
       if (lastQid === qid) {
         this.state.qids.pop();
@@ -139,9 +140,9 @@ export class PracticeSession {
       }
     }
 
-    // 恢复游标到该题提交时的位置
+    // 恢复游标到该题提交时的位置并进行防越界守卫
     if (lastStateAnswer) {
-      this.state.cursor = lastStateAnswer.pos;
+      this.state.cursor = Math.min(lastStateAnswer.pos, Math.max(0, this.state.qids.length - 1));
     }
     const restoredAnswer = lastAnswer.grade.myAnswer;
     if (restoredAnswer) {

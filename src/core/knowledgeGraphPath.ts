@@ -478,7 +478,7 @@ export function buildKnowledgeGraph(
     for (const next of succs) {
       const d = (inDegree.get(next) ?? 1) - 1;
       inDegree.set(next, d);
-      if (d === 0) {
+      if (d === 0 && !topologicalOrder.includes(next) && !zeroQueue.includes(next)) {
         zeroQueue.push(next);
       }
     }
@@ -488,7 +488,7 @@ export function buildKnowledgeGraph(
       let minDeg = Infinity;
       let candidate: string | null = null;
       for (const [kp, deg] of inDegree) {
-        if (!topologicalOrder.includes(kp) && deg < minDeg) {
+        if (!topologicalOrder.includes(kp) && !zeroQueue.includes(kp) && deg < minDeg) {
           minDeg = deg;
           candidate = kp;
         }

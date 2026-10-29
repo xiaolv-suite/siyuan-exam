@@ -63,4 +63,13 @@ describe("小驴考试 · A11y & High-Contrast Design Contracts (Epoch 5)", () =
     expect(indexContent).toContain("@container lv-exam (max-width: 759px)");
     expect(indexContent).toContain("@container lv-exam (min-width: 760px) and (max-width: 1119px)");
   });
+
+  it("enforces WCAG AA compliant dark text contrast and smooth damping curves in tokens", () => {
+    const tokensPath = path.resolve(__dirname, "../src/scss/lv-tokens.scss");
+    const tokensContent = fs.readFileSync(tokensPath, "utf8");
+    // 深色模式下辅助文本必须达到 #94a3b8 以满足 4.5:1
+    expect(tokensContent).toMatch(/--lv-text-3:\s*#94a3b8;/);
+    expect(tokensContent).toMatch(/--lv-ease-out:\s*cubic-bezier\(0\.16,\s*1,\s*0\.3,\s*1\);/);
+    expect(baseContent).toContain("@media (prefers-reduced-motion: reduce)");
+  });
 });

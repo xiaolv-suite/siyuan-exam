@@ -26,6 +26,8 @@ export interface SmartView {
   kpPrefix?: string;
   /** 试题出处性质（real 真题 / mock 模拟） */
   sourceKind?: "real" | "mock";
+  /** 具体试题出处名称 */
+  source?: string;
   /** 仅错题过滤 */
   onlyWrong?: boolean;
   /** 仅争议题过滤 */
@@ -45,6 +47,7 @@ export interface ViewFilterInput {
   type?: QuestionType;
   kp?: string;
   sourceKind?: "real" | "mock";
+  source?: string;
   status?: QuestionLifecycleStatus;
   dispute?: { status?: string };
 }
@@ -80,9 +83,12 @@ export function applyView(
     list = list.filter((q) => q?.kp === prefix || (q?.kp?.startsWith(prefix + "/") ?? false));
   }
 
-  // 5. 试题来源过滤
+  // 5. 试题来源性质与具体名称过滤
   if (view.sourceKind) {
     list = list.filter((q) => (q?.sourceKind ?? "mock") === view.sourceKind);
+  }
+  if (view.source) {
+    list = list.filter((q) => (q?.source ?? "").trim() === view.source);
   }
 
   // 6. 仅错题过滤

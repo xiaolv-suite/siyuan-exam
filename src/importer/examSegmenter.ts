@@ -137,16 +137,33 @@ export function segmentExamPaper(
         const target = draftByNum.get(num);
         if (target) {
           currentAnswerStitchTarget = target;
-          // 提取答案行
-          const ansMatch = rest.match(INLINE_ANSWER_RE) || rest.match(/^([A-Za-z0-9\u4e00-\u9fa5对错√×]+)(?:\s|$|[、.])/);
-          if (ansMatch) {
-            target.answer = ansMatch[1].trim();
-          }
           const anaMatch = rest.match(INLINE_ANALYSIS_RE);
+          const restWithoutAnalysis = anaMatch ? rest.slice(0, anaMatch.index).trim() : rest;
+
+          // 提取答案行
+          const inlineAns = restWithoutAnalysis.match(INLINE_ANSWER_RE);
+          if (inlineAns) {
+            target.answer = inlineAns[1].trim();
+          } else if (target.type === "short" || target.type === "fill") {
+            // 主观简答题或填空题：解析前的整段作为答案表达式
+            target.answer = restWithoutAnalysis;
+          } else {
+            // 选择题与判断题：优先支持逗号/顿号分隔的多选题答案（如 "A、B、D" 或 "A, B, C"），再匹配首个选项字符
+            const multiAnsMatch = restWithoutAnalysis.match(/^([A-Ha-h](?:\s*[,，、]\s*[A-Ha-h])+)/);
+            if (multiAnsMatch) {
+              target.answer = multiAnsMatch[1].replace(/[,，、\s]+/g, ", ").trim();
+            } else {
+              const optAns = restWithoutAnalysis.match(/^([A-Za-z0-9\u4e00-\u9fa5对错√×]+)(?:\s|$|[、.])/);
+              if (optAns) {
+                target.answer = optAns[1].trim();
+              } else if (restWithoutAnalysis) {
+                target.answer = restWithoutAnalysis;
+              }
+            }
+          }
+
           if (anaMatch) {
             target.analysisLines.push(anaMatch[1].trim());
-          } else if (!ansMatch && rest) {
-            target.analysisLines.push(rest);
           }
         } else {
           currentAnswerStitchTarget = null;
@@ -178,6 +195,18 @@ export function segmentExamPaper(
       // 第一大题之前的杂项/注意事项过滤（序号小于等于 0 或大题标题仍为前导说明）
       if (drafts.length === 0 && (line.includes("注意事项") || line.includes("准考证号") || line.includes("密封线内"))) {
         warnings.push(`已自动跳过考场注意事项: "${line.slice(0, 30)}..."`);
+        continue;
+      }
+
+      // 边界防护：解答题/综合题中的子小问识别（例如已处理到第 15 题，遇到 (1)、(2) 或题号倒退/重复）
+      const isSubQuestion = currentDraft && (
+        (num < currentDraft.num && (currentDraft.type === "short" || currentDraft.type === "material" || /^[（(【]/.test(line))) ||
+        (draftByNum.has(num) && /^[（(【]/.test(line))
+      );
+
+      if (isSubQuestion) {
+        // 作为当前试题的题干行追加，不创建新题目，防止冲垮之前的同名真题
+        currentDraft.stemLines.push(line);
         continue;
       }
 

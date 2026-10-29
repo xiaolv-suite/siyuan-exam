@@ -57,6 +57,7 @@ export class AttemptLog {
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   /** 写入协调（37-03）：串行 flush + 代次检查——写入期间追加的事件不会被误标已保存 */
   private flushing = false;
+  private activeFlushPromise: Promise<void> | null = null;
   private generation = 0;
   /** 最近一次后台落盘失败摘要（重试语义：dirty 保持，直到成功） */
   lastFlushError = "";
@@ -69,6 +70,8 @@ export class AttemptLog {
     private readonly now: () => number = () => Date.now(),
     private readonly flushLimit = 10,
     private readonly flushDelayMs = 30_000,
+    private readonly onFlushError?: (err: Error) => void,
+    private readonly onFlushSuccess?: () => void,
   ) {}
 
   /** 启动加载：v1 裸数组 / v2 信封均接受（migrateAttemptLog 迁移）；坏结构行丢弃并计数 */
@@ -223,25 +226,39 @@ export class AttemptLog {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
-    if (this.flushing) return;
+    if (this.flushing && this.activeFlushPromise) {
+      await this.activeFlushPromise;
+      if (this.dirty) {
+        await this.flush();
+      }
+      return;
+    }
     if (!this.dirty) return;
     this.flushing = true;
-    const genAtStart = this.generation;
-    const snapshot = { v: DATA_SCHEMA_VERSION, events: this.events.slice() };
-    try {
-      await this.storage.save(this.key, snapshot);
-      this.lastFlushError = "";
-    } catch (e) {
-      this.lastFlushError = e instanceof Error ? e.message : String(e);
-      throw e;
-    } finally {
-      this.flushing = false;
-    }
-    if (this.generation === genAtStart) {
-      this.dirty = false;
-    } else if (this.dirty) {
-      await this.flush(); // 写入期间有新增 → 补写（快照里已含新事件引用之外的部分）
-    }
+    const flushOp = (async () => {
+      const genAtStart = this.generation;
+      const snapshot = { v: DATA_SCHEMA_VERSION, events: this.events.slice() };
+      try {
+        await this.storage.save(this.key, snapshot);
+        this.lastFlushError = "";
+        this.onFlushSuccess?.();
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        this.lastFlushError = err.message;
+        this.onFlushError?.(err);
+        throw err;
+      } finally {
+        this.flushing = false;
+        this.activeFlushPromise = null;
+      }
+      if (this.generation === genAtStart) {
+        this.dirty = false;
+      } else if (this.dirty) {
+        await this.flush(); // 写入期间有新增 → 补写（快照里已含新事件引用之外的部分）
+      }
+    })();
+    this.activeFlushPromise = flushOp;
+    await flushOp;
   }
 
   all(): readonly AttemptEvent[] {

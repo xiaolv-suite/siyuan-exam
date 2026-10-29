@@ -28,7 +28,9 @@ export interface ExamPluginLike extends PracticeViewPlugin, AiKeyHost {
   settingUtils?: {
     get?<T = unknown>(key: string): T;
     set?<T = unknown>(key: string, val: T): void | Promise<void>;
+    save?(): Promise<void> | void;
   };
+  openSetting?: () => void;
   getSecret?: (name: string) => unknown;
   lastPublicStats?: Record<string, unknown> | null;
   pendingPractice?: Question[];
@@ -39,12 +41,13 @@ export interface ExamPluginLike extends PracticeViewPlugin, AiKeyHost {
   pendingBrowseBank?: string;
   pendingInitialView?: string;
   pendingQuestionId?: string;
+  pendingMockBlueprint?: import("./mock").Blueprint;
   examApp?: ExamApp | null;
   openPracticeTab?(data?: { bankId?: string; qid?: string }): Promise<void> | void;
   openMockTab?(): Promise<void> | void;
   openReportTab?(): Promise<void> | void;
   openPractice?(): boolean | void;
-  openMock?(): boolean | void;
+  openMock?(blueprint?: import("./mock").Blueprint): boolean | void;
   openReport?(): boolean | void;
   openWrongbook?(): Promise<void> | void;
   showMessage?(message: string, timeout?: number, type?: "info" | "error"): void;

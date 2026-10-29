@@ -2,7 +2,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   toggleSpeechRecognitionSession,
-  type SpeechEvalResult,
 } from "@/ui/practice/services/speechRecognitionService";
 
 describe("语音朗读听辨与口语测评服务 (speechRecognitionService)", () => {
@@ -63,6 +62,7 @@ describe("语音朗读听辨与口语测评服务 (speechRecognitionService)", (
       onend: any = null;
       start = mockStart;
       constructor() {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
         createdRec = this;
       }
     }

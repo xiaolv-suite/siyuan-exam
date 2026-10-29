@@ -46,8 +46,8 @@
         <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclear} title={t("scratchpad.clear")}>
           ✕ {t("scratchpad.clear")}
         </button>
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclose}>
-          ▼
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclose} title="收起草稿纸">
+          ✕ {t("common.close", "收起")}
         </button>
       </div>
     </div>

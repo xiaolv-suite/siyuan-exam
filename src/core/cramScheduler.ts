@@ -352,11 +352,15 @@ export function extractVariantQuestions(
     return { questions: [], count: 0, reason: "暂无变式题推荐" };
   }
   const pool = allQuestions.filter((q) => q?.id && q.id !== seed.id && q.status !== "deprecated");
-  // 1. 同族变式题
-  const familyKey = seed.family?.parentId || (seed.group ? `grp:${seed.group}` : "");
-  const familyVariants = familyKey
-    ? pool.filter((q) => (q.family?.parentId && q.family.parentId === familyKey) || (q.group && `grp:${q.group}` === familyKey))
-    : [];
+  // 1. 同族变式题（双向互联：若 seed 为母题则提取所有以其为 parentId 的子变式；若 seed 为变式题则提取母题及同族兄弟题）
+  const parentId = seed.family?.parentId;
+  const groupKey = seed.group ? `grp:${seed.group}` : "";
+  const familyVariants = pool.filter((q) => {
+    if (q.family?.parentId === seed.id) return true;
+    if (parentId && (q.id === parentId || q.family?.parentId === parentId)) return true;
+    if (groupKey && q.group && `grp:${q.group}` === groupKey) return true;
+    return false;
+  });
 
   // 2. 同精确考点题
   const exactKpVariants = seed.kp

@@ -96,6 +96,10 @@
     ondrillOrphanKind: (kind: any) => void;
     ondownloadHealthCsv: () => void;
     onundoBatch: (batch: string) => void;
+    oncloseSection?: () => void;
+    oncloseKp?: () => void;
+    onclosePaper?: () => void;
+    oncloseErrata?: () => void;
   }
 
   let {
@@ -184,6 +188,10 @@
     ondrillOrphanKind,
     ondownloadHealthCsv,
     onundoBatch,
+    oncloseSection,
+    oncloseKp,
+    onclosePaper,
+    oncloseErrata,
   }: Props = $props();
 
   let errataFileInput: HTMLInputElement | null = $state(null);
@@ -191,7 +199,12 @@
 
 {#if sectionOpen}
   <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);max-height:260px;overflow:auto">
-    <b style="font-size:var(--lv-font-size-body-compact)">{t("browse.sectionTree")}</b>
+    <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+      <b style="font-size:var(--lv-font-size-body-compact)">{t("browse.sectionTree")}</b>
+      {#if oncloseSection}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncloseSection} title="收起">✕</button>
+      {/if}
+    </div>
     {#if sectionBusy}<span class="lv-muted" style="margin-left:8px">…</span>{/if}
     {#if !sectionTree.length && !sectionBusy}
       <div class="lv-muted" style="margin-top:6px">{t("browse.sectionEmpty")}</div>
@@ -217,7 +230,12 @@
 
 {#if kpOpen}
   <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);max-height:320px;overflow:auto">
-    <b style="font-size:var(--lv-font-size-body-compact)">{t("kp.title")}</b>
+    <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+      <b style="font-size:var(--lv-font-size-body-compact)">{t("kp.title")}</b>
+      {#if oncloseKp}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncloseKp} title="收起">✕</button>
+      {/if}
+    </div>
     {#if !kpData}
       <div class="lv-muted" style="margin-top:6px">{t("browse.empty")}</div>
     {:else}
@@ -317,7 +335,7 @@
           <input class="lv-input" style="max-width:90px" placeholder={t("syl.year")} bind:value={sylYear} />
           <input class="lv-input" style="max-width:150px" placeholder={t("syl.source")} bind:value={sylSource} />
         </div>
-        <textarea class="lv-input lv-textarea" rows="4" bind:value={sylText} placeholder={t("syl.placeholder")}></textarea>
+        <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={sylText} placeholder={t("syl.placeholder")}></textarea>
         <div class="lv-row">
           <button class="lv-btn sm" onclick={onpreviewSyllabus} disabled={!sylText.trim()}><Icon name="search" size={13} /> {t("syl.preview")}</button>
           {#if sylPreviewRoots?.length}
@@ -334,11 +352,16 @@
 
 {#if paperOpen}
   <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4)">
-    <div class="lv-row" style="margin:0">
-      <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="paperclip" size={13} /> {t("paper.title")}</b>
-      <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("paper.hint")}</span>
+    <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+      <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+        <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="paperclip" size={13} /> {t("paper.title")}</b>
+        <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("paper.hint")}</span>
+      </div>
+      {#if onclosePaper}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclosePaper} title="收起">✕</button>
+      {/if}
     </div>
-    <textarea class="lv-input lv-textarea" rows="4" bind:value={paperText} placeholder={t("paper.placeholder")}></textarea>
+    <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={paperText} placeholder={t("paper.placeholder")}></textarea>
     {#if paperPreview}
       <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
         <span class="lv-chip lv-chip--grn num">✓ {paperPreview.items.filter((i: any) => i.verdict === "correct").length}</span>
@@ -363,9 +386,14 @@
 
 {#if errataOpen}
   <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);max-height:320px;overflow:auto">
-    <div class="lv-row" style="margin:0">
-      <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="file-text" size={13} /> {t("errata.title")}</b>
-      <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("errata.hint")}</span>
+    <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+      <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+        <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="file-text" size={13} /> {t("errata.title")}</b>
+        <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("errata.hint")}</span>
+      </div>
+      {#if oncloseErrata}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncloseErrata} title="收起">✕</button>
+      {/if}
     </div>
     <div class="lv-row" style="margin:6px 0 0">
       <button class="lv-btn sm lv-btn--ghost" onclick={onexportErrataTemplate}><Icon name="export" size={13} /> {t("errata.template")}</button>

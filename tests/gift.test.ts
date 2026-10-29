@@ -63,6 +63,21 @@ describe("GIFT 解析器（TODO 5 组）", () => {
     expect(r.ok[0].answer).toBe("2");
   });
 
+  it("支持 Moodle GIFT 标准多选加权分值语法（~%50.00% 正权重为正确选项，~%-100% 负权重为干扰项）", () => {
+    const giftWeighted = `下列属于输入设备的有？{
+  ~%50.00%键盘
+  ~%50.00%鼠标
+  ~%-100%显示器
+  ~%-100%音响
+}`;
+    const r = parseGift(giftWeighted);
+    expect(r.ok).toHaveLength(1);
+    const q = r.ok[0];
+    expect(q.type).toBe("multiple");
+    expect(q.options).toEqual(["键盘", "鼠标", "显示器", "音响"]);
+    expect(q.answer).toBe("AB");
+  });
+
   it("格式错误 → 错误清单（含行号）", () => {
     const r = parseGift("没有大括号的行");
     expect(r.ok).toHaveLength(0);
