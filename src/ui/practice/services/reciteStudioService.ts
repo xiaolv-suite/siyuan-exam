@@ -84,6 +84,7 @@ export async function pushForgotReciteToActions(
   forgotQuestions: Question[],
   sessionId: string,
   t: (k: string) => string,
+  showMessage?: MessageReporter,
 ): Promise<{ added: number; skipped: number }> {
   if (!forgotQuestions.length) return { added: 0, skipped: 0 };
   const items = forgotQuestions.map((q) => ({
@@ -92,7 +93,18 @@ export async function pushForgotReciteToActions(
     sessionId,
     detail: `${t("action.kind.redo")}：${(q.kp ?? q.stem ?? q.id).slice(0, 40)}`,
   }));
-  return app.addActions(items);
+  try {
+    const r = await app.addActions(items);
+    if (showMessage) {
+      showMessage(`已成功添加 ${r.added} 条背诵重练待办（跳过重复 ${r.skipped} 条）`, 3200, "info");
+    }
+    return r;
+  } catch (e) {
+    if (showMessage) {
+      showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+    }
+    return { added: 0, skipped: 0 };
+  }
 }
 
 export interface ReciteSessionState {

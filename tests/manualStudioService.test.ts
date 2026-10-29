@@ -16,6 +16,7 @@ import {
   createBlankManualFormState,
   createManualDraftSnapshot,
   assembleManualFormData,
+  executeSwitchManualTypeWithConfirm,
 } from "@/ui/practice/services/manualStudioService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -254,5 +255,38 @@ B. y = x^2
     expect(res.status).toBe("published");
     expect(res.group).toBe("常识组");
     expect(res.numericSpec?.absTol).toBe("0.01");
+  });
+
+  it("12. executeSwitchManualTypeWithConfirm：弹窗确认与干净状态流转", async () => {
+    const t = (k: string) => `[${k}]`;
+    const confirmFn = vi.fn().mockResolvedValue(true);
+
+    // 1. 同类型不切换
+    const sameRes = await executeSwitchManualTypeWithConfirm({
+      currentType: "single",
+      nextType: "single",
+      stem: "题干",
+      options: ["A"],
+      answer: "A",
+      analysis: "",
+      confirmDialogSync: confirmFn,
+      t,
+    });
+    expect(sameRes.confirmed).toBe(false);
+
+    // 2. 跨类型切换且确认
+    const okRes = await executeSwitchManualTypeWithConfirm({
+      currentType: "single",
+      nextType: "fill",
+      stem: "有内容的题干",
+      options: ["A", "B"],
+      answer: "A",
+      analysis: "解析",
+      confirmDialogSync: confirmFn,
+      t,
+    });
+    expect(okRes.confirmed).toBe(true);
+    expect(okRes.cleanState?.options).toEqual([]);
+    expect(confirmFn).toHaveBeenCalled();
   });
 });

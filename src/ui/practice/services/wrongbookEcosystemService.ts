@@ -92,14 +92,19 @@ export async function assembleAndLaunchWrongMock(
   showMessage: MessageReporter,
   t: (k: string) => string,
 ): Promise<number> {
-  const result = await app.assembleWrongbookExam(bankId);
-  if (!result.totalCount) {
-    showMessage(t("wrongbook.noFiltered"), 2500, "info");
+  try {
+    const result = await app.assembleWrongbookExam(bankId);
+    if (!result.totalCount) {
+      showMessage(t("wrongbook.noFiltered"), 2500, "info");
+      return 0;
+    }
+    openMock?.();
+    showMessage(`已为 ${result.totalCount} 道错题生成专属限时特训卷！正在进入模考考场…`, 3500, "info");
+    return result.totalCount;
+  } catch (e) {
+    showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
     return 0;
   }
-  openMock?.();
-  showMessage(`已为 ${result.totalCount} 道错题生成专属限时特训卷！正在进入模考考场…`, 3500, "info");
-  return result.totalCount;
 }
 
 /**

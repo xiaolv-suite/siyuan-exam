@@ -39,7 +39,6 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       answerDistribution,
       unreviewedStats,
       detectOrphans,
-      exportHealthReportCsv,
       type BankHealthReport,
       type OrphanDiagnosis,
       type OrphanKind,
@@ -94,6 +93,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import {
       printWrongSheet as servicePrintWrongSheet,
       executeBankExportAction,
+      exportHealthCsvFile,
+      exportBankQuestionsCsvFile,
     } from "./services/bankExportService";
     import {
       runCheckinSync,
@@ -138,6 +139,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       buildQuestionTtsText,
       canScheduleReciteSubmit,
     } from "./services/reciteModeWorkflowService";
+    import {
+      toggleSpeechRecognitionSession,
+      type SpeechEvalResult,
+    } from "./services/speechRecognitionService";
     import {
       exportItemAnalysisReportCsv,
       initDisputeFormValues,
@@ -218,8 +223,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       updateCorrectOptionIndex,
       processAndSaveManualQuestion,
       normalizeDraftFormulas,
-      shouldConfirmTypeSwitch,
-      getCleanStateOnTypeSwitch,
+      executeSwitchManualTypeWithConfirm,
       saveManualDraftAux,
       clearManualDraftAux,
       createBlankManualFormState,
@@ -294,6 +298,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       executeSessionResume,
       executeSessionFinish,
       recordExposureFact,
+      executeNegotiateSessionStart,
     } from "./services/sessionLifecycleService";
     import {
       getMaterialIconName as matIconName,
@@ -373,6 +378,10 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import {
       getQuestionScratchpadContent,
       copyScratchpadText,
+      applyScratchpadInput,
+      applyClearScratchpad,
+      type ScratchpadStore,
+      type ScratchpadMode,
     } from "./services/scratchpadWorkflowService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
@@ -401,7 +410,6 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
-    import { updateScratchpadText, clearCurrentScratchpad, type ScratchpadStore, type ScratchpadMode } from "@/core/scratchpad";
     import type { ParsedClozeItem } from "@/core/cloze";
     import { buildMaterialGroupContext, formatMaterialGroupHeader, type SiblingItem } from "@/core/materialContext";
     import { resolveFeedbackTimingMode, isGroupBatchBoundary, calculateGroupBatchSummary, type GroupBatchSummary, DEFAULT_GROUP_FEEDBACK_SIZE } from "@/core/feedbackTiming";
@@ -596,54 +604,29 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     let reciteAutoTts = $state(readLocal("lv-exam/recite-auto-tts") === "1");
     let ttsSlowRate = $state(readLocal("lv-exam/tts-slow") === "1");
     let speechRecording = $state(false);
-    let speechEvalResult = $state<import("@/core/speechEval").SpeechEvalResult | null>(null);
+    let speechEvalResult = $state<SpeechEvalResult | null>(null);
     let speechRecognitionInstance: any = null;
 
     function startSpeechRecognition(targetText: string, lang = "zh-CN") {
-      if (typeof window === "undefined") return;
-      const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!Recognition) {
-        showMessage("当前运行环境暂未开放语音识别接口，可使用伴学朗读听辨原声磨耳朵", 3500, "info");
-        return;
-      }
-      if (speechRecording && speechRecognitionInstance) {
-        try { speechRecognitionInstance.stop(); } catch { /* 静默 */ }
-        speechRecording = false;
-        return;
-      }
-      try {
-        speechEvalResult = null;
-        const rec = new Recognition();
-        speechRecognitionInstance = rec;
-        rec.lang = lang;
-        rec.continuous = false;
-        rec.interimResults = false;
-        rec.maxAlternatives = 1;
-
-        speechRecording = true;
-        rec.onresult = async (event: any) => {
-          const transcript = event.results?.[0]?.[0]?.transcript ?? "";
+      speechEvalResult = null;
+      toggleSpeechRecognitionSession({
+        targetText,
+        lang,
+        isRecording: speechRecording,
+        currentInstance: speechRecognitionInstance,
+        onStart: (rec) => {
+          speechRecognitionInstance = rec;
+          speechRecording = true;
+        },
+        onEnd: () => {
           speechRecording = false;
-          if (transcript) {
-            const { evaluateSpeechSimilarity } = await import("@/core/speechEval");
-            const res = evaluateSpeechSimilarity(transcript, targetText);
-            speechEvalResult = res;
-            if (res.score >= 80 && soundEnabled) {
-              playSuccessChime();
-            }
-          }
-        };
-        rec.onerror = () => {
-          speechRecording = false;
-        };
-        rec.onend = () => {
-          speechRecording = false;
-        };
-        rec.start();
-      } catch {
-        speechRecording = false;
-        showMessage("无法启动麦克风录音识别，请检查设备麦克风权限", 3500, "error");
-      }
+        },
+        onResult: (res) => {
+          speechEvalResult = res;
+          if (res.score >= 80 && soundEnabled) playSuccessChime();
+        },
+        showMessage,
+      });
     }
     /** 39-03：本次背诵评级的结果状态（未转卡/已写回/待确认/失败/离线未写回） */
     let reciteOutcome = $state<RatingOutcomeView | null>(null);
@@ -908,14 +891,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
     function downloadHealthCsv() {
       if (!health) return;
-      const csv = exportHealthReportCsv(health, orphanDiag ?? undefined);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `题库体检清单-${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      exportHealthCsvFile(health, orphanDiag ?? undefined);
     }
 
     // ---------- 43-07 重复簇合并助手 ----------
@@ -1040,15 +1016,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     /** 题库 CSV 导出（TODO 8 组 lite）：官方模板表头，Excel 可直接编辑后重导入 */
-    async function exportBankCsv() {
+    function exportBankCsv() {
       if (!questions.length) { showMessage(t("state.emptyBank"), 2800, "info"); return; }
-      const { questionsToCsv } = await import("@/core/bankCsv");
-      const blob = new Blob([questionsToCsv(questions)], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `题库导出 ${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      exportBankQuestionsCsvFile(questions, bankName);
     }
 
     // 批量编辑（43-06 lite）：多选 → dry-run 计划预览 → 应用 → 可撤销（逆向计划）
@@ -2258,31 +2228,29 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     /** 会话启动失败可见化（47-06 lite）：单活动冲突/离线等不再静默吞掉。
      *  40-05 活动会话协商：冲突时提供「放弃当前并新开」（旧会话有 checkpoint，可恢复） */
     async function negotiateStart(qs: Question[], mode: string, bankId = activeBankId): Promise<boolean> {
-      try {
-        sessionSeed = sessionSeed || randomSeedId(); // 65-05：调用方可预置（快速刷题抽题与卷序同种子）
-        session = await app.startSession(qs, mode, bankId, { interleave: materialInterleave, seed: sessionSeed });
+      sessionSeed = sessionSeed || randomSeedId(); // 65-05：调用方可预置（快速刷题抽题与卷序同种子）
+      const { confirmDialogSync } = await import("../../libs/dialog");
+      const res = await executeNegotiateSessionStart({
+        app,
+        questions: qs,
+        mode,
+        bankId,
+        interleave: materialInterleave,
+        seed: sessionSeed,
+        confirmDialogSync,
+        t,
+      });
+      if (res.session) {
+        session = res.session;
         trails.clear();
-        answerStart = Date.now(); // 首题计时基线
+        answerStart = Date.now();
         return true;
-      } catch (e) {
-        const msg = String(e instanceof Error ? e.message : e);
-        if (!msg.includes("已有进行中的会话")) {
-          errorMsg = offline ? t("state.offlineHint") : msg;
-          showMessage(errorMsg, 4200, "error");
-          return false;
-        }
-        const { confirmDialogSync } = await import("../../libs/dialog");
-        if (!(await confirmDialogSync({ title: t("session.conflictTitle"), content: t("session.conflictBody") }))) return false;
-        await app.discardSession();
-        try {
-          session = await app.startSession(qs, mode, bankId, { interleave: materialInterleave });
-          return true;
-        } catch (e2) {
-          errorMsg = offline ? t("state.offlineHint") : String(e2 instanceof Error ? e2.message : e2);
-          showMessage(errorMsg, 4200, "error");
-          return false;
-        }
       }
+      if (res.error) {
+        errorMsg = offline ? t("state.offlineHint") : res.error;
+        showMessage(errorMsg, 4200, "error");
+      }
+      return false;
     }
 
     async function safeStart(qs: Question[], mode: string, follow: () => void): Promise<boolean> {
@@ -2686,13 +2654,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     async function reciteForgotToActions() {
       if (!app) return;
       const forgot = extractForgotReciteQuestions(reciteQueue, reciteRatings);
-      if (!forgot.length) return;
-      try {
-        const r = await pushForgotReciteToActions(app, forgot, reciteSessionId, t);
-        showMessage(`已成功添加 ${r.added} 条背诵重练待办（跳过重复 ${r.skipped} 条）`, 3200, "info");
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+      await pushForgotReciteToActions(app, forgot, reciteSessionId, t, showMessage);
     }
 
     function copyTodayReportMarkdown() {
@@ -3495,11 +3457,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
 
     async function launchWrongbookMockExam() {
       if (!filteredWrongQueue.length || !app) return;
-      try {
-        await assembleAndLaunchWrongMock(app, activeBankId, plugin.openMock, showMessage, t);
-      } catch (e) {
-        showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
-      }
+      await assembleAndLaunchWrongMock(app, activeBankId, plugin.openMock, showMessage, t);
     }
 
     async function exportCheatSheet() {
@@ -3564,13 +3522,20 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
 
     async function switchManualType(nextType: typeof mType) {
-      if (nextType === mType) return;
-      if (shouldConfirmTypeSwitch(mStem, mOptions, mAnswer, mAnalysis)) {
-        const { confirmDialogSync } = await import("../../libs/dialog");
-        if (!(await confirmDialogSync({ title: t("manual.switchTypeTitle"), content: t("manual.switchTypeConfirm") }))) return;
-      }
+      const { confirmDialogSync } = await import("../../libs/dialog");
+      const res = await executeSwitchManualTypeWithConfirm({
+        currentType: mType,
+        nextType,
+        stem: mStem,
+        options: mOptions,
+        answer: mAnswer,
+        analysis: mAnalysis,
+        confirmDialogSync,
+        t,
+      });
+      if (!res.confirmed || !res.cleanState) return;
       mType = nextType;
-      const clean = getCleanStateOnTypeSwitch(nextType);
+      const clean = res.cleanState;
       mAnswer = clean.answer;
       mOptions = clean.options;
       mSpecOpen = clean.specOpen;
@@ -4841,17 +4806,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     });
 
     function onScratchpadInput(text: string) {
-      const q = session?.current;
-      if (!q) return;
-      const res = updateScratchpadText(scratchpadStore, q.id, text, scratchpadMode, scratchpadShared);
-      scratchpadStore = res.store; scratchpadShared = res.sharedText;
+      const res = applyScratchpadInput(scratchpadStore, session?.current?.id, text, scratchpadMode, scratchpadShared);
+      if (res) { scratchpadStore = res.store; scratchpadShared = res.sharedText; }
     }
 
     function clearScratchpad() {
-      const q = session?.current;
-      if (!q) return;
-      const res = clearCurrentScratchpad(scratchpadStore, q.id, scratchpadMode, scratchpadShared);
-      scratchpadStore = res.store; scratchpadShared = res.sharedText;
+      const res = applyClearScratchpad(scratchpadStore, session?.current?.id, scratchpadMode, scratchpadShared);
+      if (res) { scratchpadStore = res.store; scratchpadShared = res.sharedText; }
     }
 
     const copyScratchpad = () => copyScratchpadText(currentScratchpadText, showMessage, t);
@@ -4913,19 +4874,15 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (ids.length) await runDocExtract(() => extractFromBatchSiyuanDocs(app, ids), "批量提取失败");
     }
 
-    function toggleSelectAllDocs() {
-      selectedDocIds = toggleSelectAllDocCandidates(siyuanDocCandidates, selectedDocIds);
-    }
+    const toggleSelectAllDocs = () => { selectedDocIds = toggleSelectAllDocCandidates(siyuanDocCandidates, selectedDocIds); };
 
-    async function pickAndImportSiyuanDoc(docId: string, title: string) {
-      await runDocExtract(() => extractFromSingleSiyuanDoc(app, docId, title), "提取失败");
-    }
+    const pickAndImportSiyuanDoc = (docId: string, title: string) =>
+      runDocExtract(() => extractFromSingleSiyuanDoc(app, docId, title), "提取失败");
 
-    async function importAllSearchedDocs() {
+    const importAllSearchedDocs = () => {
       if (!siyuanDocCandidates.length) return;
-      const docIds = siyuanDocCandidates.map((d) => d.id);
-      await runDocExtract(() => extractFromBatchSiyuanDocs(app, docIds), "批量提取失败", 3500);
-    }
+      return runDocExtract(() => extractFromBatchSiyuanDocs(app, siyuanDocCandidates.map((d) => d.id)), "批量提取失败", 3500);
+    };
 
     function toggleClozeMode(mode: "highlight" | "curly" | "bracket") {
       clozeModes = toggleClozeSupportMode(clozeModes, mode);
@@ -4936,9 +4893,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (!clozeInputText.trim()) return;
       const res = parseClozeItems(clozeInputText, clozeModes, t);
       clozeParsedItems = res.items;
-      if (res.emptyNotice) {
-        showMessage(res.emptyNotice, 3000, "info");
-      }
+      if (res.emptyNotice) showMessage(res.emptyNotice, 3000, "info");
     }
 
     async function importClozeQuestions() {

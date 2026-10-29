@@ -428,4 +428,29 @@ export function assembleManualFormData(
   };
 }
 
+/**
+ * 切换录题题型（含丢弃内容确认与表单清空）
+ */
+export async function executeSwitchManualTypeWithConfirm(options: {
+  currentType: QuestionType;
+  nextType: QuestionType;
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  confirmDialogSync: (opts: { title: string; content: string }) => Promise<boolean>;
+  t: (k: string) => string;
+}): Promise<{ confirmed: boolean; cleanState?: ReturnType<typeof getCleanStateOnTypeSwitch> }> {
+  const { currentType, nextType, stem, options: opts, answer, analysis, confirmDialogSync, t } = options;
+  if (nextType === currentType) return { confirmed: false };
+  if (shouldConfirmTypeSwitch(stem, opts, answer, analysis)) {
+    const ok = await confirmDialogSync({
+      title: t("manual.switchTypeTitle"),
+      content: t("manual.switchTypeConfirm"),
+    });
+    if (!ok) return { confirmed: false };
+  }
+  return { confirmed: true, cleanState: getCleanStateOnTypeSwitch(nextType) };
+}
+
 

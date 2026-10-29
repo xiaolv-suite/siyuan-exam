@@ -1,5 +1,7 @@
 import type { Question } from "@/core/types";
 import type { ExamApp } from "@/app";
+import { exportHealthReportCsv, type BankHealthReport, type OrphanDiagnosis } from "@/core/bankHealth";
+import { questionsToCsv } from "@/core/bankCsv";
 import type { MessageReporter } from "./printPaperService";
 
 /**
@@ -226,5 +228,35 @@ export async function executeBankExportAction(
       await exportSyllabusAudit(app, activeBankId, showMessage);
       break;
   }
+}
+
+/**
+ * 导出题库健康体检清单 CSV 文件
+ */
+export function exportHealthCsvFile(
+  health: BankHealthReport,
+  orphanDiag?: OrphanDiagnosis,
+): void {
+  const csv = exportHealthReportCsv(health, orphanDiag);
+  downloadBlobFile(
+    csv,
+    `题库体检清单-${new Date().toISOString().slice(0, 10)}.csv`,
+    "text/csv;charset=utf-8",
+  );
+}
+
+/**
+ * 导出题库全量题目 CSV 文件
+ */
+export function exportBankQuestionsCsvFile(
+  questions: Question[],
+  bankName: string,
+): void {
+  const csv = "\uFEFF" + questionsToCsv(questions);
+  downloadBlobFile(
+    csv,
+    `${bankName || "题库"}-${new Date().toISOString().slice(0, 10)}.csv`,
+    "text/csv;charset=utf-8",
+  );
 }
 

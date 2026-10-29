@@ -9,6 +9,8 @@ import {
   exportSyllabusAudit,
   printWrongSheet,
   executeBankExportAction,
+  exportHealthCsvFile,
+  exportBankQuestionsCsvFile,
 } from "@/ui/practice/services/bankExportService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -155,5 +157,22 @@ describe("题库数据与试卷导出服务 (bankExportService)", () => {
 
     await executeBankExportAction("anki", mockApp, "b1", "题库", showMessage);
     expect(msgs).toContain("已导出为 Anki 卡包 TSV ✓");
+  });
+
+  it("6. exportHealthCsvFile：导出体检清单 CSV", () => {
+    const dummyHealth: any = {
+      total: 10,
+      types: { single: 10 },
+      orphans: [],
+      kpCoverage: 0.8,
+    };
+    expect(() => exportHealthCsvFile(dummyHealth)).not.toThrow();
+    expect(createObjectURLMock).toHaveBeenCalled();
+  });
+
+  it("7. exportBankQuestionsCsvFile：导出题库全量题目 CSV", () => {
+    const qs = [{ id: "q-1", stem: "题1", type: "single", options: ["A"], answer: "A" }] as any;
+    expect(() => exportBankQuestionsCsvFile(qs, "高数")).not.toThrow();
+    expect(createObjectURLMock).toHaveBeenCalled();
   });
 });

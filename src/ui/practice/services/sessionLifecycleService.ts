@@ -365,6 +365,43 @@ export async function executeSessionFinish(
   };
 }
 
+/**
+ * 启动练习会话并处理冲突协商（若有已存在会话则弹窗确认放弃并重开）
+ */
+export async function executeNegotiateSessionStart(options: {
+  app: any;
+  questions: Question[];
+  mode: string;
+  bankId: string;
+  interleave: boolean;
+  seed: string;
+  confirmDialogSync: (opts: { title: string; content: string }) => Promise<boolean>;
+  t: (k: string) => string;
+}): Promise<{ session: PracticeSession | null; error?: string }> {
+  const { app, questions, mode, bankId, interleave, seed, confirmDialogSync, t } = options;
+  try {
+    const session = await app.startSession(questions, mode, bankId, { interleave, seed });
+    return { session };
+  } catch (e) {
+    const msg = String(e instanceof Error ? e.message : e);
+    if (!msg.includes("已有进行中的会话")) {
+      return { session: null, error: msg };
+    }
+    const ok = await confirmDialogSync({
+      title: t("session.conflictTitle"),
+      content: t("session.conflictBody"),
+    });
+    if (!ok) return { session: null };
+    await app.discardSession();
+    try {
+      const session = await app.startSession(questions, mode, bankId, { interleave });
+      return { session };
+    } catch (e2) {
+      return { session: null, error: String(e2 instanceof Error ? e2.message : e2) };
+    }
+  }
+}
+
 
 
 

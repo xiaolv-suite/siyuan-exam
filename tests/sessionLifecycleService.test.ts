@@ -12,6 +12,7 @@ import {
   toggleQuestionUserTag,
   executeSessionExit,
   computeSessionKpBreakdown,
+  executeNegotiateSessionStart,
 } from "@/ui/practice/services/sessionLifecycleService";
 import type { ExamApp } from "@/app";
 import type { Question } from "@/core/types";
@@ -327,5 +328,67 @@ describe("练习会话生命周期与结算广播服务 (sessionLifecycleService
     expect(res.summary).toBeDefined();
     expect(mockApp.saveSession).toHaveBeenCalled();
     expect(mockApp.flush).toHaveBeenCalled();
+  });
+
+  it("14. executeNegotiateSessionStart：会话冲突协商与重开", async () => {
+    const dummyT = (k: string) => `[${k}]`;
+    const mockSession = { id: "sess-new" } as any;
+
+    // 1. 无冲突直接启动
+    const normalApp = {
+      startSession: vi.fn().mockResolvedValue(mockSession),
+    };
+    const resNormal = await executeNegotiateSessionStart({
+      app: normalApp,
+      questions: [fakeQuestion],
+      mode: "quick",
+      bankId: "b-1",
+      interleave: false,
+      seed: "s1",
+      confirmDialogSync: vi.fn(),
+      t: dummyT,
+    });
+    expect(resNormal.session).toBe(mockSession);
+    expect(normalApp.startSession).toHaveBeenCalled();
+
+    // 2. 有冲突用户放弃
+    const conflictApp1 = {
+      startSession: vi.fn().mockRejectedValue(new Error("已有进行中的会话")),
+      discardSession: vi.fn().mockResolvedValue(undefined),
+    };
+    const confirmCancel = vi.fn().mockResolvedValue(false);
+    const resCancel = await executeNegotiateSessionStart({
+      app: conflictApp1,
+      questions: [fakeQuestion],
+      mode: "quick",
+      bankId: "b-1",
+      interleave: false,
+      seed: "s1",
+      confirmDialogSync: confirmCancel,
+      t: dummyT,
+    });
+    expect(resCancel.session).toBeNull();
+    expect(conflictApp1.discardSession).not.toHaveBeenCalled();
+
+    // 3. 有冲突用户确认重开
+    const conflictApp2 = {
+      startSession: vi.fn()
+        .mockRejectedValueOnce(new Error("已有进行中的会话"))
+        .mockResolvedValueOnce(mockSession),
+      discardSession: vi.fn().mockResolvedValue(undefined),
+    };
+    const confirmAgree = vi.fn().mockResolvedValue(true);
+    const resAgree = await executeNegotiateSessionStart({
+      app: conflictApp2,
+      questions: [fakeQuestion],
+      mode: "quick",
+      bankId: "b-1",
+      interleave: false,
+      seed: "s1",
+      confirmDialogSync: confirmAgree,
+      t: dummyT,
+    });
+    expect(resAgree.session).toBe(mockSession);
+    expect(conflictApp2.discardSession).toHaveBeenCalled();
   });
 });

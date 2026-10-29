@@ -6,9 +6,13 @@
 
 import {
   getScratchpadText,
+  updateScratchpadText,
+  clearCurrentScratchpad,
   type ScratchpadStore,
   type ScratchpadMode,
 } from "@/core/scratchpad";
+
+export { updateScratchpadText, clearCurrentScratchpad, type ScratchpadStore, type ScratchpadMode };
 
 /**
  * 获取当前题目的草稿纸内容
@@ -44,4 +48,31 @@ export async function copyScratchpadText(
   } catch {
     return false;
   }
+}
+
+/**
+ * 更新题目草稿纸并返回新状态
+ */
+export function applyScratchpadInput(
+  store: ScratchpadStore,
+  qid: string | undefined,
+  text: string,
+  mode: ScratchpadMode,
+  sharedText: string,
+): { store: ScratchpadStore; sharedText: string } | null {
+  if (!qid) return null;
+  return updateScratchpadText(store, qid, text, mode, sharedText);
+}
+
+/**
+ * 清除题目草稿纸并返回新状态
+ */
+export function applyClearScratchpad(
+  store: ScratchpadStore,
+  qid: string | undefined,
+  mode: ScratchpadMode,
+  sharedText: string,
+): { store: ScratchpadStore; sharedText: string } | null {
+  if (!qid) return null;
+  return clearCurrentScratchpad(store, qid, mode, sharedText);
 }
