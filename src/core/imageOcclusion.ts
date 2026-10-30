@@ -72,27 +72,28 @@ export function renderOcclusionSvg(
     const isActive = activeId === m.id;
 
     if (isRevealed) {
-      // 已揭晓模式：半透明翡翠绿 + 绿色实线 + 居中答案文本
+      // 已揭晓模式：半透明翡翠绿 + 绿色实线 + 居中答案文本（白色描边光晕保证任意底图下可读）
+      // 注意：var()/color-mix 仅在 style 内联样式生效，SVG 表现属性不支持 CSS 变量，故颜色一律走 style
       maskSvgs.push(
         `<g class="lv-occlusion-mask lv-occlusion-revealed" data-mask-id="${escapeXml(m.id)}">` +
-        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" stroke-width="2" />` +
-        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="16" font-family="sans-serif" font-weight="bold" fill="#047857" text-anchor="middle" dominant-baseline="central">${escapeXml(m.answer)}</text>` +
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" style="fill:color-mix(in srgb, var(--lv-green, #10b981) 25%, transparent);stroke:var(--lv-green, #10b981);stroke-width:2px" />` +
+        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="16" font-family="sans-serif" font-weight="bold" text-anchor="middle" dominant-baseline="central" style="fill:#065f46;paint-order:stroke;stroke:#ffffff;stroke-width:4px;stroke-linejoin:round">${escapeXml(m.answer)}</text>` +
         `</g>`,
       );
     } else if (isActive) {
-      // 当前待答聚焦项：高亮琥珀橙 + 鲜明边框 + 提示符
+      // 当前待答聚焦项：高亮琥珀橙 + 鲜明边框 + 提示符（深琥珀文字对比 ~6.3:1，白字在琥珀底仅 ~2.1:1 不达标）
       maskSvgs.push(
         `<g class="lv-occlusion-mask lv-occlusion-active" data-mask-id="${escapeXml(m.id)}">` +
-        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" fill="#f59e0b" stroke="#b45309" stroke-width="2.5" />` +
-        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="20" font-family="sans-serif" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${num}</text>` +
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" style="fill:var(--lv-amber, #f59e0b);stroke:color-mix(in srgb, var(--lv-amber, #f59e0b) 62%, #78350f);stroke-width:2.5px" />` +
+        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="20" font-family="sans-serif" font-weight="bold" text-anchor="middle" dominant-baseline="central" style="fill:#78350f">${num}</text>` +
         `</g>`,
       );
     } else {
-      // 默认未揭晓遮挡：靛蓝卡片色 + 编号
+      // 默认未揭晓遮挡：品牌色卡片 + 编号（白字附深色描边光晕，随主题变量自适应）
       maskSvgs.push(
         `<g class="lv-occlusion-mask lv-occlusion-inactive" data-mask-id="${escapeXml(m.id)}">` +
-        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" fill="#4f46e5" fill-opacity="0.9" stroke="#3730a3" stroke-width="1.5" />` +
-        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="18" font-family="sans-serif" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${num}</text>` +
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" style="fill:var(--lv-brand, #4f46e5);fill-opacity:0.92;stroke:color-mix(in srgb, var(--lv-brand, #4f46e5) 70%, #1e1b4b);stroke-width:1.5px" />` +
+        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="18" font-family="sans-serif" font-weight="bold" text-anchor="middle" dominant-baseline="central" style="fill:#ffffff;paint-order:stroke;stroke:rgba(30, 27, 75, 0.55);stroke-width:3px;stroke-linejoin:round">${num}</text>` +
         `</g>`,
       );
     }
@@ -100,8 +101,17 @@ export function renderOcclusionSvg(
 
   const widthAttr = options.width ? `width="${options.width}"` : 'width="100%"';
 
+  // 无障碍名（绝不携带答案文本，防读屏泄露）：标注区域总数 + 当前考查目标序号
+  const activeIdx = masks.findIndex((m) => m.id === activeId);
+  const ariaText =
+    masks.length > 0
+      ? `图片遮挡填图：共 ${masks.length} 个标注区域${activeIdx >= 0 ? `，当前考查序号 ${CIRCLE_NUMBERS[activeIdx] || activeIdx + 1}` : ""}`
+      : "图片遮挡填图";
+  const svgTitle = `<title>${escapeXml(ariaText)}</title>`;
+
   return (
-    `<svg viewBox="0 0 ${VIEW_SIZE} ${VIEW_SIZE}" ${widthAttr} class="lv-occlusion-canvas" xmlns="http://www.w3.org/2000/svg" style="display:block;max-width:100%;height:auto;border-radius:6px;overflow:hidden">` +
+    `<svg viewBox="0 0 ${VIEW_SIZE} ${VIEW_SIZE}" ${widthAttr} class="lv-occlusion-canvas" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeXml(ariaText)}" style="display:block;max-width:100%;height:auto;border-radius:6px;overflow:hidden">` +
+    svgTitle +
     `<image href="${escapeXml(spec.imageUrl)}" x="0" y="0" width="${VIEW_SIZE}" height="${VIEW_SIZE}" preserveAspectRatio="xMidYMid meet" />` +
     maskSvgs.join("") +
     `</svg>`

@@ -714,13 +714,13 @@
                 <button class="lv-btn" onclick={ontraceMother} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
                 <button class="lv-btn" onclick={ontoCard} disabled={cardResult === "…"}><Icon name="layers" size={16} /> {cardResult === "…" ? "制卡中…" : t("memory.toCard")}</button>
                 {#if cardResult}<span class="lv-muted">{cardResult}</span>{/if}
-                <button class="lv-btn" onclick={() => onexplainCurrent("explain")} disabled={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
-                <button class="lv-btn" onclick={() => onexplainCurrent("dual-loop")} disabled={explainBusy} title="双环解题证据链推导 (DeepTutor 规范)"><Icon name="compass" size={15} /> 双环推导</button>
+                <button class="lv-btn" onclick={() => onexplainCurrent("explain")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
+                <button class="lv-btn" onclick={() => onexplainCurrent("dual-loop")} disabled={explainBusy} aria-busy={explainBusy} title="双环解题证据链推导 (DeepTutor 规范)"><Icon name="compass" size={15} /> 双环推导</button>
                 {#if q.type === "short"}
-                  <button class="lv-btn" onclick={() => onexplainCurrent("storm")} disabled={explainBusy} title="STORM 实践/理论/反思多视角辩证剖析 (Stanford STORM 规范)"><Icon name="activity" size={15} /> STORM 破题</button>
+                  <button class="lv-btn" onclick={() => onexplainCurrent("storm")} disabled={explainBusy} aria-busy={explainBusy} title="STORM 实践/理论/反思多视角辩证剖析 (Stanford STORM 规范)"><Icon name="activity" size={15} /> STORM 破题</button>
                 {/if}
-                <button class="lv-btn" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-                <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
+                <button class="lv-btn" onclick={onrequestHint} disabled={explainBusy} aria-busy={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
+                <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               {/if}
             {/if}
             {#if leakPending && session?.current && explainQid === session.current.id}

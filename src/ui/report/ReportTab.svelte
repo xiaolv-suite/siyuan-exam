@@ -1230,27 +1230,27 @@
             <b style="font-size:var(--lv-font-size-body-compact)">三层认知能力与高频思维误区画像</b>
             <span class="lv-chip sm lv-chip--data num">基于 {cognitiveProfile.evidenceCount} 次样本</span>
           </div>
-          <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">已达可信门槛 ✔</span>
+          <span class="lv-muted" style="font-size:var(--lv-font-size-caption);display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> 已达可信门槛</span>
         </div>
         <div class="lv-row num" style="gap:12px;margin:8px 0;flex-wrap:wrap">
           <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
-            <div class="lv-muted" style="font-size:11px">概念层清晰度 (术语/定义)</div>
+            <div class="lv-muted" style="font-size:11px" id="lv-cog-concept-label">概念层清晰度 (术语/定义)</div>
             <div style="font-size:16px;font-weight:700;color:var(--lv-brand);margin:2px 0">{cognitiveProfile.layeredAbility.conceptScore} 分</div>
-            <div style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
+            <div role="progressbar" aria-labelledby="lv-cog-concept-label" aria-valuemin={0} aria-valuemax={100} aria-valuenow={cognitiveProfile.layeredAbility.conceptScore} style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
               <div style="height:100%;width:{cognitiveProfile.layeredAbility.conceptScore}%;background:var(--lv-brand)"></div>
             </div>
           </div>
           <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
-            <div class="lv-muted" style="font-size:11px">判断层合理性 (条件/临界)</div>
+            <div class="lv-muted" style="font-size:11px" id="lv-cog-judgment-label">判断层合理性 (条件/临界)</div>
             <div style="font-size:16px;font-weight:700;color:var(--lv-data-accent);margin:2px 0">{cognitiveProfile.layeredAbility.judgmentScore} 分</div>
-            <div style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
+            <div role="progressbar" aria-labelledby="lv-cog-judgment-label" aria-valuemin={0} aria-valuemax={100} aria-valuenow={cognitiveProfile.layeredAbility.judgmentScore} style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
               <div style="height:100%;width:{cognitiveProfile.layeredAbility.judgmentScore}%;background:var(--lv-data-accent)"></div>
             </div>
           </div>
           <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
-            <div class="lv-muted" style="font-size:11px">推理层有效性 (推导/因果)</div>
+            <div class="lv-muted" style="font-size:11px" id="lv-cog-reasoning-label">推理层有效性 (推导/因果)</div>
             <div style="font-size:16px;font-weight:700;color:var(--lv-green);margin:2px 0">{cognitiveProfile.layeredAbility.reasoningScore} 分</div>
-            <div style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
+            <div role="progressbar" aria-labelledby="lv-cog-reasoning-label" aria-valuemin={0} aria-valuemax={100} aria-valuenow={cognitiveProfile.layeredAbility.reasoningScore} style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
               <div style="height:100%;width:{cognitiveProfile.layeredAbility.reasoningScore}%;background:var(--lv-green)"></div>
             </div>
           </div>
@@ -1265,8 +1265,8 @@
             {/each}
           </div>
         {/if}
-        <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:6px 0 0">
-          💡 <strong>导学建议</strong>：{cognitiveProfile.advice}
+        <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:6px 0 0;display:flex;align-items:baseline;gap:4px">
+          <Icon name="bulb" size={12} /> <span><strong>导学建议</strong>：{cognitiveProfile.advice}</span>
         </p>
       </div>
     {/if}
