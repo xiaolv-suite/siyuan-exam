@@ -254,17 +254,17 @@
         <Icon name="pin" size={13} />
       </button>
       <button class="lv-btn sm lv-btn--ghost lv-peek-close" title={t("dialog.close", "关闭")} aria-label={t("dialog.close", "关闭")} onclick={onclose}>
-        ✕
+        <Icon name="close" size={13} />
       </button>
     </div>
   </header>
   <div class="lv-peek-body">
     <div class="lv-peek-stem">{q.stem}</div>
     {#if q.studyMeta?.phonetic}
-      <div class="lv-phonetic-badge" style="margin:6px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
+      <div class="lv-phonetic-badge" style="margin:6px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
         <Icon name="volume" size={12} />
         <span>注音 / 粤拼：{q.studyMeta.phonetic}</span>
-        <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 4px;font-size:11px" onclick={() => onttsSpeak([q.stem, ...q.options].join(" "), q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1)} title="听发音朗读">▶ 听发音</button>
+        <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px;display:inline-flex;align-items:center;gap:4px" onclick={() => onttsSpeak([q.stem, ...q.options].join(" "), q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1)} title="听发音朗读"><Icon name="volume" size={11} /> 听发音</button>
       </div>
     {/if}
     <div class="lv-detail">
@@ -491,7 +491,7 @@
               <b style="font-size:var(--lv-font-size-sm)">
                 <Icon name="alert-triangle" size={13} /> {isQuestionDisputed(q) ? t("dispute.resolveAction") : t("dispute.flagAction")}
               </b>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => ontoggleDisputeForm(q)}>✕</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => ontoggleDisputeForm(q)} aria-label="关闭"><Icon name="close" size={12} /></button>
             </div>
             {#if isQuestionDisputed(q)}
               <div class="lv-muted" style="margin:4px 0 8px;font-size:var(--lv-font-size-caption)">
@@ -537,9 +537,9 @@
           <div class="lv-row lv-qref-bar" style="font-size:var(--lv-font-size-caption);padding:6px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-1);margin:6px 0;align-items:center;border:1px solid var(--lv-border-subtle)">
             <span class="lv-chip"><Icon name="file-text" size={11} /> {qrefView[q.id]!.title}{#if qrefView[q.id]!.label} · {qrefView[q.id]!.label}{/if}</span>
             {#if qrefView[q.id]!.stale}<span class="lv-chip lv-chip--amb" title={t("materials.relocateTip")}>{t("materials.relocate")}</span>{/if}
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => onopenQref(q.id)}>↗ {t("materials.openAt")}</button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => onopenQref(q.id)} style="display:inline-flex;align-items:center;gap:3px"><Icon name="external-link" size={11} /> {t("materials.openAt")}</button>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => onstartQrefForm(q.id)}><Icon name="link" size={13} /> {t("qref.relink")}</button>
-            <button class="lv-btn sm lv-btn--ghost" aria-label={t("qref.unlink")} title={t("qref.unlink")} disabled={qrefBusyFor === q.id} aria-busy={qrefBusyFor === q.id} onclick={() => onremoveQref(q.id)}>{qrefBusyFor === q.id ? "…" : "✕"}</button>
+            <button class="lv-btn sm lv-btn--ghost" aria-label={t("qref.unlink")} title={t("qref.unlink")} disabled={qrefBusyFor === q.id} aria-busy={qrefBusyFor === q.id} onclick={() => onremoveQref(q.id)}>{#if qrefBusyFor === q.id}…{:else}<Icon name="close" size={12} />{/if}</button>
           </div>
           {#if qrefActionError[q.id]}<div class="lv-error" role="alert" style="overflow-wrap:anywhere">{qrefActionError[q.id]}</div>{/if}
         {:else}

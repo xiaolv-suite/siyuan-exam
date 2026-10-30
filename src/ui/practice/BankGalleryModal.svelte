@@ -78,7 +78,7 @@
           <span>{t("bank.hubTitle")}</span>
           <span class="lv-dialog-title-tag">{banks.length} 题库</span>
         </div>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onclose}>✕</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
       <div class="lv-session-dock" role="tablist" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto">
         <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>

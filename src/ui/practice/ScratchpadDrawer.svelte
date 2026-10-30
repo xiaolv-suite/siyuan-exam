@@ -43,11 +43,11 @@
         <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncopy} title={t("scratchpad.copy")}>
           <Icon name="copy" size={11} /> {t("scratchpad.copy")}
         </button>
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclear} title={t("scratchpad.clear")}>
-          ✕ {t("scratchpad.clear")}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclear} title={t("scratchpad.clear")} style="display:inline-flex;align-items:center;gap:4px">
+          <Icon name="trash" size={12} /> {t("scratchpad.clear")}
         </button>
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclose} title="收起草稿纸">
-          ✕ {t("common.close", "收起")}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclose} title="收起草稿纸" style="display:inline-flex;align-items:center;gap:4px">
+          <Icon name="close" size={12} /> {t("common.close", "收起")}
         </button>
       </div>
     </div>

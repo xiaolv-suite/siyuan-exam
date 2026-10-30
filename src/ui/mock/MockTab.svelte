@@ -2127,12 +2127,12 @@
             </div>
             {#if mockPaperGridOpen}
               {@const gridModel = generatePaperGrid(answeredMap[current] ?? "", { columns: 20 })}
-              <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent)">
+              <div class="lv-card" style="margin:8px 0;padding:12px 14px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-card, 16px);box-shadow:var(--lv-sh-1)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
-                  <b style="font-size:12px">考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）</b>
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (mockPaperGridOpen = false)}>✕</button>
+                  <b style="font-size:12px;display:inline-flex;align-items:center;gap:6px"><Icon name="file-text" size={13} /> 考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）</b>
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (mockPaperGridOpen = false)} aria-label="关闭"><Icon name="close" size={12} /></button>
                 </div>
-                <div class="lv-grid-paper" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:6px;background:var(--lv-surface);border-radius:4px;border:1px solid var(--lv-border)">
+                <div class="lv-grid-paper" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:6px;background:var(--lv-surface);border-radius:var(--lv-r-card, 10px);border:1px solid var(--lv-border-subtle)">
                   {#each gridModel.rows as row, _ri (_ri)}
                     <div style="display:flex;gap:2px;align-items:center">
                       <span class="lv-muted num" style="width:20px;font-size:10px;text-align:right;margin-right:4px">{row.rowNumber}</span>
