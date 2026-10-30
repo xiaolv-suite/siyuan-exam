@@ -75,6 +75,30 @@ const LATEX_SYMBOLS_MAP: Record<string, string> = {
   partial: "∂",
   nabla: "∇",
 
+  // 几何与常用学科符号 (exam-zh & 中学高数规范)
+  perp: "⊥",
+  parallel: "∥",
+  triangle: "△",
+  angle: "∠",
+  ang: "∠",
+  cong: "≌",
+  sim: "∽",
+  odot: "⊙",
+  degree: "°",
+  celsius: "℃",
+  perthousand: "‰",
+  textperthousand: "‰",
+  permil: "‰",
+  parallelogram: "▱",
+  iu: "i",
+  upi: "i",
+  eu: "e",
+  upe: "e",
+  wideparen: "⌒",
+  overparen: "⌒",
+  widearc: "⌒",
+  overarc: "⌒",
+
   // 逻辑与集合
   forall: "∀",
   exists: "∃",
@@ -125,6 +149,29 @@ export function normalizeLatexFormula(raw: string): string {
   s = s.replace(/\\\s*ge\b/g, "\\ge");
   s = s.replace(/\\\s*pm\b/g, "\\pm");
   s = s.replace(/\\\s*times\b/g, "\\times");
+
+  // 5. exam-zh 与中学国标正体常数、几何符号与度量单位归一化
+  // 5.1 正体虚数单位 i 与自然底数 e（exam-zh 标准）
+  s = s.replace(/\\(?:iu|upi)\b/g, "\\mathrm{i}");
+  s = s.replace(/\\(?:eu|upe)\b/g, "\\mathrm{e}");
+
+  // 5.2 角度符号：\ang{30} -> 30^{\circ}；\ang{30;15} -> 30^{\circ}15'；\ang{30;15;20} -> 30^{\circ}15'20''
+  s = s.replace(/\\ang\{([^{}]+)\}/g, (_m, val: string) => {
+    const parts = val.split(";").map((p) => p.trim());
+    if (parts.length === 1) return `${parts[0]}^{\\circ}`;
+    if (parts.length === 2) return `${parts[0]}^{\\circ}${parts[1]}'`;
+    return `${parts[0]}^{\\circ}${parts[1]}'${parts[2]}''`;
+  });
+
+  // 5.3 摄氏度、千分号与斜分数
+  s = s.replace(/\\celsius\b/g, "^{\\circ}\\mathrm{C}");
+  s = s.replace(/\\(?:perthousand|textperthousand|permil)\b/g, "‰");
+  s = s.replace(/\\sfrac\{([^{}]+)\}\{([^{}]+)\}/g, "\\frac{$1}{$2}");
+
+  // 5.4 几何圆弧与平行四边形（自适应圆弧在 KaTeX 中映射为 \overset{\frown}{AB}）
+  s = s.replace(/\\(?:wideparen|overparen|widearc|overarc)\{([^{}]+)\}/g, "\\overset{\\frown}{$1}");
+  s = s.replace(/\\parallelogram\b/g, "▱");
+  s = s.replace(/\\degree\b/g, "^{\\circ}");
 
   return s;
 }
@@ -183,6 +230,32 @@ export function renderSemanticLatex(latex: string, displayMode = false): string 
     /\\lim_\{([^}]+)\}/g,
     '<span class="lv-math-lim"><span class="lv-math-lim-op">lim</span><sub class="lv-math-lim-sub">$1</sub></span>',
   );
+
+  // 0.5 解析圆弧标注：\overset{\frown}{AB} 与 \wideparen{AB}
+  s = s.replace(
+    /(?:\\overset\{\\frown\}\{([^{}]+)\}|\\(?:wideparen|overparen|widearc|overarc)\{([^{}]+)\})/g,
+    (_m, g1: string, g2: string) => {
+      const target = g1 || g2;
+      return `<span class="lv-math-arc"><span class="lv-math-arc-sym">⌒</span><span class="lv-math-arc-body">${target}</span></span>`;
+    },
+  );
+
+  // 0.6 解析斜分数：\sfrac{a}{b}
+  s = s.replace(
+    /\\sfrac\{([^{}]+)\}\{([^{}]+)\}/g,
+    '<span class="lv-math-frac lv-math-sfrac"><span class="lv-math-num">$1</span>/<span class="lv-math-denom">$2</span></span>',
+  );
+
+  // 0.7 解析角度：\ang{30} 或 \ang{30;15;20}
+  s = s.replace(/\\ang\{([^{}]+)\}/g, (_m, val: string) => {
+    const parts = val.split(";").map((p) => p.trim());
+    if (parts.length === 1) return `${parts[0]}°`;
+    if (parts.length === 2) return `${parts[0]}°${parts[1]}'`;
+    return `${parts[0]}°${parts[1]}'${parts[2]}''`;
+  });
+
+  // 0.8 解析正体字与文本块：\mathrm{...}、\text{...}
+  s = s.replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, "$1");
 
   // 1. 解析分式 \frac{A}{B}
   s = s.replace(
@@ -456,6 +529,28 @@ export function getMathPrintStyles(): string {
   font-size: 0.7em;
   line-height: 1;
   vertical-align: baseline;
+}
+.lv-math-arc {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  line-height: 0.9;
+  margin: 0 1px;
+}
+.lv-math-arc-sym {
+  font-size: 0.9em;
+  line-height: 0.6;
+}
+.lv-math-arc-body {
+  line-height: 1.1;
+}
+.lv-math-sfrac {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  font-size: 0.95em;
+  padding: 0 1px;
 }
 `;
 }

@@ -32,6 +32,12 @@ export interface PrintProOptions {
   showScore?: boolean;
   /** 是否按考点章节分组排版（默认 true） */
   groupByKp?: boolean;
+  /** 68-05: 是否展示装订密封线（考生姓名/准考证号/考场号/密封线内不要答题） */
+  showSealLine?: boolean;
+  /** 68-05: 是否在卷首展示考生须知/注意事项框 */
+  showExamNotice?: boolean;
+  /** 68-05: 主观题/解答题厘米级预留作答空白高度（0-30cm） */
+  shortAnswerSpaceCm?: number;
 }
 
 const TYPE_NAMES: Record<string, string> = {
@@ -51,6 +57,62 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/**
+ * 依据选项文本与公式长度自适应计算分栏数（exam-zh / MathBank 规范）：
+ * - 4 选项：短选项一行4列；中等选项两行两列；长选项单列纵排
+ * - 2 选项：短中选项一行2列；长选项单列
+ * - 其他数量：默认单列
+ */
+export function computeOptionColumns(options: readonly string[]): 1 | 2 | 4 {
+  if (!options || options.length === 0) return 1;
+  const getVisualWidth = (s: string) => {
+    const cleaned = String(s ?? "")
+      .replace(/<[^>]*>/g, "")
+      .replace(/\$[^$]*\$/g, "xxx")
+      .trim();
+    let w = 0;
+    for (let i = 0; i < cleaned.length; i++) {
+      w += cleaned.charCodeAt(i) > 255 ? 2 : 1;
+    }
+    return w;
+  };
+  const maxWidth = Math.max(...options.map(getVisualWidth));
+  if (options.length === 4) {
+    // 4 个选项：如果每个都很短（<= 12 字符宽度，约 6 个汉字以内，如数字、字母、符号、极短词），单行 4 列
+    if (maxWidth <= 12) return 4;
+    // 如果适中（<= 40 字符宽度，约 20 个汉字以内），2 行 2 列
+    if (maxWidth <= 40) return 2;
+    return 1;
+  }
+  if (options.length === 2) {
+    return maxWidth <= 40 ? 2 : 1;
+  }
+  return 1;
+}
+
+/** 渲染装订密封线 HTML (exam-zh sealline 规范) */
+export function renderSealLineBar(): string {
+  return `<div class="seal-line-bar">` +
+    `<span class="seal-warning">★ 密封线内不要答题 ★</span>` +
+    `<span>姓名：__________</span>` +
+    `<span>准考证号：__________</span>` +
+    `<span>考场号：__________</span>` +
+    `<span>座位号：__________</span>` +
+    `</div>`;
+}
+
+/** 渲染考生须知与答题注意事项 HTML */
+export function renderExamNoticeBox(): string {
+  return `<div class="exam-notice-box">` +
+    `<div class="exam-notice-title">考生须知 / 注意事项</div>` +
+    `<ol class="exam-notice-list">` +
+    `<li>答卷前，考生务必将自己的姓名、准考证号、考场号填写在试卷和答题卡指定位置。</li>` +
+    `<li>选择题每小题选出答案后，用铅笔把答题卡上对应题目的答案标号涂黑。如需改动，用橡皮擦干净后，再选涂其他答案标号。</li>` +
+    `<li>非选择题必须用黑色字迹的签字笔或钢笔作答，答案必须写在各题目指定作答区域内，写在试卷或草稿纸上无效。</li>` +
+    `</ol>` +
+    `</div>`;
 }
 
 /** 生成分栏与打印优化 CSS */
@@ -122,6 +184,77 @@ export function buildPrintProCss(options: PrintProOptions = {}): string {
     .q-score { float: right; font-weight: 400; font-size: 9pt; color: #555; }
     .q-stem { white-space: pre-wrap; overflow-wrap: anywhere; }
     .opt { margin-left: 1.2em; }
+    /* 选项自适应网格 (exam-zh choices 规范) */
+    .opt-grid {
+      display: grid;
+      gap: 2px 8px;
+      margin: 3px 0 3px 1.2em;
+      font-size: 10pt;
+    }
+    .opt-grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .opt-grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .opt-grid-1 { grid-template-columns: 1fr; }
+    .opt-grid .opt { margin-left: 0; }
+    .opt-item { min-width: 0; overflow-wrap: anywhere; }
+
+    /* 装订密封线 (exam-zh sealline 规范) */
+    .seal-line-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3pt 8pt;
+      margin-bottom: 6pt;
+      border-top: 1px dashed #666;
+      border-bottom: 2px dashed #333;
+      font-size: 8.5pt;
+      color: #222;
+      font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    .seal-warning {
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #333;
+    }
+
+    /* 卷首考生须知框 */
+    .exam-notice-box {
+      border: 1px solid #777;
+      border-radius: 3px;
+      padding: 4pt 8pt;
+      margin-bottom: 7pt;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      color: #333;
+      background: #fafafa;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    .exam-notice-title {
+      font-weight: 700;
+      font-size: 9pt;
+      margin-bottom: 2pt;
+      color: #111;
+      text-align: center;
+    }
+    .exam-notice-list {
+      margin: 0;
+      padding-left: 14pt;
+    }
+    .exam-notice-list li {
+      margin: 1pt 0;
+    }
+
+    /* 自定义厘米级答题留白框 */
+    .answer-area-custom {
+      border: 1px dashed #888;
+      border-radius: 2px;
+      margin: 4px 0 0 1.2em;
+      background: #fafafa;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
     .answer-area { border-bottom: 1px solid #999; height: 1.8em; margin: 4px 0 0 1.2em; }
     .ans-analysis { color: #333; font-size: 9.8pt; margin-left: 1.2em; white-space: pre-wrap; overflow-wrap: anywhere; }
     .kp-tag { color: #666; font-size: 8.5pt; }
@@ -176,8 +309,16 @@ export function buildCompactQuestionSheetPro(
   const parts: string[] = [
     `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${buildPrintProCss(options)}</style></head><body>`,
     renderHeader(options.headerTitle || title, `共 ${questions.length} 题`, options.paperNo),
-    `<section class="questions">`,
   ];
+
+  if (options.showSealLine) {
+    parts.push(renderSealLineBar());
+  }
+  if (options.showExamNotice) {
+    parts.push(renderExamNoticeBox());
+  }
+
+  parts.push(`<section class="questions">`);
 
   const printedGroups = new Set<string>();
   let lastKp = "";
@@ -218,12 +359,22 @@ export function buildCompactQuestionSheetPro(
     const scoreHtml = showScore ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreHtml}</div>`);
     parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
-    q.options.forEach((o, oi) => {
-      parts.push(`<div class="opt">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
-    });
+    if (q.options && q.options.length > 0) {
+      const cols = computeOptionColumns(q.options);
+      parts.push(`<div class="opt-grid opt-grid-${cols}">`);
+      q.options.forEach((o, oi) => {
+        parts.push(`<div class="opt opt-item">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
+      });
+      parts.push(`</div>`);
+    }
     if (showArea && (q.type === "fill" || q.type === "short")) {
-      parts.push(`<div class="answer-area"></div>`);
-      if (q.type === "short") parts.push(`<div class="answer-area"></div><div class="answer-area"></div>`);
+      if (q.type === "short" && options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0) {
+        const cm = Math.max(0.5, Math.min(30, options.shortAnswerSpaceCm));
+        parts.push(`<div class="answer-area-custom" style="min-height:${cm}cm"></div>`);
+      } else {
+        parts.push(`<div class="answer-area"></div>`);
+        if (q.type === "short") parts.push(`<div class="answer-area"></div><div class="answer-area"></div>`);
+      }
     }
     parts.push(`</div>`);
   });
@@ -314,9 +465,14 @@ export function buildTeacherLectureSheetPro(
     const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
     parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
-    q.options.forEach((o, oi) => {
-      parts.push(`<div class="opt">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
-    });
+    if (q.options && q.options.length > 0) {
+      const cols = computeOptionColumns(q.options);
+      parts.push(`<div class="opt-grid opt-grid-${cols}">`);
+      q.options.forEach((o, oi) => {
+        parts.push(`<div class="opt opt-item">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
+      });
+      parts.push(`</div>`);
+    }
 
     // 教师备课核心卡片
     parts.push(`<div class="teacher-box">`);
@@ -393,11 +549,20 @@ export function buildStudentHomeworkSheetPro(
     const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
     parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
-    q.options.forEach((o, oi) => {
-      parts.push(`<div class="opt">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
-    });
+    if (q.options && q.options.length > 0) {
+      const cols = computeOptionColumns(q.options);
+      parts.push(`<div class="opt-grid opt-grid-${cols}">`);
+      q.options.forEach((o, oi) => {
+        parts.push(`<div class="opt opt-item">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
+      });
+      parts.push(`</div>`);
+    }
     if (q.type === "fill" || q.type === "short") {
-      parts.push(`<div class="answer-area" style="min-height:${q.type === 'short' ? '30mm' : '10mm'};border:1px dashed #aaa;margin-top:4pt"></div>`);
+      const defaultHeight = q.type === 'short' ? '30mm' : '10mm';
+      const heightStyle = q.type === 'short' && options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0
+        ? `${Math.max(0.5, Math.min(30, options.shortAnswerSpaceCm))}cm`
+        : defaultHeight;
+      parts.push(`<div class="answer-area" style="min-height:${heightStyle};border:1px dashed #aaa;margin-top:4pt"></div>`);
     }
     parts.push(`</div>`);
   });
@@ -467,14 +632,23 @@ export function buildWrongbookRetestSheetPro(
 
     if (q.type === "single" || q.type === "multiple") {
       const letters = "ABCDEFGHIJ";
-      q.options.forEach((opt, oi) => {
-        parts.push(`<div class="opt"><b>${letters[oi]}.</b> ${renderMathInText(opt)}</div>`);
-      });
+      if (q.options && q.options.length > 0) {
+        const cols = computeOptionColumns(q.options);
+        parts.push(`<div class="opt-grid opt-grid-${cols}">`);
+        q.options.forEach((opt, oi) => {
+          parts.push(`<div class="opt opt-item"><b>${letters[oi]}.</b> ${renderMathInText(opt)}</div>`);
+        });
+        parts.push(`</div>`);
+      }
       parts.push(`<div class="answer-area" style="height:1.8em;border-bottom:1px solid #888;margin-top:3pt">作答：______</div>`);
     } else if (q.type === "judge") {
       parts.push(`<div class="opt" style="margin-top:3pt">作答判断：[ ] 正确 (T)  /  [ ] 错误 (F)</div>`);
     } else {
-      parts.push(`<div class="answer-area" style="min-height:${q.type === 'short' ? '28mm' : '9mm'};border:1px dashed #aaa;margin-top:4pt"></div>`);
+      const defaultHeight = q.type === 'short' ? '28mm' : '9mm';
+      const heightStyle = q.type === 'short' && options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0
+        ? `${Math.max(0.5, Math.min(30, options.shortAnswerSpaceCm))}cm`
+        : defaultHeight;
+      parts.push(`<div class="answer-area" style="min-height:${heightStyle};border:1px dashed #aaa;margin-top:4pt"></div>`);
     }
     parts.push(`</div>`);
   });

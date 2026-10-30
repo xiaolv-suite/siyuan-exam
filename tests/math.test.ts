@@ -27,6 +27,27 @@ describe("数学公式处理引擎 (math)", () => {
       expect(cleaned).toContain("\\sqrt{x}");
       expect(cleaned).toContain("\\le");
     });
+
+    it("规范化 exam-zh 正体虚数 \\iu 与自然底数 \\eu", () => {
+      const formula = "z = a + b\\iu, f(x) = \\eu^{x}";
+      const normalized = normalizeLatexFormula(formula);
+      expect(normalized).toContain("\\mathrm{i}");
+      expect(normalized).toContain("\\mathrm{e}");
+    });
+
+    it("规范化角度 \\ang 与度分秒表示", () => {
+      expect(normalizeLatexFormula("\\ang{45}")).toBe("45^{\\circ}");
+      expect(normalizeLatexFormula("\\ang{30;15}")).toBe("30^{\\circ}15'");
+      expect(normalizeLatexFormula("\\ang{30;15;20}")).toBe("30^{\\circ}15'20''");
+    });
+
+    it("规范化圆弧 \\wideparen、平行四边形 \\parallelogram 与摄氏度 \\celsius", () => {
+      expect(normalizeLatexFormula("\\wideparen{AB} = 2\\pi")).toContain("\\overset{\\frown}{AB}");
+      expect(normalizeLatexFormula("\\parallelogram ABCD")).toContain("▱ ABCD");
+      expect(normalizeLatexFormula("25\\celsius")).toContain("25^{\\circ}\\mathrm{C}");
+      expect(normalizeLatexFormula("5\\perthousand")).toContain("5‰");
+      expect(normalizeLatexFormula("\\sfrac{1}{2}")).toContain("\\frac{1}{2}");
+    });
   });
 
   describe("2. 单公式渲染与语义降级 (renderSemanticLatex & renderLatex)", () => {
@@ -69,6 +90,24 @@ describe("数学公式处理引擎 (math)", () => {
       const html = renderSemanticLatex("x^2 + a_1");
       expect(html).toContain('<sup class="lv-math-sup">2</sup>');
       expect(html).toContain('<sub class="lv-math-sub">1</sub>');
+    });
+
+    it("降级渲染几何符号与圆弧标注", () => {
+      const html = renderSemanticLatex("\\triangle ABC \\cong \\triangle DEF, \\perp, \\parallel, \\wideparen{AB}");
+      expect(html).toContain("△");
+      expect(html).toContain("≌");
+      expect(html).toContain("⊥");
+      expect(html).toContain("∥");
+      expect(html).toContain('class="lv-math-arc"');
+      expect(html).toContain("⌒");
+      expect(html).toContain("AB");
+    });
+
+    it("降级渲染角度、摄氏度与平行四边形", () => {
+      const html = renderSemanticLatex("\\parallelogram ABCD, \\ang{60;30}, 37\\celsius");
+      expect(html).toContain("▱");
+      expect(html).toContain("60°30'");
+      expect(html).toContain("37");
     });
   });
 

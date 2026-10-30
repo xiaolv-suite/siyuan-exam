@@ -8,6 +8,9 @@ import {
   buildStudentHomeworkSheetPro,
   buildWrongbookRetestSheetPro,
   auditQuestionSheetSafety,
+  computeOptionColumns,
+  renderSealLineBar,
+  renderExamNoticeBox,
 } from "../src/core/printPro";
 
 function mkQ(id: string, overrides: Partial<Question> = {}): Question {
@@ -193,6 +196,63 @@ describe("PrintPro A4 双栏紧凑打印与分页防断引擎 (68-04 / 79-02)", 
 
       const audit = auditQuestionSheetSafety(html, [q]);
       expect(audit.safe).toBe(true);
+    });
+  });
+
+  describe("exam-zh & 出版级真卷排版扩展", () => {
+    it("computeOptionColumns 根据选项长度智能自适应 4/2/1 列", () => {
+      // 短选项：4 列
+      expect(computeOptionColumns(["A", "B", "C", "D"])).toBe(4);
+      expect(computeOptionColumns(["1", "2", "3", "4"])).toBe(4);
+      expect(computeOptionColumns(["正确", "错误", "可能", "未知"])).toBe(4);
+
+      // 中等长度选项：2 列
+      expect(computeOptionColumns([
+        "函数在区间上单调递增",
+        "函数在区间上单调递减",
+        "函数在区间上先增后减",
+        "函数在区间上先减后增",
+      ])).toBe(2);
+
+      // 长选项：1 列
+      expect(computeOptionColumns([
+        "这是一个非常漫长详细且包含大量说明文字的选项A描述",
+        "这是一个非常漫长详细且包含大量说明文字的选项B描述",
+        "这是一个非常漫长详细且包含大量说明文字的选项C描述",
+        "这是一个非常漫长详细且包含大量说明文字的选项D描述",
+      ])).toBe(1);
+
+      // 2 选项测试
+      expect(computeOptionColumns(["对", "错"])).toBe(2);
+      expect(computeOptionColumns([
+        "这是一个非常漫长详细且包含大量说明文字的判断选项甲描述内容",
+        "这是一个非常漫长详细且包含大量说明文字的判断选项乙描述内容",
+      ])).toBe(1);
+    });
+
+    it("生成装订密封线 (showSealLine) 与 考生须知 (showExamNotice)", () => {
+      const q = mkQ("q-opt-1", { options: ["1", "2", "3", "4"] });
+      const html = buildCompactQuestionSheetPro("真卷测试", [q], {
+        showSealLine: true,
+        showExamNotice: true,
+      });
+
+      expect(html).toContain("seal-line-bar");
+      expect(html).toContain("密封线内不要答题");
+      expect(html).toContain("准考证号");
+      expect(html).toContain("exam-notice-box");
+      expect(html).toContain("考生须知 / 注意事项");
+      expect(html).toContain("opt-grid opt-grid-4");
+    });
+
+    it("支持主观题厘米级预留作答空白高度 (shortAnswerSpaceCm)", () => {
+      const q = mkQ("q-short-cm", { type: "short", stem: "请详细推导拉格朗日中值定理。" });
+      const html = buildCompactQuestionSheetPro("主观题卷", [q], {
+        shortAnswerSpaceCm: 6.5,
+      });
+
+      expect(html).toContain("answer-area-custom");
+      expect(html).toContain("style=\"min-height:6.5cm\"");
     });
   });
 });
