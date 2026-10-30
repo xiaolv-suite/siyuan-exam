@@ -2709,7 +2709,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       };
     }
 
-    async function explainCurrent(mode: "explain" | "hint" | "socratic" = "explain") {
+    async function explainCurrent(mode: "explain" | "hint" | "socratic" | "dual-loop" | "storm" = "explain") {
       const q = session?.current;
       if (!q || explainBusy || !feedback) return;
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";

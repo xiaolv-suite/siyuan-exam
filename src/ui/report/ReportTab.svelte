@@ -23,6 +23,7 @@
     import { openPracticeView, type ExamPluginLike } from "@/core/pluginTab";
     import type { AttemptEvent, Question } from "@/core/types";
     import { reportWindowStart, reportDateKey } from "@/core/reportWindow";
+    import { evaluateCognitiveProfile, type LearnerCognitiveProfile } from "@/core/cognitiveProfile";
 
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
     let appOverride = $state<ExamApp | null>(null);
@@ -252,6 +253,11 @@
     const forgettingReport = $derived.by(() => {
       if (!questions.length) return null;
       return auditForgettingRisks(questions, reportEvents);
+    });
+
+    const cognitiveProfile = $derived.by<LearnerCognitiveProfile | null>(() => {
+      if (!questions.length || !reportEvents.length || !app) return null;
+      return evaluateCognitiveProfile(reportEvents, questions, app.wrongItems());
     });
 
     async function exportForgettingReport() {
@@ -1214,6 +1220,54 @@
             </span>
           {/each}
         </div>
+      </div>
+    {/if}
+    {#if reportSection === "overview" && cognitiveProfile && cognitiveProfile.isTrusted}
+      <div class="lv-card" style="margin:10px 0;padding:12px 16px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-accent)">
+        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap">
+          <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+            <Icon name="activity" size={14} />
+            <b style="font-size:var(--lv-font-size-body-compact)">三层认知能力与高频思维误区画像</b>
+            <span class="lv-chip sm lv-chip--data num">基于 {cognitiveProfile.evidenceCount} 次样本</span>
+          </div>
+          <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">已达可信门槛 ✔</span>
+        </div>
+        <div class="lv-row num" style="gap:12px;margin:8px 0;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
+            <div class="lv-muted" style="font-size:11px">概念层清晰度 (术语/定义)</div>
+            <div style="font-size:16px;font-weight:700;color:var(--lv-brand);margin:2px 0">{cognitiveProfile.layeredAbility.conceptScore} 分</div>
+            <div style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
+              <div style="height:100%;width:{cognitiveProfile.layeredAbility.conceptScore}%;background:var(--lv-brand)"></div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
+            <div class="lv-muted" style="font-size:11px">判断层合理性 (条件/临界)</div>
+            <div style="font-size:16px;font-weight:700;color:var(--lv-data-accent);margin:2px 0">{cognitiveProfile.layeredAbility.judgmentScore} 分</div>
+            <div style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
+              <div style="height:100%;width:{cognitiveProfile.layeredAbility.judgmentScore}%;background:var(--lv-data-accent)"></div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
+            <div class="lv-muted" style="font-size:11px">推理层有效性 (推导/因果)</div>
+            <div style="font-size:16px;font-weight:700;color:var(--lv-green);margin:2px 0">{cognitiveProfile.layeredAbility.reasoningScore} 分</div>
+            <div style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
+              <div style="height:100%;width:{cognitiveProfile.layeredAbility.reasoningScore}%;background:var(--lv-green)"></div>
+            </div>
+          </div>
+        </div>
+        {#if cognitiveProfile.mistakePatterns.length}
+          <div class="lv-row" style="margin:6px 0 2px;gap:6px;align-items:center;flex-wrap:wrap">
+            <span class="lv-muted" style="font-size:11px">高频思维陷阱：</span>
+            {#each cognitiveProfile.mistakePatterns.slice(0, 3) as p (p.pattern)}
+              <span class="lv-chip sm lv-chip--amb" title={`最近出现于 ${new Date(p.lastOccurredAt).toLocaleDateString()}`}>
+                {p.pattern} · <span class="num">{p.count} 次</span>
+              </span>
+            {/each}
+          </div>
+        {/if}
+        <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:6px 0 0">
+          💡 <strong>导学建议</strong>：{cognitiveProfile.advice}
+        </p>
       </div>
     {/if}
     {#if reportSection === "overview" && (weak.length || weekCmp)}

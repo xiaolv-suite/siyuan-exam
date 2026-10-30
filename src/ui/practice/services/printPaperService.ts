@@ -1,4 +1,5 @@
 import type { Question } from "@/core/types";
+import type { PrintProOptions } from "@/core/printPro";
 
 export type MessageReporter = (msg: string, timeoutMs?: number, type?: "info" | "error") => void;
 
@@ -28,12 +29,13 @@ export function openOrDownloadHtml(
 }
 
 /**
- * 生成题库标准双栏试卷
+ * 生成题库标准双栏试卷 (exam-zh 规范：默认带密封线与考生须知)
  */
 export async function printBankDoubleColumnPaper(
   bankName: string,
   questions: Question[],
   showMessage: MessageReporter,
+  customOptions: Partial<PrintProOptions> = {},
 ): Promise<void> {
   if (!questions.length) return;
   try {
@@ -42,6 +44,9 @@ export async function printBankDoubleColumnPaper(
       headerTitle: `${bankName || "题库"} · 标准试卷`,
       paperSize: "A4",
       columns: "double",
+      showSealLine: customOptions.showSealLine ?? true,
+      showExamNotice: customOptions.showExamNotice ?? true,
+      ...customOptions,
     });
     openOrDownloadHtml(html, `${bankName || "题库"}-标准双栏试卷.html`, "已生成标准双栏试卷文件", showMessage);
   } catch (e) {
@@ -56,6 +61,7 @@ export async function exportBankTeacherPaper(
   bankName: string,
   questions: Question[],
   showMessage: MessageReporter,
+  customOptions: Partial<PrintProOptions> = {},
 ): Promise<void> {
   if (!questions.length) return;
   try {
@@ -64,6 +70,7 @@ export async function exportBankTeacherPaper(
       paperSize: "A4",
       columns: "double",
       groupByKp: true,
+      ...customOptions,
     });
     openOrDownloadHtml(html, `${bankName || "题库"}-教师讲义教案卷.html`, "已生成教师讲义教案卷文件", showMessage);
   } catch (e) {
@@ -78,6 +85,7 @@ export async function printBankHomeworkSheet(
   bankName: string,
   questions: Question[],
   showMessage: MessageReporter,
+  customOptions: Partial<PrintProOptions> = {},
 ): Promise<void> {
   if (!questions.length) return;
   try {
@@ -86,6 +94,7 @@ export async function printBankHomeworkSheet(
       paperSize: "A4",
       columns: "double",
       groupByKp: true,
+      ...customOptions,
     });
     openOrDownloadHtml(html, `${bankName || "题库"}-课后作业导学单.html`, "已生成课后作业导学单文件", showMessage);
   } catch (e) {
@@ -94,12 +103,13 @@ export async function printBankHomeworkSheet(
 }
 
 /**
- * 打印勾选精选题卷
+ * 打印勾选精选题卷 (exam-zh 规范)
  */
 export async function printSelectedQuestionsPaper(
   bankName: string,
   targetQuestions: Question[],
   showMessage: MessageReporter,
+  customOptions: Partial<PrintProOptions> = {},
 ): Promise<void> {
   if (!targetQuestions.length) return;
   try {
@@ -108,6 +118,9 @@ export async function printSelectedQuestionsPaper(
       headerTitle: `${bankName || "题库"} · 精选练习`,
       columns: "double",
       groupByKp: true,
+      showSealLine: customOptions.showSealLine ?? true,
+      showExamNotice: customOptions.showExamNotice ?? true,
+      ...customOptions,
     });
     openOrDownloadHtml(html, `${bankName || "题库"}-精选题卷.html`, "已生成勾选题排版试卷文件", showMessage);
   } catch (e) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import PracticeDoneCard from "./PracticeDoneCard.svelte";
   import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
@@ -11,6 +12,9 @@
   import { countWordsAndCharacters, generatePaperGrid } from "@/core/wordCount";
   import type { SiblingItem, MaterialGroupContext } from "@/core/materialContext";
   import type { ScratchpadMode } from "@/core/scratchpad";
+  import { renderOcclusionSvg } from "@/core/imageOcclusion";
+  import { startFocusNoise, stopFocusNoise, isFocusNoiseActive } from "@/libs/sound";
+  import { FlowDwellTracker } from "@/core/flowTimer";
 
   interface Props {
     session: PracticeSession;
@@ -157,7 +161,7 @@
     ondrillVariant: () => void;
     ontraceMother: () => void;
     ontoCard: () => void;
-    onexplainCurrent: (mode: "explain" | "socratic") => void;
+    onexplainCurrent: (mode: "explain" | "socratic" | "dual-loop" | "storm") => void;
     onviewLeakedHint: () => void;
     ondismissLeakedHint: () => void;
     onsaveExplain: () => void;
@@ -313,6 +317,24 @@
     ontouchStart,
     ontouchEnd,
   }: Props = $props();
+
+  let focusNoiseActive = $state(false);
+  const dwellTracker = new FlowDwellTracker(60_000);
+
+  function ontoggleFocusNoise() {
+    if (focusNoiseActive) {
+      stopFocusNoise();
+      focusNoiseActive = false;
+    } else {
+      startFocusNoise("rain", 0.05);
+      focusNoiseActive = true;
+    }
+  }
+
+  onDestroy(() => {
+    stopFocusNoise();
+    dwellTracker.reset();
+  });
 </script>
 
 {#if sessionDone}
@@ -387,6 +409,7 @@
           <button class="lv-chip" class:acc={speedDrillEnabled} title={t("session.speedDrillTip")} aria-label={t("session.speedDrillTip")} aria-pressed={speedDrillEnabled} onclick={() => { speedDrillEnabled = !speedDrillEnabled; }}><Icon name="zap" size={13} /></button>
           <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={ontogglePureListen}><Icon name="eyeoff" size={13} /></button>
           <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-label={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-pressed={soundEnabled} onclick={() => { soundEnabled = !soundEnabled; }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
+          <button class="lv-chip" class:acc={focusNoiseActive} title={focusNoiseActive ? "关闭专注白噪音" : "开启专注心流白噪音 (自然细雨声)"} aria-label={focusNoiseActive ? "关闭专注白噪音" : "开启专注心流白噪音"} aria-pressed={focusNoiseActive} onclick={ontoggleFocusNoise}><Icon name="headphones" size={13} /></button>
           <button class="lv-chip" class:acc={hotkeysHelpOpen} title={t("hotkeys.tip")} aria-label={t("hotkeys.tip")} aria-pressed={hotkeysHelpOpen} onclick={() => (hotkeysHelpOpen = !hotkeysHelpOpen)}><Icon name="activity" size={13} /></button>
         </div>
         <span class="lv-chip" style="gap:2px;padding:2px 4px" role="group" aria-label="试题速记标记">
@@ -429,6 +452,11 @@
             onjumpSibling={onjumpSibling}
           />
           {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
+          {#if q.occlusion}
+            <div class="lv-occlusion-wrap" style="margin:10px 0 14px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
+              {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: feedback ? [q.occlusion.activeMaskId || ""] : [] })}
+            </div>
+          {/if}
           <SpeechEvalCapsule result={speechEvalResult} ondismiss={ondismissSpeechEval} />
           {#if q.studyMeta?.phonetic}
             <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
@@ -687,6 +715,10 @@
                 <button class="lv-btn" onclick={ontoCard} disabled={cardResult === "…"}><Icon name="layers" size={16} /> {cardResult === "…" ? "制卡中…" : t("memory.toCard")}</button>
                 {#if cardResult}<span class="lv-muted">{cardResult}</span>{/if}
                 <button class="lv-btn" onclick={() => onexplainCurrent("explain")} disabled={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
+                <button class="lv-btn" onclick={() => onexplainCurrent("dual-loop")} disabled={explainBusy} title="双环解题证据链推导 (DeepTutor 规范)"><Icon name="compass" size={15} /> 双环推导</button>
+                {#if q.type === "short"}
+                  <button class="lv-btn" onclick={() => onexplainCurrent("storm")} disabled={explainBusy} title="STORM 实践/理论/反思多视角辩证剖析 (Stanford STORM 规范)"><Icon name="activity" size={15} /> STORM 破题</button>
+                {/if}
                 <button class="lv-btn" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
                 <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               {/if}

@@ -63,25 +63,36 @@ export function getHintButtonLabel(
   return t("explain.hintNext").replace("{n}", String(step.level));
 }
 
+import type { ExplainMode } from "@/ai/explain";
+
 export interface ExplainRequestOptions {
   q: Question;
-  mode: "explain" | "hint" | "socratic";
+  mode: ExplainMode;
   learnerAnswer: string | null;
   sessionId: string;
   client: KernelApiClient;
   aiConfig: AiChannelConfig;
+  profilePrefix?: string;
 }
 
 /**
- * 执行 AI 试题详解或苏格拉底导学
+ * 执行 AI 试题详解、双环解题、STORM 破题或苏格拉底导学
  */
 export async function executeAiExplain(options: ExplainRequestOptions) {
-  const { q, mode, learnerAnswer, sessionId, client, aiConfig } = options;
+  const { q, mode, learnerAnswer, sessionId, client, aiConfig, profilePrefix } = options;
   const { buildExplainMessages } = await import("@/ai/explain");
   const { AiTaskRunner } = await import("@/ai/task");
 
+  const templateMap: Record<string, string> = {
+    explain: "practice.explain",
+    "dual-loop": "practice.dual-loop",
+    storm: "practice.storm",
+    hint: "practice.hint",
+    socratic: "practice.socratic",
+  };
+
   const reqCtx: AiTaskContext = {
-    templateId: mode === "explain" ? "practice.explain" : mode === "hint" ? "practice.hint" : "practice.socratic",
+    templateId: templateMap[mode] || "practice.explain",
     templateVersion: 2,
     qid: q.id,
     questionRevision: questionFingerprint(q),
@@ -92,7 +103,7 @@ export async function executeAiExplain(options: ExplainRequestOptions) {
   };
 
   const ch = await createAiChannel(client, aiConfig);
-  const messages = buildExplainMessages(q, learnerAnswer, mode);
+  const messages = buildExplainMessages(q, learnerAnswer, mode, { profilePrefix });
   const runner = new AiTaskRunner(ch);
   const env = await runner.run(reqCtx, messages);
 
