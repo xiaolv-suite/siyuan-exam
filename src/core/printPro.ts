@@ -11,6 +11,7 @@
 import type { Question } from "./types";
 import { renderMathInText, getMathPrintStyles } from "./math";
 import { renderMathDiagramsInText } from "./mathDiagram";
+import { renderOcclusionSvg } from "./imageOcclusion";
 
 export type PaperSize = "A4" | "Letter";
 export type ColumnLayout = "single" | "double";
@@ -359,6 +360,9 @@ export function buildCompactQuestionSheetPro(
     const scoreHtml = showScore ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreHtml}</div>`);
     parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
+    if (q.occlusion) {
+      parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
+    }
     if (q.options && q.options.length > 0) {
       const cols = computeOptionColumns(q.options);
       parts.push(`<div class="opt-grid opt-grid-${cols}">`);
@@ -465,6 +469,9 @@ export function buildTeacherLectureSheetPro(
     const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
     parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
+    if (q.occlusion) {
+      parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
+    }
     if (q.options && q.options.length > 0) {
       const cols = computeOptionColumns(q.options);
       parts.push(`<div class="opt-grid opt-grid-${cols}">`);
@@ -549,6 +556,9 @@ export function buildStudentHomeworkSheetPro(
     const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
     parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
+    if (q.occlusion) {
+      parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
+    }
     if (q.options && q.options.length > 0) {
       const cols = computeOptionColumns(q.options);
       parts.push(`<div class="opt-grid opt-grid-${cols}">`);
@@ -629,6 +639,9 @@ export function buildWrongbookRetestSheetPro(
     if (materialHtml) parts.push(materialHtml);
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}. <span class="lv-chip sm" style="font-size:8pt;color:#d97706;border:1px solid #fde68a;padding:0 3px">错题重练</span></div>`);
     parts.push(`<div class="q-stem">${renderMathInText(q.stem)}</div>`);
+    if (q.occlusion) {
+      parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
+    }
 
     if (q.type === "single" || q.type === "multiple") {
       const letters = "ABCDEFGHIJ";

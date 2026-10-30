@@ -1,0 +1,154 @@
+// ============================================================
+// 非破坏性 SVG 图片遮挡题核心引擎 (Image Occlusion Engine)
+// 依据 Anki Image Occlusion Enhanced 规范与医学/理工科图表记忆标准：
+// 1. 纯前端归一化矢量矩形坐标 (0.0 - 1.0)，任意窗口自适应缩放，零原图篡改
+// 2. 交互态与打印态分流渲染：屏幕端支持高亮聚焦与点击揭晓；A4 打印端输出带圈序号白框
+// 3. 一图多题裂变生成：自动为一组遮罩生成题族关联题目 (siblingBury 联动)
+// 纯函数领域层，无外部 IO 依赖。
+// ============================================================
+
+import type { Question, ImageOcclusionSpec, ImageOcclusionMask } from "./types";
+import { newQuestionId } from "./ids";
+import { makeQuestion } from "./blockTemplate";
+
+export interface RenderOcclusionOptions {
+  /** 当前聚焦的目标遮罩 ID (活动待答状态，呈高亮警戒色) */
+  activeMaskId?: string;
+  /** 已揭晓答案的遮罩 ID 列表 (展示绿色通透背景与答案文本) */
+  revealedMaskIds?: readonly string[];
+  /** 是否为纸质试卷打印模式 (黑白高反差、白底带圈序号，不透出任何答案) */
+  printMode?: boolean;
+  /** 外部容器建议宽度 (默认 100%) */
+  width?: string | number;
+}
+
+const CIRCLE_NUMBERS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳"];
+
+function escapeXml(s: string): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+/**
+ * 渲染图片遮挡矢量 SVG 结构
+ */
+export function renderOcclusionSvg(
+  spec: ImageOcclusionSpec,
+  options: RenderOcclusionOptions = {},
+): string {
+  if (!spec || !spec.imageUrl) return "";
+
+  const VIEW_SIZE = 1000;
+  const masks = spec.masks || [];
+  const activeId = options.activeMaskId ?? spec.activeMaskId;
+  const revealedSet = new Set(options.revealedMaskIds || []);
+  const isPrint = options.printMode === true;
+
+  const maskSvgs: string[] = [];
+
+  masks.forEach((m, idx) => {
+    const rx = Math.max(0, Math.min(VIEW_SIZE, Math.round(m.x * VIEW_SIZE)));
+    const ry = Math.max(0, Math.min(VIEW_SIZE, Math.round(m.y * VIEW_SIZE)));
+    const rw = Math.max(10, Math.min(VIEW_SIZE - rx, Math.round(m.w * VIEW_SIZE)));
+    const rh = Math.max(10, Math.min(VIEW_SIZE - ry, Math.round(m.h * VIEW_SIZE)));
+    const num = CIRCLE_NUMBERS[idx] || `(${idx + 1})`;
+
+    if (isPrint) {
+      // 打印模式：纯白遮挡层 + 细黑虚线边框 + 正中带圈编号
+      maskSvgs.push(
+        `<g class="lv-occlusion-mask-print">` +
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" fill="#ffffff" stroke="#222222" stroke-width="2" stroke-dasharray="4,2" />` +
+        `<text x="${rx + rw / 2}" y="${ry + rh / 2 + 6}" font-size="20" font-family="sans-serif" font-weight="bold" fill="#111111" text-anchor="middle" dominant-baseline="central">${num}</text>` +
+        `</g>`,
+      );
+      return;
+    }
+
+    const isRevealed = revealedSet.has(m.id);
+    const isActive = activeId === m.id;
+
+    if (isRevealed) {
+      // 已揭晓模式：半透明翡翠绿 + 绿色实线 + 居中答案文本
+      maskSvgs.push(
+        `<g class="lv-occlusion-mask lv-occlusion-revealed" data-mask-id="${escapeXml(m.id)}">` +
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" stroke-width="2" />` +
+        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="16" font-family="sans-serif" font-weight="bold" fill="#047857" text-anchor="middle" dominant-baseline="central">${escapeXml(m.answer)}</text>` +
+        `</g>`,
+      );
+    } else if (isActive) {
+      // 当前待答聚焦项：高亮琥珀橙 + 鲜明边框 + 提示符
+      maskSvgs.push(
+        `<g class="lv-occlusion-mask lv-occlusion-active" data-mask-id="${escapeXml(m.id)}">` +
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" fill="#f59e0b" stroke="#b45309" stroke-width="2.5" />` +
+        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="20" font-family="sans-serif" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${num}</text>` +
+        `</g>`,
+      );
+    } else {
+      // 默认未揭晓遮挡：靛蓝卡片色 + 编号
+      maskSvgs.push(
+        `<g class="lv-occlusion-mask lv-occlusion-inactive" data-mask-id="${escapeXml(m.id)}">` +
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" fill="#4f46e5" fill-opacity="0.9" stroke="#3730a3" stroke-width="1.5" />` +
+        `<text x="${rx + rw / 2}" y="${ry + rh / 2}" font-size="18" font-family="sans-serif" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${num}</text>` +
+        `</g>`,
+      );
+    }
+  });
+
+  const widthAttr = options.width ? `width="${options.width}"` : 'width="100%"';
+
+  return (
+    `<svg viewBox="0 0 ${VIEW_SIZE} ${VIEW_SIZE}" ${widthAttr} class="lv-occlusion-canvas" xmlns="http://www.w3.org/2000/svg" style="display:block;max-width:100%;height:auto;border-radius:6px;overflow:hidden">` +
+    `<image href="${escapeXml(spec.imageUrl)}" x="0" y="0" width="${VIEW_SIZE}" height="${VIEW_SIZE}" preserveAspectRatio="xMidYMid meet" />` +
+    maskSvgs.join("") +
+    `</svg>`
+  );
+}
+
+/**
+ * 将一组遮挡遮罩裂变为多道单部位填图考查题，并绑定为同一题族 (family 兄弟题)
+ */
+export function createOcclusionQuestions(options: {
+  imageUrl: string;
+  masks: ImageOcclusionMask[];
+  kp?: string;
+  source?: string;
+  stemPrefix?: string;
+}): Question[] {
+  const { imageUrl, masks, kp, source } = options;
+  if (!imageUrl || !masks.length) return [];
+
+  const familyParentId = newQuestionId();
+  const prefix = options.stemPrefix || "【图片遮挡填图】请观察图示，写出所标注区域的正确名称：";
+
+  return masks.map((m, idx) => {
+    const num = CIRCLE_NUMBERS[idx] || `(${idx + 1})`;
+    const spec: ImageOcclusionSpec = {
+      v: 1,
+      kind: "imageOcclusion",
+      imageUrl,
+      activeMaskId: m.id,
+      masks,
+    };
+
+    const q = makeQuestion({
+      type: "fill",
+      stem: `${prefix}\n\n**当前填图目标**：序号 **${num}** 区域${m.hint ? ` *（提示：${m.hint}）*` : ""}`,
+      options: [],
+      answer: m.answer,
+      kp,
+      source,
+    });
+    q.sourceKind = "real";
+    q.occlusion = spec;
+    q.family = {
+      parentId: familyParentId,
+      variantKind: "near_transfer",
+      verified: true,
+    };
+    return q;
+  });
+}

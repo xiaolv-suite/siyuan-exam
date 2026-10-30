@@ -81,6 +81,8 @@ export interface Question {
     audioUrl?: string; // 本地音频文件路径或思源资产链接
     phonetic?: string; // 拼音/粤拼/国际音标
   };
+  /** 非破坏性 SVG 图片遮挡题规格 (Image Occlusion，医考/地理/解剖学高频题型) */
+  occlusion?: ImageOcclusionSpec;
   group?: string; // 共用题干组 ID（材料与子题共享，cbt 引擎）
   /** 题族与变式关联（52-07 / 65-03，原题/近远迁移/正反向兄弟题） */
   family?: QuestionFamilyRef;
@@ -101,6 +103,32 @@ export interface QuestionFamilyRef {
   variantKind?: "numeric" | "reverse" | "near_transfer" | "far_transfer" | "distractor_swap";
   /** 是否经人工审定确认（未确认变式不当做有效迁移题） */
   verified?: boolean;
+}
+
+/** 单个图片遮挡遮罩 (Image Occlusion Mask) */
+export interface ImageOcclusionMask {
+  id: string; // 遮罩唯一标识，如 "m-1"
+  /** 归一化矩形相对坐标 (0.0 - 1.0)，自适应任意窗口缩放 */
+  x: number; // 左上角 x 比例
+  y: number; // 左上角 y 比例
+  w: number; // 宽度比例
+  h: number; // 高度比例
+  /** 遮挡部位标准答案文本 (如 "三尖瓣", "小脑") */
+  answer: string;
+  /** 提示文本 (可选，如 "瓣膜结构") */
+  hint?: string;
+}
+
+/** 图片遮挡题规格 (非破坏性 SVG 几何遮罩，原图零篡改) */
+export interface ImageOcclusionSpec {
+  v: 1;
+  kind: "imageOcclusion";
+  /** 图片地址 (本地相对路径或网络 URL) */
+  imageUrl: string;
+  /** 当前题目聚焦遮挡的遮罩 ID (若单题考查特定单部位) */
+  activeMaskId?: string;
+  /** 全部遮罩矩形清单 */
+  masks: ImageOcclusionMask[];
 }
 
 /** 作答事件（append-only 流水；重算唯一输入） */
