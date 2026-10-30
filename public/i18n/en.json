@@ -1558,6 +1558,7 @@
     "rate.writeback.recorded": "Written back to scheduler",
     "rate.writeback.pending-confirm": "Unconfirmed · verify before deciding",
     "rate.writeback.failed": "Write-back failed · retryable",
-    "rate.writeback.skipped-offline": "Offline, not written back · retry later"
+    "rate.writeback.skipped-offline": "Offline, not written back · retry later",
+    "report.mockRound": "Round",
+    "report.mockDate": "Date"
 }
-

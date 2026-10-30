@@ -986,7 +986,7 @@
     const exposure = $derived(exposureStats(reportEvents));
 
     // 45-08：图表数据表展开态（单选一个卡）+ CSV 下载（与 SVG 同一数据快照）
-    let tableOpen = $state<"trend" | "heat" | "hourly" | "">("");
+    let tableOpen = $state<"trend" | "heat" | "hourly" | "mockhist" | "">("");
     function downloadChartCsv(csv: string, name: string) {
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -1453,7 +1453,15 @@
         <div class="lv-row" style="margin:4px 0 0">
           <span class="lv-chip num">{t("report.trendMax")} {maxTrend}</span>
           <span class="lv-chip num">{t("report.trendSum")} {trend30.reduce((n, p) => n + p.attempts, 0)}</span>
-          <span class="lv-chip lv-chip--grn">— {t("report.accuracyTrend")}</span>
+          <!-- 双系列图例（legend-visible）：线样与图内描边一致（实线主色=题量，虚线绿=正确率），色弱用户依文本而非颜色区分 -->
+          <span class="lv-chip">
+            <i aria-hidden="true" style="display:inline-block;width:14px;border-top:3px solid var(--lv-data-accent);border-radius:2px"></i>
+            {t("report.attempts")}
+          </span>
+          <span class="lv-chip lv-chip--grn">
+            <i aria-hidden="true" style="display:inline-block;width:14px;border-top:2px dashed var(--lv-green)"></i>
+            {t("report.accuracyTrend")}
+          </span>
           <!-- 45-08：SVG 图表的文本等价物 + CSV（同一数据快照，读屏/打印/导出数字一致） -->
           <button class="lv-btn sm lv-btn--ghost" aria-expanded={tableOpen === "trend"} onclick={() => tableOpen = tableOpen === "trend" ? "" : "trend"}><Icon name="table" size={13} /> {t("data.table")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => downloadChartCsv(trendToCsv(trend30), "trend30")}><Icon name="export" size={13} /> CSV</button>
@@ -1918,6 +1926,24 @@
             </circle>
           {/each}
         </svg>
+        <!-- 45-08 同口径：模考历史也提供数据表等价物（与趋势/热力/时段一致），读屏与打印取同一快照 -->
+        <div class="lv-row" style="margin:4px 0 0">
+          <button class="lv-btn sm lv-btn--ghost" aria-expanded={tableOpen === "mockhist"} onclick={() => tableOpen = tableOpen === "mockhist" ? "" : "mockhist"}><Icon name="table" size={13} /> {t("data.table")}</button>
+        </div>
+        {#if tableOpen === "mockhist"}
+          <table class="lv-dtable">
+            <thead><tr><th>{t("report.mockDate")}</th><th>{t("report.mockRound")}</th><th>{t("report.accuracy")}</th></tr></thead>
+            <tbody>
+              {#each mockHistory as h, i (i)}
+                <tr>
+                  <td class="num">{h.startedAt ? new Date(h.startedAt).toLocaleDateString() : "—"}</td>
+                  <td>{h.name ?? `第${i + 1}次`}</td>
+                  <td class="num">{Math.round(h.percent)}%{#if h.pass}<Icon name="check" size={11} />{/if}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
       </div>
     {/if}
 
