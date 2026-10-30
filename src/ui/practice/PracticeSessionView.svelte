@@ -392,8 +392,8 @@
         <span class="lv-chip" style="gap:2px;padding:2px 4px">
           <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("star")} title={t("session.tagStar")} onclick={() => ontoggleUserTag("star")}><Icon name="star" size={12} /></button>
           <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("trap")} title={t("session.tagTrap")} onclick={() => ontoggleUserTag("trap")}><Icon name="alert-triangle" size={12} /></button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 3px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} onclick={() => ontoggleUserTag("doubt")}>❓</button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 3px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} onclick={() => ontoggleUserTag("key")}>💡</button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} onclick={() => ontoggleUserTag("doubt")}><Icon name="help" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} onclick={() => ontoggleUserTag("key")}><Icon name="bulb" size={12} /></button>
         </span>
       </div>
       <div class="lv-session-main">

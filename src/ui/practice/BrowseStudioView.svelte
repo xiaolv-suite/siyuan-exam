@@ -531,7 +531,7 @@
       <div class="lv-session-dock" role="group" aria-label="考点标签过滤">
         <button class="lv-chip" class:acc={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}><Icon name="star" size={12} /> {t("session.tagStar")}</button>
         <button class="lv-chip" class:acc={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}><Icon name="alert-triangle" size={12} /> {t("session.tagTrap")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}>❓ {t("session.tagDoubt")}</button>
+        <button class="lv-chip" class:acc={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}><Icon name="help" size={12} /> {t("session.tagDoubt")}</button>
       </div>
     </div>
     <div class="lv-row" style="margin:0;gap:6px">

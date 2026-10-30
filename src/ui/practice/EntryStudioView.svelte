@@ -310,7 +310,7 @@
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:12px;margin-bottom:20px">
           <!-- 1. 职业与考证 -->
-          <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-brand);display:flex;align-items:center;gap:6px">
                 <Icon name="badge" size={15} /> 职业考证
@@ -325,7 +325,7 @@
           </div>
 
           <!-- 2. 大学与硕博 -->
-          <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-accent);display:flex;align-items:center;gap:6px">
                 <Icon name="academic" size={15} /> 大学与硕博
@@ -340,7 +340,7 @@
           </div>
 
           <!-- 3. 多语言研学 (英语+粤语) -->
-          <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-scene-lang, var(--lv-accent));display:flex;align-items:center;gap:6px">
                 <Icon name="volume" size={15} /> 多语言研学
@@ -360,7 +360,7 @@
           </div>
 
           <!-- 4. K12基础教育与通识 -->
-          <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-green);display:flex;align-items:center;gap:6px">
                 <Icon name="book" size={15} /> K12基础通识

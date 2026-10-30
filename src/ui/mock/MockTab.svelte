@@ -1865,12 +1865,12 @@
               <option value={opt.id}>{opt.title}</option>
             {/each}
           </optgroup>
-          <optgroup label="🎯 公务员与法考">
+          <optgroup label="公务员与法律职业">
             {#each presetOptions.filter((p) => p.category === "civil_service" || p.category === "law") as opt (opt.id)}
               <option value={opt.id}>{opt.title}</option>
             {/each}
           </optgroup>
-          <optgroup label="🗣️ 语言与微测验">
+          <optgroup label="多语言与微测验">
             {#each presetOptions.filter((p) => p.category === "language" || p.category === "micro") as opt (opt.id)}
               <option value={opt.id}>{opt.title}</option>
             {/each}
@@ -2453,7 +2453,18 @@
               <span class="num">{Math.round(ps.budgetSeconds / 60)}m</span>
               <span class="num">{Math.round(ps.actualSeconds / 60)}m</span>
               <span class="num" class:lv-chip--grn={ps.diffSeconds < 0} class:lv-chip--red={ps.diffSeconds > 120}>{ps.diffSeconds > 0 ? `+${Math.round(ps.diffSeconds / 60)}m` : `${Math.round(ps.diffSeconds / 60)}m`}</span>
-              <span style="font-size:var(--lv-font-size-caption)">{ps.status === "time_sink" ? "🔴 耗时陷阱" : ps.status === "efficient" ? "⚡ 高效提分" : "🟢 稳健"}</span>
+              <span class="lv-row" style="align-items:center;gap:5px;font-size:var(--lv-font-size-caption)">
+                {#if ps.status === "time_sink"}
+                  <span class="lv-dot" style="background:var(--lv-red)"></span>
+                  <span style="color:var(--lv-red);font-weight:600">耗时陷阱</span>
+                {:else if ps.status === "efficient"}
+                  <span class="lv-dot" style="background:var(--lv-data-accent)"></span>
+                  <span style="color:var(--lv-data-accent);font-weight:600">高效提分</span>
+                {:else}
+                  <span class="lv-dot" style="background:var(--lv-green)"></span>
+                  <span style="color:var(--lv-green);font-weight:600">稳健</span>
+                {/if}
+              </span>
             </div>
           {/each}
         </div>

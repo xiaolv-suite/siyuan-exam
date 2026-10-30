@@ -164,7 +164,7 @@
       </div>
     {/if}
     {#if sessionDone.wrong > 0}
-      <div class="lv-card" style="margin:12px 0 10px;padding:16px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle, var(--lv-border))">
+      <div class="lv-card" style="margin:12px 0 10px;padding:16px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle)">
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:6px">
           <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
             <Icon name="target" size={14} /> 发现 {sessionDone.wrong} 道错题 · 推荐即时强化
@@ -230,7 +230,7 @@
         </div>
       {/if}
     {:else}
-      <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);text-align:center">
+      <div class="lv-card" style="margin:10px 0 8px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);text-align:center">
         <b style="color:var(--lv-green);font-size:14px;display:inline-flex;align-items:center;gap:6px;margin-bottom:8px">
           <Icon name="trophy" size={16} /> 全部正确，达成全对通关！
         </b>

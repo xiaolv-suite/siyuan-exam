@@ -104,22 +104,22 @@
         <input class="lv-input" style="flex:1;min-width:160px" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
         <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("qualification"); }} disabled={creating || offline} title="一键体验教师资格证与基金从业资格真题题库">
-            🎯 考证
+            <Icon name="award" size={12} /> 考证
           </button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("higher"); }} disabled={creating || offline} title="体验大学高数与考研学术题库">
-            🎓 高数
+            <Icon name="academic" size={12} /> 高数
           </button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("k12"); }} disabled={creating || offline} title="体验K12初高中全科基础题库">
-            🎒 K12
+            <Icon name="book" size={12} /> K12
           </button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("english"); }} disabled={creating || offline} title="体验大学英语雅思词汇与发音研学题库">
-            🗣️ 英语
+            <Icon name="volume" size={12} /> 英语
           </button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("cantonese"); }} disabled={creating || offline} title="体验粤语日常实用口语与粤拼听读研学题库">
-            🇭🇰 粤语
+            <Icon name="mic" size={12} /> 粤语
           </button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("general"); }} disabled={creating || offline} title="体验综合基础演示题库">
-            🧠 通识
+            <Icon name="grid" size={12} /> 通识
           </button>
         </div>
       </div>

@@ -262,13 +262,14 @@
             {#if siyuanDocCandidates.length === 0}
               <div class="lv-muted" style="padding:16px;text-align:center">{siyuanDocBusy ? "正在搜索思源文档…" : "未找到匹配文档，请尝试输入其他关键词"}</div>
             {:else}
-              <div class="lv-row" style="justify-content:space-between;align-items:center;padding:6px 10px;margin-bottom:6px;background:var(--lv-surface-2);border-radius:var(--lv-r-1);flex-wrap:wrap;gap:6px">
+              <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 12px;margin-bottom:6px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 12px);border:1px solid var(--lv-border-subtle);flex-wrap:wrap;gap:6px">
                 <div class="lv-row" style="margin:0;gap:8px;align-items:center">
                   <button type="button" class="lv-chip num sm" onclick={onToggleSelectAllDocs} class:acc={selectedDocCount > 0}>
                     {selectedDocCount === siyuanDocCandidates.length ? "☑ 全选" : selectedDocCount > 0 ? `☑ 已选 ${selectedDocCount}` : "☐ 全选"}
                   </button>
-                  <span class="lv-muted" style="font-size:11px">
-                    {docSearchQuery.trim() ? `搜索到 ${siyuanDocCandidates.length} 篇相关笔记` : `🕒 最近编辑笔记（共 ${siyuanDocCandidates.length} 篇）`}
+                  <span class="lv-muted" style="font-size:11px;display:inline-flex;align-items:center;gap:4px">
+                    {#if !docSearchQuery.trim()}<Icon name="clock" size={11} />{/if}
+                    {docSearchQuery.trim() ? `搜索到 ${siyuanDocCandidates.length} 篇相关笔记` : `最近编辑笔记（共 ${siyuanDocCandidates.length} 篇）`}
                   </span>
                 </div>
                 <div class="lv-row" style="margin:0;gap:6px">

@@ -444,7 +444,7 @@
                     {/if}
                     <span class="lv-muted num">{t("browse.answer")}: <b>{r.answer}</b></span>
                     {#if r.kp}<span class="lv-muted"> · {r.kp}</span>{/if}
-                    {#if r.summary}<span class="lv-muted" style="font-size:var(--lv-font-size-caption);width:100%" title={r.summary}>📝 {r.summary}</span>{/if}
+                    {#if r.summary}<span class="lv-muted" style="font-size:var(--lv-font-size-caption);width:100%;display:inline-flex;align-items:center;gap:4px" title={r.summary}><Icon name="file-text" size={11} /> {r.summary}</span>{/if}
                     {#if revRestoreFailedKey === `${q.id}#${r.ts}`}<span class="lv-error" role="alert">{t("rev.restoreFailed").replace("{message}", revRestoreError[q.id])}</span><button class="lv-btn sm" disabled={!!revRestoreKey} onclick={() => onrestoreRevision(q, r)}>{t("rev.retry")}</button>{/if}
                     <button class="lv-btn sm lv-btn--ghost" style="margin-left:auto" disabled={!!revRestoreKey} aria-busy={revRestoreKey === `${q.id}#${r.ts}`} onclick={() => onrestoreRevision(q, r)}>{revRestoreKey === `${q.id}#${r.ts}` ? "…" : t("rev.restore")}</button>
                   </div>
