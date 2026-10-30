@@ -385,6 +385,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     } from "./services/scratchpadWorkflowService";
     import AiStudioView from "./AiStudioView.svelte";
     import ManualStudioView from "./ManualStudioView.svelte";
+    import OcclusionEditor from "./OcclusionEditor.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
     import { SvelteMap, SvelteSet } from "svelte/reactivity";
@@ -3279,6 +3280,9 @@ import { confirmDialogSync } from "@/libs/dialog";
     let mSecondaryKps = $state("");
     let mSource = $state("");
     let mGroup = $state("");
+    /** 图片遮挡填图可视化编辑器开关（遮挡题创作唯一入口；引擎/渲染/打印已在 core 就绪） */
+    let occlusionOpen = $state(false);
+    let occlusionBusy = $state(false);
     /** 54-02 作者设置：数值判分规格（填空题型显示；留空=自动识别/exact 口径） */
     let mSpecOpen = $state(false);
     let mSpecUnit = $state("");
@@ -3545,6 +3549,33 @@ import { confirmDialogSync } from "@/libs/dialog";
       draftRestored = false;
       clearManualValidation();
       void clearManualDraftAux(app);
+    }
+
+    /** 遮挡编辑器裂变题入库：逐题写当前题库，失败题逐条回传不中断（40-03 写入容错口径） */
+    async function saveOcclusionQuestions(generated: import("@/core/types").Question[]) {
+      if (occlusionBusy || !generated.length) return;
+      occlusionBusy = true;
+      const targetBankId = activeBankId;
+      const failed: string[] = [];
+      try {
+        for (const q of generated) {
+          try {
+            await app.writeManualQuestion(targetBankId, q);
+          } catch {
+            failed.push(q.stem.split("\n")[0]?.slice(0, 24) || q.id);
+          }
+        }
+        const okCount = generated.length - failed.length;
+        if (okCount > 0) {
+          showMessage(`遮挡填图题已入库 ${okCount} 道（同族联动）✓`, 3200, "info");
+          await refreshQuestionsAfterWrite(questions.length + okCount);
+        }
+        if (failed.length) {
+          showMessage(`${failed.length} 道写入失败：${failed.join("；")}`, 5200, "error");
+        }
+      } finally {
+        occlusionBusy = false;
+      }
     }
 
     async function blankManualDraft() {
@@ -5570,6 +5601,18 @@ import { confirmDialogSync } from "@/libs/dialog";
       onblankManualDraft={blankManualDraft}
       onshowChartMessage={() => showMessage("已在题干插入图表模板", 2500, "info")}
     />
+    <!-- 图片遮挡填图可视化编辑器：拖拽框选 → 填答案 → 裂变同族题（遮挡题唯一创作入口） -->
+    <div class="lv-row" style="margin:8px 0 0">
+      <button class="lv-btn sm lv-btn--ghost" aria-expanded={occlusionOpen} onclick={() => (occlusionOpen = !occlusionOpen)}
+        title="在配图上框选区域生成图片遮挡填图题（Anki Image Occlusion 规范，支持 A4 打印脱敏）">
+        <Icon name="layers" size={13} />
+        <span>{occlusionOpen ? "收起遮挡图编辑器" : "遮挡图出题（框选配图区域）"}</span>
+        <Icon name={occlusionOpen ? "arrow-down" : "chev-right"} size={11} />
+      </button>
+    </div>
+    {#if occlusionOpen}
+      <OcclusionEditor {t} kp={mKp} source={mSource} oncreate={(qs) => void saveOcclusionQuestions(qs)} />
+    {/if}
   {:else if view === "ai"}
     <AiStudioView
       {hasBank}

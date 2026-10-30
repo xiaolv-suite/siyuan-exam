@@ -3,6 +3,8 @@ import type { ImageOcclusionSpec, ImageOcclusionMask } from "../src/core/types";
 import {
   renderOcclusionSvg,
   createOcclusionQuestions,
+  normalizeOcclusionRect,
+  OCCLUSION_MIN_SIZE,
 } from "../src/core/imageOcclusion";
 import { buildCompactQuestionSheetPro, auditQuestionSheetSafety } from "../src/core/printPro";
 
@@ -77,6 +79,20 @@ describe("图片遮挡题核心引擎 (imageOcclusion)", () => {
     expect(q1.family?.variantKind).toBe("near_transfer");
     expect(q2.family?.variantKind).toBe("near_transfer");
     expect(q1.family?.parentId).toBe(q2.family?.parentId);
+  });
+
+  it("normalizeOcclusionRect 任意方向拖拽归一化、钳位 0..1、误触丢弃", () => {
+    // 左上拖到右下（正向）
+    expect(normalizeOcclusionRect(0.2, 0.3, 0.5, 0.6)).toEqual({ x: 0.2, y: 0.3, w: 0.3, h: 0.3 });
+    // 反向拖拽（右下到左上）同结果
+    expect(normalizeOcclusionRect(0.5, 0.6, 0.2, 0.3)).toEqual({ x: 0.2, y: 0.3, w: 0.3, h: 0.3 });
+    // 越界钳位：拖出画布边缘收敛到 0..1
+    expect(normalizeOcclusionRect(-0.2, 0.9, 0.4, 1.5)).toEqual({ x: 0, y: 0.9, w: 0.4, h: 0.1 });
+    // 误触（小于最小边长）返回 null
+    expect(normalizeOcclusionRect(0.5, 0.5, 0.5, 0.5)).toBeNull();
+    expect(normalizeOcclusionRect(0.5, 0.5, 0.5 + OCCLUSION_MIN_SIZE / 2, 0.6)).toBeNull();
+    // 面积刚好达标不丢弃
+    expect(normalizeOcclusionRect(0.5, 0.5, 0.5 + OCCLUSION_MIN_SIZE, 0.6)).not.toBeNull();
   });
 
   it("buildCompactQuestionSheetPro 打印排版集成遮挡图，且通过安全审计", () => {

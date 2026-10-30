@@ -33,6 +33,38 @@ function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
+/** 归一化遮罩最小边长（占比），低于此值视作误触丢弃 */
+export const OCCLUSION_MIN_SIZE = 0.015;
+
+/**
+ * 将指针拖拽的原始矩形归一化为 0..1 区间内的合法遮罩矩形。
+ * 起点终点任意方向拖拽均可；宽高低于最小边长视作误触返回 null。
+ */
+export function normalizeOcclusionRect(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  minSize = OCCLUSION_MIN_SIZE,
+): { x: number; y: number; w: number; h: number } | null {
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+  const ax = clamp01(x0);
+  const ay = clamp01(y0);
+  const bx = clamp01(x1);
+  const by = clamp01(y1);
+  const x = Math.min(ax, bx);
+  const y = Math.min(ay, by);
+  const w = Math.abs(bx - ax);
+  const h = Math.abs(by - ay);
+  if (w < minSize || h < minSize) return null;
+  return {
+    x: Math.round(x * 10000) / 10000,
+    y: Math.round(y * 10000) / 10000,
+    w: Math.round(Math.min(w, 1 - x) * 10000) / 10000,
+    h: Math.round(Math.min(h, 1 - y) * 10000) / 10000,
+  };
+}
+
 /**
  * 渲染图片遮挡矢量 SVG 结构
  */
