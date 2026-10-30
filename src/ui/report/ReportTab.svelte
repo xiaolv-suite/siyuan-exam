@@ -1239,7 +1239,10 @@
         <div class="lv-row" style="margin:0 0 6px;justify-content:space-between">
           <b>{t("report.weekCompare")}</b>
           {#if delta !== 0}
-            <span class="lv-chip num {delta > 0 ? 'lv-chip--grn' : 'lv-chip--red'}">{delta > 0 ? "↑" : "↓"} {delta > 0 ? "+" : ""}{delta} {t("browse.count")}</span>
+            <span class="lv-chip num {delta > 0 ? 'lv-chip--grn' : 'lv-chip--red'}" style="display:inline-flex;align-items:center;gap:3px">
+              <Icon name={delta > 0 ? "arrow-up" : "arrow-down"} size={10} />
+              <span>{delta > 0 ? "+" : ""}{delta} {t("browse.count")}</span>
+            </span>
           {:else}
             <span class="lv-chip num">±0</span>
           {/if}
@@ -1354,7 +1357,7 @@
               {@const stem = questionMap.get(c.qid)?.stem}
               <div class="lv-error-row" style="white-space:normal" title={stem ?? c.qid}>
                 <b class="num" style="display:inline-flex;align-items:center"><Icon name="rotate" size={12} /></b> {stem ? stem.slice(0, 60) : c.qid}
-                <span class="lv-muted"> · {t("report.changedFirst")}: {c.first} → {c.final}</span>
+                <span class="lv-muted" style="display:inline-flex;align-items:center;gap:3px"> · {t("report.changedFirst")}: {c.first} <Icon name="chev-right" size={10} /> {c.final}</span>
                 <span class="lv-chip num" style="margin-left:4px">{c.editCount}</span>
                 {#if c.reasons.length}<span class="lv-muted"> · {c.reasons.map((r) => t("trail.reason." + r)).join("、")}</span>{/if}
               </div>

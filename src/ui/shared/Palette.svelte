@@ -200,7 +200,7 @@
         {/if}
       </div>
       <div class="lv-palette-foot">
-        <span><span class="lv-kbd">↑</span> <span class="lv-kbd">↓</span> {t("palette.select", "选择")}</span>
+        <span><span class="lv-kbd" style="display:inline-flex;align-items:center"><Icon name="arrow-up" size={10} /></span> <span class="lv-kbd" style="display:inline-flex;align-items:center"><Icon name="arrow-down" size={10} /></span> {t("palette.select", "选择")}</span>
         <span><span class="lv-kbd">Enter</span> {t("palette.run", "执行")}</span>
         <span style="flex:1"></span>
         <span>{t("palette.kbdHint", "Ctrl / ⌘ K 随时呼出")}</span>

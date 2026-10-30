@@ -47,7 +47,7 @@
           <div class="lv-hotkeys-row"><span class="lv-kbd">H</span><span>查看背诵下一级提示</span></div>
         {/if}
         {#if hotkeyCategory === "all" || hotkeyCategory === "nav"}
-          <div class="lv-hotkeys-row"><span class="lv-kbd">↑ / ↓</span><span>题库抽屉上一题 / 下一题连续翻阅</span></div>
+          <div class="lv-hotkeys-row"><span class="lv-kbd" style="display:inline-flex;align-items:center;gap:3px"><Icon name="arrow-up" size={10} /> / <Icon name="arrow-down" size={10} /></span><span>题库抽屉上一题 / 下一题连续翻阅</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">⌘K / Ctrl+K</span><span>随时呼出全局命令面板</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">?</span><span>打开 / 关闭本快捷键速查指南</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">Esc</span><span>退出当前会话 / 关闭详情抽屉与浮层</span></div>

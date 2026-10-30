@@ -335,7 +335,7 @@
       <span class="lv-project-kicker">{project.kicker}</span>
       <span class="lv-project-row">
         <span class="lv-project-name">{project.name}</span>
-        <span class="lv-project-go" aria-hidden="true">↗</span>
+        <span class="lv-project-go" aria-hidden="true" style="display:inline-flex;align-items:center"><Icon name="external-link" size={11} /></span>
       </span>
     </button>
   {/if}

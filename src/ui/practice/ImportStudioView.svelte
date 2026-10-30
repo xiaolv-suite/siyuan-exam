@@ -456,10 +456,18 @@
           {/each}
           {#if importReport.updates?.length}
             <div class="lv-row" style="margin:4px 0 0">
-              <span class="lv-chip lv-chip--amb num" title={t("import.updatesHint")}>↻ {t("import.updatesCount").replace("{n}", String(importReport.updates.length))}</span>
+              <span class="lv-chip lv-chip--amb num" title={t("import.updatesHint")} style="display:inline-flex;align-items:center;gap:4px">
+                <Icon name="rotate" size={11} />
+                <span>{t("import.updatesCount").replace("{n}", String(importReport.updates.length))}</span>
+              </span>
             </div>
             {#each importReport.updates.slice(0, 10) as u, _ui2 (_ui2)}
-              <div class="lv-error-row num" title={u.q.stem}>↻ #{u.row} {u.q.stem.slice(0, 40)} → {t("browse.answer")}: {u.q.answer}</div>
+              <div class="lv-error-row num" title={u.q.stem} style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap">
+                <Icon name="rotate" size={11} />
+                <span>#{u.row} {u.q.stem.slice(0, 40)}</span>
+                <Icon name="chev-right" size={10} />
+                <span>{t("browse.answer")}: {u.q.answer}</span>
+              </div>
             {/each}
           {/if}
           {#each importReport.errors.slice(0, 20) as err, _i (_i)}

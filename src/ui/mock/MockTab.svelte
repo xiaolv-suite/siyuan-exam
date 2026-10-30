@@ -2377,7 +2377,10 @@
               <div class="progress" style="flex:1"><i style="width:{tri.avg}%"></i></div>
               <span class="num lv-muted">{tri.avg}%</span>
             </div>
-            <p class="lv-muted" style="margin:4px 0 0">{tri.this >= tri.avg ? "↑" : "↓"} {t("mock.vsAvg")} {Math.abs(tri.this - tri.avg)} {t("mock.points")}</p>
+            <p class="lv-muted" style="margin:4px 0 0;display:inline-flex;align-items:center;gap:3px">
+              <Icon name={tri.this >= tri.avg ? "arrow-up" : "arrow-down"} size={11} />
+              <span>{t("mock.vsAvg")} {Math.abs(tri.this - tri.avg)} {t("mock.points")}</span>
+            </p>
           {/if}
         {/if}
       </div>

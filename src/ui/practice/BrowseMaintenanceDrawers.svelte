@@ -421,8 +421,10 @@
         {#if !app.kernelOnline}<span class="lv-chip lv-chip--amb">{t("state.offlineHint")}</span>{/if}
       </div>
       {#each errataPlan.changes.slice(0, 8) as c, _ci (_ci)}
-        <div class="lv-row lv-muted num" style="margin:2px 0;font-size:var(--lv-font-size-label)">
-          {t("batch.field." + c.field)}：{c.from || "（空）"} → {c.to || "（空）"}
+        <div class="lv-row lv-muted num" style="margin:2px 0;font-size:var(--lv-font-size-label);align-items:center;gap:4px">
+          <span>{t("batch.field." + c.field)}：{c.from || "（空）"}</span>
+          <Icon name="chev-right" size={10} />
+          <span>{c.to || "（空）"}</span>
         </div>
       {/each}
       {#if errataPlan.changes.length > 8}<div class="lv-muted num">… +{errataPlan.changes.length - 8}</div>{/if}
