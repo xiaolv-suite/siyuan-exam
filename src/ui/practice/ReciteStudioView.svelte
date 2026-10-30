@@ -122,7 +122,7 @@
         <div class="bad"><strong>{reciteRatings.filter((x) => x === 1).length}</strong><span>{t("rate.1")}</span></div>
         <div><strong style="color:var(--lv-amber)">{reciteRatings.filter((x) => x === 2).length}</strong><span>{t("rate.2")}</span></div>
         <div class="good"><strong>{reciteRatings.filter((x) => x === 3).length}</strong><span>{t("rate.3")}</span></div>
-        <div><strong style="color:var(--lv-accent)">{reciteRatings.filter((x) => x === 4).length}</strong><span>{t("rate.4")}</span></div>
+        <div><strong style="color:var(--lv-data-accent)">{reciteRatings.filter((x) => x === 4).length}</strong><span>{t("rate.4")}</span></div>
       </div>
       <p class="lv-muted" style="font-size:var(--lv-font-size-sm);margin-bottom:14px">{t("recite.doneHint")}</p>
       {#if forgotCount > 0}

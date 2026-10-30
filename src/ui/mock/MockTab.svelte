@@ -2373,7 +2373,7 @@
         <span class="num" style="font-size:40px;font-weight:var(--lv-font-weight-bold, 700);color:var(--lv-data-accent)">{score.total}</span>
         <span class="lv-muted">/ {score.full}</span>
         <span class="lv-chip" class:grn={score.pass} class:red={!score.pass}>{score.pass ? t("mock.pass") : t("mock.fail")}（{t("mock.passLine")} {bp.passLine}%）</span>
-        <span class="lv-chip num">{score.percent}%</span>
+        <span class="lv-chip lv-chip--data num">{score.percent}%</span>
         {#if tri}
           <div class="lv-row" style="width:100%;margin:10px 0 0">
             <span class="lv-muted" style="width:44px">{t("mock.thisRun")}</span>

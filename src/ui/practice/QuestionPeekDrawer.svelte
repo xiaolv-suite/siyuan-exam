@@ -355,15 +355,19 @@
           {@const stubborn = wr ? isStubbornWrong(wr) : false}
           {@const isArchived = app?.isWrongArchived(q.id)}
           <div class="lv-row" style="margin:6px 0 2px;align-items:center;justify-content:space-between;flex-wrap:wrap">
-            <div class="lv-muted num" role="status">
-              <Icon name="chart" size={11} /> {t("browse.usage").replace("{a}", String(st.attempts)).replace("{c}", String(Math.round((st.correct / st.attempts) * 100)))}{#if wr} · {t("browse.wrongCount").replace("{n}", String(wr.wrongCount))}{/if} · {new Date(st.lastAt).toLocaleDateString()}
+            <div class="lv-muted num" role="status" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span class="lv-chip lv-chip--data sm num" title={t("browse.usage").replace("{a}", String(st.attempts)).replace("{c}", String(Math.round((st.correct / st.attempts) * 100)))}>
+                <Icon name="chart" size={11} /> {t("browse.usage").replace("{a}", String(st.attempts)).replace("{c}", String(Math.round((st.correct / st.attempts) * 100)))}
+              </span>
+              {#if wr}<span class="lv-chip lv-chip--red sm num">{t("browse.wrongCount").replace("{n}", String(wr.wrongCount))}</span>{/if}
+              <span>· {new Date(st.lastAt).toLocaleDateString()}</span>
               {#if stubborn}
-                <span class="lv-chip lv-chip--amb sm" style="margin-left:6px" title={wr ? getStubbornRemediation(wr).reasonText : ""}>
+                <span class="lv-chip lv-chip--amb sm" title={wr ? getStubbornRemediation(wr).reasonText : ""}>
                   <Icon name="flame" size={11} /> {t("wrongbook.stubbornBadge")}
                 </span>
               {/if}
               {#if isArchived}
-                <span class="lv-chip sm" style="margin-left:6px">{t("wrongbook.tabArchived")}</span>
+                <span class="lv-chip sm">{t("wrongbook.tabArchived")}</span>
               {/if}
             </div>
             <div class="lv-row" style="margin:0;gap:4px">

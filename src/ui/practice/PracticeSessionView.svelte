@@ -738,7 +738,7 @@
             {#if q.difficulty}<span class="lv-chip num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="star" size={11} /> {q.difficulty}</span>{/if}
             {#if q.score}<span class="lv-chip num">{t("manual.score")} {q.score}</span>{/if}
             {#if curQStats && curQStats.attempts > 0}
-              <span class="lv-chip num" title={t("browse.usage").replace("{a}", String(curQStats.attempts)).replace("{c}", String(Math.round((curQStats.correct / curQStats.attempts) * 100)))}>
+              <span class="lv-chip lv-chip--data num" title={t("browse.usage").replace("{a}", String(curQStats.attempts)).replace("{c}", String(Math.round((curQStats.correct / curQStats.attempts) * 100)))}>
                 <Icon name="chart" size={11} /> {curQStats.attempts} · {Math.round((curQStats.correct / curQStats.attempts) * 100)}%
               </span>
             {/if}

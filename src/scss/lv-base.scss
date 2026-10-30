@@ -132,6 +132,11 @@
     color: var(--lv-amber);
     background: var(--lv-amber-soft);
   }
+  &.data,
+  &--data {
+    color: var(--lv-data-accent);
+    background: var(--lv-data-soft);
+  }
 }
 
 /* —— 双角色分段切换控件（Segmented Control）与双角色主题色体系 —— */
@@ -2074,11 +2079,11 @@ input[type="range"] {
 .lv-rate .r1 .lv-rate-key { color: var(--lv-red); background: var(--lv-red-soft); border-color: transparent; }
 .lv-rate .r2 .lv-rate-key { color: var(--lv-amber); background: var(--lv-amber-soft); border-color: transparent; }
 .lv-rate .r3 .lv-rate-key { color: var(--lv-green); background: var(--lv-green-soft); border-color: transparent; }
-.lv-rate .r4 .lv-rate-key { color: var(--lv-accent); background: var(--lv-accent-soft); border-color: transparent; }
+.lv-rate .r4 .lv-rate-key { color: var(--lv-data-accent); background: var(--lv-data-soft); border-color: transparent; }
 .lv-rate .r1:hover { border-color: var(--lv-red); color: var(--lv-red); background: color-mix(in srgb, var(--lv-red-soft) 45%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-red) 16%, transparent); }
 .lv-rate .r2:hover { border-color: var(--lv-amber); color: var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 45%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-amber) 16%, transparent); }
 .lv-rate .r3:hover { border-color: var(--lv-green); color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 45%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-green) 16%, transparent); }
-.lv-rate .r4:hover { border-color: var(--lv-accent); color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 45%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-accent) 16%, transparent); }
+.lv-rate .r4:hover { border-color: var(--lv-data-accent); color: var(--lv-data-accent); background: color-mix(in srgb, var(--lv-data-soft) 45%, var(--lv-surface)); box-shadow: 0 4px 12px color-mix(in srgb, var(--lv-data-accent) 16%, transparent); }
 @container lv-exam (max-width: 600px) {
   .lv-rate { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lv-space-2); }
   .lv-rate .lv-btn { min-width: 0; white-space: normal; }
