@@ -230,8 +230,8 @@
           <Icon name="alert-triangle" size={11} /> {t("dispute.badge")} · {t("dispute.reason." + q.dispute?.reason)}
         </span>
       {:else if q.dispute?.resolved}
-        <span class="lv-chip lv-chip--grn sm" title={q.dispute.resolution ?? ""}>
-          ✓ {t("dispute.resolved")}
+        <span class="lv-chip lv-chip--grn sm" style="display:inline-flex;align-items:center;gap:4px" title={q.dispute.resolution ?? ""}>
+          <Icon name="check" size={11} /> {t("dispute.resolved")}
         </span>
       {/if}
     </div>

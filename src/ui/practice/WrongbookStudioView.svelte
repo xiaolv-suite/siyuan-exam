@@ -341,7 +341,7 @@
                   <div class="lv-wrong-main">
                     <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 80) ?? w.qid}</div>
                     <div class="lv-wrong-meta">
-                      <span class="lv-chip sm lv-chip--grn">✓ {t("wrongbook.tabEliminated")}</span>
+                      <span class="lv-chip sm lv-chip--grn" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={11} /> {t("wrongbook.tabEliminated")}</span>
                       <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
                       <span>消灭于 {new Date(w.lastWrongAt).toLocaleDateString()}</span>
                       {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}

@@ -1797,8 +1797,8 @@
             <span class="lv-chip num">{t("action.kind." + a.kind)}</span>
             <span style="flex:1;min-width:140px">{a.detail}</span>
             {#if a.qid}<button class="lv-btn sm" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} onclick={() => redoAction(a)}><Icon name="rotate" size={13} /> {actionBusyId === a.id ? t("action.working", "处理中…") : t("action.kind.redo")}</button>{/if}
-            <button class="lv-btn sm" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} onclick={() => finishAction(a.id)}>{actionBusyId === a.id ? t("action.working", "处理中…") : `✓ ${t("action.doneBtn")}`}</button>
-            <button class="lv-btn sm lv-btn--ghost" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} aria-label={t("action.dismiss")} title={t("action.dismiss")} onclick={() => dropAction(a.id)}>{actionBusyId === a.id ? "…" : "✕"}</button>
+            <button class="lv-btn sm" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} onclick={() => finishAction(a.id)} style="display:inline-flex;align-items:center;gap:4px">{#if actionBusyId === a.id}…{:else}<Icon name="check" size={13} />{/if} <span>{t("action.doneBtn")}</span></button>
+            <button class="lv-btn sm lv-btn--ghost" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} aria-label={t("action.dismiss")} title={t("action.dismiss")} onclick={() => dropAction(a.id)}>{#if actionBusyId === a.id}…{:else}<Icon name="close" size={13} />{/if}</button>
           </div>
         {/each}
         {#if openActionList.length > 10}
@@ -1941,7 +1941,7 @@
         <div class="lv-row" style="margin:6px 0 0" role="status">
           <span class="lv-chip num">{t("data.auditEvents").replace("{n}", String(auditResult.events))}</span>
           {#if auditResult.problemCount === 0}
-            <span class="lv-chip acc">✓ {t("data.auditClean")}</span>
+            <span class="lv-chip acc" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> {t("data.auditClean")}</span>
           {:else}
             {#if auditResult.duplicateEids}<span class="lv-chip lv-chip--red num">{t("data.auditDup").replace("{n}", String(auditResult.duplicateEids))}</span>{/if}
             {#if auditResult.badEvents}<span class="lv-chip lv-chip--red num">{t("data.auditBad").replace("{n}", String(auditResult.badEvents))}</span>{/if}
