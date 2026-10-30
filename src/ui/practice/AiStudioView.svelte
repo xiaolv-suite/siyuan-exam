@@ -123,7 +123,7 @@
   <StudioSubNav currentView="ai" {t} {onchangeView} />
   {#if aiError}<div class="lv-error" role="alert">{aiError}</div>{/if}
   <div class="lv-row">
-    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback}>← {t("mode.practice")}</button>
+    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
     <span class="lv-chip"><Icon name="sparkles" size={12} /> {t("ai.title")}</span>
     <span class="fn__flex-1"></span>
     {#if aiCustomEndpointSet}

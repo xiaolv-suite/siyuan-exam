@@ -84,7 +84,7 @@
 <div class="lv-pad">
   <div class="lv-row lv-session-head" style="align-items:center;flex-wrap:wrap;gap:8px">
     <div class="lv-row" style="flex:1;min-width:200px;align-items:center;gap:var(--lv-space-2)">
-      <button class="lv-btn lv-btn--ghost" onclick={onexit}>← {t("recite.exit")}</button>
+      <button class="lv-btn lv-btn--ghost" onclick={onexit} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("recite.exit")}</button>
       <div class="lv-progress" style="flex:1;min-width:80px" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={reciteQueue.length} aria-valuenow={reciteCursor + 1}>
         <i style="width:{Math.round(((reciteCursor + (reciteRevealed ? 1 : 0)) / Math.max(1, reciteQueue.length)) * 100)}%"></i>
       </div>

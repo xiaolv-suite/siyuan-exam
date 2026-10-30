@@ -197,7 +197,7 @@
   </div>
   <StudioSubNav currentView="import" {t} {onchangeView} />
   <div class="lv-row">
-    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback}>← {t("import.back")}</button>
+    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("import.back")}</button>
     <span class="lv-chip">{t("import.title")}</span>
   </div>
   {#if !hasBank}

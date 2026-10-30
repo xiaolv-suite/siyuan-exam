@@ -112,7 +112,7 @@
   </div>
   <StudioSubNav currentView="manual" {t} {onchangeView} />
   <div class="lv-row">
-    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback}>← {t("mode.practice")}</button>
+    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
     <span class="lv-chip">{t("manual.title")}</span>
     <button class="lv-btn sm" onclick={onopenOcrModal} title="粘贴试题识别文本一键智能提取填入表单"><Icon name="camera" size={13} /> {t("manual.ocrFastFill")}</button>
     <button class="lv-btn sm" onclick={onnormalizeFormulas} title="清洗题干与选项中公式的空格与语法"><Icon name="sparkles" size={13} /> {t("manual.formulaNormalize")}</button>

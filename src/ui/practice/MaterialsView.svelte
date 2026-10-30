@@ -108,7 +108,7 @@
   </div>
   <StudioSubNav currentView="materials" {t} {onchangeView} />
   <div class="lv-row">
-    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback}>← {t("import.back")}</button>
+    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("import.back")}</button>
     <b><Icon name="book" size={15} /> {t("materials.title")}</b>
     {#if app?.materialsReadonly}<span class="lv-chip lv-chip--amb">{t("materials.readonly")}</span>{/if}
     <span class="lv-chip num">{materialsList.length}</span>

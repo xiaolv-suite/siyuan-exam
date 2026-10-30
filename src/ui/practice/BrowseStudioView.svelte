@@ -554,7 +554,7 @@
     </div>
   {/if}
   <div class="lv-row" style="margin:0 0 10px;gap:var(--lv-space-2) 8px">
-    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onbackToEntry}>← {t("mode.practice")}</button>
+    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onbackToEntry} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
     <span class="lv-chip num">{shownQuestions.length}/{questions.length} {t("browse.count")}</span>
     {#if shownQuestions.length > 0}
       <button class="lv-btn sm lv-btn--primary" onclick={onstartFilteredFocusDrill} title="将当前筛选出的这批题目直接发起专注特训">

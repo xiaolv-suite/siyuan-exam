@@ -352,7 +352,7 @@
   {#if q}
     <div class="lv-pad lv-session-grid">
       <div class="lv-row lv-session-head">
-        <button class="lv-btn lv-btn--ghost" onclick={onexitSession} disabled={exitBusy}>← {exitBusy ? "…" : t("session.exit")}</button>
+        <button class="lv-btn lv-btn--ghost" onclick={onexitSession} disabled={exitBusy} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {exitBusy ? "…" : t("session.exit")}</button>
         <div class="lv-row" style="flex:1;min-width:120px;gap:var(--lv-space-2)">
           <div class="lv-progress" style="flex:1" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={curProgress.total} aria-valuenow={curProgress.done}><i style="width:{curProgress.total ? Math.round((curProgress.done / curProgress.total) * 100) : 0}%"></i></div>
           <span class="num lv-muted">{curProgress.done}/{curProgress.total}</span>
