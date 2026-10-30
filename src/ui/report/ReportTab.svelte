@@ -2049,10 +2049,10 @@
           {/if}
 
           <!-- 全量题目明细表格 -->
-          <div style="max-height:420px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2)">
+          <div style="max-height:420px;overflow-y:auto;border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-card, 14px);box-shadow:var(--lv-sh-1)">
             <table class="lv-table" style="width:100%;font-size:12px;text-align:left;border-collapse:collapse">
               <thead>
-                <tr style="background:var(--lv-surface-2);border-bottom:1px solid var(--lv-border)">
+                <tr style="background:var(--lv-surface-2);border-bottom:1px solid var(--lv-border-subtle)">
                   <th style="padding:8px 10px">题干摘要</th>
                   <th style="padding:8px">题型</th>
                   <th style="padding:8px">有效作答</th>
