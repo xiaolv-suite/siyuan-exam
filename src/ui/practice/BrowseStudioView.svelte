@@ -492,7 +492,7 @@
       <span style="position:absolute;left:10px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
         <Icon name="search" size={14} />
       </span>
-      <input class="lv-input" style="width:100%;padding-left:32px;padding-right:32px" placeholder={t("browse.searchPlaceholder")} bind:value={searchText} />
+      <input class="lv-input" style="width:100%;padding-left:32px;padding-right:32px" placeholder={t("browse.searchPlaceholder")} aria-label={t("browse.searchPlaceholder")} bind:value={searchText} />
       {#if searchText}
         <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { searchText = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:6px;padding:2px 6px;min-width:24px;min-height:24px"><Icon name="close" size={12} /></button>
       {/if}

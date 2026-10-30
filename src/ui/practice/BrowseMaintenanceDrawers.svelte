@@ -255,22 +255,22 @@
       </div>
       <div class="lv-row" style="margin:8px 0 0">
         <b style="font-size:var(--lv-font-size-meta)">{t("kp.merge")}</b>
-        <input class="lv-input" style="max-width:160px" bind:value={kpMergeFrom} placeholder={t("kp.fromPlaceholder")} />
+        <input class="lv-input" style="max-width:160px" bind:value={kpMergeFrom} placeholder={t("kp.fromPlaceholder")} aria-label={t("kp.fromPlaceholder")} />
         <span class="lv-muted" style="display:inline-flex;align-items:center"><Icon name="chev-right" size={13} /></span>
-        <input class="lv-input" style="max-width:160px" bind:value={kpMergeTo} placeholder={t("kp.toPlaceholder")} />
+        <input class="lv-input" style="max-width:160px" bind:value={kpMergeTo} placeholder={t("kp.toPlaceholder")} aria-label={t("kp.toPlaceholder")} />
         <button class="lv-btn sm" onclick={onpreviewKpMerge}><Icon name="search" size={13} /> {t("batch.preview")}</button>
       </div>
       {#if kpData.emptyCount}
         <div class="lv-row" style="margin:4px 0 0">
           <b style="font-size:var(--lv-font-size-meta)">{t("kp.fill").replace("{n}", String(kpData.emptyCount))}</b>
-          <input class="lv-input" style="max-width:160px" bind:value={kpFillKp} placeholder={t("kp.toPlaceholder")} />
+          <input class="lv-input" style="max-width:160px" bind:value={kpFillKp} placeholder={t("kp.toPlaceholder")} aria-label={t("kp.toPlaceholder")} />
           <button class="lv-btn sm" onclick={onpreviewKpFill}><Icon name="search" size={13} /> {t("batch.preview")}</button>
         </div>
       {/if}
       {#if kpMergePlan}
         <div class="lv-row" style="margin:6px 0 0">
           <span class="lv-chip num">{t("batch.planCount").replace("{n}", String(kpMergePlan.changes.length))}</span>
-          <button class="lv-btn lv-btn--primary sm" disabled={kpBusy || !app.kernelOnline || !kpMergePlan.changes.length} onclick={() => onapplyKpPlan(kpMergePlan)}>
+          <button class="lv-btn lv-btn--primary sm" disabled={kpBusy || !app.kernelOnline || !kpMergePlan.changes.length} aria-busy={kpBusy} onclick={() => onapplyKpPlan(kpMergePlan)}>
             {kpBusy ? "…" : t("batch.apply").replace("{n}", String(kpMergePlan.changes.length))}
           </button>
           {#if !app.kernelOnline}<span class="lv-chip lv-chip--amb">{t("state.offlineHint")}</span>{/if}
@@ -279,7 +279,7 @@
       {#if kpFillPlan}
         <div class="lv-row" style="margin:6px 0 0">
           <span class="lv-chip num">{t("batch.planCount").replace("{n}", String(kpFillPlan.changes.length))}</span>
-          <button class="lv-btn lv-btn--primary sm" disabled={kpBusy || !app.kernelOnline || !kpFillPlan.changes.length} onclick={() => onapplyKpPlan(kpFillPlan)}>
+          <button class="lv-btn lv-btn--primary sm" disabled={kpBusy || !app.kernelOnline || !kpFillPlan.changes.length} aria-busy={kpBusy} onclick={() => onapplyKpPlan(kpFillPlan)}>
             {kpBusy ? "…" : t("batch.apply").replace("{n}", String(kpFillPlan.changes.length))}
           </button>
         </div>
@@ -361,7 +361,7 @@
         <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclosePaper} title="收起" aria-label="收起"><Icon name="close" size={12} /></button>
       {/if}
     </div>
-    <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={paperText} placeholder={t("paper.placeholder")}></textarea>
+    <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={paperText} placeholder={t("paper.placeholder")} aria-label={t("paper.title")}></textarea>
     {#if paperPreview}
       <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
         <span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> {paperPreview.items.filter((i: any) => i.verdict === "correct").length}</span>
@@ -378,7 +378,7 @@
         {#each paperPreview.errors.slice(0, 3) as pe, _pi (_pi)}
           <div class="lv-error-row num">#{pe.row} {pe.reason}</div>
         {/each}
-        <button class="lv-btn lv-btn--primary sm" disabled={paperBusy} onclick={onapplyPaperRecall}>
+        <button class="lv-btn lv-btn--primary sm" disabled={paperBusy} aria-busy={paperBusy} onclick={onapplyPaperRecall}>
           {paperBusy ? "…" : t("paper.apply").replace("{n}", String(paperPreview.items.filter((i: any) => i.verdict !== "not_attempted").length))}
         </button>
       </div>
@@ -418,7 +418,7 @@
         {#if errataPlan.unknownQids.length}
           <span class="lv-chip lv-chip--amb num" title={errataPlan.unknownQids.join("、")}>{t("errata.unknown").replace("{n}", String(errataPlan.unknownQids.length))}</span>
         {/if}
-        <button class="lv-btn lv-btn--primary sm" disabled={errataBusy || !app.kernelOnline || !errataPlan.changes.length} onclick={onapplyErrata}>
+        <button class="lv-btn lv-btn--primary sm" disabled={errataBusy || !app.kernelOnline || !errataPlan.changes.length} aria-busy={errataBusy} onclick={onapplyErrata}>
           {errataBusy ? "…" : t("batch.apply").replace("{n}", String(errataPlan.changes.length))}
         </button>
         {#if !app.kernelOnline}<span class="lv-chip lv-chip--amb">{t("state.offlineHint")}</span>{/if}
@@ -461,7 +461,7 @@
         <span class="lv-chip num" title={t("batch.undoStoredHint")} style="display:inline-flex;align-items:center;gap:4px"><Icon name="undo" size={12} /> {t("batch.undoStored").replace("{n}", String(batchUndo!.changes.length))}</span>
         <button class="lv-btn sm" disabled={batchBusy || !app.kernelOnline} onclick={() => onapplyBatch(true)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="undo" size={12} /> {t("batch.undo")}</button>
       {/if}
-      <select class="lv-select" bind:value={batchField}>
+      <select class="lv-select" bind:value={batchField} aria-label="批量修改字段">
         <option value="kp">{t("batch.field.kp")}</option>
         <option value="difficulty">{t("batch.field.difficulty")}</option>
         <option value="source">{t("batch.field.source")}</option>
@@ -469,18 +469,18 @@
         <option value="score">{t("batch.field.score")}</option>
       </select>
       {#if batchField === "difficulty"}
-        <select class="lv-select" bind:value={batchValue}>
+        <select class="lv-select" bind:value={batchValue} aria-label="难度等级">
           {#each [1, 2, 3, 4, 5] as d, _i (_i)}<option value={String(d)}>{d}</option>{/each}
         </select>
       {:else if batchField === "score"}
-        <input class="lv-input" style="max-width:120px" type="number" min="0.5" step="0.5" bind:value={batchValue} placeholder={t("batch.scorePlaceholder")} />
+        <input class="lv-input" style="max-width:120px" type="number" min="0.5" step="0.5" bind:value={batchValue} placeholder={t("batch.scorePlaceholder")} aria-label={t("batch.scorePlaceholder")} />
       {:else}
         <input class="lv-input" style="max-width:200px" bind:value={batchValue}
-          placeholder={batchField === "kp" ? t("batch.kpPlaceholder") : batchField === "year" ? t("batch.yearPlaceholder") : t("batch.sourcePlaceholder")} />
+          placeholder={batchField === "kp" ? t("batch.kpPlaceholder") : batchField === "year" ? t("batch.yearPlaceholder") : t("batch.sourcePlaceholder")} aria-label="修改为目标值" />
       {/if}
       <button class="lv-btn sm" disabled={!selectedCount} onclick={onpreviewBatch}><Icon name="search" size={13} /> {t("batch.preview")}</button>
       {#if batchPreview}
-        <button class="lv-btn lv-btn--primary sm" disabled={batchBusy || !batchPreview.changes.length} onclick={() => onapplyBatch(false)}>
+        <button class="lv-btn lv-btn--primary sm" disabled={batchBusy || !batchPreview.changes.length} aria-busy={batchBusy} onclick={() => onapplyBatch(false)}>
           {batchBusy ? "…" : t("batch.apply").replace("{n}", String(batchPreview.changes.length))}
         </button>
         {#if appliedChanges.length || batchUndoHere}
