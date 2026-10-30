@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generate, reviewQuestions, REVIEW_CONFIDENCE_MIN } from "../src/ai/gen";
+import { generate, reviewQuestions, REVIEW_CONFIDENCE_MIN, buildPrompt } from "../src/ai/gen";
 import { buildExplainMessages, continueExplainMessages } from "../src/ai/explain";
 import { CountingChannel } from "../src/ai/counting";
 import { SiyuanAiChannel } from "../src/ai/client";
@@ -88,14 +88,29 @@ describe("计数通道与讲解模式", () => {
     expect(c.calls).toBe(1);
     expect(c.approxTokens).toBe(30);
   });
-  it("讲解三模式提示词差异", () => {
+  it("讲解模式提示词差异（含 dual-loop 双环解题 与 storm 多视角辩证破题）", () => {
     const q = makeQuestion({ type: "single", stem: "Q", options: ["1", "2"], answer: "A" });
     const ex = buildExplainMessages(q, "B", "explain");
     const hi = buildExplainMessages(q, "B", "hint");
     const so = buildExplainMessages(q, "B", "socratic");
+    const dl = buildExplainMessages(q, "B", "dual-loop");
+    const st = buildExplainMessages(q, "B", "storm");
+
     expect(ex[0].content).toContain("逐选项");
     expect(hi[0].content).toContain("不得复述正确选项");
     expect(so[0].content).toContain("不陈述正确答案");
+    expect(dl[0].content).toContain("调查环·概念与依据");
+    expect(dl[0].content).toContain("求解环·分步推导链");
+    expect(st[0].content).toContain("实践与应用视角");
+    expect(st[0].content).toContain("同行评审自查建议");
+  });
+
+  it("buildExplainMessages 注入认知画像紧凑前缀", () => {
+    const q = makeQuestion({ type: "single", stem: "Q", options: ["1", "2"], answer: "A" });
+    const msgs = buildExplainMessages(q, "B", "explain", {
+      profilePrefix: "【学习者认知画像】：概念清晰度 85 分、推理偏弱。",
+    });
+    expect(msgs[0].content).toContain("【学习者认知画像】：概念清晰度 85 分、推理偏弱。");
   });
   it("多轮追问保持历史顺序", () => {
     const q = makeQuestion({ type: "single", stem: "Q", options: ["1", "2"], answer: "A" });
@@ -114,5 +129,22 @@ describe("计数通道与讲解模式", () => {
       { role: "user", content: "U" },
     ]);
     expect(out).toBe("ok");
+  });
+
+  it("buildPrompt 注入核心引文 (DeepTutor 锚定) 与认知画像前缀", () => {
+    const msgs = buildPrompt("光合作用材料", {
+      types: ["single"],
+      count: 2,
+      difficulty: "medium",
+      profilePrefix: "【学习者画像】：概念牢固，推导较弱。",
+      locator: {
+        page: 42,
+        quote: "光反应在类囊体薄膜上进行，产生ATP与NADPH。",
+      },
+    });
+
+    expect(msgs[0].content).toContain("【学习者画像】：概念牢固，推导较弱。");
+    expect(msgs[0].content).toContain("资料严格锚定规则");
+    expect(msgs[1].content).toContain("【核心引文】\n光反应在类囊体薄膜上进行，产生ATP与NADPH。");
   });
 });

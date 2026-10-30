@@ -7,14 +7,24 @@
 import type { Question } from "../core/types";
 import type { AiMessage } from "./client";
 
-export type ExplainMode = "explain" | "hint" | "socratic";
+export type ExplainMode = "explain" | "hint" | "socratic" | "dual-loop" | "storm";
+
+export interface BuildExplainOptions {
+  /** 学习者三层认知画像紧凑前缀 (LogiNote 规范) */
+  profilePrefix?: string;
+}
 
 /** 苏格拉底追问：在既有对话史上追加用户消息（多轮保持；已问范围随史可见，模型不复述） */
 export function continueExplainMessages(history: AiMessage[], followUp: string): AiMessage[] {
   return [...history, { role: "user", content: followUp }];
 }
 
-export function buildExplainMessages(q: Question, myAnswer: string | null, mode: ExplainMode): AiMessage[] {
+export function buildExplainMessages(
+  q: Question,
+  myAnswer: string | null,
+  mode: ExplainMode,
+  options?: BuildExplainOptions,
+): AiMessage[] {
   const fact = [
     `题干：${q.stem}`,
     ...q.options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`),
@@ -25,7 +35,43 @@ export function buildExplainMessages(q: Question, myAnswer: string | null, mode:
     .filter(Boolean)
     .join("\n");
 
-  const systemBase = "你是耐心的考试辅导老师，中文、简洁、直指误区。";
+  const prefix = options?.profilePrefix?.trim() ? `${options.profilePrefix.trim()}\n\n` : "";
+  const systemBase = `${prefix}你是耐心的考试辅导老师，中文、简洁、直指误区。`;
+
+  if (mode === "dual-loop") {
+    // DeepTutor 规范：双环解题证据链（调查环梳理依据 + 求解环分步推导）
+    return [
+      {
+        role: "system",
+        content:
+          systemBase +
+          "双环解题模式。严格按两阶段展开：\n" +
+          "【调查环·概念与依据】梳理本题考查的核心考点、前置定理公式或定义域前提条件（按最少必要信息原则列出）；\n" +
+          "【求解环·分步推导链】1) 定性分析（题意解构与突破口）；2) 分步推导/运算（每一步必须注明推导理由或公式依据）；3) 综合结论与各选项正误因果核验；\n" +
+          "【易错陷阱】指出该题最典型的思维陷阱与防踩坑自查点。\n" +
+          "红线：不得使用模糊断言；争议或证据缺失处必须如实说明。",
+      },
+      { role: "user", content: fact },
+    ];
+  }
+
+  if (mode === "storm") {
+    // Stanford STORM 规范：多视角辩证破题（专为简答、论述、申论及综合大题定制）
+    return [
+      {
+        role: "system",
+        content:
+          systemBase +
+          "STORM 多视角破题分析模式。针对该考题展开辩证论述剖析：\n" +
+          "【实践与应用视角】从一线实务、现实场景或工程操作角度剖析该问题的核心痛点与解决要领；\n" +
+          "【理论与学术视角】权威定义、经典机制原理与主流学术观点的论述框架；\n" +
+          "【批判与反思视角】存在的边界条件、常见反例或反直觉的认知误区是什么；\n" +
+          "【同行评审自查建议】评估学习者答题中最容易遗漏的关键采分点或逻辑断层，给出改进清单。",
+      },
+      { role: "user", content: fact },
+    ];
+  }
+
   if (mode === "explain") {
     // 114-04 T07：分层依据讲解（提交后）
     return [

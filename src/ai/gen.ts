@@ -21,6 +21,14 @@ export interface GenOptions {
   existingHashes?: Set<string>;
   /** 取消信号：每个分片完成后检查，中止后续分片（已完成分片保留） */
   signal?: { aborted: boolean };
+  /** 材料精确定位信息（DeepTutor 规范：引文锚定与防幻觉出题） */
+  locator?: {
+    materialId?: string;
+    page?: number;
+    quote?: string;
+  };
+  /** 学习者三层认知画像紧凑前缀 (LogiNote 规范) */
+  profilePrefix?: string;
 }
 
 export interface GenIssue {
@@ -93,8 +101,10 @@ export function buildPrompt(chunk: string, opt: GenOptions): AiMessage[] {
     .join("、");
   const presetHint = opt.preset && PROMPT_PRESETS[opt.preset] ? PROMPT_PRESETS[opt.preset].hint : "";
   const customHint = opt.customHint?.trim() ? `\n用户额外要求：${opt.customHint.trim()}` : "";
+  const profilePrefix = opt.profilePrefix?.trim() ? `${opt.profilePrefix.trim()}\n\n` : "";
   const hasChoice = types.some((t) => t === "single" || t === "multiple");
   const system =
+    profilePrefix +
     [
       "你是严谨的命题专家。根据给定材料出题，禁止编造材料中不存在的事实。",
       presetHint ? `命题风格：${presetHint}` : "",
@@ -112,10 +122,12 @@ export function buildPrompt(chunk: string, opt: GenOptions): AiMessage[] {
               : "中等") +
         "。",
       hasChoice ? "5) 干扰项构建规范（逐题自查）：\n" + HALADYNA_RULES : "",
+      opt.locator?.quote ? "6) 资料严格锚定规则（DeepTutor 零幻觉准则）：题目与解析的所有事实依据必须严格来自所提供的材料与核心引文，禁止捏造材料之外的推论。" : "",
     ]
       .filter(Boolean)
       .join("\n") + customHint;
-  const user = `【材料】\n${chunk}\n\n【要求】出 ${opt.count} 道题（题型：${typeLine}）。${opt.kp ? `考点方向：${opt.kp}。` : ""}只输出 JSON 数组。`;
+  const quoteSegment = opt.locator?.quote ? `【核心引文】\n${opt.locator.quote}\n\n` : "";
+  const user = `${quoteSegment}【材料】\n${chunk}\n\n【要求】出 ${opt.count} 道题（题型：${typeLine}）。${opt.kp ? `考点方向：${opt.kp}。` : ""}只输出 JSON 数组。`;
   return [
     { role: "system", content: system },
     { role: "user", content: user },
@@ -183,7 +195,9 @@ function toQuestion(o: Record<string, unknown>, opt: GenOptions, batch: string):
     analysis,
     difficulty: opt.difficulty === "mixed" ? undefined : { easy: 2, medium: 3, hard: 4 }[opt.difficulty],
     score: 1,
-    source: opt.sourceTitle ? `AI · ${opt.sourceTitle}` : "AI 生成",
+    source: opt.sourceTitle
+      ? `AI · ${opt.sourceTitle}${opt.locator?.page ? ` (P.${opt.locator.page})` : ""}`
+      : "AI 生成",
     sourceKind: "mock",
     kp: String(o.kp ?? opt.kp ?? ""),
     origin: "ai",
