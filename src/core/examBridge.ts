@@ -5,6 +5,7 @@
 // ============================================================
 
 import { emitExamEvent } from "./bus";
+import type { Question } from "./types";
 
 export const LVEXAM_BRIDGE_PROTOCOL = 1;
 export const LVEXAM_API_NAME = "LvExam";
@@ -33,6 +34,125 @@ export interface ExtractToQuizOptions {
   bankId?: string;
 }
 
+/**
+ * 面向 AI Agent 的三层只读取题协议 (MathBank 规范)
+ * - candidate: 极简候选层（仅 ID/摘要/考点/状态，极低 Token 消耗，供粗筛）
+ * - teaching: 完整教学层（完整题干/选项/解析/采分点，供备课出题）
+ * - evidence: 深度证据链层（含考点依据/素材定位/题族/争议单，供严谨推导核验）
+ */
+export type AgentQuestionProfile = "candidate" | "teaching" | "evidence";
+
+export interface QueryQuestionsOptions {
+  profile?: AgentQuestionProfile;
+  bankId?: string;
+  kp?: string;
+  type?: string;
+  limit?: number;
+  offset?: number;
+  ids?: string[];
+}
+
+export interface CandidateQuestionItem {
+  id: string;
+  type: string;
+  stemSummary: string;
+  kp?: string;
+  difficulty?: number;
+  score: number;
+  hasAnswer: boolean;
+  hasAnalysis: boolean;
+  hasRubric: boolean;
+  hasOcclusion: boolean;
+}
+
+export interface TeachingQuestionItem {
+  id: string;
+  type: string;
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis?: string;
+  kp?: string;
+  difficulty?: number;
+  score: number;
+  rubric?: unknown;
+  source?: string;
+  studyMeta?: unknown;
+}
+
+export interface EvidenceQuestionItem extends TeachingQuestionItem {
+  secondaryKps?: string[];
+  occlusion?: unknown;
+  family?: unknown;
+  answerSpec?: unknown;
+  dispute?: unknown;
+  hpath?: string;
+  rootId?: string;
+  blockId?: string;
+}
+
+export interface QueryQuestionsResult {
+  profile: AgentQuestionProfile;
+  total: number;
+  limit: number;
+  offset: number;
+  truncated: boolean;
+  items: (CandidateQuestionItem | TeachingQuestionItem | EvidenceQuestionItem)[];
+}
+
+/** 按所选层级将题目对象转换为对应返回契约 */
+export function formatQuestionByProfile(
+  q: Question,
+  profile: AgentQuestionProfile = "candidate",
+): CandidateQuestionItem | TeachingQuestionItem | EvidenceQuestionItem {
+  if (profile === "candidate") {
+    const rawStem = (q.stem || "").replace(/<[^>]*>/g, "").trim();
+    return {
+      id: q.id,
+      type: q.type,
+      stemSummary: rawStem.slice(0, 40) + (rawStem.length > 40 ? "…" : ""),
+      kp: q.kp,
+      difficulty: q.difficulty,
+      score: q.score || 1,
+      hasAnswer: !!q.answer,
+      hasAnalysis: !!q.analysis,
+      hasRubric: !!q.rubric,
+      hasOcclusion: !!q.occlusion,
+    };
+  }
+
+  const baseTeaching: TeachingQuestionItem = {
+    id: q.id,
+    type: q.type,
+    stem: q.stem,
+    options: q.options || [],
+    answer: q.answer,
+    analysis: q.analysis,
+    kp: q.kp,
+    difficulty: q.difficulty,
+    score: q.score || 1,
+    rubric: q.rubric,
+    source: q.source,
+    studyMeta: q.studyMeta,
+  };
+
+  if (profile === "teaching") {
+    return baseTeaching;
+  }
+
+  return {
+    ...baseTeaching,
+    secondaryKps: q.secondaryKps,
+    occlusion: q.occlusion,
+    family: q.family,
+    answerSpec: q.answerSpec,
+    dispute: q.dispute,
+    hpath: q.hpath,
+    rootId: q.rootId,
+    blockId: q.blockId,
+  };
+}
+
 export interface ExamBridgeHost {
   version: string;
   openPractice: () => void;
@@ -42,6 +162,7 @@ export interface ExamBridgeHost {
   getStats: () => unknown;
   statsRead: () => Promise<unknown>;
   extractToQuiz?: (options: ExtractToQuizOptions) => Promise<boolean> | boolean;
+  queryQuestions?: (options: QueryQuestionsOptions) => Promise<QueryQuestionsResult> | QueryQuestionsResult;
   onBridgeDisposed?: () => void;
 }
 
@@ -57,6 +178,7 @@ export interface LvExamBridgeApi {
   mock: () => void;
   report: () => void;
   extractToQuiz: (options: ExtractToQuizOptions) => Promise<boolean>;
+  queryQuestions: (options: QueryQuestionsOptions) => Promise<QueryQuestionsResult>;
   stats: () => unknown;
   statsRead: () => Promise<unknown>;
   getOverview: () => LvExamBridgeOverview;
@@ -78,6 +200,7 @@ export function buildLvExamBridge(host: ExamBridgeHost): LvExamBridgeApi {
     "mock",
     "report",
     "extractToQuiz",
+    "queryQuestions",
     "stats",
     "statsRead",
     "whenReady",
@@ -113,6 +236,19 @@ export function buildLvExamBridge(host: ExamBridgeHost): LvExamBridgeApi {
         // 忽略异常保证调用安全
       }
       return true;
+    },
+    async queryQuestions(options: QueryQuestionsOptions) {
+      if (typeof host.queryQuestions === "function") {
+        return Promise.resolve(host.queryQuestions(options));
+      }
+      return {
+        profile: options.profile || "candidate",
+        total: 0,
+        limit: options.limit || 20,
+        offset: options.offset || 0,
+        truncated: false,
+        items: [],
+      };
     },
     open() {
       host.openPractice();

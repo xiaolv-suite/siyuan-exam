@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   buildLvExamBridge,
   mountLvExamBridge,
+  formatQuestionByProfile,
   LVEXAM_BRIDGE_PROTOCOL,
   LVEXAM_API_NAME,
   LVEXAM_API_ALIASES,
@@ -9,6 +10,7 @@ import {
 } from "../src/core/examBridge";
 import { probeCheckinApi } from "../src/core/checkinBridge";
 import { probeGlean } from "../src/core/gleanBridge";
+import { makeQuestion } from "../src/core/blockTemplate";
 
 function createMockHost(overrides: Partial<ExamBridgeHost> = {}): ExamBridgeHost {
   return {
@@ -52,6 +54,7 @@ describe("小驴考试 · 服务桥与生态集成契约 (Epoch 6)", () => {
       "mock",
       "report",
       "extractToQuiz",
+      "queryQuestions",
       "stats",
       "statsRead",
       "whenReady",
@@ -224,5 +227,57 @@ describe("小驴考试 · 服务桥与生态集成契约 (Epoch 6)", () => {
         sourceBlockId: "block-20261027-abcdef",
       }),
     );
+  });
+
+  describe("Agent 三层只读取题协议 (candidate/teaching/evidence)", () => {
+    const sampleQ = makeQuestion({
+      id: "q-agent-1",
+      type: "single",
+      stem: "这是一道用于测试 Agent 取题协议的长长题干描述，长度超过四十个字用来测试候选层的截断效果。",
+      options: ["A选项", "B选项"],
+      answer: "A",
+      analysis: "这是详细解析内容",
+      kp: "哲学/辩证法",
+      difficulty: 3,
+    });
+    sampleQ.secondaryKps = ["辅助考点1"];
+
+    it("formatQuestionByProfile 转换为 candidate 极简候选层（低 Token 消耗，绝无答案）", () => {
+      const c = formatQuestionByProfile(sampleQ, "candidate");
+      expect(c.id).toBe(sampleQ.id);
+      expect((c as any).stemSummary).toContain("…");
+      expect((c as any).stem).toBeUndefined();
+      expect((c as any).answer).toBeUndefined();
+      expect((c as any).options).toBeUndefined();
+      expect((c as any).hasAnswer).toBe(true);
+      expect((c as any).hasAnalysis).toBe(true);
+    });
+
+    it("formatQuestionByProfile 转换为 teaching 完整教学层", () => {
+      const t = formatQuestionByProfile(sampleQ, "teaching");
+      expect(t.id).toBe(sampleQ.id);
+      expect(t.stem).toBe(sampleQ.stem);
+      expect(t.answer).toBe("A");
+      expect(t.analysis).toBe("这是详细解析内容");
+      // teaching 层不泄露底层块 ID 或证据链
+      expect((t as any).blockId).toBeUndefined();
+    });
+
+    it("formatQuestionByProfile 转换为 evidence 深度证据链层", () => {
+      const e = formatQuestionByProfile(sampleQ, "evidence");
+      expect(e.id).toBe(sampleQ.id);
+      expect((e as any).secondaryKps).toEqual(["辅助考点1"]);
+    });
+
+    it("queryQuestions 在 host 未实现时提供安全默认空回执", async () => {
+      const host = createMockHost();
+      const bridge = buildLvExamBridge(host);
+
+      expect(bridge.hasCapability("queryQuestions")).toBe(true);
+      const res = await bridge.queryQuestions({ profile: "candidate" });
+      expect(res.profile).toBe("candidate");
+      expect(res.items).toEqual([]);
+      expect(res.truncated).toBe(false);
+    });
   });
 });
