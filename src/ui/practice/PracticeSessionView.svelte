@@ -640,7 +640,8 @@
                       onclick={() => onsaveWrongReason(r)}
                     >
                       <span class="lv-reason-key">{ri + 1}</span>
-                      {savedReason === r ? "✓ " : ""}{t("reason." + r)}
+                      {#if savedReason === r}<Icon name="check" size={11} />{/if}
+                      <span>{t("reason." + r)}</span>
                     </button>
                   {/each}
                 </div>
@@ -701,7 +702,7 @@
               <div class="lv-analysis lv-explain">{explainText}</div>
               <div class="lv-row">
                 {#if explainSavedQid === q.id}
-                  <span class="lv-muted" role="status">✓ {t("explain.saved")}</span>
+                  <span class="lv-muted" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> {t("explain.saved")}</span>
                 {:else}
                   <button class="lv-btn sm" onclick={onsaveExplain} disabled={explainSaveBusy} aria-busy={explainSaveBusy}><Icon name="pin" size={13} /> {explainSaveBusy ? "…" : explainSaveError ? t("explain.retrySave") : t("explain.save")}</button>
                 {/if}

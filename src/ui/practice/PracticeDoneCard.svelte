@@ -159,7 +159,17 @@
       <div class="lv-row" style="flex-wrap:wrap;gap:var(--lv-space-1);margin:8px 0">
         {#each session.answered as a, ai (ai)}
           {@const aq = questionMap.get(a.qid)}
-          <span class="lv-chip num" class:lv-chip--grn={a.grade.verdict === "correct"} class:lv-chip--red={a.grade.verdict === "wrong"} title={aq?.stem.slice(0, 60) ?? a.qid}>{ai + 1} {a.grade.verdict === "correct" ? "✓" : a.grade.verdict === "wrong" ? "✕" : "–"} {(a.timeMs / 1000).toFixed(0)}s</span>
+          <span class="lv-chip num" class:lv-chip--grn={a.grade.verdict === "correct"} class:lv-chip--red={a.grade.verdict === "wrong"} title={aq?.stem.slice(0, 60) ?? a.qid} style="display:inline-flex;align-items:center;gap:3px">
+            <span>{ai + 1}</span>
+            {#if a.grade.verdict === "correct"}
+              <Icon name="check" size={10} />
+            {:else if a.grade.verdict === "wrong"}
+              <Icon name="close" size={10} />
+            {:else}
+              <span>–</span>
+            {/if}
+            <span>{(a.timeMs / 1000).toFixed(0)}s</span>
+          </span>
         {/each}
       </div>
     {/if}

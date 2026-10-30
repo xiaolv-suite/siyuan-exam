@@ -523,7 +523,7 @@
   <div class="lv-row" style="margin:0 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
       <div class="lv-session-dock" role="group" aria-label="状态快速过滤">
-        <button class="lv-chip" class:acc={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")}>✕ {t("browse.fWrong")}</button>
+        <button class="lv-chip" class:acc={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={11} /> {t("browse.fWrong")}</button>
         <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
         <button class="lv-chip" class:acc={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
         <button class="lv-chip" class:acc={favOnly} onclick={() => (favOnly = !favOnly)}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
@@ -740,7 +740,7 @@
             </span>
           {/if}
           {#if !batchMode && expandedId === q.id}
-            <span class="lv-chip lv-chip--acc num" style="margin-left:auto;display:inline-flex;align-items:center;gap:3px"><span>{t("browse.viewing", "查看中")}</span><Icon name="chev-left" size={10} /></span>
+            <span class="lv-chip lv-chip--acc num" style="margin-left:auto;display:inline-flex;align-items:center;gap:3px"><span>{t("browse.viewing", "查看中")}</span><Icon name="chev-right" size={10} /></span>
           {/if}
         </button>
         <div class="lv-qrow-stem" id={`lv-qrow-stem-${q.id}`}>{q.stem}</div>

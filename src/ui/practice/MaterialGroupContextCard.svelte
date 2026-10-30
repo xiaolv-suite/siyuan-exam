@@ -55,8 +55,8 @@
             title={sib.inSession ? `${t("material.jumpTo")}: ${sib.stemSnippet}` : t("material.notInSession")}
             onclick={() => onjumpSibling(sib)}
           >
-            {t("material.subQ").replace("{n}", String(sib.subIndex))}
-            {#if sib.verdict === "correct"}✓{:else if sib.verdict === "wrong"}✕{/if}
+            <span>{t("material.subQ").replace("{n}", String(sib.subIndex))}</span>
+            {#if sib.verdict === "correct"}<Icon name="check" size={11} />{:else if sib.verdict === "wrong"}<Icon name="close" size={11} />{/if}
           </button>
         {/each}
       </div>

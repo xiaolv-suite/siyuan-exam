@@ -1935,7 +1935,16 @@
               <div class="lv-row" style="margin:6px 0 0;flex-wrap:wrap;gap:4px">
                 {#each estimateBankPool as q, i (i)}
                   {@const mark = estResult.marks[i] ?? "–"}
-                  <span class="lv-chip num" class:lv-chip--grn={mark === "✓"} class:lv-chip--red={mark === "✕"} class:lv-chip--amb={mark === "–"} title={q.stem.slice(0, 60)}>{i + 1}. {q.answer} {mark}</span>
+                  <span class="lv-chip num" class:lv-chip--grn={mark === "✓"} class:lv-chip--red={mark === "✕"} class:lv-chip--amb={mark === "–"} title={q.stem.slice(0, 60)} style="display:inline-flex;align-items:center;gap:3px">
+                    <span>{i + 1}. {q.answer}</span>
+                    {#if mark === "✓"}
+                      <Icon name="check" size={10} />
+                    {:else if mark === "✕"}
+                      <Icon name="close" size={10} />
+                    {:else}
+                      <span>{mark}</span>
+                    {/if}
+                  </span>
                 {/each}
               </div>
             {/if}
@@ -2272,14 +2281,14 @@
     {#if mockMiniSheetOpen && session}
       <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭答题卡" onclick={() => (mockMiniSheetOpen = false)}></button>
       <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="考场快捷答题卡" style="width:min(520px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-4, 22px);border:1px solid var(--lv-border);box-shadow:var(--lv-sh-pop)">
+        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="考场快捷答题卡" style="width:min(520px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-4, 22px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop)">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px">
             <div class="lv-dialog-title-wrap">
               <span class="lv-dialog-title-icon"><Icon name="edit" size={13} /></span>
               <span>考场快捷答题卡</span>
               <span class="lv-dialog-title-tag">{cursor + 1}/{session.state.qids.length}</span>
             </div>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mockMiniSheetOpen = false)}>✕</button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mockMiniSheetOpen = false)} aria-label="关闭"><Icon name="close" size={13} /></button>
           </div>
           <div class="lv-row" style="margin-bottom:8px;font-size:11px;color:var(--lv-text-3);gap:8px">
             <span>已答 {session.state.qids.length - unansweredIndices.length}</span>

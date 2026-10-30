@@ -584,7 +584,15 @@
                 {@const drifted = isAttemptVersionDrifted(e, q)}
                 <div class="lv-row" style="flex-wrap:wrap;font-size:var(--lv-font-size-caption);margin:3px 0;gap:var(--lv-space-1)">
                   <span class="lv-chip num">{new Date(e.ts).toLocaleString()}</span>
-                  <span class="lv-chip">{e.verdict === "correct" ? "✓" : e.verdict === "wrong" ? "✕" : "—"}</span>
+                  <span class="lv-chip" style="display:inline-flex;align-items:center;gap:3px">
+                    {#if e.verdict === "correct"}
+                      <Icon name="check" size={11} />
+                    {:else if e.verdict === "wrong"}
+                      <Icon name="close" size={11} />
+                    {:else}
+                      <span>—</span>
+                    {/if}
+                  </span>
                   {#if e.myAnswer}<span class="lv-chip num">{t("session.myAnswer")}: {e.myAnswer}</span>{/if}
                   {#if drifted}
                     <span class="lv-chip lv-chip--amb sm" title={t("receipt.driftTip")} style="display:inline-flex;align-items:center;gap:4px">

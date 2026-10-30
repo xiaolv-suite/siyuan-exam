@@ -515,10 +515,10 @@
           {/if}
         {/if}
         {#if importResult}
-          {#if importResult.written || !updateResult}<div class="lv-success" role="status">✓ {t("import.done")} {importResult.written}</div>{/if}
+          {#if importResult.written || !updateResult}<div class="lv-success" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={13} /> {t("import.done")} {importResult.written}</div>{/if}
           {#if updateResult}
             <div class="lv-row" role="status">
-              <span class="lv-chip lv-chip--amb num">↻ {t("import.updatesDone").replace("{ok}", String(updateResult.ok)).replace("{f}", String(updateResult.failed)).replace("{m}", String(updateResult.missing))}</span>
+              <span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="rotate" size={11} /> {t("import.updatesDone").replace("{ok}", String(updateResult.ok)).replace("{f}", String(updateResult.failed)).replace("{m}", String(updateResult.missing))}</span>
               {#if updateResult.unprocessed}<span class="lv-chip num">{t("import.updatesPending").replace("{n}", String(updateResult.unprocessed))}</span>{/if}
             </div>
           {/if}
@@ -530,13 +530,14 @@
               <span class="lv-chip num" title={t("import.unprocessedTip")}>{t("import.unprocessed").replace("{n}", String(importResult.unprocessed))}</span>
             {/if}
             {#if importResult.pendingIndex}
-              <span class="lv-chip lv-chip--acc num" title={t("import.pendingIndexTip")}>
-                ⏳ {t("import.pendingIndex").replace("{n}", String(importResult.pendingIndex))}
+              <span class="lv-chip lv-chip--acc num" title={t("import.pendingIndexTip")} style="display:inline-flex;align-items:center;gap:4px">
+                <Icon name="hourglass" size={11} />
+                <span>{t("import.pendingIndex").replace("{n}", String(importResult.pendingIndex))}</span>
               </span>
             {/if}
             {#if importResult.verified}
               {#if importResult.missing === 0}
-                <span class="lv-chip lv-chip--grn num">✓ {t("import.readbackOk").replace("{n}", String(importResult.confirmed))}</span>
+                <span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> {t("import.readbackOk").replace("{n}", String(importResult.confirmed))}</span>
               {:else}
                 <span class="lv-chip lv-chip--amb num"><Icon name="alert-triangle" size={11} /> {t("import.readbackPart").replace("{c}", String(importResult.confirmed)).replace("{m}", String(importResult.missing))}</span>
               {/if}

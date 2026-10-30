@@ -46,7 +46,7 @@
         class:lv-chip--red={item.verdict === "wrong"}
         title={q?.stem ?? item.qid}
       >
-        {modal.fromIndex + ii}. {item.verdict === "correct" ? "✓" : "✕"} {#if item.myAnswer}({item.myAnswer}){/if}
+        <span>{modal.fromIndex + ii}.</span> {#if item.verdict === "correct"}<Icon name="check" size={11} />{:else}<Icon name="close" size={11} />{/if} {#if item.myAnswer}({item.myAnswer}){/if}
       </span>
     {/each}
   </div>

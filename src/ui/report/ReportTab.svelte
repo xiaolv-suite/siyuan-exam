@@ -1976,7 +1976,10 @@
         <!-- 58-03/U30：逐对象回执（不冒充全部删除）；重载思源后内存态归零 -->
         <div class="lv-row" style="margin:6px 0 0" role="status">
           {#each purgeReceipts as r, _i (_i)}
-            <span class="lv-chip num" class:lv-chip--red={!r.ok} title={r.key}>{r.key} {r.ok ? "✓" : "✕"}</span>
+            <span class="lv-chip num" class:lv-chip--red={!r.ok} title={r.key} style="display:inline-flex;align-items:center;gap:3px">
+              <span>{r.key}</span>
+              <Icon name={r.ok ? "check" : "close"} size={11} />
+            </span>
           {/each}
         </div>
         <div class="lv-muted" style="margin-top:4px;font-size:var(--lv-font-size-caption)">{t("data.purgeNote")}</div>

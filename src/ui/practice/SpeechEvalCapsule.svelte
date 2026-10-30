@@ -19,6 +19,6 @@
       </span>
       <span class="lv-muted" style="margin-left:6px">{result.feedback}</span>
     </div>
-    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={ondismiss} title="关闭测评反馈">✕</button>
+    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={ondismiss} title="关闭测评反馈" aria-label="关闭"><Icon name="close" size={12} /></button>
   </div>
 {/if}

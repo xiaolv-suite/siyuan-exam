@@ -227,7 +227,7 @@
           <div class="lv-row" style="margin:0;gap:6px;align-items:center">
             <b style="font-size:var(--lv-font-size-md)">{t("ai.queue")}</b>
             <span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审</span>
-            {#if aiRejected.length}<span class="lv-chip lv-chip--red num">✕ {aiRejected.length}</span>{/if}
+            {#if aiRejected.length}<span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={11} /> {aiRejected.length}</span>{/if}
             {#if aiDuplicates}<span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="copy" size={11} /> {aiDuplicates}</span>{/if}
             {#if aiCost}<span class="lv-chip num">{aiCost}</span>{/if}
           </div>

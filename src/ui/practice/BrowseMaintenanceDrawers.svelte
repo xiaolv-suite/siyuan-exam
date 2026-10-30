@@ -322,7 +322,7 @@
               {c.node.title} · <span class="num">{total}</span>
               {#if total === 0}&nbsp;{t("syl.gap")}
               {:else if learned === 0}&nbsp;{t("syl.unmastered")}
-              {:else}&nbsp;<span class="num" title={t("syl.learnedTip")}>✓{learned}</span>{/if}
+              {:else}&nbsp;<span class="num" title={t("syl.learnedTip")} style="display:inline-flex;align-items:center;gap:2px"><Icon name="check" size={10} />{learned}</span>{/if}
             </button>
           {/each}
           <button class="lv-btn sm lv-btn--ghost" onclick={ondownloadSyllabusGaps}><Icon name="export" size={13} /> {t("syl.exportGaps")}</button>
