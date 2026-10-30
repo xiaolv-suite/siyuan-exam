@@ -1750,8 +1750,8 @@ input[type="range"] {
   cursor: pointer;
 
   &:hover {
-    border-color: var(--lv-brand);
-    box-shadow: 0 4px 14px color-mix(in srgb, var(--lv-brand) 15%, transparent);
+    border-color: var(--lv-accent);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--lv-accent) 15%, transparent);
     transform: translateY(-1px);
   }
 }
@@ -2227,9 +2227,9 @@ input[type="range"] {
   gap: var(--lv-space-3);
 }
 .lv-mode:hover:not(:disabled) {
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--lv-brand) 16%, transparent);
-  border-color: var(--lv-brand);
-  background: color-mix(in srgb, var(--lv-brand-soft) 25%, var(--lv-surface));
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--lv-accent) 16%, transparent);
+  border-color: var(--lv-accent);
+  background: color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));
   transform: translateY(-2px);
 }
 .lv-mode:active:not(:disabled) {

@@ -622,8 +622,8 @@
   }
   .lv-project:hover {
     transform: translateY(-1px);
-    border-color: var(--lv-brand);
-    box-shadow: 0 3px 8px color-mix(in srgb, var(--lv-brand) 18%, transparent);
+    border-color: var(--lv-accent);
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--lv-accent) 18%, transparent);
   }
   .lv-quick-launcher-wrap {
     position: relative;
