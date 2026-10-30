@@ -292,7 +292,7 @@
         {/each}
         {#if aiTaskLog.length}
           <details class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);margin-top:14px">
-            <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold);display:inline-flex;align-items:center;gap:4px"><Icon name="plus" size={12} /> {t("ai.taskLog")}（{aiTaskLog.length}）</summary>
+            <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold);display:inline-flex;align-items:center;gap:6px"><Icon name="activity" size={13} /> {t("ai.taskLog")}（{aiTaskLog.length}）</summary>
             <p class="lv-muted" style="margin:6px 0 0">{t("ai.taskLogHint")}</p>
             {#each [...aiTaskLog].reverse().slice(0, 5) as e, _i (_i)}
               <div class="lv-row" style="margin:8px 0 0">
@@ -302,7 +302,7 @@
                 <span class="lv-chip num">≈{e.tokens} tok</span>
               </div>
               <details style="margin:2px 0 0 8px">
-                <summary class="lv-muted" style="cursor:pointer;font-size:var(--lv-font-size-caption)">{t("ai.taskLogPayload")}</summary>
+                <summary class="lv-muted" style="cursor:pointer;font-size:var(--lv-font-size-caption);display:inline-flex;align-items:center;gap:4px"><Icon name="chev-right" size={11} /> {t("ai.taskLogPayload")}</summary>
                 {#each e.messages as m, _i (_i)}
                   <pre class="lv-muted num" style="white-space:pre-wrap;font-size:var(--lv-font-size-label);margin:4px 0">[{m.role}] {m.content.slice(0, 400)}{m.content.length > 400 ? "…" : ""}</pre>
                 {/each}

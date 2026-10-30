@@ -458,8 +458,8 @@
         </button>
       {/if}
       {#if batchUndoHere && !appliedChanges.length}
-        <span class="lv-chip num" title={t("batch.undoStoredHint")}>↩ {t("batch.undoStored").replace("{n}", String(batchUndo!.changes.length))}</span>
-        <button class="lv-btn sm" disabled={batchBusy || !app.kernelOnline} onclick={() => onapplyBatch(true)}>{t("batch.undo")}</button>
+        <span class="lv-chip num" title={t("batch.undoStoredHint")} style="display:inline-flex;align-items:center;gap:4px"><Icon name="undo" size={12} /> {t("batch.undoStored").replace("{n}", String(batchUndo!.changes.length))}</span>
+        <button class="lv-btn sm" disabled={batchBusy || !app.kernelOnline} onclick={() => onapplyBatch(true)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="undo" size={12} /> {t("batch.undo")}</button>
       {/if}
       <select class="lv-select" bind:value={batchField}>
         <option value="kp">{t("batch.field.kp")}</option>
@@ -484,7 +484,7 @@
           {batchBusy ? "…" : t("batch.apply").replace("{n}", String(batchPreview.changes.length))}
         </button>
         {#if appliedChanges.length || batchUndoHere}
-          <button class="lv-btn sm" disabled={batchBusy} onclick={() => onapplyBatch(true)}>↩ {t("batch.undo")}</button>
+          <button class="lv-btn sm" disabled={batchBusy} onclick={() => onapplyBatch(true)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="undo" size={12} /> {t("batch.undo")}</button>
         {/if}
       {/if}
     </div>

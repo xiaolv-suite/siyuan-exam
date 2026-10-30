@@ -1900,7 +1900,7 @@
     <!-- 考后估分 -->
     <details class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4)">
       <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold);display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-3);flex-wrap:wrap">
-        <span>{t("estimate.title")}</span>
+        <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="calculator" size={14} /> {t("estimate.title")}</span>
         <span class="lv-muted" style="font-weight:400;font-size:var(--lv-font-size-sm)">{t("estimate.hint")}</span>
       </summary>
       {#if !questions.length}
