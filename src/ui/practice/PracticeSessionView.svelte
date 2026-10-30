@@ -444,7 +444,7 @@
               <div class="lv-error" role="alert">{t("session.missingOptions")}</div>
             {:else}
               <div class="lv-row" style="margin:0 0 4px">
-                <button class="lv-chip" class:acc={hideOptions} onclick={ontoggleHideOptions}>
+                <button class="lv-chip" class:acc={hideOptions} aria-pressed={hideOptions} onclick={ontoggleHideOptions}>
                   {hideOptions ? t("session.recallOn") : t("session.recallOff")}
                 </button>
                 {#if hideOptions}<span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("session.recallHint")}</span>{/if}
@@ -486,6 +486,7 @@
             {#if curSpec?.kind === "numeric"}
               <input class="lv-input lv-answer-num" type="text" inputmode="decimal"
                 placeholder={curSpec.unit ? t("session.numericUnit").replace("{u}", curSpec.unit) : t("session.numericPlain")}
+                aria-label={curSpec.unit ? t("session.numericUnit").replace("{u}", curSpec.unit) : t("session.numericPlain")}
                 value={feedback?.myAnswer ?? currentDraft}
                 oninput={(e) => ondraftInput((e.target as HTMLInputElement).value)}
                 onchange={(e) => ondraftChange((e.target as HTMLInputElement).value)}
@@ -495,6 +496,7 @@
               <div class="lv-row" style="margin:0 0 6px"><span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("session.blankHint")}</span></div>
               {#each blankParts as _p, i (i)}
                 <input class="lv-input lv-answer-blank" placeholder={t("session.blankN").replace("{n}", String(i + 1))}
+                  aria-label={t("session.blankN").replace("{n}", String(i + 1))}
                   value={blankParts[i]}
                   oninput={(e) => onsetBlank(i, (e.target as HTMLInputElement).value)}
                   onchange={onblankChange}
@@ -513,10 +515,10 @@
                     字数统计：<strong class="num">{words.examWords}</strong> 字（中文 {words.chineseChars} · 英文 {words.englishWords} · {words.paragraphs} 段）
                   </span>
                   <div class="lv-row" style="margin:0;gap:6px">
-                    <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" class:acc={shortLinedPaper} onclick={ontoggleLinedPaper} title="切换横线稿纸视觉背景">
+                    <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" class:acc={shortLinedPaper} aria-pressed={shortLinedPaper} onclick={ontoggleLinedPaper} title="切换横线稿纸视觉背景">
                       <Icon name="file-text" size={11} /> {shortLinedPaper ? "纯白底" : "横线纸"}
                     </button>
-                    <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" onclick={ontogglePaperGridModal} title={t("session.gridPreview")}>
+                    <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" aria-expanded={paperGridModalOpen} onclick={ontogglePaperGridModal} title={t("session.gridPreview")}>
                       <Icon name="grid" size={11} /> {t("session.gridPreview")}
                     </button>
                     {#if words.examWords >= 200}
@@ -587,7 +589,7 @@
                 {/if}
                 {#each currentRubric.criteria as c (c.id)}
                   <div class="lv-row" style="margin:6px 0;align-items:flex-start;flex-wrap:wrap;gap:var(--lv-space-2)">
-                    <span class="lv-chip num" style="flex:0 0 auto">{Math.round(c.weight * 100)}%</span>
+                    <span class="lv-chip lv-chip--data num" style="flex:0 0 auto">{Math.round(c.weight * 100)}%</span>
                     <span style="flex:1;min-width:140px;font-size:var(--lv-font-size-sm)">{c.label}{#if c.example}<span class="lv-muted"> · {c.example}</span>{/if}</span>
                     <div class="lv-row" style="margin:0;gap:var(--lv-space-1)">
                       {#each DEFAULT_RUBRIC_LEVELS as lvl (lvl.key)}
@@ -608,7 +610,7 @@
                 {/each}
                 <div class="lv-row" style="margin:8px 0 0;align-items:center;gap:var(--lv-space-2);flex-wrap:wrap">
                   {#if rubricScore.complete}
-                    <span class="lv-chip lv-chip--acc num" style="font-weight:700">{t("rubric.finalScore").replace("{s}", String(rubricScore.finalScore)).replace("{f}", String(rubricScore.fullScore))}</span>
+                    <span class="lv-chip lv-chip--data num" style="font-weight:700">{t("rubric.finalScore").replace("{s}", String(rubricScore.finalScore)).replace("{f}", String(rubricScore.fullScore))}</span>
                   {:else}
                     <span class="lv-chip lv-chip--amb num">{t("rubric.partialScore").replace("{e}", String(rubricScore.earned)).replace("{m}", String(rubricScore.ratedMax)).replace("{n}", String(rubricScore.unratedCount))}</span>
                   {/if}
@@ -712,6 +714,7 @@
               {#if explainSaveErrorQid === q.id && explainSaveError}<div class="lv-error" role="alert">{t("explain.saveFailed").replace("{message}", explainSaveError)}</div>{/if}
               <div class="lv-row">
                 <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("explain.followUp")}
+                  aria-label={t("explain.followUp")}
                   bind:value={explainFollowUp}
                   onkeydown={(e) => !e.isComposing && e.keyCode !== 229 && e.key === "Enter" && onsendFollowUp()} />
                 <button class="lv-btn sm" onclick={onsendFollowUp} disabled={explainBusy || !explainFollowUp.trim()}>{t("explain.send")}</button>

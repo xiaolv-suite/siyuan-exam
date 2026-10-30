@@ -53,6 +53,8 @@
             class:lv-chip--grn={sib.verdict === "correct"}
             class:lv-chip--red={sib.verdict === "wrong"}
             disabled={!sib.inSession}
+            aria-current={sib.isCurrent ? "true" : undefined}
+            aria-label={`${t("material.subQ").replace("{n}", String(sib.subIndex))}${sib.isCurrent ? "（当前）" : ""}${sib.verdict === "correct" ? "（已答对）" : sib.verdict === "wrong" ? "（已答错）" : "（未作答）"}`}
             title={sib.inSession ? `${t("material.jumpTo")}: ${sib.stemSnippet}` : t("material.notInSession")}
             onclick={() => onjumpSibling(sib)}
           >

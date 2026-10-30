@@ -123,27 +123,27 @@
     </div>
     <div class="lv-row">
       <span class="lv-chip"><Icon name="link" size={12} /> {t("materials.link")}</span>
-      <input class="lv-input" style="flex:1;min-width:200px" placeholder="https://…" bind:value={matLink} disabled={materialsBusy} />
-      <input class="lv-input" style="max-width:150px" placeholder={t("materials.linkTitle")} bind:value={matLinkTitle} disabled={materialsBusy} />
+      <input class="lv-input" style="flex:1;min-width:200px" placeholder="https://…" aria-label={t("materials.link")} bind:value={matLink} disabled={materialsBusy} />
+      <input class="lv-input" style="max-width:150px" placeholder={t("materials.linkTitle")} aria-label={t("materials.linkTitle")} bind:value={matLinkTitle} disabled={materialsBusy} />
       <button class="lv-btn" onclick={onregisterLink} disabled={materialsBusy || offline || app?.materialsReadonly || !matLink.trim()} title={app?.materialsReadonly ? t("materials.readonly") : ""}>{t("materials.register")}</button>
     </div>
     <div class="lv-row lv-muted" style="font-size:var(--lv-font-size-label)">
       <span>{t("materials.meta")}</span>
-      <input class="lv-input" style="max-width:150px" placeholder={t("materials.subject")} bind:value={matSubject} disabled={materialsBusy || app?.materialsReadonly} />
-      <input class="lv-input" style="max-width:150px" placeholder={t("materials.chapter")} bind:value={matChapter} disabled={materialsBusy || app?.materialsReadonly} />
+      <input class="lv-input" style="max-width:150px" placeholder={t("materials.subject")} aria-label={t("materials.subject")} bind:value={matSubject} disabled={materialsBusy || app?.materialsReadonly} />
+      <input class="lv-input" style="max-width:150px" placeholder={t("materials.chapter")} aria-label={t("materials.chapter")} bind:value={matChapter} disabled={materialsBusy || app?.materialsReadonly} />
       <span class="fn__flex-1"></span>
       <div style="position:relative;max-width:200px;display:inline-flex;align-items:center">
         <span style="position:absolute;left:8px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
           <Icon name="search" size={13} />
         </span>
-        <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:24px" placeholder={t("materials.search")} bind:value={materialsSearch} disabled={materialsBusy} />
+        <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:24px" placeholder={t("materials.search")} aria-label={t("materials.search")} bind:value={materialsSearch} disabled={materialsBusy} />
         {#if materialsSearch}
           <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { materialsSearch = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:3px;padding:2px 4px;min-width:18px;min-height:18px"><Icon name="close" size={11} /></button>
         {/if}
       </div>
     </div>
     {#if offline}<div class="lv-muted" style="display:inline-flex;align-items:center;gap:4px"><Icon name="alert-triangle" size={13} /> {t("materials.offlineNote")}</div>{/if}
-    {#if materialsNote}<div class="lv-row"><span class="lv-chip">{materialsNote}</span></div>{/if}
+    {#if materialsNote}<div class="lv-row"><span class="lv-chip" role="status">{materialsNote}</span></div>{/if}
   </div>
   {#if materialsList.length === 0}
     <div class="lv-empty"><div class="lv-empty-icon"><Icon name="book" size={24} /></div><b>{t("materials.title")}</b><p class="lv-muted">{t("materials.empty")}</p></div>
@@ -212,13 +212,13 @@
               {#if !notesCache.length}<div class="lv-muted lv-material-note-empty">{t("materials.noteEmpty")}</div>{/if}
               <div class="lv-row" style="margin:12px 0 4px"><b class="lv-muted" style="font-size:var(--lv-font-size-sm)">{noteEditingId ? t("materials.noteEdit") : t("materials.noteAdd")}</b></div>
               <div class="lv-row" style="flex-wrap:wrap">
-                {#if m.kind === "pdf"}<input class="lv-input" style="max-width:90px" placeholder={t("materials.page")} bind:value={notePage} disabled={materialsBusy || app?.materialsReadonly} />{:else if m.kind === "video" || m.kind === "audio"}<input class="lv-input" style="max-width:110px" placeholder="mm:ss" bind:value={noteTime} disabled={materialsBusy || app?.materialsReadonly} />{/if}
-                <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("materials.quote")} bind:value={noteQuote} disabled={materialsBusy || app?.materialsReadonly} />
+                {#if m.kind === "pdf"}<input class="lv-input" style="max-width:90px" placeholder={t("materials.page")} aria-label={t("materials.page")} bind:value={notePage} disabled={materialsBusy || app?.materialsReadonly} />{:else if m.kind === "video" || m.kind === "audio"}<input class="lv-input" style="max-width:110px" placeholder="mm:ss" aria-label="定位时间点 (mm:ss)" bind:value={noteTime} disabled={materialsBusy || app?.materialsReadonly} />{/if}
+                <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("materials.quote")} aria-label={t("materials.quote")} bind:value={noteQuote} disabled={materialsBusy || app?.materialsReadonly} />
               </div>
-              <textarea class="lv-input lv-textarea" rows="3" placeholder={t("materials.notePlaceholder")} bind:value={noteText} disabled={materialsBusy || app?.materialsReadonly}></textarea>
-              <div class="lv-row"><input class="lv-input" style="flex:1;min-width:160px" placeholder={t("materials.tagsPlaceholder")} bind:value={noteTags} disabled={materialsBusy || app?.materialsReadonly} /><button class="lv-btn lv-btn--primary sm" onclick={() => onsaveNote(m)} disabled={!noteText.trim() || materialsBusy || app?.materialsReadonly}>{noteEditingId ? t("materials.noteUpdate") : t("materials.noteAddBtn")}</button>{#if noteEditingId}<button class="lv-btn sm lv-btn--ghost" onclick={onresetNoteForm} disabled={materialsBusy}>{t("edit.cancel")}</button>{/if}</div>
+              <textarea class="lv-input lv-textarea" rows="3" placeholder={t("materials.notePlaceholder")} aria-label={t("materials.notePlaceholder")} bind:value={noteText} disabled={materialsBusy || app?.materialsReadonly}></textarea>
+              <div class="lv-row"><input class="lv-input" style="flex:1;min-width:160px" placeholder={t("materials.tagsPlaceholder")} aria-label={t("materials.tagsPlaceholder")} bind:value={noteTags} disabled={materialsBusy || app?.materialsReadonly} /><button class="lv-btn lv-btn--primary sm" onclick={() => onsaveNote(m)} disabled={!noteText.trim() || materialsBusy || app?.materialsReadonly}>{noteEditingId ? t("materials.noteUpdate") : t("materials.noteAddBtn")}</button>{#if noteEditingId}<button class="lv-btn sm lv-btn--ghost" onclick={onresetNoteForm} disabled={materialsBusy}>{t("edit.cancel")}</button>{/if}</div>
               {#if noteDirty}<p class="lv-muted" role="status">{t("materials.noteDraftHint")}</p>{/if}
-              {#if noteFormError}<div class="lv-error">{noteFormError}</div>{/if}
+              {#if noteFormError}<div class="lv-error" role="alert">{noteFormError}</div>{/if}
             </div>
           {/if}
         </section>
