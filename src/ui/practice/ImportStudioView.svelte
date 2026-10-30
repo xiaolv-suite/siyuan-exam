@@ -264,8 +264,14 @@
             {:else}
               <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 12px;margin-bottom:6px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 12px);border:1px solid var(--lv-border-subtle);flex-wrap:wrap;gap:6px">
                 <div class="lv-row" style="margin:0;gap:8px;align-items:center">
-                  <button type="button" class="lv-chip num sm" onclick={onToggleSelectAllDocs} class:acc={selectedDocCount > 0}>
-                    {selectedDocCount === siyuanDocCandidates.length ? "☑ 全选" : selectedDocCount > 0 ? `☑ 已选 ${selectedDocCount}` : "☐ 全选"}
+                  <button type="button" class="lv-chip num sm" onclick={onToggleSelectAllDocs} class:acc={selectedDocCount > 0} style="display:inline-flex;align-items:center;gap:4px">
+                    {#if selectedDocCount > 0}
+                      <Icon name="check" size={11} />
+                      <span>{selectedDocCount === siyuanDocCandidates.length ? "全选" : `已选 ${selectedDocCount}`}</span>
+                    {:else}
+                      <span style="display:inline-block;width:10px;height:10px;border:1.5px solid currentColor;border-radius:2px"></span>
+                      <span>全选</span>
+                    {/if}
                   </button>
                   <span class="lv-muted" style="font-size:11px;display:inline-flex;align-items:center;gap:4px">
                     {#if !docSearchQuery.trim()}<Icon name="clock" size={11} />{/if}

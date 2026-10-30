@@ -718,7 +718,13 @@
           aria-describedby={`lv-qrow-stem-${q.id}`}
           onclick={() => ontoggleBrowseQuestion(q.id)}>
           {#if batchMode}
-            <span class="lv-chip num" class:acc={!!selectedIds[q.id]}>{selectedIds[q.id] ? "☑" : "☐"}</span>
+            <span class="lv-chip num" class:acc={!!selectedIds[q.id]} style="display:inline-flex;align-items:center;justify-content:center;min-width:26px;padding:2px 6px">
+              {#if selectedIds[q.id]}
+                <Icon name="check" size={12} />
+              {:else}
+                <span style="display:inline-block;width:11px;height:11px;border:1.5px solid currentColor;border-radius:3px"></span>
+              {/if}
+            </span>
           {/if}
           <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
           {#if q.kp}<span class="lv-chip">{q.kp}</span>{/if}
