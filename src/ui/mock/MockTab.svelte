@@ -760,7 +760,7 @@
         const blobB = new Blob([htmlB], { type: "text/html;charset=utf-8" });
         downloadBlob(blobB, `${bp.name || "试卷"}-B卷.html`);
 
-        showMessage(`⚡ ${res.diffSummary} 已开始下载 A/B 双卷！`, 3500, "info");
+        showMessage(`${res.diffSummary} 已开始下载 A/B 双卷！`, 3500, "info");
       } catch (e) {
         showMessage(`生成 A/B 卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
       } finally {
@@ -779,7 +779,7 @@
         });
         bp = convertSprintPaperToBlueprint(paper);
         showMessage(
-          `⚡ ${paper.title}（盲区 ${paper.composition.criticalBlindspots} + 错题 ${paper.composition.confusingWrongs}）`,
+          `${paper.title}（盲区 ${paper.composition.criticalBlindspots} + 错题 ${paper.composition.confusingWrongs}）`,
           4000,
           "info",
         );
@@ -2019,11 +2019,11 @@
               <button type="button" class="lv-btn sm lv-btn--ghost" onclick={copyScratchpad} title={t("scratchpad.copy")}>
                 <Icon name="copy" size={11} /> {t("scratchpad.copy")}
               </button>
-              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={clearScratchpad} title={t("scratchpad.clear")}>
-                ✕ {t("scratchpad.clear")}
+              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={clearScratchpad} title={t("scratchpad.clear")} style="display:inline-flex;align-items:center;gap:4px">
+                <Icon name="trash" size={11} /> {t("scratchpad.clear")}
               </button>
-              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => scratchpadOpen = false}>
-                ▼
+              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => scratchpadOpen = false} title="收起草稿纸" aria-label="收起草稿纸">
+                <Icon name="close" size={12} />
               </button>
             </div>
           </div>

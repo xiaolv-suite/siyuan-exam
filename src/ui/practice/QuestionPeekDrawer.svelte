@@ -276,12 +276,12 @@
             <div class="lv-row" style="margin:4px 0">
               <span class="lv-chip">{String.fromCharCode(65 + oi)}</span>
               <input class="lv-input" bind:value={editDraft.options[oi]} />
-              <button class="lv-btn sm lv-btn--ghost" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} onclick={() => { const next = removeChoiceOption(q.type, editDraft!.options, editDraft!.answer, oi); editDraft = { ...editDraft!, ...next }; }}>✕</button>
+              <button class="lv-btn sm lv-btn--ghost" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} onclick={() => { const next = removeChoiceOption(q.type, editDraft!.options, editDraft!.answer, oi); editDraft = { ...editDraft!, ...next }; }}><Icon name="close" size={12} /></button>
             </div>
           {/each}
         {/if}
         {#if q.type === "single" || q.type === "multiple"}
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { editDraft!.options.push(""); editDraft = { ...editDraft! }; }}>+ {t("manual.addOption")}</button>
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => { editDraft!.options.push(""); editDraft = { ...editDraft! }; }} style="display:inline-flex;align-items:center;gap:4px"><Icon name="plus" size={11} /> {t("manual.addOption")}</button>
         {/if}
         <div class="lv-row" style="margin:6px 0">
           <label class="lv-muted" for="lv-edit-answer">{t("browse.answer")}</label>
@@ -587,8 +587,9 @@
                   <span class="lv-chip">{e.verdict === "correct" ? "✓" : e.verdict === "wrong" ? "✕" : "—"}</span>
                   {#if e.myAnswer}<span class="lv-chip num">{t("session.myAnswer")}: {e.myAnswer}</span>{/if}
                   {#if drifted}
-                    <span class="lv-chip lv-chip--amb sm" title={t("receipt.driftTip")}>
-                      ✏️ {t("receipt.drift")}{#if e.qVersion?.answer}（{t("receipt.origAnswer")}: {e.qVersion.answer}）{/if}
+                    <span class="lv-chip lv-chip--amb sm" title={t("receipt.driftTip")} style="display:inline-flex;align-items:center;gap:4px">
+                      <Icon name="pencil" size={11} />
+                      <span>{t("receipt.drift")}{#if e.qVersion?.answer}（{t("receipt.origAnswer")}: {e.qVersion.answer}）{/if}</span>
                     </span>
                   {/if}
                   {#if e.confidence}<span class="lv-chip">{t("confidence." + e.confidence)}</span>{/if}

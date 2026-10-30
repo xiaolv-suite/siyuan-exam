@@ -529,7 +529,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       await safeStart(qs, "quick", () => {
         enterSessionView();
         restoreQuestionControls();
-        showMessage(`⚡ 已开启艾宾浩斯临界考点急救特训（共 ${qs.length} 题）`, 3000, "info");
+        showMessage(`已开启艾宾浩斯临界考点急救特训（共 ${qs.length} 题）`, 3000, "info");
       });
     }
 
@@ -2293,7 +2293,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       await safeStart(groupAdjacent(qs), "quick", () => {
         enterSessionView();
         restoreQuestionControls();
-        showMessage(`⚡ 已开启当前筛选专项目标特训（共 ${qs.length} 题）`, 3000, "info");
+        showMessage(`已开启当前筛选专项目标特训（共 ${qs.length} 题）`, 3000, "info");
       });
     }
 

@@ -420,8 +420,8 @@
         {#if importReport}
           <p class="lv-muted">{t("import.target").replace("{name}", banks.find((b) => b.id === importPreviewBankId)?.name ?? importPreviewBankId)}</p>
           <div class="lv-row">
-            <span class="lv-chip lv-chip--grn num">✓ {importReport.ok.length}</span>
-            <span class="lv-chip lv-chip--red num">✕ {importReport.errors.length}</span>
+            <span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> {importReport.ok.length}</span>
+            <span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="close" size={11} /> {importReport.errors.length}</span>
             {#if importReport.duplicates}<span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px" title={t("import.dupeHint")}><Icon name="copy" size={11} /> {importReport.duplicates}</span>{/if}
             {#if importReport.ok.length}
               <button class="lv-btn sm lv-btn--ghost" disabled={spotBusy} onclick={onSpotCheckRender}>

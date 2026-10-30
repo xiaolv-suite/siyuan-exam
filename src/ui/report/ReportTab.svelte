@@ -275,7 +275,7 @@
       plugin.pendingPractice = rescueQs;
       plugin.pendingPracticeBankId = bankId || undefined;
       plugin.openPractice?.();
-      showMessage(`⚡ 已筛选出 ${rescueQs.length} 道临界遗忘考点题目，正在前往练习台抢救…`, 3500, "info");
+      showMessage(`已筛选出 ${rescueQs.length} 道临界遗忘考点题目，正在前往练习台抢救…`, 3500, "info");
     }
 
     let weak = $state<ReturnType<typeof weakTop>>([]);

@@ -364,8 +364,8 @@
     <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={paperText} placeholder={t("paper.placeholder")}></textarea>
     {#if paperPreview}
       <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
-        <span class="lv-chip lv-chip--grn num">✓ {paperPreview.items.filter((i: any) => i.verdict === "correct").length}</span>
-        <span class="lv-chip lv-chip--red num">✕ {paperPreview.items.filter((i: any) => i.verdict === "wrong").length}</span>
+        <span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> {paperPreview.items.filter((i: any) => i.verdict === "correct").length}</span>
+        <span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="close" size={11} /> {paperPreview.items.filter((i: any) => i.verdict === "wrong").length}</span>
         {#if paperPreview.items.some((i: any) => i.verdict === "not_attempted")}
           <span class="lv-chip lv-chip--amb num" title={t("paper.shortNote")}>? {paperPreview.items.filter((i: any) => i.verdict === "not_attempted").length}</span>
         {/if}
@@ -538,7 +538,7 @@
       </div>
     {/if}
     {#if !health.clusters.length && !health.missing.length}
-      <span class="lv-chip lv-chip--grn">✓ {t("health.clean")}</span>
+      <span class="lv-chip lv-chip--grn" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={11} /> {t("health.clean")}</span>
     {:else}
       {#each health.clusters as cl, _i (_i)}
         <button
@@ -603,7 +603,7 @@
           <Icon name="alert-triangle" size={11} /> {t("health.orphans")}（{orphanDiag.total}）
         </span>
         {#if orphanDiag.total === 0}
-          <span class="lv-chip lv-chip--grn">✓ {t("health.orphansClean")}</span>
+          <span class="lv-chip lv-chip--grn" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={11} /> {t("health.orphansClean")}</span>
         {:else}
           {#each (["orphan_group_sub", "orphan_group_material", "broken_material_ref", "defect_no_answer", "defect_no_options"] as const) as kind (kind)}
             {@const count = orphanDiag.byKind[kind].length}

@@ -207,7 +207,7 @@
           {aiBusy ? t("ai.generating") : t("ai.generate")}
         </button>
         {#if aiBusy || aiRegenBusy}
-          <button class="lv-btn sm" onclick={oncancel}>✕ {t("ai.cancel")}</button>
+          <button class="lv-btn sm" onclick={oncancel} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={12} /> {t("ai.cancel")}</button>
         {/if}
         <span class="lv-muted">{t("ai.pipelineNote")}</span>
         {#if aiUsageTotal}<span class="lv-chip num" title={t("ai.usageTitle")}>Σ ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
@@ -292,7 +292,7 @@
         {/each}
         {#if aiTaskLog.length}
           <details class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);margin-top:14px">
-            <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold)">✚ {t("ai.taskLog")}（{aiTaskLog.length}）</summary>
+            <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold);display:inline-flex;align-items:center;gap:4px"><Icon name="plus" size={12} /> {t("ai.taskLog")}（{aiTaskLog.length}）</summary>
             <p class="lv-muted" style="margin:6px 0 0">{t("ai.taskLogHint")}</p>
             {#each [...aiTaskLog].reverse().slice(0, 5) as e, _i (_i)}
               <div class="lv-row" style="margin:8px 0 0">
