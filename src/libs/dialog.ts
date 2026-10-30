@@ -21,8 +21,8 @@ export const inputDialog = (args: {
 }) => {
   const dialog = new Dialog({
     title: args.title,
-    content: `<div class="b3-dialog__content">
-    <div class="ft__breakword"><textarea class="b3-text-field fn__block" style="height: 100%;" placeholder="${escapeHtml(args?.placeholder ?? "")}">${escapeHtml(args?.defaultText ?? "")}</textarea></div>
+    content: `<div class="b3-dialog__content" role="region" aria-label="${escapeHtml(args.title)}">
+    <div class="ft__breakword"><textarea class="b3-text-field fn__block" style="height: 100%;" placeholder="${escapeHtml(args?.placeholder ?? "")}" aria-label="${escapeHtml(args.title)}">${escapeHtml(args?.defaultText ?? "")}</textarea></div>
 </div>
 <div class="b3-dialog__action">
     <button class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button><div class="fn__space"></div>
@@ -82,7 +82,7 @@ export const confirmDialog = (args: IConfirmDialogArgs) => {
 
   const dialog = new Dialog({
     title,
-    content: `<div class="b3-dialog__content">
+    content: `<div class="b3-dialog__content" role="region" aria-label="${escapeHtml(title)}">
     <div class="ft__breakword" style="white-space:pre-wrap;line-height:1.6">
     </div>
 </div>

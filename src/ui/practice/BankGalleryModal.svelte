@@ -131,7 +131,7 @@
           </button>
         </div>
       </div>
-      <div class="stack-sm" style="max-height:450px;overflow-y:auto">
+      <div class="stack-sm" role="region" aria-label="题库清单" style="max-height:450px;overflow-y:auto">
         {#each filteredBanks as b (b.id)}
           <div class="lv-card lv-card--hover" style="padding:12px 14px;margin-bottom:6px;border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);border-left:3.5px solid {b.id === activeBankId ? 'var(--lv-accent)' : 'transparent'};background:var(--lv-surface-2)">
             <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">

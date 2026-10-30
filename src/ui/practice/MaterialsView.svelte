@@ -185,16 +185,16 @@
           </div>
           <div class="lv-row lv-material-actions">
             <button class="lv-btn lv-btn--primary sm" onclick={() => onopenMaterial(m)}><Icon name="external-link" size={13} /> {t("materials.open")}</button>
-            <button class="lv-btn sm" aria-expanded={notesOpenId === m.id} onclick={() => ontoggleNotes(m)} disabled={materialsBusy}><Icon name="pencil" size={13} /> {t("materials.notes")}（<span class="num">{materialNoteCounts.get(m.id) ?? 0}</span>）</button>
+            <button class="lv-btn sm" aria-expanded={notesOpenId === m.id} aria-busy={materialsBusy} onclick={() => ontoggleNotes(m)} disabled={materialsBusy}><Icon name="pencil" size={13} /> {t("materials.notes")}（<span class="num">{materialNoteCounts.get(m.id) ?? 0}</span>）</button>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => onbridgeToManual(m)} title="把当前资料来源带入手工录题"><Icon name="edit" size={13} /> {t("materials.toManual", "带入录题")}</button>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => onbridgeToAi(m)} title="把当前资料与笔记带入 AI 出题"><Icon name="sparkles" size={13} /> {t("materials.toAi", "带入 AI")}</button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => onremoveMaterial(m)} disabled={materialsBusy || app?.materialsReadonly} title={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")} aria-label={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")}><Icon name="trash" size={13} /></button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => onremoveMaterial(m)} disabled={materialsBusy || app?.materialsReadonly} aria-busy={materialsBusy} title={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")} aria-label={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")}><Icon name="trash" size={13} /></button>
           </div>
           {#if notesOpenId === m.id}
             <div class="lv-material-notes">
               <div class="lv-section-head"><div><span class="lv-eyebrow">整理与回忆</span><h2>{t("materials.notes")}</h2></div></div>
               {#each notesCache as n (n.id)}
-                <div class="lv-material-note">
+                <div class="lv-material-note" role="region" aria-label={n.locator ? locatorLabel(n.locator) : "学习笔记"}>
                   <div class="lv-row" style="margin:0;gap:var(--lv-space-1);flex-wrap:wrap">
                     {#if n.locator}<span class="lv-chip num">{locatorLabel(n.locator)}</span>{/if}
                     {#if needsRelocate(n, m.revision)}<span class="lv-chip lv-chip--amb" title={t("materials.relocateTip")}>{t("materials.relocate")}</span>{/if}
