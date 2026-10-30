@@ -138,18 +138,18 @@
       (e.target as HTMLSelectElement).value = "";
       onshowChartMessage();
     }}>
-      <option value="">➕ 插入数学图表…</option>
-      <option value="plot">📈 {t("manual.insertPlot")}</option>
-      <option value="diagram">📐 {t("manual.insertDiagram")}</option>
-      <option value="bar">📊 {t("manual.insertBar")}</option>
-      <option value="pie">🥧 {t("manual.insertPie")}</option>
-      <option value="numberline">📏 {t("manual.insertNumberLine")}</option>
+      <option value="">插入数学图表…</option>
+      <option value="plot">{t("manual.insertPlot")}</option>
+      <option value="diagram">{t("manual.insertDiagram")}</option>
+      <option value="bar">{t("manual.insertBar")}</option>
+      <option value="pie">{t("manual.insertPie")}</option>
+      <option value="numberline">{t("manual.insertNumberLine")}</option>
     </select>
     {#if draftRestored}<span class="lv-chip lv-chip--amb">{t("manual.draftRestored")}</span>{/if}
-    {#if mSaved}<span class="lv-chip lv-chip--grn num">✓ {mSaved}</span>{/if}
+    {#if mSaved}<span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={11} /> {mSaved}</span>{/if}
   </div>
   {#if ocrModalOpen}
-    <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border-color:var(--lv-accent)">
+    <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border:1px solid var(--lv-accent-soft);border-radius:var(--lv-r-card, 16px);box-shadow:var(--lv-sh-1)">
       <label class="lv-field">
         <span style="font-weight:var(--lv-font-weight-semibold)">{t("manual.ocrPrompt")}</span>
         <textarea class="lv-input lv-textarea" style="min-height:90px;margin-top:6px" bind:value={ocrInputText} placeholder="粘贴整段试题识别文本（支持题干、A. B. C. D. 选项、答案、解析），点击解析填单即可自动分类填入下方表单"></textarea>

@@ -210,7 +210,7 @@
           <button class="lv-btn sm" onclick={oncancel} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={12} /> {t("ai.cancel")}</button>
         {/if}
         <span class="lv-muted">{t("ai.pipelineNote")}</span>
-        {#if aiUsageTotal}<span class="lv-chip num" title={t("ai.usageTitle")}>Σ ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
+        {#if aiUsageTotal}<span class="lv-chip num" style="display:inline-flex;align-items:center;gap:4px" title={t("ai.usageTitle")}><Icon name="activity" size={11} /> ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
       </div>
     </div>
     <section class="lv-ai-review">

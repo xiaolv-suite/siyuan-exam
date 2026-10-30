@@ -189,7 +189,7 @@
           {#each session.answered.filter((a) => a.grade.verdict !== "correct") as a, _ri (_ri)}
             {@const aq = questionMap.get(a.qid)}
             <div class="lv-error-row" style="white-space:normal">
-              <b class="num">✕</b> {aq?.stem.slice(0, 80) ?? a.qid}
+              <b class="num" style="display:inline-flex;align-items:center;color:var(--lv-red)"><Icon name="close" size={13} /></b> {aq?.stem.slice(0, 80) ?? a.qid}
               <div class="lv-muted num">{t("browse.answer")}: {aq?.answer ?? "—"}{#if a.grade.myAnswer} · {t("session.myAnswer")}: {a.grade.myAnswer}{/if}{#if aq?.analysis} · {aq.analysis}{/if}</div>
               {#if reflections[a.qid]}
                 <!-- 52-04：上次检查点回显 -->
@@ -218,7 +218,7 @@
             {#each session.answered.filter((a) => a.grade.verdict === "correct" && helpShown.get(a.qid)) as a, _si2 (_si2)}
               {@const aq = questionMap.get(a.qid)}
               <div class="lv-error-row" style="white-space:normal">
-                <b class="num">✓</b> {aq?.stem.slice(0, 80) ?? a.qid}
+                <b class="num" style="display:inline-flex;align-items:center;color:var(--lv-green)"><Icon name="check" size={13} /></b> {aq?.stem.slice(0, 80) ?? a.qid}
                 {#if reflections[a.qid]}
                   <div class="lv-muted" style="font-size:var(--lv-font-size-caption)">{reflections[a.qid].text}</div>
                 {/if}

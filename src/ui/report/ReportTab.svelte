@@ -1733,7 +1733,7 @@
               {#each cwList as c, _ci (_ci)}
                 {@const stem = questionMap.get(c.qid)?.stem}
                 <div class="lv-error-row" style="white-space:normal" title={stem ?? c.qid}>
-                  <b class="num">✕</b> {stem ? stem.slice(0, 70) : c.qid}
+                  <b class="num" style="display:inline-flex;align-items:center;color:var(--lv-red)"><Icon name="close" size={13} /></b> {stem ? stem.slice(0, 70) : c.qid}
                   {#if c.myAnswer}<span class="lv-muted"> · {t("session.myAnswer")}: {c.myAnswer}</span>{/if}
                   <span class="lv-muted num"> · {new Date(c.ts).toLocaleDateString()}</span>
                 </div>
