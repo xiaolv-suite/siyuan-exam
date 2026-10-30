@@ -457,7 +457,7 @@
         {/if}
         <div class="lv-row" style="flex-wrap:wrap;gap:var(--lv-space-1)">
           <button class="lv-btn sm lv-btn--primary" onclick={() => ondrillSingle(q)} title={t("browse.drillSingleTip")}><Icon name="play" size={13} /> {t("browse.drillSingle")}</button>
-          <button class="lv-btn sm" onclick={() => onopenEditForm(q)}>✎ {t("edit.open")}</button>
+          <button class="lv-btn sm" onclick={() => onopenEditForm(q)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="edit" size={13} /> {t("edit.open")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => oncloneToManualStudio(q)} title="基于此题克隆为变式题并进入手工录题台"><Icon name="layers" size={13} /> 衍生变式题</button>
           <button class="lv-btn sm lv-btn--ghost" class:acc-btn={isQuestionDisputed(q)} onclick={() => ontoggleDisputeForm(q)}>
             <Icon name="alert-triangle" size={13} /> {isQuestionDisputed(q) ? t("dispute.resolveAction") : t("dispute.flagAction")}
@@ -638,12 +638,12 @@
     </div>
   </div>
   <footer class="lv-peek-footer">
-    <button class="lv-btn lv-btn--primary sm" onclick={() => onstartSingleById(q.id)}>
-      ▶ {t("browse.practiceOne", "只练这道题")}
+    <button class="lv-btn lv-btn--primary sm" onclick={() => onstartSingleById(q.id)} style="display:inline-flex;align-items:center;gap:4px">
+      <Icon name="play" size={13} /> {t("browse.practiceOne", "只练这道题")}
     </button>
     {#if editingId !== q.id}
-      <button class="lv-btn sm" onclick={() => onopenEditForm(q)}>
-        ✎ {t("edit.open", "编辑题目")}
+      <button class="lv-btn sm" onclick={() => onopenEditForm(q)} style="display:inline-flex;align-items:center;gap:4px">
+        <Icon name="edit" size={13} /> {t("edit.open", "编辑题目")}
       </button>
     {/if}
     <button class="lv-btn sm lv-btn--ghost" onclick={onclose}>

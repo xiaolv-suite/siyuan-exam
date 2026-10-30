@@ -228,7 +228,7 @@
             <b style="font-size:var(--lv-font-size-md)">{t("ai.queue")}</b>
             <span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审</span>
             {#if aiRejected.length}<span class="lv-chip lv-chip--red num">✕ {aiRejected.length}</span>{/if}
-            {#if aiDuplicates}<span class="lv-chip lv-chip--amb num">⧉ {aiDuplicates}</span>{/if}
+            {#if aiDuplicates}<span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="copy" size={11} /> {aiDuplicates}</span>{/if}
             {#if aiCost}<span class="lv-chip num">{aiCost}</span>{/if}
           </div>
           <div class="lv-row" style="margin:0;gap:6px">
@@ -275,7 +275,7 @@
               {/if}
               <div class="lv-row" style="margin:6px 0;align-items:center;gap:var(--lv-space-compact);flex-wrap:wrap">
                 <span class="lv-chip lv-chip--acc num"><b>{t("browse.answer")}:</b> {q.answer}</span>
-                {#if q.difficulty}<span class="lv-chip num">★ {q.difficulty}</span>{/if}
+                {#if q.difficulty}<span class="lv-chip num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="star" size={11} /> {q.difficulty}</span>{/if}
               </div>
               <div class="lv-analysis" style="margin:8px 0 0">{q.analysis}</div>
               <div class="lv-row" style="margin:8px 0 0">

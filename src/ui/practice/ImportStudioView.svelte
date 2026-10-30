@@ -416,7 +416,7 @@
           <div class="lv-row">
             <span class="lv-chip lv-chip--grn num">✓ {importReport.ok.length}</span>
             <span class="lv-chip lv-chip--red num">✕ {importReport.errors.length}</span>
-            {#if importReport.duplicates}<span class="lv-chip lv-chip--amb num" title={t("import.dupeHint")}>⧉ {importReport.duplicates}</span>{/if}
+            {#if importReport.duplicates}<span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px" title={t("import.dupeHint")}><Icon name="copy" size={11} /> {importReport.duplicates}</span>{/if}
             {#if importReport.ok.length}
               <button class="lv-btn sm lv-btn--ghost" disabled={spotBusy} onclick={onSpotCheckRender}>
                 <Icon name="shuffle" size={13} /> {t("import.spotCheck")}{#if spotIds.length}（{spotIds.length}）{/if}
@@ -442,7 +442,11 @@
             {/each}
           {/if}
           {#each importReport.dupeSamples ?? [] as d, _i (_i)}
-            <div class="lv-error-row num" title={t("import.dupeHint")}>#{d.row} ⧉ {t("import.dupeRow")} {d.stem}</div>
+            <div class="lv-error-row num" title={t("import.dupeHint")} style="display:flex;align-items:center;gap:4px">
+              <span>#{d.row}</span>
+              <Icon name="copy" size={11} />
+              <span>{t("import.dupeRow")} {d.stem}</span>
+            </div>
           {/each}
           {#if importReport.updates?.length}
             <div class="lv-row" style="margin:4px 0 0">

@@ -734,7 +734,7 @@
           <div class="lv-side-rows">
             {#if q.kp}<span class="lv-chip"><Icon name="layers" size={11} /> {q.kp}</span>{/if}
             {#if q.source}<span class="lv-chip num" title={t("manual.source")}>{q.source}</span>{/if}
-            {#if q.difficulty}<span class="lv-chip num">★ {q.difficulty}</span>{/if}
+            {#if q.difficulty}<span class="lv-chip num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="star" size={11} /> {q.difficulty}</span>{/if}
             {#if q.score}<span class="lv-chip num">{t("manual.score")} {q.score}</span>{/if}
             {#if curQStats && curQStats.attempts > 0}
               <span class="lv-chip num" title={t("browse.usage").replace("{a}", String(curQStats.attempts)).replace("{c}", String(Math.round((curQStats.correct / curQStats.attempts) * 100)))}>

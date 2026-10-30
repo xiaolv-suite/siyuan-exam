@@ -547,9 +547,10 @@
           class:acc={activeClusterIndex === _i}
           class:lv-chip--red={cl.similarity === 1}
           title={t("health.clusterTip")}
+          style="display:inline-flex;align-items:center;gap:4px"
           onclick={() => ontoggleCluster(_i)}
         >
-          ⧉ {cl.ids.length}× {Math.round(cl.similarity * 100)}%
+          <Icon name="copy" size={11} /> {cl.ids.length}× {Math.round(cl.similarity * 100)}%
         </button>
       {/each}
       {#each health.missing as row, _i (_i)}

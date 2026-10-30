@@ -1339,7 +1339,7 @@
             {#each caList as c, _ci (_ci)}
               {@const stem = questionMap.get(c.qid)?.stem}
               <div class="lv-error-row" style="white-space:normal" title={stem ?? c.qid}>
-                <b class="num">↺</b> {stem ? stem.slice(0, 60) : c.qid}
+                <b class="num" style="display:inline-flex;align-items:center"><Icon name="rotate" size={12} /></b> {stem ? stem.slice(0, 60) : c.qid}
                 <span class="lv-muted"> · {t("report.changedFirst")}: {c.first} → {c.final}</span>
                 <span class="lv-chip num" style="margin-left:4px">{c.editCount}</span>
                 {#if c.reasons.length}<span class="lv-muted"> · {c.reasons.map((r) => t("trail.reason." + r)).join("、")}</span>{/if}
