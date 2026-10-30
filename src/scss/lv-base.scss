@@ -379,6 +379,11 @@ button.lv-chip {
     transform: none !important;
     box-shadow: none !important;
   }
+  &[aria-busy="true"] {
+    cursor: wait;
+    opacity: 0.75;
+    pointer-events: none;
+  }
 }
 .lv-btn--primary {
   background: var(--lv-btn-primary-bg);
@@ -395,6 +400,10 @@ button.lv-chip {
   }
   &:active:not(:disabled) {
     transform: scale(0.978);
+  }
+  &[aria-busy="true"] {
+    background: color-mix(in srgb, var(--lv-accent) 80%, var(--lv-surface));
+    box-shadow: none;
   }
 }
 .lv-btn--ghost {
@@ -459,6 +468,17 @@ button.lv-chip {
   &:disabled {
     opacity: 0.62;
     cursor: not-allowed;
+  }
+
+  &[aria-busy="true"] {
+    cursor: wait;
+    opacity: 0.75;
+  }
+
+  &[aria-invalid="true"],
+  &.lv-input--error {
+    border-color: var(--lv-red);
+    box-shadow: 0 0 0 1px var(--lv-red), 0 0 0 3px color-mix(in srgb, var(--lv-red) 18%, transparent);
   }
 }
 
