@@ -3275,6 +3275,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let mAnswer = $state("");        // single/multiple: 字母；judge: 对/错；fill/short: 文本
     let mAnalysis = $state("");
     let mKp = $state("");
+    let mSecondaryKps = $state("");
     let mSource = $state("");
     let mGroup = $state("");
     /** 54-02 作者设置：数值判分规格（填空题型显示；留空=自动识别/exact 口径） */
@@ -3283,6 +3284,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let mSpecAbsTol = $state("");
     let mSpecRelPct = $state("");
     let mSpecAltUnits = $state("");
+    let mSpecOrderIndependent = $state(false);
     /** 55-05 作者设置：主观采分点（简答题显示；每行 `描述 | 权重 | 参考要点`） */
     let mRubricOpen = $state(false);
     let mRubricText = $state("");
@@ -3495,8 +3497,9 @@ import { confirmDialogSync } from "@/libs/dialog";
     function currentManualFormData(statusToSave?: QuestionLifecycleStatus) {
       return assembleManualFormData({
         type: mType, stem: mStem, options: mOptions, answer: mAnswer,
-        analysis: mAnalysis, kp: mKp, source: mSource, group: mGroup, status: mStatus,
+        analysis: mAnalysis, kp: mKp, secondaryKps: mSecondaryKps, source: mSource, group: mGroup, status: mStatus,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
+        orderIndependent: mSpecOrderIndependent,
         rubricOpen: mRubricOpen, rubricText: mRubricText, studyLang: mStudyLang, studyPhonetic: mStudyPhonetic,
       }, statusToSave);
     }
@@ -5517,6 +5520,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:mAnswer
       bind:mAnalysis
       bind:mKp
+      bind:mSecondaryKps
       bind:mSource
       bind:mGroup
       bind:mSpecOpen
@@ -5524,6 +5528,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:mSpecAbsTol
       bind:mSpecRelPct
       bind:mSpecAltUnits
+      bind:mSpecOrderIndependent
       bind:mRubricOpen
       bind:mRubricText
       {authorRubricPreview}

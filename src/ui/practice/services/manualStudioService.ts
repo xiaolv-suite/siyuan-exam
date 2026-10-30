@@ -92,10 +92,12 @@ export interface ManualQuestionFormData {
   answer: string;
   analysis: string;
   kp: string;
+  secondaryKps?: string[];
   source: string;
   group?: string;
   status: QuestionLifecycleStatus;
   numericSpec?: NumericSpecParams;
+  orderIndependent?: boolean;
   rubricText?: string;
   studyLang?: string;
   studyPhonetic?: string;
@@ -137,6 +139,13 @@ export async function saveManualQuestion(
       ? { studyMeta: { lang: data.studyLang || "zh-CN", phonetic: data.studyPhonetic?.trim() || undefined } }
       : {}),
   });
+
+  if (data.secondaryKps && data.secondaryKps.length > 0) {
+    q.secondaryKps = data.secondaryKps;
+  }
+  if (data.type === "fill" && data.orderIndependent && q.answerSpec?.kind === "multiBlank") {
+    q.answerSpec.orderIndependent = true;
+  }
 
   await app.writeManualQuestion(bankId, q);
   return q;
@@ -393,6 +402,7 @@ export function assembleManualFormData(
     answer: string;
     analysis: string;
     kp: string;
+    secondaryKps?: string;
     source: string;
     group: string;
     status: QuestionLifecycleStatus;
@@ -401,6 +411,7 @@ export function assembleManualFormData(
     specAbsTol: string;
     specRelPct: string;
     specAltUnits: string;
+    orderIndependent?: boolean;
     rubricOpen: boolean;
     rubricText: string;
     studyLang: string;
@@ -408,6 +419,10 @@ export function assembleManualFormData(
   },
   overrideStatus?: QuestionLifecycleStatus,
 ): ManualQuestionFormData {
+  const secondaryKpsList = state.secondaryKps
+    ? state.secondaryKps.split(/[,，、;；]/).map((s) => s.trim()).filter(Boolean)
+    : undefined;
+
   return {
     type: state.type,
     stem: state.stem,
@@ -415,6 +430,7 @@ export function assembleManualFormData(
     answer: state.answer,
     analysis: state.analysis,
     kp: state.kp,
+    secondaryKps: secondaryKpsList,
     source: state.source,
     group: state.group?.trim() || undefined,
     status: overrideStatus ?? state.status,
@@ -422,6 +438,7 @@ export function assembleManualFormData(
       state.type === "fill" && state.specOpen
         ? { unit: state.specUnit, absTol: state.specAbsTol, relPct: state.specRelPct, altUnits: state.specAltUnits }
         : undefined,
+    orderIndependent: state.type === "fill" && state.orderIndependent,
     rubricText: state.type === "short" && state.rubricOpen && state.rubricText.trim() ? state.rubricText : undefined,
     studyLang: state.studyLang,
     studyPhonetic: state.studyPhonetic,

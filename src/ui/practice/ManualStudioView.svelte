@@ -10,6 +10,7 @@
     mAnswer: string;
     mAnalysis: string;
     mKp: string;
+    mSecondaryKps?: string;
     mSource: string;
     mGroup: string;
     mSpecOpen: boolean;
@@ -17,6 +18,7 @@
     mSpecAbsTol: string;
     mSpecRelPct: string;
     mSpecAltUnits: string;
+    mSpecOrderIndependent?: boolean;
     mRubricOpen: boolean;
     mRubricText: string;
     authorRubricPreview: any;
@@ -60,6 +62,7 @@
     mAnswer = $bindable(),
     mAnalysis = $bindable(),
     mKp = $bindable(),
+    mSecondaryKps = $bindable(""),
     mSource = $bindable(),
     mGroup = $bindable(),
     mSpecOpen = $bindable(),
@@ -67,6 +70,7 @@
     mSpecAbsTol = $bindable(),
     mSpecRelPct = $bindable(),
     mSpecAltUnits = $bindable(),
+    mSpecOrderIndependent = $bindable(false),
     mRubricOpen = $bindable(),
     mRubricText = $bindable(),
     authorRubricPreview,
@@ -304,6 +308,12 @@
               <label class="lv-field" style="flex:1;min-width:180px"><span class="lv-muted">{t("spec.altUnits")}</span>
                 <input class="lv-input" bind:value={mSpecAltUnits} placeholder="km/h, cm/s" aria-label={t("spec.altUnits")} />
               </label>
+              {#if mAnswer.includes(";;")}
+                <label class="lv-chip" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-top:4px">
+                  <input type="checkbox" bind:checked={mSpecOrderIndependent} />
+                  <span>无序多空（作答空位可任意互换对齐）</span>
+                </label>
+              {/if}
             </div>
           {/if}
         {/if}
@@ -343,8 +353,9 @@
       <div class="lv-field"><label class="lv-muted" for="lv-manual-analysis">{t("manual.analysis")}</label>
         <textarea id="lv-manual-analysis" class="lv-input lv-textarea" style="min-height:52px" bind:value={mAnalysis}></textarea>
       </div>
-      <div class="lv-row">
+      <div class="lv-row" style="flex-wrap:wrap">
         <label class="lv-chip" for="lv-manual-kp">{t("manual.kp")}</label><input id="lv-manual-kp" class="lv-input" style="max-width:180px" bind:value={mKp} placeholder={t("manual.kpHint")} />
+        <label class="lv-chip" for="lv-manual-sec-kp">辅助考点</label><input id="lv-manual-sec-kp" class="lv-input" style="max-width:180px" bind:value={mSecondaryKps} placeholder="考点1, 考点2 (逗号分隔)" />
         <label class="lv-chip" for="lv-manual-source">{t("manual.source")}</label><input id="lv-manual-source" class="lv-input" style="max-width:160px" bind:value={mSource} placeholder={t("manual.sourceHint")} />
         <label class="lv-chip" for="lv-manual-group">{t("manual.group")}</label><input id="lv-manual-group" class="lv-input num" style="max-width:200px" bind:value={mGroup} placeholder="grp-…" />
       </div>

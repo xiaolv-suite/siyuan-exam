@@ -345,6 +345,60 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         this.openPractice();
         return true;
       },
+      queryQuestions: async (opts) => {
+        if (!this.examApp || !this.examApp.kernelOnline) {
+          return {
+            profile: opts.profile || "candidate",
+            total: 0,
+            limit: opts.limit || 20,
+            offset: opts.offset || 0,
+            truncated: false,
+            items: [],
+          };
+        }
+        const { formatQuestionByProfile } = await import("@/core/examBridge");
+        const bankIds = opts.bankId ? [opts.bankId] : this.examApp.listBanks().map((b) => b.id);
+        const questionsArr = await Promise.all(
+          bankIds.map(async (bid) => {
+            try {
+              return await this.examApp!.listQuestions(bid);
+            } catch {
+              return [];
+            }
+          }),
+        );
+        let allQuestions = questionsArr.flat();
+        if (opts.ids && opts.ids.length > 0) {
+          const idSet = new Set(opts.ids);
+          allQuestions = allQuestions.filter((q) => idSet.has(q.id));
+        }
+        if (opts.type) {
+          allQuestions = allQuestions.filter((q) => q.type === opts.type);
+        }
+        if (opts.kp) {
+          const targetKp = opts.kp.trim();
+          allQuestions = allQuestions.filter(
+            (q) =>
+              q.kp === targetKp ||
+              q.kp?.startsWith(targetKp + "/") ||
+              (q.secondaryKps && q.secondaryKps.some((sk) => sk === targetKp || sk.startsWith(targetKp + "/"))),
+          );
+        }
+        const total = allQuestions.length;
+        const offset = Math.max(0, opts.offset || 0);
+        const limit = Math.max(1, Math.min(100, opts.limit || 20));
+        const paged = allQuestions.slice(offset, offset + limit);
+        const profile = opts.profile || "candidate";
+        const items = paged.map((q) => formatQuestionByProfile(q, profile));
+        return {
+          profile,
+          total,
+          limit,
+          offset,
+          truncated: offset + limit < total,
+          items,
+        };
+      },
       getStats: () => {
         if (!this.examApp) return null;
         return this.lastPublicStats ?? null;
