@@ -13,7 +13,7 @@ import { randomSeedId, seededPickN } from "./core/random";
 import { inferAnswerSpec } from "./core/structuredAnswer";
 import { appendRevision, checkPublishGuard, diffQuestion, formatDiffSummary, getQuestionLifecycle, LIFECYCLE_LABELS, specChanged, validateLifecycleTransition, type QuestionLifecycleStatus, type QuestionRevision, type RevisionStore } from "./core/revision";
 import { interleaveGroups } from "./core/interleave";
-import { deckNameForBank, selfRatingToRiffRating, pickSameKp, cramQueue, dailySet, questionToFlashCardMarkdown } from "./core/memory";
+import { deckNameForBank, selfRatingToRiffRating, pickSameKp, cramQueue, dailySet, dsrDailyReviewQueue, questionToFlashCardMarkdown } from "./core/memory";
 import { ratingOutcome, classifyWriteError, type RatingOutcomeView, type PendingRatingWrite } from "./core/ratingOutcome";
 import {
   filterEffectiveActiveWrongs,
@@ -3162,6 +3162,11 @@ export class ExamApp {
     const counts = new Map<string, number>();
     for (const w of this.derived().wrongbook.values()) counts.set(w.qid, w.wrongCount);
     return dailySet(questions, dueFirst, counts, n);
+  }
+
+  /** 基于 DSR 记忆模型与轮盘赌加权的每日自适应复习队列 (FSRS & LogiNote 规范) */
+  dsrDailyDrill(questions: Question[], n: number, options?: { desiredRetention?: number; rnd?: () => number }): Question[] {
+    return dsrDailyReviewQueue(questions, this.attempts.all(), n, options);
   }
 
   /** 收藏练习：只刷 exam-fav 的题 */

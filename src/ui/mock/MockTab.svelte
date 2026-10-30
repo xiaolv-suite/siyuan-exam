@@ -1763,7 +1763,7 @@
       {/each}
     </div>
     <div class="lv-bp-table">
-      <div class="lv-bp-row head"><span>{t("mock.sec")}</span><span>{t("mock.count")}</span><span>{t("mock.each")}</span><span>{t("mock.source")}</span><span>{t("mock.secKp")}</span><span></span></div>
+      <div class="lv-bp-row head"><span>{t("mock.sec")}</span><span>{t("mock.count")}</span><span>{t("mock.each")}</span><span>{t("mock.source")}</span><span>{t("mock.secKp")}</span><span>难度梯度 (MathCyclus)</span><span></span></div>
       {#each bp.sections as s, i (i)}
         <div class="lv-bp-row">
           <input class="lv-input" bind:value={s.name} oninput={() => updateSection(i, { name: s.name })} aria-label={t("mock.sec")} />
@@ -1773,9 +1773,28 @@
             <option value="mixed">{t("mock.sourceMixed", "不限来源")}</option><option value="real">{t("mock.sourceReal")}</option><option value="mock">{t("mock.sourceMock")}</option>
           </select>
           <!-- 55-02 lite：考点配额（前缀匹配；缺口显式计入短缺，不用其他考点补齐） -->
-          <input class="lv-input" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
-            aria-label={t("mock.secKp")}
-            oninput={(e) => updateSection(i, { kp: (e.target as HTMLInputElement).value.trim() || undefined })} />
+          <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+            <input class="lv-input" style="flex:1;min-width:90px" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
+              aria-label={t("mock.secKp")}
+              oninput={(e) => updateSection(i, { kp: (e.target as HTMLInputElement).value.trim() || undefined })} />
+            <label class="lv-chip sm" style="cursor:pointer;margin:0;padding:2px 5px" title="允许匹配题目的辅助考查知识点 (secondaryKps)">
+              <input type="checkbox" checked={!!s.matchSecondaryKp} onchange={(e) => updateSection(i, { matchSecondaryKp: (e.target as HTMLInputElement).checked })} />
+              <span style="font-size:10px">辅考点</span>
+            </label>
+          </div>
+          <!-- MathCyclus 难度梯度分桶配比 (7:2:1 标准 / 5:3:2 拔高) -->
+          <select class="lv-select" style="max-width:130px" aria-label="难度梯度配比"
+            value={s.difficultyQuota ? (s.difficultyQuota.easy === 7 ? "721" : s.difficultyQuota.easy === 5 ? "532" : "111") : "none"}
+            onchange={(e) => {
+              const val = (e.target as HTMLSelectElement).value;
+              const quota = val === "721" ? { easy: 7, medium: 2, hard: 1 } : val === "532" ? { easy: 5, medium: 3, hard: 2 } : val === "111" ? { easy: 1, medium: 1, hard: 1 } : undefined;
+              updateSection(i, { difficultyQuota: quota });
+            }}>
+            <option value="none">不限难度</option>
+            <option value="721">7:2:1 标准</option>
+            <option value="532">5:3:2 拔高</option>
+            <option value="111">1:1:1 均衡</option>
+          </select>
           <button class="lv-btn lv-btn--ghost sm lv-bp-del" title={t("mock.removeSection")} aria-label={`${t("mock.removeSection")}：${s.name}`} aria-busy={sectionRemoveBusy} disabled={sectionRemoveBusy} onclick={() => void removeSection(i)}><Icon name="close" size={13} /></button>
         </div>
       {/each}
@@ -2694,7 +2713,7 @@
   .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
   .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
   .lv-bp-table { border: 1px solid var(--lv-border); border-radius: 12px; overflow-x: auto; margin: 10px 0; background: var(--lv-surface); }
-  .lv-bp-row { display: grid; grid-template-columns: 1.1fr .5fr .5fr .8fr 1fr 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border)); align-items: center; min-width: 560px; }
+  .lv-bp-row { display: grid; grid-template-columns: 1fr .45fr .45fr .65fr 1.1fr .85fr 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border)); align-items: center; min-width: 680px; }
   .lv-bp-row:last-child { border-bottom: none; }
   .lv-bp-row:not(.head):hover { background: var(--lv-surface-2); }
   .lv-bp-row.head { background: var(--lv-surface-2); font-size: var(--lv-font-size-caption); font-weight: var(--lv-font-weight-bold); color: var(--lv-text-3); border-bottom: 1px solid var(--lv-border); }

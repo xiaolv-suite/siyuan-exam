@@ -244,6 +244,8 @@ B. y = x^2
       specAbsTol: "0.01",
       specRelPct: "",
       specAltUnits: "",
+      secondaryKps: "平面几何, 导数, 极限",
+      orderIndependent: true,
       rubricOpen: false,
       rubricText: "",
       studyLang: "zh-CN",
@@ -255,6 +257,8 @@ B. y = x^2
     expect(res.status).toBe("published");
     expect(res.group).toBe("常识组");
     expect(res.numericSpec?.absTol).toBe("0.01");
+    expect(res.secondaryKps).toEqual(["平面几何", "导数", "极限"]);
+    expect(res.orderIndependent).toBe(true);
   });
 
   it("12. executeSwitchManualTypeWithConfirm：弹窗确认与干净状态流转", async () => {
