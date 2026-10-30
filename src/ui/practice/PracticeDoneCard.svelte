@@ -87,15 +87,15 @@
     </div>
     <!-- 战报成就胶囊矩阵（9999px） -->
     <div class="lv-row" style="justify-content:center;gap:6px;margin:8px 0 14px;flex-wrap:wrap">
-      <span class="lv-achievement-pill">
+      <span class="lv-achievement-pill num">
         <Icon name="target" size={13} /> {sessionDone.total > 0 ? Math.round((sessionDone.correct / sessionDone.total) * 100) : 0}% 正确率
       </span>
       {#if streakDays > 0}
-        <span class="lv-achievement-pill lv-achievement-pill--seal">
+        <span class="lv-achievement-pill lv-achievement-pill--seal num">
           <Icon name="flame" size={13} /> 连续 {streakDays} 天自律打卡
         </span>
       {/if}
-      <span class="lv-achievement-pill">
+      <span class="lv-achievement-pill num">
         <Icon name="clock" size={13} /> 累计用时 {sessionDone.totalTimeS || 0}s
       </span>
     </div>
@@ -179,20 +179,20 @@
           <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
             <Icon name="target" size={14} /> 发现 {sessionDone.wrong} 道错题 · 推荐即时强化
           </b>
-          <button class="lv-btn sm lv-btn--ghost" onclick={ontoggleReview} style="display:inline-flex;align-items:center;gap:4px">
+          <button class="lv-btn sm lv-btn--ghost" aria-expanded={reviewOpen} onclick={ontoggleReview} style="display:inline-flex;align-items:center;gap:4px">
             <Icon name={reviewOpen ? "arrow-down" : "chev-right"} size={11} />
             <span>{reviewOpen ? "收起错题" : t("session.reviewWrongs")}</span>
           </button>
         </div>
-        <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" disabled={actionBusy} onclick={onsameKpSession}>
+        <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" disabled={actionBusy} aria-busy={actionBusy} onclick={onsameKpSession}>
           <Icon name="rotate" size={15} /> {actionBusy ? "正在发起同考点特训…" : t("memory.sameKp")}
         </button>
         <div class="lv-row" style="margin:0;gap:6px;justify-content:center;flex-wrap:wrap">
-          <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} onclick={onwrongsToCard} title="将错题推送到思源闪卡"><Icon name="layers" size={13} /> {actionBusy ? "…" : t("session.wrongsToCard")}</button>
-          <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} onclick={onwrongsToActions} title="加入待办错题列表"><Icon name="pin" size={13} /> {actionBusy ? "…" : t("action.addWrong")}</button>
+          <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} aria-busy={actionBusy} onclick={onwrongsToCard} title="将错题推送到思源闪卡"><Icon name="layers" size={13} /> {actionBusy ? "…" : t("session.wrongsToCard")}</button>
+          <button class="lv-btn sm lv-btn--ghost" disabled={actionBusy} aria-busy={actionBusy} onclick={onwrongsToActions} title="加入待办错题列表"><Icon name="pin" size={13} /> {actionBusy ? "…" : t("action.addWrong")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={onopenReport} title="查看学情诊断报告"><Icon name="chart" size={13} /> 学情报告</button>
         </div>
-        {#if actionNote}<p class="lv-muted num" style="margin:6px 0 0;text-align:center">{actionNote}</p>{/if}
+        {#if actionNote}<p class="lv-muted num" role="status" style="margin:6px 0 0;text-align:center">{actionNote}</p>{/if}
       </div>
       {#if reviewOpen}
         <div class="lv-detail" style="text-align:left;max-height:260px;overflow:auto;margin-bottom:8px">
@@ -210,7 +210,7 @@
                   <Icon name="pencil" size={13} /> {reflections[a.qid] ? t("reflection.edit") : t("reflection.add")}
                 </button>
                 <!-- 116-01 T08：AI 错因假设（事实→假设→验证行动；采纳由用户操作） -->
-                <button class="lv-btn sm lv-btn--ghost" disabled={misdiagnosisBusy === a.qid}
+                <button class="lv-btn sm lv-btn--ghost" disabled={misdiagnosisBusy === a.qid} aria-busy={misdiagnosisBusy === a.qid}
                   onclick={() => onrunMisdiagnosis(a)}>
                   <Icon name="flask" size={13} /> {misdiagnosisBusy === a.qid ? "…" : t("misdiagnosis.ask")}
                 </button>

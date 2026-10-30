@@ -344,7 +344,7 @@
           {/if}
         </div>
       {/if}
-      {#if sylError}<div class="lv-error">{sylError}</div>{/if}
+      {#if sylError}<div class="lv-error" role="alert">{sylError}</div>{/if}
       {#if sylNote}<div class="lv-row"><span class="lv-muted num">{sylNote}</span></div>{/if}
     {/if}
   </div>

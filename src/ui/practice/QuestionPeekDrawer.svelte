@@ -303,7 +303,7 @@
         </div>
         {#if q.type === "fill"}
           <div class="lv-row" style="margin:6px 0 4px">
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (editSpecOpen = !editSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
+            <button class="lv-btn sm lv-btn--ghost" aria-expanded={editSpecOpen} onclick={() => (editSpecOpen = !editSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
               <Icon name="edit" size={12} />
               <span>{t("spec.authorSection")}</span>
               <Icon name={editSpecOpen ? "arrow-down" : "chev-right"} size={11} />
@@ -383,7 +383,7 @@
                   <Icon name="rotate" size={11} /> {t("wrongbook.unarchive")}
                 </button>
               {/if}
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => ontoggleItemAnalysis(q)} title={t("browse.itemAnalysis")}>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => ontoggleItemAnalysis(q)} title={t("browse.itemAnalysis")} aria-expanded={itemAnalysisOpenFor === q.id}>
                 <Icon name="chart" size={12} /> {t("browse.itemAnalysis")}
               </button>
             </div>
@@ -470,7 +470,7 @@
           <button class="lv-btn sm lv-btn--primary" onclick={() => ondrillSingle(q)} title={t("browse.drillSingleTip")}><Icon name="play" size={13} /> {t("browse.drillSingle")}</button>
           <button class="lv-btn sm" onclick={() => onopenEditForm(q)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="edit" size={13} /> {t("edit.open")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => oncloneToManualStudio(q)} title="基于此题克隆为变式题并进入手工录题台"><Icon name="layers" size={13} /> 衍生变式题</button>
-          <button class="lv-btn sm lv-btn--ghost" class:acc-btn={isQuestionDisputed(q)} onclick={() => ontoggleDisputeForm(q)}>
+          <button class="lv-btn sm lv-btn--ghost" class:acc-btn={isQuestionDisputed(q)} aria-expanded={disputeFormOpenFor === q.id} onclick={() => ontoggleDisputeForm(q)}>
             <Icon name="alert-triangle" size={13} /> {isQuestionDisputed(q) ? t("dispute.resolveAction") : t("dispute.flagAction")}
           </button>
           {#if status === "draft" || status === "review"}
