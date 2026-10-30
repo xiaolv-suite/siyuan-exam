@@ -1016,11 +1016,11 @@
       <option value={30}>{t("report.range30")}</option>
     </select>
     <!-- 69-04 lite：陈旧态显式控制——流水可能在报告打开期间新增，强制刷新清 memo 重算 -->
-    <button class="lv-btn sm lv-btn--ghost" disabled={!app || reportRefreshing} onclick={() => void refreshReport(true)} title={t("report.refreshTip")}>
+    <button class="lv-btn sm lv-btn--ghost" disabled={!app || reportRefreshing} aria-busy={reportRefreshing} aria-label={t("report.refreshTip")} onclick={() => void refreshReport(true)} title={t("report.refreshTip")}>
       <Icon name="rotate" size={14} /> {reportRefreshing ? "…" : t("report.refresh")}
     </button>
     {#if bankOptions.length > 1}
-      <select class="lv-select" style="max-width:200px" bind:value={bankId} disabled={scopeLoading || reportRefreshing} onchange={onBankChange}>
+      <select class="lv-select" style="max-width:200px" bind:value={bankId} disabled={scopeLoading || reportRefreshing} onchange={onBankChange} aria-label="选择题库范围">
         {#each bankOptions as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
       </select>
       <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("report.scopeHint")}</span>
@@ -1052,7 +1052,7 @@
       </button>
     </div>
     <span class="fn__flex-1"></span>
-    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K">
+    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
     <!-- 角色专属快捷导出与体检工具 -->
@@ -1347,7 +1347,7 @@
       <!-- 63-03：改答题清单（首答 → 终答 分离；报告口径：终答==首答不列） -->
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "evidence"} style="margin-bottom:12px">
         <b>{t("report.changedTitle")}</b>
-        <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" onclick={() => caOpen = !caOpen}>
+        <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" aria-expanded={caOpen} onclick={() => caOpen = !caOpen}>
           <Icon name={caOpen ? "arrow-down" : "chev-right"} size={11} />
           <span>{t("report.changedDrill")}（<span class="num">{caList.length}</span>）</span>
         </button>
@@ -1358,7 +1358,7 @@
               <div class="lv-error-row" style="white-space:normal" title={stem ?? c.qid}>
                 <b class="num" style="display:inline-flex;align-items:center"><Icon name="rotate" size={12} /></b> {stem ? stem.slice(0, 60) : c.qid}
                 <span class="lv-muted" style="display:inline-flex;align-items:center;gap:3px"> · {t("report.changedFirst")}: {c.first} <Icon name="chev-right" size={10} /> {c.final}</span>
-                <span class="lv-chip num" style="margin-left:4px">{c.editCount}</span>
+                <span class="lv-chip lv-chip--data num" style="margin-left:4px">{c.editCount}</span>
                 {#if c.reasons.length}<span class="lv-muted"> · {c.reasons.map((r) => t("trail.reason." + r)).join("、")}</span>{/if}
               </div>
             {:else}

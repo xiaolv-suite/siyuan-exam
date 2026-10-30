@@ -5047,7 +5047,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     </div>
     {#if app?.saves}<SaveStatus gate={app.saves} {t} />{/if}
     <span class="fn__flex-1"></span>
-    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K">
+    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
     {#if app && (offline || app.lastKernelError?.category === "auth" || app.lastKernelError?.category === "permission" || app.lastKernelError?.category === "validation" || app.lastKernelError?.category === "not-found")}
@@ -5086,13 +5086,13 @@ import { confirmDialogSync } from "@/libs/dialog";
       <div class="lv-row lv-focus-context lv-bank-picker-group" style="margin:0;gap:6px;align-items:center">
         {#if banks.length > 1}
           <!-- 多库切换：紧凑圆角下拉框 -->
-          <select class="lv-select" style="max-width:160px;height:28px;font-size:12px;padding:2px 8px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")}>
+          <select class="lv-select" style="max-width:160px;height:28px;font-size:12px;padding:2px 8px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")} aria-label={t("bank.label", "切换当前题库")}>
             {#each banks as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
           </select>
         {:else if hasBank}
           <span class="lv-chip sm">{bankName}</span>
         {/if}
-        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} title={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
       </div>
       <div class="lv-role-segmented lv-focus-context" role="radiogroup" aria-label="身份模式切换">
         <button

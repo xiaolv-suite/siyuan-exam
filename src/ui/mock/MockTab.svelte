@@ -1679,12 +1679,12 @@
       {:else if activeBankName}
         <span class="lv-chip sm">{activeBankName}</span>
       {/if}
-      <button class="lv-btn sm lv-btn--ghost" onclick={() => { plugin.openPractice?.(); }} title="打开题库画廊管理">
+      <button class="lv-btn sm lv-btn--ghost" onclick={() => { plugin.openPractice?.(); }} title="打开题库画廊管理" aria-label="打开题库画廊管理">
         <Icon name="folder" size={13} /> {t("bank.hubTitle", "题库管理")}
       </button>
     </div>
     <span class="fn__flex-1"></span>
-    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K">
+    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
     {#if view === "exam"}
@@ -1817,7 +1817,7 @@
         <option value="partial_all">{t("mock.policyPartialAll")}</option>
         <option value="penalty">{t("mock.policyPenalty")}</option>
       </select>
-      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => sampleVerifyOpen = !sampleVerifyOpen} title={t("mock.sampleVerifyTip")} style="display:inline-flex;align-items:center;gap:4px">
+      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => sampleVerifyOpen = !sampleVerifyOpen} title={t("mock.sampleVerifyTip")} aria-expanded={sampleVerifyOpen} style="display:inline-flex;align-items:center;gap:4px">
         <Icon name="chart" size={12} />
         <span>{t("mock.sampleVerify")}</span>
         <Icon name={sampleVerifyOpen ? "arrow-down" : "chev-right"} size={11} />
@@ -1997,7 +1997,7 @@
           <Icon name="volume" size={13} />
         </button>
       {/if}
-      <button type="button" class="lv-btn sm lv-btn--ghost num" onclick={cycleExamFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
+      <button type="button" class="lv-btn sm lv-btn--ghost num" onclick={cycleExamFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）" aria-label="切换题干字号大小">
         A{examFontSize === "normal" ? "" : examFontSize === "large" ? "⁺" : "²⁺"}
       </button>
       <button class="lv-btn sm lv-flag-btn" class:lv-flag-btn--on={session.flags.has(current)} title={`${t("mock.flag")} (F)`} aria-label={`${t("mock.flag")} (F)`} aria-pressed={session.flags.has(current)} disabled={examLocked} onclick={() => { session?.toggleFlag(current); persistRun(); }}><Icon name="pin" size={14} /> <span class="lv-kbd sm">F</span></button>
@@ -2131,10 +2131,10 @@
                 字数统计：<strong class="num">{words.examWords}</strong> 字（中文 {words.chineseChars} · 英文 {words.englishWords} · {words.paragraphs} 段）
               </span>
               <div class="lv-row" style="margin:0;gap:6px">
-                <button type="button" class="lv-btn sm lv-btn--ghost" class:acc={shortLinedPaper} style="padding:1px 6px;font-size:11px" onclick={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }} title="切换稿纸横线背景模式（28px 行高对齐）">
+                <button type="button" class="lv-btn sm lv-btn--ghost" class:acc={shortLinedPaper} style="padding:1px 6px;font-size:11px" aria-pressed={shortLinedPaper} onclick={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }} title="切换稿纸横线背景模式（28px 行高对齐）">
                   <Icon name="file-text" size={11} /> {shortLinedPaper ? "稿纸线开" : "稿纸线"}
                 </button>
-                <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" onclick={() => (mockPaperGridOpen = !mockPaperGridOpen)} title={t("session.gridPreview")}>
+                <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" aria-expanded={mockPaperGridOpen} onclick={() => (mockPaperGridOpen = !mockPaperGridOpen)} title={t("session.gridPreview")}>
                   <Icon name="grid" size={11} /> {t("session.gridPreview")}
                 </button>
                 {#if words.examWords >= 200}
