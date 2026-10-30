@@ -255,10 +255,15 @@
             {t("import.siyuanDocSafety")}
           </div>
           <div class="lv-row" style="margin:0;gap:6px;align-items:center">
-            <input class="lv-input sm" style="flex:1" placeholder={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
-            {#if docSearchQuery}
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索" aria-label="清空搜索"><Icon name="close" size={12} /></button>
-            {/if}
+            <div style="position:relative;flex:1;display:flex;align-items:center">
+              <span style="position:absolute;left:8px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
+                <Icon name="search" size={13} />
+              </span>
+              <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:26px" placeholder={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
+              {#if docSearchQuery}
+                <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:3px;padding:2px 4px;min-width:18px;min-height:18px"><Icon name="close" size={11} /></button>
+              {/if}
+            </div>
             <button class="lv-btn sm" onclick={() => { if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer); onDoSearchDocs(docSearchQuery); }} disabled={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
           </div>
           <div class="stack-sm" style="max-height:360px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2);padding:6px;background:var(--lv-surface)">

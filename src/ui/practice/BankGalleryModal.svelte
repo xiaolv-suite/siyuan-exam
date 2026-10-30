@@ -101,7 +101,15 @@
         </button>
       </div>
       <div class="lv-row" style="margin:0 0 12px;gap:8px;flex-wrap:wrap">
-        <input class="lv-input" style="flex:1;min-width:160px" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
+        <div style="position:relative;flex:1;min-width:160px;display:flex;align-items:center">
+          <span style="position:absolute;left:10px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
+            <Icon name="search" size={14} />
+          </span>
+          <input class="lv-input" style="width:100%;padding-left:32px;padding-right:28px" placeholder="按题库名称快速过滤…" bind:value={bankFilterKeyword} />
+          {#if bankFilterKeyword}
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { bankFilterKeyword = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:4px;padding:2px 4px;min-width:20px;min-height:20px"><Icon name="close" size={12} /></button>
+          {/if}
+        </div>
         <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("qualification"); }} disabled={creating || offline} title="一键体验教师资格证与基金从业资格真题题库">
             <Icon name="award" size={12} /> 考证

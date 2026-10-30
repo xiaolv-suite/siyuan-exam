@@ -132,7 +132,15 @@
       <input class="lv-input" style="max-width:150px" placeholder={t("materials.subject")} bind:value={matSubject} disabled={materialsBusy || app?.materialsReadonly} />
       <input class="lv-input" style="max-width:150px" placeholder={t("materials.chapter")} bind:value={matChapter} disabled={materialsBusy || app?.materialsReadonly} />
       <span class="fn__flex-1"></span>
-      <input class="lv-input" style="max-width:200px" placeholder={t("materials.search")} bind:value={materialsSearch} disabled={materialsBusy} />
+      <div style="position:relative;max-width:200px;display:inline-flex;align-items:center">
+        <span style="position:absolute;left:8px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
+          <Icon name="search" size={13} />
+        </span>
+        <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:24px" placeholder={t("materials.search")} bind:value={materialsSearch} disabled={materialsBusy} />
+        {#if materialsSearch}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { materialsSearch = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:3px;padding:2px 4px;min-width:18px;min-height:18px"><Icon name="close" size={11} /></button>
+        {/if}
+      </div>
     </div>
     {#if offline}<div class="lv-muted" style="display:inline-flex;align-items:center;gap:4px"><Icon name="alert-triangle" size={13} /> {t("materials.offlineNote")}</div>{/if}
     {#if materialsNote}<div class="lv-row"><span class="lv-chip">{materialsNote}</span></div>{/if}
