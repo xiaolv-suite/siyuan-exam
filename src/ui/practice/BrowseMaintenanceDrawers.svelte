@@ -625,8 +625,9 @@
             {/if}
           {/each}
         {/if}
-        <button class="lv-btn sm lv-btn--ghost" onclick={ondownloadHealthCsv} title={t("health.exportCsv")}>
-          ⬇️ CSV
+        <button class="lv-btn sm lv-btn--ghost" onclick={ondownloadHealthCsv} title={t("health.exportCsv")} style="display:inline-flex;align-items:center;gap:4px">
+          <Icon name="export" size={12} />
+          <span>CSV</span>
         </button>
       </div>
     {/if}

@@ -385,11 +385,12 @@
             </div>
           </div>
           {#if itemAnalysisOpenFor === q.id && itemAnalysisReport}
-            <div class="lv-detail" style="margin:4px 0 8px;padding:8px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-1);border:1px solid var(--lv-border-subtle)">
+            <div class="lv-detail" style="margin:4px 0 8px;padding:8px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle)">
               <div class="lv-row" style="justify-content:space-between;align-items:center">
                 <b>{t("browse.itemAnalysis")}</b>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => ondownloadItemAnalysisCsv(itemAnalysisReport!)}>
-                  ⬇️ {t("browse.exportItemAnalysis")}
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => ondownloadItemAnalysisCsv(itemAnalysisReport!)} style="display:inline-flex;align-items:center;gap:4px">
+                  <Icon name="export" size={12} />
+                  <span>{t("browse.exportItemAnalysis")}</span>
                 </button>
               </div>
               {#if itemAnalysisReport.isLowSample}
@@ -409,8 +410,8 @@
                       <span class="lv-chip sm" class:lv-chip--grn={opt.isCorrect} class:lv-chip--acc={!opt.isCorrect}>
                         {opt.letter}
                       </span>
-                      <div style="flex:1;min-width:80px;height:6px;background:var(--lv-surface-3);border-radius:3px;overflow:hidden">
-                        <div style="height:100%;width:{opt.pct}%;background:{opt.isCorrect ? 'var(--lv-green)' : 'var(--lv-accent)'}"></div>
+                      <div style="flex:1;min-width:80px;height:6px;background:var(--lv-surface-2);border-radius:var(--lv-radius-pill);overflow:hidden">
+                        <div style="height:100%;width:{opt.pct}%;background:{opt.isCorrect ? 'var(--lv-green)' : 'var(--lv-data-accent)'};border-radius:var(--lv-radius-pill)"></div>
                       </div>
                       <span class="num lv-muted" style="min-width:38px">{opt.pct}%</span>
                       <span class="num lv-muted">({opt.count})</span>
@@ -424,7 +425,11 @@
             </div>
           {/if}
           <div class="lv-row" style="margin:4px 0 0">
-            <button class="lv-btn sm lv-btn--ghost" aria-expanded={revOpenFor === q.id} aria-busy={revLoadingFor === q.id || revRestoreKey.startsWith(`${q.id}#`)} disabled={!!revLoadingFor || !!revRestoreKey} onclick={() => ontoggleRevisions(q.id)}><Icon name="pencil" size={12} /> {revLoadingFor === q.id ? t("rev.loading") : t("rev.drill")}{#if revOpenFor === q.id && revLoaded[q.id] !== undefined}（<span class="num">{revList(q.id).length}</span>）{/if}</button>
+            <button class="lv-btn sm lv-btn--ghost" aria-expanded={revOpenFor === q.id} aria-busy={revLoadingFor === q.id || revRestoreKey.startsWith(`${q.id}#`)} disabled={!!revLoadingFor || !!revRestoreKey} onclick={() => ontoggleRevisions(q.id)} style="display:inline-flex;align-items:center;gap:4px">
+              <Icon name="pencil" size={12} />
+              <span>{revLoadingFor === q.id ? t("rev.loading") : t("rev.drill")}{#if revOpenFor === q.id && revLoaded[q.id] !== undefined}（<span class="num">{revList(q.id).length}</span>）{/if}</span>
+              <Icon name={revOpenFor === q.id ? "arrow-down" : "chev-right"} size={10} />
+            </button>
           </div>
           {#if revOpenFor === q.id}
             <div class="lv-row" style="flex-direction:column;align-items:stretch;gap:var(--lv-space-1);margin:4px 0 0">
@@ -488,7 +493,7 @@
           {/if}
         </div>
         {#if disputeFormOpenFor === q.id}
-          <div class="lv-detail" style="margin:6px 0;background:var(--lv-surface-2);border-radius:var(--lv-r-1);padding:10px 12px;border:1px solid var(--lv-border-subtle)">
+          <div class="lv-detail" style="margin:6px 0;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);padding:10px 12px;border:1px solid var(--lv-border-subtle)">
             <div class="lv-row" style="margin:0 0 6px;align-items:center;justify-content:space-between">
               <b style="font-size:var(--lv-font-size-sm)">
                 <Icon name="alert-triangle" size={13} /> {isQuestionDisputed(q) ? t("dispute.resolveAction") : t("dispute.flagAction")}
@@ -536,7 +541,7 @@
         {/if}
         {#if backlinkError[q.blockId]}<div class="lv-error" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-relaxed);overflow-wrap:anywhere"><span>{backlinkError[q.blockId]}</span><button class="lv-btn sm" disabled={!!backlinkBusyFor || !app.kernelOnline} onclick={() => onloadBacklinks(q.blockId)}>{t("rev.retry")}</button></div>{/if}
         {#if qrefView[q.id]}
-          <div class="lv-row lv-qref-bar" style="font-size:var(--lv-font-size-caption);padding:6px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-1);margin:6px 0;align-items:center;border:1px solid var(--lv-border-subtle)">
+          <div class="lv-row lv-qref-bar" style="font-size:var(--lv-font-size-caption);padding:6px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);margin:6px 0;align-items:center;border:1px solid var(--lv-border-subtle)">
             <span class="lv-chip"><Icon name="file-text" size={11} /> {qrefView[q.id]!.title}{#if qrefView[q.id]!.label} · {qrefView[q.id]!.label}{/if}</span>
             {#if qrefView[q.id]!.stale}<span class="lv-chip lv-chip--amb" title={t("materials.relocateTip")}>{t("materials.relocate")}</span>{/if}
             <button class="lv-btn sm lv-btn--ghost" onclick={() => onopenQref(q.id)} style="display:inline-flex;align-items:center;gap:3px"><Icon name="external-link" size={11} /> {t("materials.openAt")}</button>
