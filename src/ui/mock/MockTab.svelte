@@ -1917,16 +1917,17 @@
       {#if estimateLengthMismatch}<span id="estimate-length-error" class="lv-chip lv-chip--amb" role="alert">{t("estimate.lengthMismatch")}</span>{/if}
       {#if estimateSaveError}<div class="lv-error" role="alert" style="width:100%">{estimateSaveError} <button class="lv-btn sm" disabled={estimateBusy} onclick={() => void saveEstimateResult()}>{estimateBusy ? "…" : t("estimate.retrySave")}</button></div>{/if}
         {#if estResult && estResultFor === estimateInputSignature}
-          <div class="lv-card" style="margin-top:10px;padding:12px 16px;background:var(--lv-surface);width:100%">
+          <div class="lv-card" style="margin-top:10px;padding:14px 16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);width:100%">
             <div class="lv-row" style="margin:0 0 6px;align-items:center;flex-wrap:wrap">
               <span class="lv-chip lv-chip--acc num">
                 {t("estimate.score")}: <b style="font-size:16px">{estResult.score}</b> / {estResult.full}
               </span>
-              <span class="lv-chip lv-chip--grn num">✓ {estResult.correct}</span>
-              <span class="lv-chip lv-chip--red num">✕ {estResult.wrong}</span>
+              <span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> {estResult.correct}</span>
+              <span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="close" size={11} /> {estResult.wrong}</span>
               {#if estResult.blank}<span class="lv-chip lv-chip--amb num">– {estResult.blank}</span>{/if}
-              <span class="lv-chip num" class:lv-chip--grn={estResult.percent >= bp.passLine} class:lv-chip--red={estResult.percent < bp.passLine}>
-                {estResult.percent}% {estResult.percent >= bp.passLine ? "合格 ✔️" : "未达标 ✕"}
+              <span class="lv-chip num" class:lv-chip--grn={estResult.percent >= bp.passLine} class:lv-chip--red={estResult.percent < bp.passLine} style="display:inline-flex;align-items:center;gap:4px">
+                <Icon name={estResult.percent >= bp.passLine ? "check" : "close"} size={11} />
+                <span>{estResult.percent}% {estResult.percent >= bp.passLine ? "合格" : "未达标"}</span>
               </span>
             </div>
             <div class="lv-marks num" style="font-size:12px;margin:6px 0;letter-spacing:1px">{estResult.marks.join(" ")}</div>
@@ -2337,8 +2338,9 @@
         <span class="lv-achievement-pill">
           <Icon name="target" size={13} /> 得分率 {score.percent}%
         </span>
-        <span class="lv-achievement-pill {score.pass ? '' : 'lv-achievement-pill--seal'}">
-          {score.pass ? "✓ 达到合格线" : "✕ 距离及格线 " + (bp.passLine - score.percent) + "%"}
+        <span class="lv-achievement-pill {score.pass ? '' : 'lv-achievement-pill--seal'}" style="display:inline-flex;align-items:center;gap:4px">
+          <Icon name={score.pass ? "check" : "close"} size={12} />
+          <span>{score.pass ? "达到合格线" : "距离及格线 " + (bp.passLine - score.percent) + "%"}</span>
         </span>
         <span class="lv-achievement-pill">
           <Icon name="clock" size={13} /> 题量 {score.sections.reduce((acc, s) => acc + s.total, 0)} 题
@@ -2550,14 +2552,16 @@
             <button class="lv-chip num" class:acc={historyDetail === Math.max(0, history.length - 5) + i}
               title={new Date(h.startedAt).toLocaleString()}
               aria-pressed={historyDetail === Math.max(0, history.length - 5) + i}
-              onclick={() => historyDetail = historyDetail === Math.max(0, history.length - 5) + i ? -1 : Math.max(0, history.length - 5) + i}>
-              {h.name} {h.percent}%{h.pass ? " ✓" : ""}
+              onclick={() => historyDetail = historyDetail === Math.max(0, history.length - 5) + i ? -1 : Math.max(0, history.length - 5) + i}
+              style="display:inline-flex;align-items:center;gap:4px">
+              <span>{h.name} {h.percent}%</span>
+              {#if h.pass}<Icon name="check" size={11} />{/if}
             </button>
           {/each}
         </div>
         {#if historyDetail >= 0 && history[historyDetail]}
           {@const h = history[historyDetail]}
-          <div class="lv-card" style="padding:10px 14px;margin-top:8px">
+          <div class="lv-card" style="padding:12px 16px;margin-top:8px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 14px);border:1px solid var(--lv-border-subtle)">
             <b class="num" style="font-size:var(--lv-font-size-body-compact)">{h.name} · {h.percent}%</b>
             {#if h.sections?.length}
               {#each h.sections as s, _i (_i)}
