@@ -106,11 +106,19 @@
     const sel = window.getSelection();
     const txt = sel ? sel.toString().trim() : "";
     if (txt.length >= 2 && txt.length <= 300) {
+      // 划词制题只针对资料正文：在输入框/文本域/可编辑区内选词（如笔记摘录）不打扰
+      const anchor = sel!.anchorNode;
+      const anchorEl = anchor instanceof Element ? anchor : anchor?.parentElement ?? null;
+      if (anchorEl?.closest("input, textarea, [contenteditable='true'], [contenteditable='']")) {
+        selectionToolbar = null;
+        return;
+      }
       try {
         const range = sel!.getRangeAt(0);
         const rect = range.getBoundingClientRect();
+        // 右缘钳位预留整条工具栏宽度（四键约 300px），避免贴右边时溢出视口
         selectionToolbar = {
-          x: Math.max(10, Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 120)),
+          x: Math.max(10, Math.min(window.innerWidth - 320, rect.left + rect.width / 2 - 120)),
           y: Math.max(10, rect.top - 44),
           text: txt,
         };
@@ -140,6 +148,10 @@
 
   function handleWindowKeyDown(e: KeyboardEvent) {
     if (!selectionToolbar) return;
+    // 数字快捷键不得劫持输入框打字与中文 IME 选字（keyboard-shortcuts：保留系统/输入法快捷键）
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+    if (e.isComposing) return;
     if (e.key === "Escape") {
       selectionToolbar = null;
       return;
@@ -160,7 +172,7 @@
   }
 </script>
 
-<svelte:window onmouseup={handleSelectionCheck} onkeydown={handleWindowKeyDown} />
+<svelte:window onmouseup={handleSelectionCheck} ontouchend={handleSelectionCheck} onkeydown={handleWindowKeyDown} />
 
 <div class="lv-pad">
   <div class="lv-screen-head">
