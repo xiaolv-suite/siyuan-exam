@@ -76,6 +76,15 @@
     onadoptMisdiagnosis,
     onexitSession,
   }: Props = $props();
+
+  // 时长格式化：60s 以下直接秒，以上折叠为 m s，成就胶囊唯一呈现避免重复展示
+  const fmtDuration = (s?: number) => {
+    const v = Math.max(0, Math.round(s ?? 0));
+    if (v < 60) return `${v}s`;
+    const m = Math.floor(v / 60);
+    const r = v % 60;
+    return r ? `${m}m ${r}s` : `${m}m`;
+  };
 </script>
 
 <div class="lv-pad lv-center">
@@ -95,8 +104,8 @@
           <Icon name="flame" size={13} /> 连续 {streakDays} 天自律打卡
         </span>
       {/if}
-      <span class="lv-achievement-pill num">
-        <Icon name="clock" size={13} /> 累计用时 {sessionDone.totalTimeS || 0}s
+      <span class="lv-achievement-pill num" title="本次会话有效答题总时长">
+        <Icon name="clock" size={13} /> 累计用时 {fmtDuration(sessionDone.totalTimeS)}
       </span>
       {#if sessionDone.totalTimeS && sessionDone.total > 0}
         <span class="lv-achievement-pill num" title="平均单题有效专注答题时长">
@@ -121,12 +130,7 @@
         {/if}
       </div>
     {/if}
-    {#if sessionDone.totalTimeS}
-      <div class="lv-row" style="justify-content:center;gap:var(--lv-space-3);margin:6px 0 2px" role="status">
-        <span class="lv-chip num"><Icon name="clock" size={12} /> {t("session.totalTime")} {sessionDone.totalTimeS >= 60 ? `${Math.floor(sessionDone.totalTimeS / 60)}m${sessionDone.totalTimeS % 60 ? ` ${sessionDone.totalTimeS % 60}s` : ""}` : `${sessionDone.totalTimeS}s`}</span>
-        <span class="lv-chip num">{t("session.avgTime")} {sessionDone.avgTimeS}s</span>
-      </div>
-    {/if}
+    <!-- 时长信息已收敛至顶部成就胶囊（累计用时/题均），此处不再重复展示 -->
     <!-- 39-02：队列身份与写回回执——明确本次是否调用内核 riff 调度，避免「普通练习伪装成内核复习」 -->
     <div class="lv-row" style="justify-content:center;margin:6px 0 2px" role="status">
       <span class="lv-chip num" class:lv-chip--amb={queueSemantics(settleMode).kind === "cram"}

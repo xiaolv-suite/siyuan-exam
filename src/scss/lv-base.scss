@@ -507,6 +507,12 @@ button.lv-chip {
   min-width: 0;
 }
 
+/* —— 通用等宽数字工具类（number-tabular）：.num 广泛标注计时/计数/统计文本，
+   等宽数字防止秒表/进度计数逐帧跳动引发的文本抖动 —— */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
 .lv-input.num,
 .lv-answer-num {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

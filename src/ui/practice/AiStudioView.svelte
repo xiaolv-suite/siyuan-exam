@@ -200,9 +200,12 @@
         <span class="lv-chip">{t("manual.kp")}</span>
         <input class="lv-input" style="max-width:200px" bind:value={aiKp} placeholder={t("ai.kpHint")} aria-label={t("manual.kp")} />
       </div>
-      <div class="lv-row">
-        <span class="lv-chip" title="DeepTutor 零幻觉准则：选定重点段落引文，强制 AI 严格基于此核心引文命题与推导"><Icon name="pin" size={12} /> 核心引文</span>
-        <input class="lv-input" style="flex:1;min-width:200px" bind:value={aiQuote} placeholder="重点段落引文（可选，强锚定零幻觉出题）" aria-label="核心引文" />
+      <div>
+        <div class="lv-row" style="margin:0">
+          <span class="lv-chip" title="DeepTutor 零幻觉准则：选定重点段落引文，强制 AI 严格基于此核心引文命题与推导"><Icon name="pin" size={12} /> 核心引文</span>
+          <input class="lv-input" style="flex:1;min-width:200px" bind:value={aiQuote} placeholder="重点段落引文（可选，强锚定零幻觉出题）" aria-label="核心引文" aria-describedby="lv-ai-quote-hint" />
+        </div>
+        <p id="lv-ai-quote-hint" class="lv-muted" style="margin:3px 0 0;font-size:var(--lv-font-size-caption)">粘贴资料中的重点原句后，出题与解析将严格锚定该引文，不虚构题外内容；留空则按整篇材料命题</p>
       </div>
       <div class="lv-row">
         <span class="lv-chip">{t("ai.customHint")}</span>
