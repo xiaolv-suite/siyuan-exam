@@ -1939,14 +1939,14 @@ input[type="range"] {
 .lv-material-detail { padding: 20px 22px; }
 .lv-material-detail .lv-section-head h2 { overflow-wrap: anywhere; }
 .lv-material-tags { margin: -4px 0 14px; }
-.lv-material-locations { padding: 12px 14px; border: 1px solid var(--lv-border); border-radius: 10px; background: var(--lv-surface-2); }
+.lv-material-locations { padding: 12px 14px; border: 1px solid var(--lv-border-subtle); border-radius: var(--lv-r-card, 14px); background: var(--lv-surface-2); }
 .lv-material-locations > b { display: block; margin-bottom: 8px; font-size: var(--lv-font-size-sm); }
 .lv-material-location { display: flex; align-items: flex-start; gap: 7px; padding: 5px 0; color: var(--lv-text-3); font-size: var(--lv-font-size-sm); line-height: 1.5; overflow-wrap: anywhere; }
-.lv-material-location + .lv-material-location { border-top: 1px solid var(--lv-border-subtle, var(--lv-border)); }
+.lv-material-location + .lv-material-location { border-top: 1px solid var(--lv-border-subtle); }
 .lv-material-actions { margin-top: 14px; }
-.lv-material-notes { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--lv-border); }
+.lv-material-notes { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--lv-border-subtle); }
 .lv-material-notes .lv-section-head { margin-bottom: 10px; }
-.lv-material-note { padding: 11px 12px; border: 1px solid var(--lv-border); border-radius: var(--lv-radius-control-sm); background: var(--lv-surface-2); }
+.lv-material-note { padding: 12px 14px; border: 1px solid var(--lv-border-subtle); border-radius: var(--lv-r-card, 14px); background: var(--lv-surface-2); box-shadow: var(--lv-sh-1); }
 .lv-material-note + .lv-material-note { margin-top: 8px; }
 .lv-material-note-text { margin: 8px 0; color: var(--lv-text); font-size: var(--lv-font-size-body-compact); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .lv-material-note-empty { padding: 12px 0; }

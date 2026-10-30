@@ -5067,7 +5067,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {/if}
       {#if planTrace && planTrace.absentStreak >= 2}
         <!-- 44-05 lite：连续缺席提醒（配额恒定不爆量，仅可见性） -->
-        <span class="lv-chip lv-chip--amb num" title={t("entry.absentTip")}>⚠ {t("entry.absent").replace("{n}", String(planTrace.absentStreak))}</span>
+        <span class="lv-chip lv-chip--amb num" title={t("entry.absentTip")}><Icon name="alert-triangle" size={11} /> {t("entry.absent").replace("{n}", String(planTrace.absentStreak))}</span>
       {:else if planTrace && planTrace.planned > 0 && planTrace.done >= 0}
         <span class="lv-chip num" title={t("entry.yesterdayTip")}><Icon name="calendar" size={12} /> {t("entry.yesterday").replace("{p}", String(planTrace.planned)).replace("{d}", String(planTrace.done))}</span>
       {/if}

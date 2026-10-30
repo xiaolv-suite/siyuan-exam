@@ -528,7 +528,7 @@
               {#if importResult.missing === 0}
                 <span class="lv-chip lv-chip--grn num">✓ {t("import.readbackOk").replace("{n}", String(importResult.confirmed))}</span>
               {:else}
-                <span class="lv-chip lv-chip--amb num">⚠ {t("import.readbackPart").replace("{c}", String(importResult.confirmed)).replace("{m}", String(importResult.missing))}</span>
+                <span class="lv-chip lv-chip--amb num"><Icon name="alert-triangle" size={11} /> {t("import.readbackPart").replace("{c}", String(importResult.confirmed)).replace("{m}", String(importResult.missing))}</span>
               {/if}
             {:else}
               <span class="lv-chip lv-chip--amb">{t("import.readbackUnknown")}</span>

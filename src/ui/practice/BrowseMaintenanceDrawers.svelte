@@ -510,7 +510,7 @@
           <span class="lv-chip num" class:lv-chip--red={answerDist.skewed === letter}>{letter} {n}</span>
         {/each}
         {#if answerDist.skewed}
-          <span class="lv-chip lv-chip--red" title={t("health.distSkewTip")}>⚠ {t("health.distSkew").replace("{l}", answerDist.skewed).replace("{n}", String(answerDist.skewedRatio ?? 0))}</span>
+          <span class="lv-chip lv-chip--red" title={t("health.distSkewTip")}><Icon name="alert-triangle" size={11} /> {t("health.distSkew").replace("{l}", answerDist.skewed).replace("{n}", String(answerDist.skewedRatio ?? 0))}</span>
         {/if}
         {#if answerDist.starved.length}
           <span class="lv-chip lv-chip--amb" title={t("health.distStarvedTip")}>{t("health.distStarved").replace("{l}", answerDist.starved.join(""))}</span>

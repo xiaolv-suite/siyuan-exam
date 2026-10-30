@@ -1758,7 +1758,7 @@
       <span class="lv-chip num">{t("mock.totalScore")} {totals.score}</span>
       <span class="lv-chip num"><Icon name="clock" size={12} />{Math.round(bp.durationS / 60)} min</span>
       {#each quotaShort as qs, _i (_i)}
-        <span class="lv-chip lv-chip--red num" title={t("mock.quotaShortTip")}>⚠ {qs.name} {t("mock.quotaShort").replace("{have}", String(qs.have)).replace("{need}", String(qs.need))}</span>
+        <span class="lv-chip lv-chip--red num" title={t("mock.quotaShortTip")}><Icon name="alert-triangle" size={11} /> {qs.name} {t("mock.quotaShort").replace("{have}", String(qs.have)).replace("{need}", String(qs.need))}</span>
       {/each}
     </div>
     <div class="lv-bp-table">

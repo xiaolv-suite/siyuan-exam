@@ -134,7 +134,7 @@
       <span class="fn__flex-1"></span>
       <input class="lv-input" style="max-width:200px" placeholder={t("materials.search")} bind:value={materialsSearch} disabled={materialsBusy} />
     </div>
-    {#if offline}<div class="lv-muted">⚠ {t("materials.offlineNote")}</div>{/if}
+    {#if offline}<div class="lv-muted" style="display:inline-flex;align-items:center;gap:4px"><Icon name="alert-triangle" size={13} /> {t("materials.offlineNote")}</div>{/if}
     {#if materialsNote}<div class="lv-row"><span class="lv-chip">{materialsNote}</span></div>{/if}
   </div>
   {#if materialsList.length === 0}
