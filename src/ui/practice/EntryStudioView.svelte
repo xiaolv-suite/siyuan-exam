@@ -510,7 +510,7 @@
         {/if}
         <div class="lv-card lv-widget">
           <span class="lv-goal-wrap" role="img" aria-label={t("widget.goal.aria").replace("{p}", String(goalPct))}>
-            <span class="lv-goal-ring" class:data-tone={goalPct >= 100 ? "good" : undefined} style="--pct:{goalPct}"></span>
+            <span class="lv-goal-ring" data-tone={goalPct >= 100 ? "good" : undefined} style="--pct:{goalPct}"></span>
             <span class="lv-goal-center num">{goalPct}%</span>
           </span>
           <div class="lv-widget-body">
