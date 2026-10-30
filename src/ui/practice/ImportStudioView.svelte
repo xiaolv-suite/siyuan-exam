@@ -5,6 +5,7 @@
   import type { MapAssignment } from "../../importer/mapping";
   import type { ParsedClozeItem } from "@/core/cloze";
   import StudioSubNav from "./StudioSubNav.svelte";
+  import { handleTablistKeydown } from "./services/practiceKeyboardService";
 
   interface Props {
     hasBank: boolean;
@@ -237,14 +238,14 @@
       ondrop={onImportFileDrop}
     >
       <!-- 52-09 导入方式子分面切换：批量文件导入 vs 思源笔记文档直接导入 vs 正文划重点挖空出题 -->
-      <div class="lv-session-dock" role="tablist" aria-label="导入方式切换" style="margin-bottom:14px">
-        <button type="button" role="tab" class="lv-chip" class:acc={importSubTab === "standard"} aria-selected={importSubTab === "standard"} onclick={() => importSubTab = "standard"}>
+      <div class="lv-session-dock" role="tablist" aria-label="导入方式切换" style="margin-bottom:14px" onkeydown={handleTablistKeydown}>
+        <button type="button" role="tab" tabindex={importSubTab === "standard" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "standard"} aria-selected={importSubTab === "standard"} onclick={() => importSubTab = "standard"}>
           <Icon name="import" size={12} /> {t("import.title")}（Excel / CSV / Aiken）
         </button>
-        <button type="button" role="tab" class="lv-chip" class:acc={importSubTab === "siyuan"} aria-selected={importSubTab === "siyuan"} onclick={() => { importSubTab = "siyuan"; onDoSearchDocs(""); }}>
+        <button type="button" role="tab" tabindex={importSubTab === "siyuan" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "siyuan"} aria-selected={importSubTab === "siyuan"} onclick={() => { importSubTab = "siyuan"; onDoSearchDocs(""); }}>
           <Icon name="book" size={12} /> {t("import.fromSiyuanDoc")}
         </button>
-        <button type="button" role="tab" class="lv-chip" class:acc={importSubTab === "cloze"} aria-selected={importSubTab === "cloze"} onclick={() => importSubTab = "cloze"}>
+        <button type="button" role="tab" tabindex={importSubTab === "cloze" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "cloze"} aria-selected={importSubTab === "cloze"} onclick={() => importSubTab = "cloze"}>
           <Icon name="edit" size={12} /> {t("cloze.tab")}
         </button>
       </div>

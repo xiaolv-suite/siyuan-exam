@@ -246,6 +246,26 @@ export function tablistNextIndex(key: string, current: number, length: number): 
 }
 
 /**
+ * tablist 容器统一键盘处理（WAI-ARIA tabs，automatic activation）：
+ * 方向键在 [role=tab] 间移动焦点并触发 click 激活，Home/End 跳两端。
+ * 返回 true 表示已消费；未命中方向键或焦点不在 tab 按钮上时返回 false，不打扰其它快捷键。
+ * 配合各 tab 的 roving tabindex（仅选中 tab tabIndex=0）保持整个 tablist 单 Tab 停靠。
+ */
+export function handleTablistKeydown(e: KeyboardEvent): boolean {
+  const target = e.target as HTMLElement | null;
+  if (!target || !(target instanceof HTMLButtonElement) || target.getAttribute("role") !== "tab") return false;
+  const container = e.currentTarget;
+  if (!(container instanceof HTMLElement)) return false;
+  const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>("[role='tab']"));
+  const next = tablistNextIndex(e.key, tabs.indexOf(target), tabs.length);
+  if (next < 0) return false;
+  e.preventDefault();
+  tabs[next]?.focus();
+  tabs[next]?.click(); // automatic activation：tab 数量少，焦点到达即切换面板
+  return true;
+}
+
+/**
  * 检测移动端左右滑动手势（用于切题导航）
  */
 export function detectHorizontalSwipe(

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
+  import { handleTablistKeydown } from "./services/practiceKeyboardService";
 
   interface Props {
     open: boolean;
@@ -27,11 +28,11 @@
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
-      <div class="lv-session-dock" role="tablist" aria-label="快捷键分类" style="margin:0 0 12px;width:100%">
-        <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "all"} aria-selected={hotkeyCategory === "all"} onclick={() => hotkeyCategory = "all"}>全部</button>
-        <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "session"} aria-selected={hotkeyCategory === "session"} onclick={() => hotkeyCategory = "session"}>做题台</button>
-        <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "recite"} aria-selected={hotkeyCategory === "recite"} onclick={() => hotkeyCategory = "recite"}>纸面背诵</button>
-        <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "nav"} aria-selected={hotkeyCategory === "nav"} onclick={() => hotkeyCategory = "nav"}>全局导航</button>
+      <div class="lv-session-dock" role="tablist" aria-label="快捷键分类" style="margin:0 0 12px;width:100%" onkeydown={handleTablistKeydown}>
+        <button type="button" role="tab" tabindex={hotkeyCategory === "all" ? 0 : -1} class="lv-chip" class:acc={hotkeyCategory === "all"} aria-selected={hotkeyCategory === "all"} onclick={() => hotkeyCategory = "all"}>全部</button>
+        <button type="button" role="tab" tabindex={hotkeyCategory === "session" ? 0 : -1} class="lv-chip" class:acc={hotkeyCategory === "session"} aria-selected={hotkeyCategory === "session"} onclick={() => hotkeyCategory = "session"}>做题台</button>
+        <button type="button" role="tab" tabindex={hotkeyCategory === "recite" ? 0 : -1} class="lv-chip" class:acc={hotkeyCategory === "recite"} aria-selected={hotkeyCategory === "recite"} onclick={() => hotkeyCategory = "recite"}>纸面背诵</button>
+        <button type="button" role="tab" tabindex={hotkeyCategory === "nav" ? 0 : -1} class="lv-chip" class:acc={hotkeyCategory === "nav"} aria-selected={hotkeyCategory === "nav"} onclick={() => hotkeyCategory = "nav"}>全局导航</button>
       </div>
       <div class="lv-hotkeys-grid" role="region" aria-label="快捷键清单">
         {#if hotkeyCategory === "all" || hotkeyCategory === "session"}

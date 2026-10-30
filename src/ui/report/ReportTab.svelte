@@ -17,6 +17,7 @@
     import { heatmap, masteryByKp, weakTop, hourly, calibration, confidentWrongList, uncertainCorrectList, delayedRecall, exposureStats, type CalibrationReport } from "@/core/report";
     import { extractRadarDimensions, buildRadarChartModel, exportRadarDimensionsCsv } from "@/core/radar";
     import { trendToCsv, heatmapToCsv, hourlyToCsv } from "@/core/exportMd";
+    import { handleTablistKeydown } from "../practice/services/practiceKeyboardService";
     import type { ActionItem } from "@/core/actions";
     import SaveStatus from "../shared/SaveStatus.svelte";
     import { emitExamEvent, onExamEvent } from "@/core/bus";
@@ -1506,10 +1507,11 @@
         <b>{t("report.mastery")}</b>
         {#if mastery.length >= 3}
           <div class="lv-row" style="gap:var(--lv-space-2);align-items:center;flex-wrap:wrap">
-            <div class="lv-session-dock" role="tablist" aria-label="呈现形式" style="margin:0">
+            <div class="lv-session-dock" role="tablist" aria-label="呈现形式" style="margin:0" onkeydown={handleTablistKeydown}>
               <button
                 type="button"
                 role="tab"
+                tabindex={masteryTab === "radar" ? 0 : -1}
                 class="lv-chip sm"
                 class:acc={masteryTab === "radar"}
                 aria-selected={masteryTab === "radar"}
@@ -1521,6 +1523,7 @@
               <button
                 type="button"
                 role="tab"
+                tabindex={masteryTab === "list" ? 0 : -1}
                 class="lv-chip sm"
                 class:acc={masteryTab === "list"}
                 aria-selected={masteryTab === "list"}
@@ -1532,6 +1535,7 @@
               <button
                 type="button"
                 role="tab"
+                tabindex={masteryTab === "roadmap" ? 0 : -1}
                 class="lv-chip sm"
                 class:acc={masteryTab === "roadmap"}
                 aria-selected={masteryTab === "roadmap"}

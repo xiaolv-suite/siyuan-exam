@@ -1558,5 +1558,7 @@
     "rate.writeback.failed": "写回失败 · 可重试",
     "rate.writeback.skipped-offline": "离线未写回 · 可稍后重试",
     "report.mockRound": "场次",
-    "report.mockDate": "日期"
+    "report.mockDate": "日期",
+    "wrongbook.loadMore": "加载更多错题",
+    "wrongbook.remaining": "还有"
 }

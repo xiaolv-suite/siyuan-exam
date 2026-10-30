@@ -2,6 +2,7 @@
   import Icon from "../shared/Icon.svelte";
   import type { BankInfo } from "../../app";
   import type { BankCategory, BankCategoryMeta } from "@/core/bankCategory";
+  import { handleTablistKeydown } from "./services/practiceKeyboardService";
 
   interface Props {
     open: boolean;
@@ -80,23 +81,23 @@
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
-      <div class="lv-session-dock" role="tablist" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto">
-        <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>
+      <div class="lv-session-dock" role="tablist" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto" onkeydown={handleTablistKeydown}>
+        <button type="button" role="tab" tabindex={bankFilterCategory === "all" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>
           全部 ({banks.length})
         </button>
-        <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} aria-selected={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} onclick={() => bankFilterCategory = "exam"}>
+        <button type="button" role="tab" tabindex={bankFilterCategory === "exam" || bankFilterCategory === "certificate" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} aria-selected={bankFilterCategory === "exam" || bankFilterCategory === "certificate"} onclick={() => bankFilterCategory = "exam"}>
           <Icon name="award" size={12} /> 资格考证 ({banks.filter((b) => b.category === "exam" || b.category === "certificate").length})
         </button>
-        <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "k12" || bankFilterCategory === "higher"} aria-selected={bankFilterCategory === "k12" || bankFilterCategory === "higher"} onclick={() => bankFilterCategory = "higher"}>
+        <button type="button" role="tab" tabindex={bankFilterCategory === "k12" || bankFilterCategory === "higher" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "k12" || bankFilterCategory === "higher"} aria-selected={bankFilterCategory === "k12" || bankFilterCategory === "higher"} onclick={() => bankFilterCategory = "higher"}>
           <Icon name="book" size={12} /> 升学学术 ({banks.filter((b) => b.category === "k12" || b.category === "higher").length})
         </button>
-        <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "language"} aria-selected={bankFilterCategory === "language"} onclick={() => bankFilterCategory = "language"}>
+        <button type="button" role="tab" tabindex={bankFilterCategory === "language" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "language"} aria-selected={bankFilterCategory === "language"} onclick={() => bankFilterCategory = "language"}>
           <Icon name="volume" size={12} /> 语言 ({banks.filter((b) => b.category === "language").length})
         </button>
-        <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "teaching"} aria-selected={bankFilterCategory === "teaching"} onclick={() => bankFilterCategory = "teaching"}>
+        <button type="button" role="tab" tabindex={bankFilterCategory === "teaching" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "teaching"} aria-selected={bankFilterCategory === "teaching"} onclick={() => bankFilterCategory = "teaching"}>
           <Icon name="users" size={12} /> 教研 ({banks.filter((b) => b.category === "teaching").length})
         </button>
-        <button type="button" role="tab" class="lv-chip" class:acc={bankFilterCategory === "general"} aria-selected={bankFilterCategory === "general"} onclick={() => bankFilterCategory = "general"}>
+        <button type="button" role="tab" tabindex={bankFilterCategory === "general" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "general"} aria-selected={bankFilterCategory === "general"} onclick={() => bankFilterCategory = "general"}>
           <Icon name="grid" size={12} /> 通识 ({banks.filter((b) => (b.category || "general") === "general").length})
         </button>
       </div>

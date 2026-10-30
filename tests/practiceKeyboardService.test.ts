@@ -8,6 +8,7 @@ import {
   detectHorizontalSwipe,
   getNextStudyFontSize,
   tablistNextIndex,
+  handleTablistKeydown,
 } from "@/ui/practice/services/practiceKeyboardService";
 import type { Question } from "@/core/types";
 
@@ -324,5 +325,62 @@ describe("tablistNextIndex — WAI-ARIA tabs 方向键导航 (benchmark-fusion)"
     expect(tablistNextIndex("ArrowRight", -1, n)).toBe(-1);
     expect(tablistNextIndex("ArrowRight", 9, n)).toBe(-1);
     expect(tablistNextIndex("ArrowRight", 0, 0)).toBe(-1);
+  });
+});
+
+describe("handleTablistKeydown — tablist 统一键盘处理 (benchmark-fusion)", () => {
+  function buildTablist(count: number): { container: HTMLElement; buttons: HTMLButtonElement[]; clicks: number[] } {
+    const container = document.createElement("div");
+    container.setAttribute("role", "tablist");
+    const clicks: number[] = [];
+    const buttons: HTMLButtonElement[] = [];
+    for (let i = 0; i < count; i++) {
+      const b = document.createElement("button");
+      b.setAttribute("role", "tab");
+      b.addEventListener("click", () => clicks.push(i));
+      container.appendChild(b);
+      buttons.push(b);
+    }
+    document.body.appendChild(container);
+    return { container, buttons, clicks };
+  }
+
+  function fire(container: HTMLElement, button: HTMLButtonElement, key: string): boolean {
+    let consumed = false;
+    const listener = (e: Event) => { consumed = handleTablistKeydown(e as KeyboardEvent); };
+    container.addEventListener("keydown", listener);
+    button.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    container.removeEventListener("keydown", listener);
+    return consumed;
+  }
+
+  it("ArrowRight 移动焦点并自动激活下一 tab", () => {
+    const { container, buttons, clicks } = buildTablist(3);
+    expect(fire(container, buttons[0]!, "ArrowRight")).toBe(true);
+    expect(document.activeElement).toBe(buttons[1]!);
+    expect(clicks).toEqual([1]);
+    container.remove();
+  });
+
+  it("ArrowLeft 循环到末尾；Home/End 跳两端", () => {
+    const { container, buttons, clicks } = buildTablist(3);
+    expect(fire(container, buttons[0]!, "ArrowLeft")).toBe(true);
+    expect(document.activeElement).toBe(buttons[2]!);
+    expect(fire(container, buttons[2]!, "Home")).toBe(true);
+    expect(document.activeElement).toBe(buttons[0]!);
+    expect(fire(container, buttons[0]!, "End")).toBe(true);
+    expect(document.activeElement).toBe(buttons[2]!);
+    expect(clicks).toEqual([2, 0, 2]);
+    container.remove();
+  });
+
+  it("非方向键 / 焦点不在 tab 上时不消费不扰动", () => {
+    const { container, buttons, clicks } = buildTablist(2);
+    expect(fire(container, buttons[0]!, "Enter")).toBe(false);
+    const outsider = document.createElement("button");
+    container.appendChild(outsider); // 无 role=tab
+    expect(fire(container, outsider, "ArrowRight")).toBe(false);
+    expect(clicks).toEqual([]);
+    container.remove();
   });
 });

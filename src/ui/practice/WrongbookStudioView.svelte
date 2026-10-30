@@ -2,7 +2,7 @@
   import Icon from "../shared/Icon.svelte";
   import type { Question } from "../../core/types";
   import type { CbmSignal } from "../../core/cbm";
-  import { tablistNextIndex } from "./services/practiceKeyboardService";
+  import { handleTablistKeydown } from "./services/practiceKeyboardService";
 
   interface Props {
     wrongList: any[];
@@ -17,6 +17,10 @@
     wbKpFilter: string;
     wbSortMode: "default" | "wrongCount" | "kp";
     filteredWrongQueue: any[];
+    /** 渲染切片（ux §3 virtualize-lists 口径）：只渲染前 200 行，「加载更多」逐步放量；计数与操作按钮仍按全量 */
+    shownWrongQueue: any[];
+    wbQueueHasMore: boolean;
+    onloadMoreWbQueue: () => void;
     archivedWrongList: any[];
     eliminatedWrongList: any[];
     /** benchmark-fusion CBM 双维信号：高危盲区（自评确定却答错，最新态）与脆弱伪掌握（模糊/猜测却蒙对） */
@@ -72,6 +76,9 @@
     wbKpFilter = $bindable(),
     wbSortMode = $bindable(),
     filteredWrongQueue,
+    shownWrongQueue,
+    wbQueueHasMore,
+    onloadMoreWbQueue,
     archivedWrongList,
     eliminatedWrongList,
     cbmHighrisk,
@@ -115,19 +122,6 @@
 
   const qOf = (qid: string) => questionMap.get(qid);
   const totalWrongs = $derived(Math.max(1, wrongList.length));
-
-  /** WAI-ARIA tabs 键盘模式（ux §1 keyboard-nav）：左右方向键在分栏间移动并自动激活，Home/End 跳两端。
-   *  配合 roving tabindex（仅选中分栏 tabIndex=0）避免五个分栏产生连续 Tab 噪声。 */
-  function onWbTablistKeydown(e: KeyboardEvent) {
-    const target = e.target as HTMLElement | null;
-    if (!target || !(target instanceof HTMLButtonElement) || target.getAttribute("role") !== "tab") return;
-    const tabs = Array.from((e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>("[role='tab']"));
-    const next = tablistNextIndex(e.key, tabs.indexOf(target), tabs.length);
-    if (next < 0) return;
-    e.preventDefault();
-    tabs[next]?.focus();
-    tabs[next]?.click(); // automatic activation：分栏数量少，焦点到达即切换面板
-  }
 </script>
 
 <div class="lv-pad">
@@ -231,7 +225,7 @@
         </div>
         <div class="lv-card">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:8px">
-            <div class="lv-session-dock" role="tablist" aria-label={t("wrongbook.queue")} onkeydown={onWbTablistKeydown}>
+            <div class="lv-session-dock" role="tablist" aria-label={t("wrongbook.queue")} onkeydown={handleTablistKeydown}>
               <button type="button" role="tab" tabindex={wbTab === "active" ? 0 : -1} class="lv-chip" class:acc={wbTab === "active"} aria-selected={wbTab === "active"} onclick={() => wbTab = "active"}>
                 {t("wrongbook.tabActive")} ({wrongList.length})
               </button>
@@ -313,7 +307,7 @@
                 {/if}
               </div>
             </div>
-            {#each filteredWrongQueue as w, wi (w.qid)}
+            {#each shownWrongQueue as w, wi (w.qid)}
               {@const q = qOf(w.qid)}
               {@const stubborn = isStubbornWrong(w)}
               <div class="lv-wrong-row">
@@ -368,6 +362,14 @@
                 <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-green);font-weight:600" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => onmasterWrong(w.qid)}><Icon name="check" size={13} /> {wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}</button>
               </div>
             {/each}
+            {#if wbQueueHasMore}
+              <!-- ux §3 virtualize-lists：长队列分批渲染，与浏览页 200/+=200 同口径；上方计数/操作按钮仍按全量口径 -->
+              <div class="lv-row" style="justify-content:center;margin:12px 0 4px">
+                <button class="lv-btn sm lv-btn--ghost" onclick={onloadMoreWbQueue}>
+                  <Icon name="expand" size={13} /> {t("wrongbook.loadMore", "加载更多错题")}（{t("wrongbook.remaining", "还有")} <span class="num">{filteredWrongQueue.length - shownWrongQueue.length}</span> {t("browse.count")}）
+                </button>
+              </div>
+            {/if}
           {:else if wbTab === "highrisk"}
             <!-- benchmark-fusion：高危盲区（Moodle CBM Misconception）——自信答错即概念误区，置顶呈现 -->
             <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:10px 0 4px">

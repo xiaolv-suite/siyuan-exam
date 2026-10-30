@@ -1560,5 +1560,7 @@
     "rate.writeback.failed": "Write-back failed · retryable",
     "rate.writeback.skipped-offline": "Offline, not written back · retry later",
     "report.mockRound": "Round",
-    "report.mockDate": "Date"
+    "report.mockDate": "Date",
+    "wrongbook.loadMore": "Load more wrong items",
+    "wrongbook.remaining": "remaining"
 }

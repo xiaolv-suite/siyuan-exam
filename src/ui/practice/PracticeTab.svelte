@@ -2128,6 +2128,11 @@ import { confirmDialogSync } from "@/libs/dialog";
       kpFilter: wbKpFilter,
       sortMode: wbSortMode,
     }));
+    /** 错题本队列渲染上限（ux §3 virtualize-lists）：错题行是重 DOM（每行 ~7 个操作按钮），
+     *  错题数百题级时全量渲染拖慢滚动。与浏览页 200/+=200 同口径；计数徽标/打印/特训等操作仍按全量筛选口径。 */
+    let wbQueueLimit = $state(200);
+    const shownWrongQueue = $derived(filteredWrongQueue.slice(0, wbQueueLimit));
+    const wbQueueHasMore = $derived(filteredWrongQueue.length > wbQueueLimit);
 
     const archiveWrong = async (qid: string) => { await archiveWrongItem(app, qid, showMessage, t); dataRev++; };
     const unarchiveWrong = async (qid: string) => { await unarchiveWrongItem(app, qid, showMessage, t); dataRev++; };
@@ -5594,6 +5599,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:wbKpFilter
       bind:wbSortMode
       {filteredWrongQueue}
+      {shownWrongQueue}
+      {wbQueueHasMore}
+      onloadMoreWbQueue={() => (wbQueueLimit += 200)}
       {archivedWrongList}
       {eliminatedWrongList}
       {cbmHighrisk}
