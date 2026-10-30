@@ -310,7 +310,7 @@
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:12px;margin-bottom:20px">
           <!-- 1. 职业与考证 -->
-          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-brand);display:flex;align-items:center;gap:6px">
                 <Icon name="badge" size={15} /> 职业考证
@@ -325,7 +325,7 @@
           </div>
 
           <!-- 2. 大学与硕博 -->
-          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-accent);display:flex;align-items:center;gap:6px">
                 <Icon name="academic" size={15} /> 大学与硕博
@@ -340,7 +340,7 @@
           </div>
 
           <!-- 3. 多语言研学 (英语+粤语) -->
-          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-scene-lang, var(--lv-accent));display:flex;align-items:center;gap:6px">
                 <Icon name="volume" size={15} /> 多语言研学
@@ -360,7 +360,7 @@
           </div>
 
           <!-- 4. K12基础教育与通识 -->
-          <div class="lv-card" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
+          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
             <div>
               <b style="font-size:14px;color:var(--lv-green);display:flex;align-items:center;gap:6px">
                 <Icon name="book" size={15} /> K12基础通识
@@ -615,7 +615,7 @@
         <button class="lv-btn" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}><Icon name="save" size={16} /> {syncDocsBusy ? "…" : t("sync.docsBtn")}</button>
         <details class="lv-export-fold">
           <summary class="lv-btn"><Icon name="export" size={16} /> {t("export.wrongbook")}</summary>
-          <div class="lv-card" style="padding:var(--lv-space-relaxed) var(--lv-space-3);margin-top:6px;border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
+          <div class="lv-card" style="padding:var(--lv-space-relaxed) var(--lv-space-3);margin-top:6px;border-radius:var(--lv-r-3, 14px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
             <div class="lv-row" style="margin:4px 0">
               <span class="lv-chip">{t("manual.kp")}</span>
               <select class="lv-select" bind:value={expKp}>
@@ -705,7 +705,7 @@
   .lv-hero-actions .lv-btn--primary { box-shadow: var(--lv-btn-primary-shadow); }
   @container lv-exam (max-width: 600px) {
     .lv-entry-hero { grid-template-columns: minmax(0,1fr); padding: 18px; }
-    .lv-entry-num { border-left: 0; border-top: 1px solid var(--lv-border); padding: 12px 0 0; flex-direction: row; align-items: baseline; gap: var(--lv-space-relaxed); justify-content: flex-start; }
+    .lv-entry-num { border-left: 0; border-top: 1px solid var(--lv-darkcard-border); padding: 12px 0 0; flex-direction: row; align-items: baseline; gap: var(--lv-space-relaxed); justify-content: flex-start; }
   }
   .lv-guard { max-width: 460px; width: 100%; }
   .lv-guard--welcome { max-width: 760px; }

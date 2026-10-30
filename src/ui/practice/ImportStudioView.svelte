@@ -205,7 +205,7 @@
   {:else}
     {#if importCheckpoint}
       <!-- 38-04 / U08：未完成导入任务断点恢复提示条 -->
-      <div class="lv-card lv-pad-card" style="margin-bottom:12px;border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-card, 16px);background:var(--lv-surface-2);box-shadow:var(--lv-sh-1)">
+      <div class="lv-card lv-pad-card" style="margin-bottom:12px;border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-3, 16px);background:var(--lv-surface-2);box-shadow:var(--lv-sh-1)">
         <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div>
             <b><Icon name="activity" size={14} /> {t("import.checkpointTitle")}</b>
@@ -262,7 +262,7 @@
             {#if siyuanDocCandidates.length === 0}
               <div class="lv-muted" style="padding:16px;text-align:center">{siyuanDocBusy ? "正在搜索思源文档…" : "未找到匹配文档，请尝试输入其他关键词"}</div>
             {:else}
-              <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 12px;margin-bottom:6px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 12px);border:1px solid var(--lv-border-subtle);flex-wrap:wrap;gap:6px">
+              <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 12px;margin-bottom:6px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 12px);border:1px solid var(--lv-border-subtle);flex-wrap:wrap;gap:6px">
                 <div class="lv-row" style="margin:0;gap:8px;align-items:center">
                   <button type="button" class="lv-chip num sm" onclick={onToggleSelectAllDocs} class:acc={selectedDocCount > 0} style="display:inline-flex;align-items:center;gap:4px">
                     {#if selectedDocCount > 0}
@@ -333,7 +333,7 @@
         {#if clozeParsedItems.length}
           <div class="stack-sm" style="margin-top:10px;max-height:300px;overflow:auto">
             {#each clozeParsedItems as it, idx (idx)}
-              <div class="lv-card" style="padding:10px 14px;background:var(--lv-surface);border-radius:var(--lv-r-card, 14px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
+              <div class="lv-card" style="padding:10px 14px;background:var(--lv-surface);border-radius:var(--lv-r-3, 14px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
                 <div class="lv-row" style="justify-content:space-between;margin:0 0 4px">
                   <b class="num" style="color:var(--lv-accent)">#{idx + 1} 填空题</b>
                   <span class="lv-chip num sm">{it.blankCount} 空</span>

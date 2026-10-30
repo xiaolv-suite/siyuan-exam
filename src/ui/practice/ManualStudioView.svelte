@@ -149,7 +149,7 @@
     {#if mSaved}<span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={11} /> {mSaved}</span>{/if}
   </div>
   {#if ocrModalOpen}
-    <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border:1px solid var(--lv-accent-soft);border-radius:var(--lv-r-card, 16px);box-shadow:var(--lv-sh-1)">
+    <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border:1px solid var(--lv-accent-soft);border-radius:var(--lv-r-3, 16px);box-shadow:var(--lv-sh-1)">
       <label class="lv-field">
         <span style="font-weight:var(--lv-font-weight-semibold)">{t("manual.ocrPrompt")}</span>
         <textarea class="lv-input lv-textarea" style="min-height:90px;margin-top:6px" bind:value={ocrInputText} placeholder="粘贴整段试题识别文本（支持题干、A. B. C. D. 选项、答案、解析），点击解析填单即可自动分类填入下方表单"></textarea>

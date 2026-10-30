@@ -32,7 +32,7 @@
 </script>
 
 {#if materialContext}
-  <div class="lv-analysis lv-rich b3-typography" style="margin-bottom:12px;border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-brand);border-radius:var(--lv-r-card, 16px);box-shadow:var(--lv-sh-1)">
+  <div class="lv-analysis lv-rich b3-typography" style="margin-bottom:12px;border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-brand);border-radius:var(--lv-r-3, 16px);box-shadow:var(--lv-sh-1)">
     <div class="lv-row" style="margin:0 0 6px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
       <b class="lv-mat-chip"><Icon name="paperclip" size={14} /> {groupContext ? formatMaterialGroupHeader(groupContext) : t("material.shared")}</b>
       {#if isLong}

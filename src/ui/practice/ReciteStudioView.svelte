@@ -126,7 +126,7 @@
       </div>
       <p class="lv-muted" style="font-size:var(--lv-font-size-sm);margin-bottom:14px">{t("recite.doneHint")}</p>
       {#if forgotCount > 0}
-        <div class="lv-card" style="margin:10px 0 12px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle)">
+        <div class="lv-card" style="margin:10px 0 12px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle)">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px">
             <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
               <Icon name="rotate" size={14} /> 发现 {forgotCount} 道忘却内容 · 推荐即时重记
@@ -142,7 +142,7 @@
           </div>
         </div>
       {:else}
-        <div class="lv-card" style="margin:10px 0 12px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);text-align:center">
+        <div class="lv-card" style="margin:10px 0 12px;padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);text-align:center">
           <b style="color:var(--lv-green);font-size:14px;display:inline-flex;align-items:center;gap:6px;margin-bottom:8px">
             <Icon name="trophy" size={16} /> 完美记忆，本轮全部熟练通关！
           </b>

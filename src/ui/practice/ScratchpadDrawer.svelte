@@ -61,7 +61,7 @@
     ></textarea>
     <details style="margin-top:6px;font-size:var(--lv-font-size-caption)">
       <summary style="cursor:pointer;opacity:0.8;font-weight:600;display:inline-flex;align-items:center;gap:4px"><Icon name="compass" size={13} /> {t("scratchpad.formulaSheet")}</summary>
-      <div class="lv-card" style="margin-top:4px;padding:8px 12px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-card, 14px);max-height:160px;overflow-y:auto">
+      <div class="lv-card" style="margin-top:4px;padding:8px 12px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-3, 14px);max-height:160px;overflow-y:auto">
         <div style="display:flex;flex-direction:column;gap:4px">
           <div><b>导数表：</b><code>(xⁿ)' = n·xⁿ⁻¹</code> · <code>(eˣ)' = eˣ</code> · <code>(ln x)' = 1/x</code> · <code>(sin x)' = cos x</code> · <code>(cos x)' = -sin x</code></div>
           <div><b>三角恒等：</b><code>sin²α + cos²α = 1</code> · <code>sin(2α) = 2sinα·cosα</code> · <code>cos(2α) = 2cos²α - 1</code></div>

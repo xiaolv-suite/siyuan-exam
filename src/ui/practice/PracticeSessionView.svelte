@@ -528,14 +528,14 @@
                 </div>
                 {#if paperGridModalOpen}
                   {@const gridModel = generatePaperGrid(feedback?.myAnswer ?? currentDraft ?? "", { columns: 20 })}
-                  <div class="lv-card" style="margin:8px 0;padding:12px 14px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-card, 16px);box-shadow:var(--lv-sh-1)">
+                  <div class="lv-card" style="margin:8px 0;padding:12px 14px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-3, 14px);box-shadow:var(--lv-sh-1)">
                     <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
                       <b style="font-size:12px;display:flex;align-items:center;gap:6px">
                         <Icon name="file-text" size={13} /> 考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）
                       </b>
                       <button type="button" class="lv-btn sm lv-btn--ghost" onclick={ontogglePaperGridModal} aria-label="关闭"><Icon name="close" size={12} /></button>
                     </div>
-                    <div style="display:flex;flex-direction:column;gap:2px;overflow-x:auto;padding:6px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-card, 10px);max-height:200px">
+                    <div style="display:flex;flex-direction:column;gap:2px;overflow-x:auto;padding:6px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2, 8px);max-height:200px">
                       {#each gridModel.rows as r (r.rowNumber)}
                         <div style="display:flex;gap:2px;align-items:center">
                           <span class="lv-muted num" style="width:24px;font-size:9px;text-align:right;flex-shrink:0">{r.rowNumber * 20}</span>
@@ -574,7 +574,7 @@
             </div>
             {#if q.type === "short"}<div class="lv-analysis"><b>{t("session.referenceAnswer")}</b><div>{q.answer}</div></div>{/if}
             {#if q.type === "short" && currentRubric && rubricScore}
-              <div class="lv-card" style="margin:10px 0;padding:var(--lv-space-3) var(--lv-space-4)">
+              <div class="lv-card" style="margin:10px 0;padding:var(--lv-space-3) var(--lv-space-4);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap;gap:var(--lv-space-2)">
                   <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="target" size={13} /> {t("rubric.title")}</b>
                   <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onautoAlignRubric} title="比对学员输入内容智能识别采分点，一键预填自评分">

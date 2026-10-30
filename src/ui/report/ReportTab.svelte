@@ -1624,7 +1624,7 @@
           <div class="stack-md" style="margin-top:10px">
             <!-- 核心阻断溯源关键链 -->
             {#if clearancePlan.criticalChain.length > 0}
-              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle)">
+              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
                   <b style="color:var(--lv-red);font-size:13px;display:flex;align-items:center;gap:6px">
                     <Icon name="alert-triangle" size={13} /> 核心阻断溯源关键链（前修考点薄弱阻断了后续进阶）
@@ -1655,7 +1655,7 @@
             <!-- 逐阶段路线卡片 -->
             <div class="stack-sm">
               {#each clearancePlan.stages as stg (stg.stage)}
-                <div class="lv-card" style="padding:14px 18px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
+                <div class="lv-card" style="padding:14px 18px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
                   <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
                     <div class="lv-row" style="align-items:center;gap:8px">
                       <span class="lv-chip sm lv-chip--acc num" style="font-weight:700">阶段 {stg.stage}</span>
@@ -2068,7 +2068,7 @@
           {/if}
 
           <!-- 全量题目明细表格 -->
-          <div style="max-height:420px;overflow-y:auto;border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-card, 14px);box-shadow:var(--lv-sh-1)">
+          <div style="max-height:420px;overflow-y:auto;border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-3, 14px);box-shadow:var(--lv-sh-1)">
             <table class="lv-table" style="width:100%;font-size:12px;text-align:left;border-collapse:collapse">
               <thead>
                 <tr style="background:var(--lv-surface-2);border-bottom:1px solid var(--lv-border-subtle)">

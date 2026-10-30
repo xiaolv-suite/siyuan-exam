@@ -739,8 +739,14 @@
               <Icon name="alert-triangle" size={11} /> {t("dispute.badge")} · {t("dispute.reason." + q.dispute?.reason)}
             </span>
           {/if}
-          {#if !batchMode && expandedId === q.id}
-            <span class="lv-chip lv-chip--acc num" style="margin-left:auto;display:inline-flex;align-items:center;gap:3px"><span>{t("browse.viewing", "查看中")}</span><Icon name="chev-right" size={10} /></span>
+          {#if !batchMode}
+            {#if expandedId === q.id}
+              <span class="lv-chip lv-chip--acc num" style="margin-left:auto;display:inline-flex;align-items:center;gap:3px"><span>{t("browse.viewing", "查看中")}</span><Icon name="chev-right" size={10} /></span>
+            {:else}
+              <span class="lv-qrow-peek-arrow" aria-hidden="true">
+                <Icon name="chev-right" size={12} />
+              </span>
+            {/if}
           {/if}
         </button>
         <div class="lv-qrow-stem" id={`lv-qrow-stem-${q.id}`}>{q.stem}</div>
