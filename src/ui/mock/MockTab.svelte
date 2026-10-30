@@ -2368,7 +2368,7 @@
         {/if}
       </div>
       <div class="lv-row" style="align-items:center;padding:6px 4px">
-        <span class="num" style="font-size:40px;font-weight:800;color:var(--lv-data-accent)">{score.total}</span>
+        <span class="num" style="font-size:40px;font-weight:var(--lv-font-weight-bold, 700);color:var(--lv-data-accent)">{score.total}</span>
         <span class="lv-muted">/ {score.full}</span>
         <span class="lv-chip" class:grn={score.pass} class:red={!score.pass}>{score.pass ? t("mock.pass") : t("mock.fail")}（{t("mock.passLine")} {bp.passLine}%）</span>
         <span class="lv-chip num">{score.percent}%</span>
@@ -2401,11 +2401,11 @@
             <span class="lv-chip num" class:lv-chip--amb={!percentileIsPersonal} title={percentileIsPersonal ? t("mock.percentilePoolPersonalTip") : t("mock.percentilePoolSyntheticTip")}>
               {percentileIsPersonal ? t("mock.percentilePoolPersonal").replace("{n}", String(percentileSampleCount)) : t("mock.percentilePoolSynthetic")}
             </span>
-            <button class="lv-btn sm lv-btn--ghost" aria-expanded={percentileOpen} onclick={() => percentileOpen = !percentileOpen}>{percentileOpen ? "▾" : "▸"}</button>
+            <button class="lv-btn sm lv-btn--ghost" aria-expanded={percentileOpen} onclick={() => percentileOpen = !percentileOpen} aria-label={percentileOpen ? "收起" : "展开"}><Icon name={percentileOpen ? "arrow-down" : "chev-right"} size={12} /></button>
           </div>
         </div>
         <div class="lv-row" style="margin:8px 0 0;align-items:baseline;gap:var(--lv-space-3);flex-wrap:wrap">
-          <span class="num" style="font-size:26px;font-weight:800;color:var(--lv-data-accent)">{t("mock.percentileTop").replace("{n}", String(percentileVerdict.topPercent))}</span>
+          <span class="num" style="font-size:26px;font-weight:var(--lv-font-weight-bold, 700);color:var(--lv-data-accent)">{t("mock.percentileTop").replace("{n}", String(percentileVerdict.topPercent))}</span>
           <span class="lv-chip num" title={t("mock.percentilePercentileTip")}>{t("mock.percentilePercentile").replace("{n}", String(percentileVerdict.percentile))}</span>
           <span class="lv-chip num" title={t("mock.percentileZTip")}>z = {percentileVerdict.zScore}</span>
         </div>
@@ -2462,7 +2462,7 @@
       </div>
     {/each}
     {#if pacingPostMortem}
-      <div class="lv-card" style="margin:12px 0;padding:12px 16px;background:var(--lv-surface-2)">
+      <div class="lv-card" style="margin:12px 0;padding:12px 16px;background:var(--lv-surface-2);border-radius:var(--lv-r-3, 14px);border:1px solid var(--lv-border-subtle)">
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px">
           <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="clock" size={13} /> {t("mock.pacingPostMortem")}</b>
           <button class="lv-btn sm lv-btn--ghost" onclick={exportPacingReport}><Icon name="export" size={12} /> {t("mock.exportPacing")}</button>
