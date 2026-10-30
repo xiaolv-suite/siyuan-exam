@@ -207,7 +207,7 @@
               {#if misdiagnosisText[a.qid]}
                 <div class="lv-detail" style="margin:4px 0 0;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">{misdiagnosisText[a.qid]}</div>
                 <div class="lv-muted" style="font-size:var(--lv-font-size-compact)">{t("misdiagnosis.disclaimer")}</div>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => onadoptMisdiagnosis(a.qid)}>＋ {t("misdiagnosis.adopt")}</button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => onadoptMisdiagnosis(a.qid)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="plus" size={13} /> {t("misdiagnosis.adopt")}</button>
               {/if}
             </div>
           {/each}

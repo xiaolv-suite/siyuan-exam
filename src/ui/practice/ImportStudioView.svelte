@@ -538,7 +538,7 @@
               <span class="lv-chip lv-chip--amb">{t("import.readbackUnknown")}</span>
             {/if}
             {#if retryPool.length}
-              <button class="lv-btn sm" disabled={importBusy} onclick={onRetryMissing}>↻ {t("import.retryMissing").replace("{n}", String(retryPool.length))}</button>
+              <button class="lv-btn sm" disabled={importBusy} onclick={onRetryMissing} style="display:inline-flex;align-items:center;gap:4px"><Icon name="rotate" size={12} /> {t("import.retryMissing").replace("{n}", String(retryPool.length))}</button>
             {/if}
           </div>
           <div class="lv-row">

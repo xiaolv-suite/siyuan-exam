@@ -1778,7 +1778,7 @@
           <button class="lv-btn lv-btn--ghost sm lv-bp-del" title={t("mock.removeSection")} aria-label={`${t("mock.removeSection")}：${s.name}`} aria-busy={sectionRemoveBusy} disabled={sectionRemoveBusy} onclick={() => void removeSection(i)}><Icon name="close" size={13} /></button>
         </div>
       {/each}
-      <div style="padding:8px 12px"><button class="lv-btn sm" style="border-style:dashed;width:100%" onclick={addSection}>＋ {t("mock.addSec")}</button></div>
+      <div style="padding:8px 12px"><button class="lv-btn sm" style="border-style:dashed;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:4px" onclick={addSection}><Icon name="plus" size={13} /> {t("mock.addSec")}</button></div>
     </div>
     {#if pacingStrategy.sections.length}
       <div class="lv-card" style="margin:8px 0;padding:10px 14px;background:var(--lv-surface-2)">

@@ -136,7 +136,7 @@
                   </div>
                 {:else}
                   <b style="font-size:var(--lv-font-size-body)">{b.name}</b>
-                  <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="margin-left:6px" onclick={() => void oncycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）">{getBankCategoryMeta(b.category).badge} ↻</button>
+                  <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="margin-left:6px;display:inline-flex;align-items:center;gap:4px" onclick={() => void oncycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）"><span>{getBankCategoryMeta(b.category).badge}</span> <Icon name="rotate" size={11} /></button>
                   {#if b.id === activeBankId}<span class="lv-chip sm lv-chip--acc" style="margin-left:4px">当前激活</span>{/if}
                   <div class="lv-muted" style="font-size:11px;margin-top:2px">ID: {b.id} · 创建于 {new Date(b.createdAt || Date.now()).toLocaleDateString()}</div>
                 {/if}

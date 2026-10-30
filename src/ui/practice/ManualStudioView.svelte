@@ -258,12 +258,12 @@
                 title={t("manual.setCorrect")} aria-label={`${t("manual.setCorrect")} ${String.fromCharCode(65 + i)}`} onclick={() => { onclearManualValidation(); onsetCorrectOption(i); }} data-manual-field={i === 0 ? "answer" : undefined} aria-pressed={mAnswer.includes(String.fromCharCode(65 + i))} aria-describedby={manualErrorField === "answer" && i === 0 ? "manual-validation-error" : undefined}>{String.fromCharCode(65 + i)}</button>
               <input class="lv-input" style="flex:1" bind:value={mOptions[i]} oninput={onclearManualValidation} aria-label={`${t("manual.options")} ${String.fromCharCode(65 + i)}`} data-manual-field={`option-${i}`} aria-invalid={manualErrorField === `option-${i}` ? "true" : undefined} aria-describedby={manualErrorField === `option-${i}` ? "manual-validation-error" : undefined} />
               {#if mOptions.length > 2}
-                <button class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }}>✕</button>
+                <button class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }}><Icon name="close" size={12} /></button>
               {/if}
             </div>
           {/each}
           {#if mOptions.length < 6}
-            <button class="lv-btn sm" style="border-style:dashed" onclick={() => (mOptions = [...mOptions, ""])}>＋ {t("manual.addOption")}</button>
+            <button class="lv-btn sm" style="border-style:dashed;display:inline-flex;align-items:center;gap:4px" onclick={() => (mOptions = [...mOptions, ""])}><Icon name="plus" size={13} /> {t("manual.addOption")}</button>
           {/if}
         </div>
       {:else if mType === "judge"}
