@@ -256,7 +256,7 @@
       <div class="lv-row" style="margin:8px 0 0">
         <b style="font-size:var(--lv-font-size-meta)">{t("kp.merge")}</b>
         <input class="lv-input" style="max-width:160px" bind:value={kpMergeFrom} placeholder={t("kp.fromPlaceholder")} />
-        <span class="lv-muted">→</span>
+        <span class="lv-muted" style="display:inline-flex;align-items:center"><Icon name="chev-right" size={13} /></span>
         <input class="lv-input" style="max-width:160px" bind:value={kpMergeTo} placeholder={t("kp.toPlaceholder")} />
         <button class="lv-btn sm" onclick={onpreviewKpMerge}><Icon name="search" size={13} /> {t("batch.preview")}</button>
       </div>

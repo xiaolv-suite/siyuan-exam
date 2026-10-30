@@ -2173,8 +2173,9 @@
           <Icon name="edit" size={11} /> {t("mock.bubbleMode")}
         </button>
         {#if unansweredIndices.length > 0}
-          <button class="lv-btn sm lv-btn--ghost" onclick={gotoNextUnanswered} title={t("mock.jumpNextUnanswered")}>
-            {t("mock.jumpNextUnanswered")} →
+          <button class="lv-btn sm lv-btn--ghost" onclick={gotoNextUnanswered} title={t("mock.jumpNextUnanswered")} style="display:inline-flex;align-items:center;gap:4px">
+            <span>{t("mock.jumpNextUnanswered")}</span>
+            <Icon name="chev-right" size={12} />
           </button>
         {/if}
       </div>
@@ -2302,8 +2303,9 @@
           </div>
           {#if unansweredIndices.length > 0}
             <div class="lv-row" style="margin-top:12px;justify-content:center">
-              <button class="lv-btn sm lv-btn--primary" onclick={() => { gotoNextUnanswered(); mockMiniSheetOpen = false; }}>
-                跳至下一道未答题 →
+              <button class="lv-btn sm lv-btn--primary" onclick={() => { gotoNextUnanswered(); mockMiniSheetOpen = false; }} style="display:inline-flex;align-items:center;gap:4px">
+                <span>跳至下一道未答题</span>
+                <Icon name="chev-right" size={12} />
               </button>
             </div>
           {/if}

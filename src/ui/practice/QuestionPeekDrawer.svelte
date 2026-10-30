@@ -621,7 +621,7 @@
                 <span class="lv-chip">{t("flash.type." + c.type)}</span>
                 <div style="flex:1;min-width:200px;overflow-wrap:anywhere">
                   <b>{c.front}</b>
-                  <div class="lv-muted">→ {c.back}</div>
+                  <div class="lv-muted" style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-right" size={11} /> {c.back}</div>
                 </div>
                 <span class="lv-chip num">{c.source}</span>
               </div>
