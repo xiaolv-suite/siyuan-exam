@@ -2515,10 +2515,21 @@
       <div class="lv-card" style="margin:12px 0">
         <b style="font-size:var(--lv-font-size-body-compact)">{t("mock.history")}</b>
         <p class="lv-muted">{t("mock.historyScope", "历史记录可能来自不同题库、卷面或时长，百分比仅供回看，不直接比较进步或能力。")}</p>
-        <svg viewBox="0 0 300 110" style="width:100%;max-width:420px;display:block" role="img" aria-label={t("mock.history")}>
-          <polyline points={historyPoints()} fill="none" stroke="var(--lv-accent)" stroke-width="2" />
+        <svg viewBox="0 0 300 110" style="width:100%;max-width:420px;display:block;overflow:visible" role="img" aria-label={t("mock.history")}>
+          <defs>
+            <linearGradient id="lv-mock-tab-history-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--lv-data-accent)" stop-opacity="0.2" />
+              <stop offset="100%" stop-color="var(--lv-data-accent)" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="105" x2="300" y2="105" stroke="var(--lv-border-subtle)" stroke-width="0.8" />
+          <polygon
+            points={`0,105 ${historyPoints()} 300,105`}
+            fill="url(#lv-mock-tab-history-fill)"
+          />
+          <polyline points={historyPoints()} fill="none" stroke="var(--lv-data-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
           {#each history as h, i (i)}
-            <circle cx={(i / Math.max(1, history.length - 1)) * 300} cy={100 - Math.round(h.percent)} r="3" fill="var(--lv-accent)"><title>{h.name} {h.percent}%</title></circle>
+            <circle cx={(i / Math.max(1, history.length - 1)) * 300} cy={100 - Math.round(h.percent)} r="3.5" fill="var(--lv-data-accent)" stroke="var(--lv-surface)" stroke-width="2"><title>{h.name} {h.percent}%</title></circle>
           {/each}
         </svg>
         <div class="lv-row" style="margin:6px 0 0">

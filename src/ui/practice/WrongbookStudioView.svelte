@@ -105,6 +105,7 @@
   }: Props = $props();
 
   const qOf = (qid: string) => questionMap.get(qid);
+  const totalWrongs = $derived(Math.max(1, wrongList.length));
 </script>
 
 <div class="lv-pad">
@@ -124,11 +125,27 @@
       </div>
     </div>
   {:else}
-    <div class="lv-kpis">
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("wrongbook.metric.active")}</span><Icon name="xcircle" size={15} /></div><div class="v num">{wrongList.length}</div><span class="lv-muted" style="font-size:var(--lv-font-size-sm)">{t("wrongbook.metric.active.note")}</span></div>
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("wrongbook.metric.eliminated")}</span><Icon name="check" size={15} /></div><div class="v num">{eliminatedCount}</div><span class="lv-muted" style="font-size:var(--lv-font-size-sm)">{t("wrongbook.metric.eliminated.note")}</span></div>
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("wrongbook.metric.progress")}</span><Icon name="target" size={15} /></div><div class="v num">{clearPct}%</div><span class="lv-muted" style="font-size:var(--lv-font-size-sm)">{t("wrongbook.metric.progress.note")}</span></div>
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("widget.streak")}</span><Icon name="flame" size={15} /></div><div class="v num">{streakDays} {t("entry.days")}</div><span class="lv-muted" style="font-size:var(--lv-font-size-sm)">{t("widget.streak.note")}</span></div>
+    <div class="lv-metrics-bar">
+      <div class="lv-metric-item">
+        <div class="lv-metric-lbl"><Icon name="xcircle" size={13} /><span>{t("wrongbook.metric.active")}</span></div>
+        <div class="lv-metric-val">{wrongList.length}</div>
+        <span class="lv-muted" style="font-size:var(--lv-font-size-xs)">{t("wrongbook.metric.active.note")}</span>
+      </div>
+      <div class="lv-metric-item">
+        <div class="lv-metric-lbl"><Icon name="check" size={13} /><span>{t("wrongbook.metric.eliminated")}</span></div>
+        <div class="lv-metric-val">{eliminatedCount}</div>
+        <span class="lv-muted" style="font-size:var(--lv-font-size-xs)">{t("wrongbook.metric.eliminated.note")}</span>
+      </div>
+      <div class="lv-metric-item">
+        <div class="lv-metric-lbl"><Icon name="target" size={13} /><span>{t("wrongbook.metric.progress")}</span></div>
+        <div class="lv-metric-val">{clearPct}%</div>
+        <span class="lv-muted" style="font-size:var(--lv-font-size-xs)">{t("wrongbook.metric.progress.note")}</span>
+      </div>
+      <div class="lv-metric-item">
+        <div class="lv-metric-lbl"><Icon name="flame" size={13} /><span>{t("widget.streak")}</span></div>
+        <div class="lv-metric-val">{streakDays} <span style="font-size:16px;font-weight:600">{t("entry.days")}</span></div>
+        <span class="lv-muted" style="font-size:var(--lv-font-size-xs)">{t("widget.streak.note")}</span>
+      </div>
     </div>
     <div class="lv-shell-grid">
       <div class="stack">
@@ -141,10 +158,53 @@
           <div class="lv-progress"><i style="width:{clearPct}%"></i></div>
           <div class="divider" style="margin:16px 0 12px"></div>
           <b class="lv-block-title">{t("wrongbook.reasons")}</b>
-          <div class="lv-chart-row"><span>{t("reason.unknown")}</span><div class="lv-progress"><i style="width:{Math.round((reasonCounts.unknown / Math.max(1, wrongList.length)) * 100)}%"></i></div><strong>{reasonCounts.unknown}</strong></div>
-          <div class="lv-chart-row"><span>{t("reason.careless")}</span><div class="lv-progress"><i style="width:{Math.round((reasonCounts.careless / Math.max(1, wrongList.length)) * 100)}%"></i></div><strong>{reasonCounts.careless}</strong></div>
-          <div class="lv-chart-row"><span>{t("reason.trap")}</span><div class="lv-progress"><i style="width:{Math.round((reasonCounts.trap / Math.max(1, wrongList.length)) * 100)}%"></i></div><strong>{reasonCounts.trap}</strong></div>
-          <div class="lv-chart-row"><span>{t("reason.unmarked")}</span><div class="lv-progress"><i style="width:{Math.round((reasonCounts.unmarked / Math.max(1, wrongList.length)) * 100)}%"></i></div><strong>{reasonCounts.unmarked}</strong></div>
+          <!-- 多段全圆角比例条（一目了然看清错因结构） -->
+          <div style="display:flex;height:8px;border-radius:var(--lv-radius-pill);overflow:hidden;background:var(--lv-border-subtle);margin:8px 0 12px;gap:2px">
+            {#if reasonCounts.unknown > 0}
+              <div style="flex:{reasonCounts.unknown};background:var(--lv-red);border-radius:var(--lv-radius-pill)" title={`${t("reason.unknown")}: ${reasonCounts.unknown} (${Math.round(reasonCounts.unknown/totalWrongs*100)}%)`}></div>
+            {/if}
+            {#if reasonCounts.careless > 0}
+              <div style="flex:{reasonCounts.careless};background:var(--lv-amber);border-radius:var(--lv-radius-pill)" title={`${t("reason.careless")}: ${reasonCounts.careless} (${Math.round(reasonCounts.careless/totalWrongs*100)}%)`}></div>
+            {/if}
+            {#if reasonCounts.trap > 0}
+              <div style="flex:{reasonCounts.trap};background:var(--lv-accent);border-radius:var(--lv-radius-pill)" title={`${t("reason.trap")}: ${reasonCounts.trap} (${Math.round(reasonCounts.trap/totalWrongs*100)}%)`}></div>
+            {/if}
+            {#if reasonCounts.unmarked > 0}
+              <div style="flex:{reasonCounts.unmarked};background:var(--lv-text-3);border-radius:var(--lv-radius-pill)" title={`${t("reason.unmarked")}: ${reasonCounts.unmarked} (${Math.round(reasonCounts.unmarked/totalWrongs*100)}%)`}></div>
+            {/if}
+          </div>
+          <div class="lv-chart-row">
+            <span class="lv-row" style="align-items:center;gap:6px">
+              <span class="lv-dot" style="background:var(--lv-red)"></span>
+              <span>{t("reason.unknown")}</span>
+            </span>
+            <div class="lv-progress"><i style="width:{Math.round((reasonCounts.unknown / Math.max(1, wrongList.length)) * 100)}%;background:var(--lv-red)"></i></div>
+            <strong class="num">{reasonCounts.unknown}</strong>
+          </div>
+          <div class="lv-chart-row">
+            <span class="lv-row" style="align-items:center;gap:6px">
+              <span class="lv-dot" style="background:var(--lv-amber)"></span>
+              <span>{t("reason.careless")}</span>
+            </span>
+            <div class="lv-progress"><i style="width:{Math.round((reasonCounts.careless / Math.max(1, wrongList.length)) * 100)}%;background:var(--lv-amber)"></i></div>
+            <strong class="num">{reasonCounts.careless}</strong>
+          </div>
+          <div class="lv-chart-row">
+            <span class="lv-row" style="align-items:center;gap:6px">
+              <span class="lv-dot" style="background:var(--lv-accent)"></span>
+              <span>{t("reason.trap")}</span>
+            </span>
+            <div class="lv-progress"><i style="width:{Math.round((reasonCounts.trap / Math.max(1, wrongList.length)) * 100)}%;background:var(--lv-accent)"></i></div>
+            <strong class="num">{reasonCounts.trap}</strong>
+          </div>
+          <div class="lv-chart-row">
+            <span class="lv-row" style="align-items:center;gap:6px">
+              <span class="lv-dot" style="background:var(--lv-text-3)"></span>
+              <span>{t("reason.unmarked")}</span>
+            </span>
+            <div class="lv-progress"><i style="width:{Math.round((reasonCounts.unmarked / Math.max(1, wrongList.length)) * 100)}%;background:var(--lv-text-3)"></i></div>
+            <strong class="num">{reasonCounts.unmarked}</strong>
+          </div>
           <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:6px 0 0">{t("wrongbook.reasons.note")}</p>
         </div>
         <div class="lv-card">

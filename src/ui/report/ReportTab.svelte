@@ -1191,11 +1191,11 @@
         <button class="lv-btn lv-btn--primary sm" style="margin-top:12px" onclick={() => plugin.openPractice?.()}>{t("report.goPractice")}</button>
       </div>
     {/if}
-    <div class="lv-kpis" class:lv-report-section--hidden={reportSection !== "overview"}>
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("report.attempts")}</span><Icon name="zap" size={15} /></div><div class="v num">{kpi.attempts}</div></div>
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("report.accuracy")}</span><Icon name="target" size={15} /></div><div class="v num">{kpi.attempts ? `${kpi.accuracy}%` : "—"}</div></div>
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("report.eliminated")}</span><Icon name="xcircle" size={15} /></div><div class="v num">{kpi.eliminated}</div></div>
-      <div class="lv-card lv-kpi"><div class="l"><span>{t("report.streak")}</span><Icon name="flame" size={15} /></div><div class="v num">{kpi.streak} {t("entry.days")}</div></div>
+    <div class="lv-metrics-bar" class:lv-report-section--hidden={reportSection !== "overview"}>
+      <div class="lv-metric-item"><div class="lv-metric-lbl"><Icon name="zap" size={13} /><span>{t("report.attempts")}</span></div><div class="lv-metric-val">{kpi.attempts}</div></div>
+      <div class="lv-metric-item"><div class="lv-metric-lbl"><Icon name="target" size={13} /><span>{t("report.accuracy")}</span></div><div class="lv-metric-val">{kpi.attempts ? `${kpi.accuracy}%` : "—"}</div></div>
+      <div class="lv-metric-item"><div class="lv-metric-lbl"><Icon name="xcircle" size={13} /><span>{t("report.eliminated")}</span></div><div class="lv-metric-val">{kpi.eliminated}</div></div>
+      <div class="lv-metric-item"><div class="lv-metric-lbl"><Icon name="flame" size={13} /><span>{t("report.streak")}</span></div><div class="lv-metric-val">{kpi.streak} <span style="font-size:16px;font-weight:600">{t("entry.days")}</span></div></div>
     </div>
     {#if reportSection === "overview" && forgettingReport && forgettingReport.criticalCount > 0}
       <div class="lv-card" style="margin:10px 0;padding:12px 16px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-amber)">
@@ -1355,20 +1355,21 @@
     {#if trend30.some((p) => p.attempts > 0)}
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "overview"} style="margin-bottom:12px">
         <b>{rangeDays ? t("report.trendWindow", "{range}作答趋势").replace("{range}", windowLabel()) : t("report.trend30")}</b>
-        <!-- 全宽趋势图（6.7:1 viewBox）：随卡片伸缩，不在大卡里缩成小图 -->
-        <svg viewBox="0 0 600 90" style="width:100%;display:block" role="img" aria-label={t("report.trend30")}>
+        <!-- 全宽柔和趋势图（粗圆头线条 + 柔和面积渐变 + 极淡参考轴） -->
+        <svg viewBox="0 0 600 90" style="width:100%;display:block;overflow:visible" role="img" aria-label={t("report.trend30")}>
           <defs>
             <linearGradient id="lv-trend-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="var(--lv-accent)" stop-opacity="0.22" />
-              <stop offset="1" stop-color="var(--lv-accent)" stop-opacity="0" />
+              <stop offset="0%" stop-color="var(--lv-data-accent)" stop-opacity="0.25" />
+              <stop offset="60%" stop-color="var(--lv-data-accent)" stop-opacity="0.08" />
+              <stop offset="100%" stop-color="var(--lv-data-accent)" stop-opacity="0" />
             </linearGradient>
           </defs>
-          <line x1="0" y1="88.5" x2="600" y2="88.5" stroke="var(--lv-border)" stroke-width="1" />
+          <line x1="0" y1="88.5" x2="600" y2="88.5" stroke="var(--lv-border-subtle)" stroke-width="0.8" />
           {#if trendArea}<polygon points={trendArea} fill="url(#lv-trend-fill)" />{/if}
-          <polyline points={trend30.map((p, i) => `${(i / trendSpan) * 600},${86 - Math.round((p.attempts / maxTrend) * 78)}`).join(" ")} fill="none" stroke="var(--lv-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-          {#if trendLastDot}<circle cx={trendLastDot.x} cy={trendLastDot.y} r="3" fill="var(--lv-accent)" stroke="var(--lv-surface)" stroke-width="1.5" />{/if}
+          <polyline points={trend30.map((p, i) => `${(i / trendSpan) * 600},${86 - Math.round((p.attempts / maxTrend) * 78)}`).join(" ")} fill="none" stroke="var(--lv-data-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          {#if trendLastDot}<circle cx={trendLastDot.x} cy={trendLastDot.y} r="3.5" fill="var(--lv-data-accent)" stroke="var(--lv-surface)" stroke-width="2" />{/if}
           <!-- 55-04 lite：正确率曲线（有作答日连成段，0 题日断点；比例尺 0-100% 对满高） -->
-          {#each trendAccLines as points (points)}<polyline {points} fill="none" stroke="var(--lv-green)" stroke-width="1.6" stroke-dasharray="3 2" />{/each}
+          {#each trendAccLines as points (points)}<polyline {points} fill="none" stroke="var(--lv-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3" opacity="0.9" />{/each}
           <!-- Anki hover-columns 灵感：逐日透明命中区 + SVG 原生 title（零 JS，悬浮看当日题量/正确率） -->
           {#each trend30 as p, i (p.date)}
             {#if p.attempts > 0}
@@ -1522,26 +1523,25 @@
               role="img"
               aria-label={t("report.radarTitle") + " - " + t("report.radarSubtitle")}
             >
-              <!-- 1. 同心网格环 -->
+              <!-- 1. 同心网格环（极淡半透明微网格） -->
               {#each radarChart.rings as ring, ringIdx (ringIdx)}
                 <polygon
                   points={ring.pointsString}
                   fill="none"
-                  stroke="var(--lv-border)"
-                  stroke-width="1"
-                  stroke-dasharray="3,3"
+                  stroke="var(--lv-border-subtle)"
+                  stroke-width="0.8"
                 />
               {/each}
 
-              <!-- 2. 同心轴线与文字标签 -->
+              <!-- 2. 同心轴线与文字标签（极淡微轴线） -->
               {#each radarChart.axes as axis, axisIdx (axisIdx)}
                 <line
                   x1={axis.from.x}
                   y1={axis.from.y}
                   x2={axis.to.x}
                   y2={axis.to.y}
-                  stroke="var(--lv-border)"
-                  stroke-width="1"
+                  stroke="var(--lv-border-subtle)"
+                  stroke-width="0.8"
                 />
                 <text
                   x={axis.labelPoint.x}
@@ -1610,7 +1610,7 @@
           <div class="stack-md" style="margin-top:10px">
             <!-- 核心阻断溯源关键链 -->
             {#if clearancePlan.criticalChain.length > 0}
-              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-2)">
+              <div class="lv-card" style="padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
                   <b style="color:var(--lv-red);font-size:13px;display:flex;align-items:center;gap:6px">
                     <Icon name="alert-triangle" size={13} /> 核心阻断溯源关键链（前修考点薄弱阻断了后续进阶）
@@ -1623,7 +1623,7 @@
                       {kp}
                     </span>
                     {#if ki < clearancePlan.criticalChain.length - 1}
-                      <span style="color:var(--lv-accent);font-weight:bold">➔</span>
+                      <span style="color:var(--lv-accent);display:inline-flex;align-items:center"><Icon name="chev-right" size={13} /></span>
                     {/if}
                   {/each}
                 </div>
@@ -1641,11 +1641,12 @@
             <!-- 逐阶段路线卡片 -->
             <div class="stack-sm">
               {#each clearancePlan.stages as stg (stg.stage)}
-                <div class="lv-card" style="padding:12px 16px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border)">
+                <div class="lv-card" style="padding:14px 18px;background:var(--lv-surface);border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
                   <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-                    <div>
-                      <b style="font-size:14px;color:var(--lv-text)">阶段 {stg.stage} · {stg.kps.map((k) => k.kp.split('/').pop()).join('、')}</b>
-                      <span class="lv-muted" style="font-size:11px;margin-left:8px">共 {stg.totalQuestions || 0} 题 · 包含 {stg.kps.length} 个考点</span>
+                    <div class="lv-row" style="align-items:center;gap:8px">
+                      <span class="lv-chip sm lv-chip--acc num" style="font-weight:700">阶段 {stg.stage}</span>
+                      <b style="font-size:14px;color:var(--lv-text)">{stg.kps.map((k) => k.kp.split('/').pop()).join('、')}</b>
+                      <span class="lv-muted" style="font-size:11px">共 {stg.totalQuestions || 0} 题 · 包含 {stg.kps.length} 个考点</span>
                     </div>
                     {#if stg.kps.length > 0}
                       <button class="lv-btn sm lv-btn--primary" onclick={() => startWeakDrill(stg.kps[0].kp.split('/')[0])}>
@@ -1810,16 +1811,59 @@
     <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "evidence"}>
         <b>{t("mock.history")}</b>
         <p class="lv-muted">{t("mock.historyScope", "历史记录可能来自不同题库、卷面或时长，百分比仅供回看，不直接比较进步或能力。")}</p>
-        <svg viewBox="0 0 300 110" style="width:100%;max-width:420px;display:block" role="img" aria-label={t("mock.history")}>
-          <polyline points={mockHistory.map((h, i) => `${(i / Math.max(1, mockHistory.length - 1)) * 300},${100 - Math.round(h.percent)}`).join(" ")} fill="none" stroke="var(--lv-accent)" stroke-width="2" />
+        <svg viewBox="0 0 300 110" style="width:100%;max-width:420px;display:block;overflow:visible" role="img" aria-label={t("mock.history")}>
+          <defs>
+            <linearGradient id="lv-mock-history-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--lv-data-accent)" stop-opacity="0.2" />
+              <stop offset="100%" stop-color="var(--lv-data-accent)" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="105" x2="300" y2="105" stroke="var(--lv-border-subtle)" stroke-width="0.8" />
+          <polygon
+            points={`0,105 ${mockHistory.map((h, i) => `${(i / Math.max(1, mockHistory.length - 1)) * 300},${100 - Math.round(h.percent)}`).join(" ")} 300,105`}
+            fill="url(#lv-mock-history-fill)"
+          />
+          <polyline
+            points={mockHistory.map((h, i) => `${(i / Math.max(1, mockHistory.length - 1)) * 300},${100 - Math.round(h.percent)}`).join(" ")}
+            fill="none"
+            stroke="var(--lv-data-accent)"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          {#each mockHistory as h, i (i)}
+            <circle
+              cx={(i / Math.max(1, mockHistory.length - 1)) * 300}
+              cy={100 - Math.round(h.percent)}
+              r="3.5"
+              fill="var(--lv-data-accent)"
+              stroke="var(--lv-surface)"
+              stroke-width="2"
+            >
+              <title>{h.name ?? `第${i+1}次`} · {Math.round(h.percent)}%</title>
+            </circle>
+          {/each}
         </svg>
       </div>
     {/if}
 
     <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "evidence"}>
       <b>{t("report.hourly")}</b>
-      <svg viewBox="0 0 300 46" style="width:100%;max-width:420px;display:block" role="img" aria-label={t("report.hourly")}>
-        <polyline points={hoursSvg} fill="none" stroke="var(--lv-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      <svg viewBox="0 0 300 46" style="width:100%;max-width:420px;display:block;overflow:visible" role="img" aria-label={t("report.hourly")}>
+        <defs>
+          <linearGradient id="lv-hourly-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--lv-data-accent)" stop-opacity="0.2" />
+            <stop offset="100%" stop-color="var(--lv-data-accent)" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        <line x1="0" y1="42" x2="300" y2="42" stroke="var(--lv-border-subtle)" stroke-width="0.8" />
+        {#if hours.some((n) => n > 0)}
+          <polygon
+            points={`0,42 ${hoursSvg} 300,42`}
+            fill="url(#lv-hourly-fill)"
+          />
+        {/if}
+        <polyline points={hoursSvg} fill="none" stroke="var(--lv-data-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
       <div class="lv-row" style="margin:4px 0 0">
         <button class="lv-btn sm lv-btn--ghost" aria-expanded={tableOpen === "hourly"} onclick={() => tableOpen = tableOpen === "hourly" ? "" : "hourly"}><Icon name="table" size={13} /> {t("data.table")}</button>
