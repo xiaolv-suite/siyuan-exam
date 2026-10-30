@@ -49,7 +49,7 @@
 
 {#if worst}
     <button class="lv-save-status lv-save-{worst}" onclick={detail} title={t("save.detailTitle")}>
-        <Icon name="save" size={13} /> {t("save." + worst)} {count}
+        <Icon name={worst === "failed" ? "alert-triangle" : "save"} size={13} /> {t("save." + worst)} {count}
     </button>
 {/if}
 <style>

@@ -240,6 +240,51 @@
     transform: translateY(-0.5px);
   }
 }
+
+/* —— 命题工坊二级导航胶囊切换（StudioSubNav：分段胶囊控制） —— */
+.lv-studio-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--lv-surface-2);
+  border: 1px solid var(--lv-border-subtle);
+  border-radius: var(--lv-radius-pill);
+  margin-bottom: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.lv-studio-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--lv-radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lv-text-2);
+  font-size: var(--lv-font-size-sm);
+  font-weight: var(--lv-font-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--lv-dur-micro) var(--lv-ease-out),
+              color var(--lv-dur-micro) var(--lv-ease-out),
+              box-shadow var(--lv-dur-micro) var(--lv-ease-out);
+
+  &:hover:not(:disabled) {
+    color: var(--lv-accent);
+    background: color-mix(in srgb, var(--lv-accent-soft) 60%, transparent);
+  }
+
+  &.active {
+    background: var(--lv-surface);
+    color: var(--lv-accent);
+    font-weight: var(--lv-font-weight-semibold);
+    box-shadow: var(--lv-sh-1);
+    border-color: var(--lv-border-subtle);
+  }
+}
+
 [data-exam-role="teacher"] {
   --b3-theme-primary: var(--lv-teacher-primary);
   --lv-accent: var(--lv-teacher-primary);
