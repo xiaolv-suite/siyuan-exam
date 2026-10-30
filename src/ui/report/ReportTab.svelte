@@ -1268,14 +1268,14 @@
               <span class="v num">{quad.cells.sureWrong}</span>
               <span class="l" style="display:inline-flex;align-items:center;gap:3px">
                 <span>{t("quad.sureWrong")}</span>
-                <Icon name={cwOpen ? "chev-left" : "chev-right"} size={10} />
+                <Icon name={cwOpen ? "arrow-down" : "chev-right"} size={10} />
               </span>
             </div>
             <div class="lv-quad lv-quad--amb" role="button" tabindex="0" title="点击下钻查看瞎猜却答对的题目" onclick={() => ucOpen = !ucOpen} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ucOpen = !ucOpen; } }} style="cursor:pointer">
               <span class="v num">{quad.cells.guessedRight}</span>
               <span class="l" style="display:inline-flex;align-items:center;gap:3px">
                 <span>{t("quad.guessedRight")}</span>
-                <Icon name={ucOpen ? "chev-left" : "chev-right"} size={10} />
+                <Icon name={ucOpen ? "arrow-down" : "chev-right"} size={10} />
               </span>
             </div>
             <div class="lv-quad"><span class="v num">{quad.cells.fuzzyRight}</span><span class="l">{t("quad.fuzzyRight")}</span></div>
@@ -1320,7 +1320,7 @@
         </div>
       {/if}
       <button class="lv-btn sm lv-btn--ghost" style="margin:4px 0;display:inline-flex;align-items:center;gap:4px" aria-expanded={expOpen} onclick={() => expOpen = !expOpen}>
-        <Icon name={expOpen ? "chev-left" : "chev-right"} size={11} />
+        <Icon name={expOpen ? "arrow-down" : "chev-right"} size={11} />
         <span>{expOpen ? t("exposure.hide") : t("exposure.drill")}</span>
       </button>
       {#if expOpen}
@@ -1729,7 +1729,7 @@
         {#if calib.rows.some((r) => r.confidence === "sure" && r.accuracy < 80 && r.attempts > 0)}
           <!-- 44-02 lite：确定-错 下钻（低样本不误导，样本门槛沿用校准卡口径） -->
           <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" onclick={() => cwOpen = !cwOpen}>
-            <Icon name={cwOpen ? "chev-left" : "chev-right"} size={11} />
+            <Icon name={cwOpen ? "arrow-down" : "chev-right"} size={11} />
             <span>{t("report.cwDrill")}</span>
           </button>
           {#if cwOpen}
@@ -1750,7 +1750,7 @@
         {#if calib.rows.some((r) => (r.confidence === "fuzzy" || r.confidence === "guess") && r.accuracy > 0 && r.attempts > 0)}
           <!-- 44-02 lite 对偶：不确定-对 下钻（运气/直觉 vs 真实掌握） -->
           <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" onclick={() => ucOpen = !ucOpen}>
-            <Icon name={ucOpen ? "chev-left" : "chev-right"} size={11} />
+            <Icon name={ucOpen ? "arrow-down" : "chev-right"} size={11} />
             <span>{t("report.ucDrill")}</span>
           </button>
           {#if ucOpen}

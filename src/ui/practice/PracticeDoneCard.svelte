@@ -106,7 +106,7 @@
     </div>
     {#if sessionDone.initialTotal}
       <div class="lv-row" style="justify-content:center;gap:var(--lv-space-2);margin:6px 0 2px" role="status">
-        <span class="lv-chip num" title={t("session.initialRateTip")}>
+        <span class="lv-chip lv-chip--data num" title={t("session.initialRateTip")}>
           {t("session.initialAccuracy")}: {Math.round((sessionDone.initialCorrect / sessionDone.initialTotal) * 100)}% ({sessionDone.initialCorrect}/{sessionDone.initialTotal})
         </span>
         {#if (sessionDone.delayedTotal ?? 0) > 0}

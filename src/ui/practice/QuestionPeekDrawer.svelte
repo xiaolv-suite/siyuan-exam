@@ -306,7 +306,7 @@
             <button class="lv-btn sm lv-btn--ghost" onclick={() => (editSpecOpen = !editSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
               <Icon name="edit" size={12} />
               <span>{t("spec.authorSection")}</span>
-              <Icon name={editSpecOpen ? "chev-left" : "chev-right"} size={11} />
+              <Icon name={editSpecOpen ? "arrow-down" : "chev-right"} size={11} />
             </button>
           </div>
           {#if editSpecOpen}
