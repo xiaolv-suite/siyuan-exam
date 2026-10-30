@@ -205,7 +205,7 @@
   {:else}
     {#if importCheckpoint}
       <!-- 38-04 / U08：未完成导入任务断点恢复提示条 -->
-      <div class="lv-card lv-pad-card" style="margin-bottom:12px;border-left:3px solid var(--lv-accent);background:var(--lv-surface-2)">
+      <div class="lv-card lv-pad-card" style="margin-bottom:12px;border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-card, 16px);background:var(--lv-surface-2);box-shadow:var(--lv-sh-1)">
         <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div>
             <b><Icon name="activity" size={14} /> {t("import.checkpointTitle")}</b>
@@ -254,7 +254,7 @@
           <div class="lv-row" style="margin:0;gap:6px;align-items:center">
             <input class="lv-input sm" style="flex:1" placeholder={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
             {#if docSearchQuery}
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索">✕</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索" aria-label="清空搜索"><Icon name="close" size={12} /></button>
             {/if}
             <button class="lv-btn sm" onclick={() => { if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer); onDoSearchDocs(docSearchQuery); }} disabled={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
           </div>
@@ -327,7 +327,7 @@
         {#if clozeParsedItems.length}
           <div class="stack-sm" style="margin-top:10px;max-height:300px;overflow:auto">
             {#each clozeParsedItems as it, idx (idx)}
-              <div class="lv-card" style="padding:8px 12px;background:var(--lv-surface-2)">
+              <div class="lv-card" style="padding:10px 14px;background:var(--lv-surface);border-radius:var(--lv-r-card, 14px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
                 <div class="lv-row" style="justify-content:space-between;margin:0 0 4px">
                   <b class="num" style="color:var(--lv-accent)">#{idx + 1} 填空题</b>
                   <span class="lv-chip num sm">{it.blankCount} 空</span>
@@ -480,7 +480,7 @@
           {#if importReport.errors.length > 20}<div class="lv-muted num">… +{importReport.errors.length - 20}</div>{/if}
           {#if importReport.errors.length}
             <div class="lv-row">
-              <button class="lv-btn sm" onclick={onDownloadErrorsCsv}>⬇️ {t("import.exportErrors")}</button>
+              <button class="lv-btn sm" onclick={onDownloadErrorsCsv}><Icon name="export" size={13} /> {t("import.exportErrors")}</button>
             </div>
           {/if}
           {#if lastMap}
