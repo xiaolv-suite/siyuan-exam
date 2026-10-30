@@ -116,7 +116,7 @@
     <span class="lv-chip">{t("manual.title")}</span>
     <button class="lv-btn sm" onclick={onopenOcrModal} title="粘贴试题识别文本一键智能提取填入表单"><Icon name="camera" size={13} /> {t("manual.ocrFastFill")}</button>
     <button class="lv-btn sm" onclick={onnormalizeFormulas} title="清洗题干与选项中公式的空格与语法"><Icon name="sparkles" size={13} /> {t("manual.formulaNormalize")}</button>
-    <select class="lv-select" style="max-width:135px" onchange={(e) => {
+    <select class="lv-select" style="max-width:135px" aria-label="插入数学图表" onchange={(e) => {
       const val = (e.target as HTMLSelectElement).value;
       if (!val) return;
       if (val === "plot") {
@@ -167,6 +167,12 @@
   {/if}
   <div class="lv-studio-grid lv-studio-grid--manual">
     <div class="lv-card lv-pad-card lv-studio-form" data-manual-form>
+      {#if manualErrorMsg}
+        <div class="lv-error" id="manual-validation-error" role="alert" tabindex="-1" style="display:flex;align-items:center;gap:6px;margin:0 0 12px">
+          <Icon name="alert-triangle" size={14} />
+          <span>{manualErrorMsg}</span>
+        </div>
+      {/if}
       <div class="lv-row" style="margin:0 0 12px;gap:var(--lv-space-3);flex-wrap:wrap">
         <div class="lv-session-dock" role="group" aria-label={t("manual.type", "题型")}>
           <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("manual.type")}</span>
@@ -278,7 +284,7 @@
         </div>
         {#if mType === "fill"}
           <div class="lv-row" style="margin:4px 0 0">
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mSpecOpen = !mSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
+            <button class="lv-btn sm lv-btn--ghost" aria-expanded={mSpecOpen} onclick={() => (mSpecOpen = !mSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
               <Icon name="edit" size={12} />
               <span>{t("spec.authorSection")}</span>
               <Icon name={mSpecOpen ? "arrow-down" : "chev-right"} size={10} />
@@ -303,12 +309,12 @@
         {/if}
         {#if mType === "short"}
           <div class="lv-row" style="margin:4px 0 0">
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mRubricOpen = !mRubricOpen)} style="display:inline-flex;align-items:center;gap:4px">
+            <button class="lv-btn sm lv-btn--ghost" aria-expanded={mRubricOpen} onclick={() => (mRubricOpen = !mRubricOpen)} style="display:inline-flex;align-items:center;gap:4px">
               <Icon name="clipboard" size={12} />
               <span>{t("rubric.authorSection")}</span>
               <Icon name={mRubricOpen ? "arrow-down" : "chev-right"} size={10} />
             </button>
-            {#if authorRubricPreview}<span class="lv-chip num">{t("rubric.criteriaCount").replace("{n}", String(authorRubricPreview.criteria.length))}</span>{/if}
+            {#if authorRubricPreview}<span class="lv-chip lv-chip--data num">{t("rubric.criteriaCount").replace("{n}", String(authorRubricPreview.criteria.length))}</span>{/if}
           </div>
           {#if mRubricOpen}
             <div class="lv-field">
@@ -322,7 +328,7 @@
               <div class="lv-detail" style="margin:4px 0 0;padding:8px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle)">
                 {#each authorRubricPreview.criteria as c, ci (ci)}
                   <div class="lv-row" style="margin:2px 0;gap:var(--lv-space-2)">
-                    <span class="lv-chip num">{Math.round(c.weight * 100)}%</span>
+                    <span class="lv-chip lv-chip--data num">{Math.round(c.weight * 100)}%</span>
                     <span style="font-size:var(--lv-font-size-sm)">{c.label}</span>
                     {#if c.example}<span class="lv-muted" style="font-size:var(--lv-font-size-caption)">· {c.example}</span>{/if}
                   </div>
@@ -344,7 +350,7 @@
       </div>
       <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
         <span class="lv-chip"><Icon name="volume" size={12} /> 朗读语言</span>
-        <select class="lv-select" bind:value={mStudyLang} style="max-width:140px;height:28px">
+        <select class="lv-select" bind:value={mStudyLang} aria-label="朗读语言" style="max-width:140px;height:28px">
           <option value="zh-CN">普通话 (zh-CN)</option>
           <option value="zh-HK">粤语 (zh-HK)</option>
           <option value="en-US">英语 (en-US)</option>
@@ -354,7 +360,7 @@
         <input id="lv-manual-phonetic" class="lv-input" style="flex:1;min-width:160px;font-family:monospace" bind:value={mStudyPhonetic} placeholder="例如：m4 goi1 或拼音/音标（可选）" />
       </div>
       <div class="lv-row">
-        {#if manualErrorMsg}<p class="lv-error" id="manual-validation-error" role="alert">{manualErrorMsg}</p>{/if}
+        {#if manualErrorMsg}<p class="lv-error" id="manual-validation-error-bottom" role="alert" style="margin:0;display:inline-flex;align-items:center;gap:4px"><Icon name="alert-triangle" size={13} /> {manualErrorMsg}</p>{/if}
         <button class="lv-btn lv-btn--primary" onclick={() => onsaveManual("published")} disabled={mSaving || !mStem.trim() || (mStatus === "published" && !mAnswer.trim() && mType !== "short")}>
           {mSaving ? "…" : mStatus === "draft" ? t("manual.saveDraft") : t("manual.save")}
         </button>

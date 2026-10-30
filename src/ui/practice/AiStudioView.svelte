@@ -137,7 +137,7 @@
     <div class="lv-card lv-pad-card lv-ai-source-card">
       <div class="lv-section-head">
         <div><span class="lv-eyebrow">材料</span><h2>{t("ai.source")}</h2></div>
-        <span class="lv-chip">{aiSource.length} 字</span>
+        <span class="lv-chip num">{aiSource.length} 字</span>
       </div>
       <div class="lv-field">
         <span class="lv-muted">{t("ai.source")}</span>
@@ -171,13 +171,13 @@
         <div class="lv-session-dock" role="group" aria-label={t("ai.count")}>
           <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.count")}</span>
           {#each [3, 5, 10, 20] as n, _i (_i)}
-            <button type="button" class="lv-chip" class:acc={aiCount === n} onclick={() => (aiCount = n)}>{n}</button>
+            <button type="button" class="lv-chip" class:acc={aiCount === n} aria-pressed={aiCount === n} onclick={() => (aiCount = n)}>{n}</button>
           {/each}
         </div>
         <div class="lv-session-dock" role="group" aria-label={t("ai.difficulty")}>
           <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.difficulty")}</span>
           {#each (["easy", "medium", "hard", "mixed"] as const) as d, _i (_i)}
-            <button type="button" class="lv-chip" class:acc={aiDifficulty === d} onclick={() => (aiDifficulty = d)}>{t("ai.diff." + d)}</button>
+            <button type="button" class="lv-chip" class:acc={aiDifficulty === d} aria-pressed={aiDifficulty === d} onclick={() => (aiDifficulty = d)}>{t("ai.diff." + d)}</button>
           {/each}
         </div>
       </div>
@@ -185,13 +185,13 @@
         <div class="lv-session-dock" role="group" aria-label={t("ai.preset")}>
           <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.preset")}</span>
           {#each ["default", "medical", "legal", "exam_cn"] as p, _i (_i)}
-            <button type="button" class="lv-chip" class:acc={aiPreset === p} onclick={() => (aiPreset = p)}>{t("ai.preset." + p)}</button>
+            <button type="button" class="lv-chip" class:acc={aiPreset === p} aria-pressed={aiPreset === p} onclick={() => (aiPreset = p)}>{t("ai.preset." + p)}</button>
           {/each}
         </div>
         <div class="lv-session-dock" role="group" aria-label={t("ai.quality")}>
           <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.quality")}</span>
-          <button type="button" class="lv-chip" class:acc={aiQuality === "standard"} onclick={() => (aiQuality = "standard")}>{t("ai.quality.standard")}</button>
-          <button type="button" class="lv-chip" class:acc={aiQuality === "economy"} onclick={() => (aiQuality = "economy")}>{t("ai.quality.economy")}</button>
+          <button type="button" class="lv-chip" class:acc={aiQuality === "standard"} aria-pressed={aiQuality === "standard"} onclick={() => (aiQuality = "standard")}>{t("ai.quality.standard")}</button>
+          <button type="button" class="lv-chip" class:acc={aiQuality === "economy"} aria-pressed={aiQuality === "economy"} onclick={() => (aiQuality = "economy")}>{t("ai.quality.economy")}</button>
         </div>
       </div>
       <div class="lv-row">
@@ -203,14 +203,14 @@
         <input class="lv-input" style="flex:1;min-width:200px" bind:value={aiCustomHint} placeholder={t("ai.customHintHint")} />
       </div>
       <div class="lv-row">
-        <button class="lv-btn lv-btn--primary" onclick={ongenerate} disabled={aiMutationBusy || !aiSource.trim() || !hasBank} title={!hasBank ? t("guard.needBankFirst") : t("ai.generate")}>
+        <button class="lv-btn lv-btn--primary" onclick={ongenerate} disabled={aiMutationBusy || !aiSource.trim() || !hasBank} aria-busy={aiBusy} title={!hasBank ? t("guard.needBankFirst") : t("ai.generate")}>
           {aiBusy ? t("ai.generating") : t("ai.generate")}
         </button>
         {#if aiBusy || aiRegenBusy}
           <button class="lv-btn sm" onclick={oncancel} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={12} /> {t("ai.cancel")}</button>
         {/if}
         <span class="lv-muted">{t("ai.pipelineNote")}</span>
-        {#if aiUsageTotal}<span class="lv-chip num" style="display:inline-flex;align-items:center;gap:4px" title={t("ai.usageTitle")}><Icon name="activity" size={11} /> ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
+        {#if aiUsageTotal}<span class="lv-chip lv-chip--data num" style="display:inline-flex;align-items:center;gap:4px" title={t("ai.usageTitle")}><Icon name="activity" size={11} /> ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
       </div>
     </div>
     <section class="lv-ai-review">
@@ -241,7 +241,7 @@
             {/if}
           </div>
         </div>
-        {#if aiSaved}<div class="lv-success num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={13} /> {t("ai.saved")} {aiSaved}</div>{/if}
+        {#if aiSaved}<div class="lv-success num" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={13} /> {t("ai.saved")} {aiSaved}</div>{/if}
         {#each aiQueue as q (q.id)}
           <div class="lv-card lv-qrow">
             <div class="lv-qrow-head">
@@ -255,7 +255,7 @@
                 <div class="lv-row" style="margin:4px 0 0">
                   <span class="lv-chip num">{String.fromCharCode(65 + i)}</span>
                   <input class="lv-input" bind:value={aiEditDraft.options[i]} />
-                  <button class="lv-btn sm lv-btn--ghost" title={t("manual.setCorrect")} aria-label={t("manual.setCorrect")} onclick={() => { aiEditDraft.answer = String.fromCharCode(65 + i); }}><Icon name="check" size={12} /></button>
+                  <button class="lv-btn sm lv-btn--ghost" title={t("manual.setCorrect")} aria-label={t("manual.setCorrect")} aria-pressed={aiEditDraft.answer === String.fromCharCode(65 + i)} onclick={() => { aiEditDraft.answer = String.fromCharCode(65 + i); }}><Icon name="check" size={12} /></button>
                 </div>
               {/each}
               <div class="lv-row" style="margin:4px 0 0">
@@ -263,7 +263,7 @@
                 <input class="lv-input" style="max-width:120px" bind:value={aiEditDraft.answer} />
                 <input class="lv-input" style="flex:1" bind:value={aiEditDraft.analysis} placeholder={t("manual.analysis")} />
               </div>
-              {#if aiEditError}<div class="lv-error">{aiEditError}</div>{/if}
+              {#if aiEditError}<div class="lv-error" role="alert">{aiEditError}</div>{/if}
               <div class="lv-row" style="margin:8px 0 0">
                 <button class="lv-btn sm lv-btn--primary" onclick={() => onsaveEdit(q)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={13} /> {t("ai.editSave")}</button>
                 <button class="lv-btn sm lv-btn--ghost" onclick={oncancelEdit}>{t("ai.editCancel")}</button>
@@ -281,7 +281,7 @@
               <div class="lv-row" style="margin:8px 0 0">
                 <button class="lv-btn sm lv-btn--primary" onclick={() => onapproveOne(q)} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={13} /> {t("ai.approve")}</button>
                 <button class="lv-btn sm" onclick={() => onstartEdit(q)} disabled={aiMutationBusy} style="display:inline-flex;align-items:center;gap:4px"><Icon name="edit" size={13} /> {t("ai.edit")}</button>
-                <button class="lv-btn sm" disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} onclick={() => onregenOne(q)}><Icon name="rotate" size={13} /> {aiRegenBusy === q.id ? "…" : t("ai.regen")}</button>
+                <button class="lv-btn sm" disabled={aiMutationBusy || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} aria-busy={aiRegenBusy === q.id} onclick={() => onregenOne(q)}><Icon name="rotate" size={13} /> {aiRegenBusy === q.id ? "…" : t("ai.regen")}</button>
                 <button class="lv-btn sm lv-btn--ghost" onclick={() => ondropOne(q)} disabled={aiMutationBusy} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={13} /> {t("ai.drop")}</button>
               </div>
             {/if}

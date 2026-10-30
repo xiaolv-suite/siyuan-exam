@@ -300,7 +300,7 @@
               {#each siyuanDocCandidates as doc (doc.id)}
                 <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--lv-border-subtle);gap:8px">
                   <div class="lv-row" style="margin:0;gap:8px;align-items:center;flex:1;min-width:0">
-                    <input type="checkbox" checked={!!selectedDocIds[doc.id]} onchange={(e) => {
+                    <input type="checkbox" aria-label={`选择文档: ${doc.title}`} checked={!!selectedDocIds[doc.id]} onchange={(e) => {
                       const checked = (e.target as HTMLInputElement).checked;
                       if (checked) selectedDocIds[doc.id] = true;
                       else { delete selectedDocIds[doc.id]; selectedDocIds = { ...selectedDocIds }; }
@@ -320,11 +320,11 @@
         </div>
       {:else if importSubTab === "cloze"}
         <!-- 52-09 正文划重点挖空出题工作台 -->
-        <div class="lv-row" style="margin:4px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
+        <div class="lv-row" role="group" aria-label="识别语法模式" style="margin:4px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
           <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">识别语法：</span>
-          <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("highlight")} onclick={() => onToggleClozeMode("highlight")}>{t("cloze.modeHighlight")}</button>
-          <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("curly")} onclick={() => onToggleClozeMode("curly")}>{t("cloze.modeCurly")}</button>
-          <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("bracket")} onclick={() => onToggleClozeMode("bracket")}>{t("cloze.modeBracket")}</button>
+          <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("highlight")} aria-pressed={clozeModes.includes("highlight")} onclick={() => onToggleClozeMode("highlight")}>{t("cloze.modeHighlight")}</button>
+          <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("curly")} aria-pressed={clozeModes.includes("curly")} onclick={() => onToggleClozeMode("curly")}>{t("cloze.modeCurly")}</button>
+          <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("bracket")} aria-pressed={clozeModes.includes("bracket")} onclick={() => onToggleClozeMode("bracket")}>{t("cloze.modeBracket")}</button>
         </div>
         <textarea class="lv-input lv-textarea" rows="6" placeholder={t("cloze.placeholder")} bind:value={clozeInputText} disabled={importBusy || clozeImporting}></textarea>
         <div class="lv-row" style="margin:8px 0">
@@ -364,7 +364,7 @@
         <textarea class="lv-input lv-textarea" rows="8" placeholder={t("import.placeholder")} bind:value={importText} disabled={importBusy}></textarea>
         <div class="lv-row">
           <button class="lv-btn lv-btn--primary" onclick={onDoParseText} disabled={importBusy || !importText.trim()} title={importText.trim() ? t("import.parse") : t("import.needInput")}>{importParsing ? t("import.parsing") : t("import.parse")}</button>
-          <select class="lv-select" bind:value={dupeStrategy} onchange={onImportStrategyChange} disabled={importBusy} title={t("import.strategyHint")}>
+          <select class="lv-select" bind:value={dupeStrategy} onchange={onImportStrategyChange} disabled={importBusy} title={t("import.strategyHint")} aria-label={t("import.strategyHint")}>
             <option value="skip">{t("import.strategySkip")}</option>
             <option value="coexist">{t("import.strategyCoexist")}</option>
             <option value="update">{t("import.strategyUpdate")}</option>
@@ -374,7 +374,7 @@
         {#if savedMappings.length}
           <div class="lv-row">
             <span class="lv-chip">{t("import.useMapping")}</span>
-            <select class="lv-select" style="max-width:220px" bind:value={selectedMapping} disabled={importBusy}>
+            <select class="lv-select" style="max-width:220px" bind:value={selectedMapping} disabled={importBusy} aria-label={t("import.useMapping")}>
               <option value="">{t("import.autoMap")}</option>
               {#each savedMappings as m, _i (_i)}<option value={m.name}>{m.name}</option>{/each}
             </select>
@@ -382,7 +382,7 @@
         {/if}
         {#if sheetRowsCache.get(activeSheet)?.length}
           <div class="lv-row">
-            <button class="lv-btn sm" onclick={onToggleMapEditor} disabled={importBusy}><Icon name="pencil" size={13} /> {t("import.manualMap")}</button>
+            <button class="lv-btn sm" onclick={onToggleMapEditor} disabled={importBusy} aria-expanded={mapEditorOpen}><Icon name="pencil" size={13} /> {t("import.manualMap")}</button>
             {#if manualMap}<span class="lv-chip lv-chip--acc">{t("import.manualMapActive")}</span>{/if}
           </div>
           {#if mapEditorOpen}
@@ -424,7 +424,7 @@
             </div>
           {/if}
         {/if}
-        {#if importError}<div class="lv-error">{importError}</div>{/if}
+        {#if importError}<div class="lv-error" role="alert">{importError}</div>{/if}
         {#if importReport}
           <p class="lv-muted">{t("import.target").replace("{name}", banks.find((b) => b.id === importPreviewBankId)?.name ?? importPreviewBankId)}</p>
           <div class="lv-row">
@@ -495,7 +495,7 @@
                 {:else}
                   <textarea class="lv-input lv-textarea" rows="5" bind:value={fixText} aria-label={t("import.rowFixText")}></textarea>
                 {/if}
-                {#if fixNote}<div class="lv-error">{fixNote}</div>{/if}
+                {#if fixNote}<div class="lv-error" role="alert">{fixNote}</div>{/if}
                 <div class="lv-row">
                   <button class="lv-btn lv-btn--primary sm" disabled={importBusy || (!fixCells.length && !fixText.trim())} onclick={() => onApplyRowFix(err.row)}>{t("import.rowFixApply")}</button>
                   <button class="lv-btn sm lv-btn--ghost" onclick={onCancelRowFix}>{t("edit.cancel")}</button>
@@ -515,7 +515,7 @@
             </div>
           {/if}
           <div class="lv-row">
-            <button class="lv-btn lv-btn--primary" onclick={onCommitImport} disabled={importBusy || (!remainingImportQuestions.length && !importReport.updates?.length && !trialConfirmed.length)}>
+            <button class="lv-btn lv-btn--primary" onclick={onCommitImport} disabled={importBusy || (!remainingImportQuestions.length && !importReport.updates?.length && !trialConfirmed.length)} aria-busy={committing}>
               {committing ? t("import.committing") : importReport.updates?.length ? t("import.commitSummary").replace("{new}", String(remainingImportQuestions.length)).replace("{update}", String(importReport.updates.length)) : remainingImportQuestions.length ? t("import.commit") + " (" + remainingImportQuestions.length + ")" : t("import.finishTrial")}
             </button>
             <button class="lv-btn sm" onclick={onTrialImport5} disabled={importBusy || !remainingImportQuestions.length}>

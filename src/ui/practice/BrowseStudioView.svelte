@@ -497,13 +497,13 @@
         <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { searchText = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:6px;padding:2px 6px;min-width:24px;min-height:24px"><Icon name="close" size={12} /></button>
       {/if}
     </div>
-    <select class="lv-select" style="max-width:115px" bind:value={filterType} onchange={onbrowseLimit200}>
+    <select class="lv-select" style="max-width:115px" bind:value={filterType} onchange={onbrowseLimit200} aria-label={t("browse.fAnyType")}>
       <option value="">{t("browse.fAnyType")}</option>
       {#each ["single", "multiple", "judge", "fill", "short", "material"] as tp, _i (_i)}
         <option value={tp}>{t("qtype." + tp)}</option>
       {/each}
     </select>
-    <select class="lv-select" style="max-width:115px" bind:value={filterStatus} onchange={onbrowseLimit200} title={t("browse.filterStatus")}>
+    <select class="lv-select" style="max-width:115px" bind:value={filterStatus} onchange={onbrowseLimit200} title={t("browse.filterStatus")} aria-label={t("browse.filterStatus")}>
       <option value="">{t("browse.filterStatusAll")}</option>
       <option value="published">{t("lifecycle.published")}</option>
       <option value="review">{t("lifecycle.review")}</option>
@@ -511,12 +511,12 @@
       <option value="deprecated">{t("lifecycle.deprecated")}</option>
     </select>
     {#if sourceOptions.length}
-      <select class="lv-select" style="max-width:130px" bind:value={filterSource} onchange={onbrowseLimit200} title={t("browse.fSource")}>
+      <select class="lv-select" style="max-width:130px" bind:value={filterSource} onchange={onbrowseLimit200} title={t("browse.fSource")} aria-label={t("browse.fSource")}>
         <option value="">{t("browse.fAnySource")}</option>
         {#each sourceOptions as src, _i (_i)}<option value={src}>{src}</option>{/each}
       </select>
     {/if}
-    <select class="lv-select" style="max-width:115px" bind:value={filterDays} title={t("browse.fDaysTip")}>
+    <select class="lv-select" style="max-width:115px" bind:value={filterDays} title={t("browse.fDaysTip")} aria-label={t("browse.fDaysTip")}>
       <option value={0}>{t("browse.fAnyDay")}</option>
       <option value={1}>{t("browse.fToday")}</option>
       <option value={7}>{t("browse.f7")}</option>
@@ -526,20 +526,20 @@
   <div class="lv-row" style="margin:0 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
       <div class="lv-session-dock" role="group" aria-label="状态快速过滤">
-        <button class="lv-chip" class:acc={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={11} /> {t("browse.fWrong")}</button>
-        <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
-        <button class="lv-chip" class:acc={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
-        <button class="lv-chip" class:acc={favOnly} onclick={() => (favOnly = !favOnly)}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
+        <button class="lv-chip" class:acc={filterWrong} aria-pressed={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={11} /> {t("browse.fWrong")}</button>
+        <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} aria-pressed={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
+        <button class="lv-chip" class:acc={filterHelp} aria-pressed={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
+        <button class="lv-chip" class:acc={favOnly} aria-pressed={favOnly} onclick={() => (favOnly = !favOnly)}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
       </div>
       <div class="lv-session-dock" role="group" aria-label="考点标签过滤">
-        <button class="lv-chip" class:acc={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}><Icon name="star" size={12} /> {t("session.tagStar")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}><Icon name="alert-triangle" size={12} /> {t("session.tagTrap")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}><Icon name="help" size={12} /> {t("session.tagDoubt")}</button>
+        <button class="lv-chip" class:acc={filterUserTag === "star"} aria-pressed={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}><Icon name="star" size={12} /> {t("session.tagStar")}</button>
+        <button class="lv-chip" class:acc={filterUserTag === "trap"} aria-pressed={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}><Icon name="alert-triangle" size={12} /> {t("session.tagTrap")}</button>
+        <button class="lv-chip" class:acc={filterUserTag === "doubt"} aria-pressed={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}><Icon name="help" size={12} /> {t("session.tagDoubt")}</button>
       </div>
     </div>
     <div class="lv-row" style="margin:0;gap:6px">
       {#if smartViews.length}
-        <select class="lv-select" style="max-width:140px" bind:value={selectedView} onchange={() => onapplyNamedView(selectedView)} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed}>
+        <select class="lv-select" style="max-width:140px" bind:value={selectedView} onchange={() => onapplyNamedView(selectedView)} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} aria-label={t("view.pick")}>
           <option value="">{t("view.pick")}</option>
           {#each smartViews as v, _i (_i)}<option value={v.name}>{v.name}</option>{/each}
         </select>
@@ -558,14 +558,14 @@
   {/if}
   <div class="lv-row" style="margin:0 0 10px;gap:var(--lv-space-2) 8px">
     <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onbackToEntry} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
-    <span class="lv-chip num">{shownQuestions.length}/{questions.length} {t("browse.count")}</span>
+    <span class="lv-chip lv-chip--data num">{shownQuestions.length}/{questions.length} {t("browse.count")}</span>
     {#if shownQuestions.length > 0}
       <button class="lv-btn sm lv-btn--primary" onclick={onstartFilteredFocusDrill} title="将当前筛选出的这批题目直接发起专注特训">
         <Icon name="play" size={13} /> {t("browse.drillFiltered").replace("{n}", String(shownQuestions.length))}
       </button>
     {/if}
-    <button class="lv-chip" class:acc={sectionOpen} onclick={ontoggleSectionTree}><Icon name="file-text" size={13} /> {t("browse.sectionTree")}</button>
-    <button class="lv-chip" class:acc={batchMode} onclick={ontoggleBatchMode}>{t("batch.mode")}</button>
+    <button class="lv-chip" class:acc={sectionOpen} aria-pressed={sectionOpen} onclick={ontoggleSectionTree}><Icon name="file-text" size={13} /> {t("browse.sectionTree")}</button>
+    <button class="lv-chip" class:acc={batchMode} aria-pressed={batchMode} onclick={ontoggleBatchMode}>{t("batch.mode")}</button>
     <div class="lv-more" bind:this={moreRoot}>
       <button class="lv-chip" class:acc={kpOpen || healthOpen || errataOpen || paperOpen} aria-haspopup="menu" aria-expanded={moreOpen}
         onclick={ontoggleMore}>
@@ -691,7 +691,7 @@
     onundoBatch={onundoBatch}
   />
   {#if questionsError}
-    <div class="lv-error">{questionsError}</div>
+    <div class="lv-error" role="alert">{questionsError}</div>
   {:else if !questions.length}
     <div class="lv-empty"><div class="lv-empty-icon"><Icon name="file" size={24} /></div><b>{t("browse.title")}</b><p class="lv-muted">{t("browse.empty")}</p></div>
   {:else if !shownQuestions.length}

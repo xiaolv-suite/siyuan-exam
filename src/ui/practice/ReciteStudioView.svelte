@@ -91,16 +91,16 @@
       <span class="lv-chip num">{reciteCursor + 1}/{reciteQueue.length}</span>
     </div>
     <div class="lv-session-dock" role="group" aria-label="背诵辅助操作">
-      <button type="button" class="lv-chip" class:acc={reciteAutoTts} title="伴学自动朗读开关：开启后自动朗读题干与揭示答案" onclick={ontoggleAutoTts}>
+      <button type="button" class="lv-chip" class:acc={reciteAutoTts} aria-pressed={reciteAutoTts} aria-label="伴学自动朗读开关" title="伴学自动朗读开关：开启后自动朗读题干与揭示答案" onclick={ontoggleAutoTts}>
         <Icon name="volume" size={12} /> {reciteAutoTts ? "伴读开" : "伴读"}
       </button>
-      <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={ontoggleTtsSlow} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
+      <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} aria-pressed={ttsSlowRate} aria-label="切换语音语速" onclick={ontoggleTtsSlow} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
         {ttsSlowRate ? "0.8x" : "1.0x"}
       </button>
-      <button type="button" class="lv-chip num sm" onclick={oncycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
+      <button type="button" class="lv-chip num sm" onclick={oncycleStudyFontSize} aria-label="切换题干字号大小" title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
         A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
       </button>
-      <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => onstartSpeech(reciteQueue[reciteCursor]?.answer || reciteQueue[reciteCursor]?.stem, reciteQueue[reciteCursor]?.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
+      <button type="button" class="lv-chip" class:acc={speechRecording} aria-pressed={speechRecording} aria-label="开启麦克风发音跟读录音" onclick={() => onstartSpeech(reciteQueue[reciteCursor]?.answer || reciteQueue[reciteCursor]?.stem, reciteQueue[reciteCursor]?.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
         <Icon name="mic" size={12} /> {speechRecording ? "跟读中…" : "跟读"}
       </button>
       {#if reciteQueue[reciteCursor]?.group}
@@ -186,7 +186,7 @@
             <div class="lv-analysis"><b>{t("recite.answer")}:</b> {q.answer}</div>
           {/if}
           {#if q.analysis}<div class="lv-analysis">{q.analysis}</div>{/if}
-          <div class="lv-rate">
+          <div class="lv-rate" role="group" aria-label="自评掌握程度">
             <button class="lv-btn r1" disabled={reciteSaving} onclick={() => onrateSelf(1)}><span class="lv-rate-key">1</span> {reciteSaving ? "…" : t("rate.1")}</button>
             <button class="lv-btn r2" disabled={reciteSaving} onclick={() => onrateSelf(2)}><span class="lv-rate-key">2</span> {reciteSaving ? "…" : t("rate.2")}</button>
             <button class="lv-btn r3" disabled={reciteSaving} onclick={() => onrateSelf(3)}><span class="lv-rate-key">3</span> {reciteSaving ? "…" : t("rate.3")}</button>
