@@ -48,18 +48,20 @@ export type BrowseQuestion = Question & SectionableQuestion;
 
 /** 关键词匹配：对题面可见字段做包含匹配（与浏览框同规则）。 */
 export function questionMatchesKeyword(
-  q: Pick<Question, "id" | "stem" | "options" | "analysis" | "kp">,
+  q: Pick<Question, "id" | "stem" | "options" | "analysis" | "kp" | "secondaryKps">,
   keyword: string,
 ): boolean {
   const kw = String(keyword ?? "").trim().toLowerCase();
   if (!kw) return true;
   const opt = Array.isArray(q.options) ? q.options : [];
+  const secondaryKps = Array.isArray(q.secondaryKps) ? q.secondaryKps : [];
   return (
     q.id.toLowerCase().includes(kw) ||
     q.stem.toLowerCase().includes(kw) ||
     opt.some((o) => String(o).toLowerCase().includes(kw)) ||
     (q.analysis ?? "").toLowerCase().includes(kw) ||
-    (q.kp ?? "").toLowerCase().includes(kw)
+    (q.kp ?? "").toLowerCase().includes(kw) ||
+    secondaryKps.some((skp) => skp.toLowerCase().includes(kw))
   );
 }
 

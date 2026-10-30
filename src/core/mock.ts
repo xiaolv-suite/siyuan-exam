@@ -12,6 +12,15 @@ import { calculateItemScore, DEFAULT_SCORING_POLICY, applyScoreRounding, type Sc
 // ---------- 蓝图 ----------
 export type SectionSource = "real" | "mock" | "mixed";
 
+export interface SectionDifficultyQuota {
+  /** 基础题配额或权重（difficulty <= 2，如 7 或 0.7） */
+  easy?: number;
+  /** 中档题配额或权重（difficulty = 3，如 2 或 0.2） */
+  medium?: number;
+  /** 压轴拔高题配额或权重（difficulty >= 4，如 1 或 0.1） */
+  hard?: number;
+}
+
 export interface BlueprintSection {
   name: string;
   count: number;
@@ -20,6 +29,10 @@ export interface BlueprintSection {
   types: Question["type"][]; // 允许的题型（空 = 不限）
   /** 55-02 lite：考点配额（前缀匹配，"资料" 命中 "资料/比重"）；缺口显式计入 shortages，不用其他考点偷偷补齐 */
   kp?: string;
+  /** 是否允许匹配辅助考点 secondaryKps（默认 false 仅匹配主考点 kp） */
+  matchSecondaryKp?: boolean;
+  /** MathCyclus 难度梯度配比（如 7:2:1 基础/中档/压轴分桶抽样；某难度题源不足时邻档柔性平账补齐） */
+  difficultyQuota?: SectionDifficultyQuota;
   indefinite?: boolean; // 不定项：少选按比例部分分、错选全扣（cbt.gradeIndefinite）
 }
 
@@ -115,8 +128,14 @@ export function assemble(
   const matchesTypes = (q: Question, s: BlueprintSection) => !s.types.length || s.types.includes(q.type);
   // 55-02 lite：考点配额按前缀命中（"资料" 命中 "资料/比重"）；即使 source=mixed 补齐也必须满足考点——
   // 配额缺口宁可短缺显式报告，不用其他考点偷偷补齐（55-02 验收口径）
-  const matchesKp = (q: Question, s: BlueprintSection) =>
-    !s.kp || q.kp === s.kp || (q.kp?.startsWith(s.kp + "/") ?? false);
+  const matchesKp = (q: Question, s: BlueprintSection) => {
+    if (!s.kp) return true;
+    if (q.kp === s.kp || (q.kp?.startsWith(s.kp + "/") ?? false)) return true;
+    if (s.matchSecondaryKp && Array.isArray(q.secondaryKps)) {
+      return q.secondaryKps.some((skp) => skp === s.kp || skp.startsWith(s.kp + "/"));
+    }
+    return false;
+  };
 
   for (const s of bp.sections) {
     let pool = bank.filter((q) => !used.has(q.id) && !isQuestionDisputed(q) && matchesSource(q, s) && matchesTypes(q, s) && matchesKp(q, s));
@@ -127,9 +146,73 @@ export function assemble(
       pool = pool.concat(extra);
     }
     const picked: Question[] = [];
-    while (picked.length < s.count && pool.length) {
-      picked.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+
+    // MathCyclus 难度梯度分桶抽样
+    if (s.difficultyQuota && (s.difficultyQuota.easy != null || s.difficultyQuota.medium != null || s.difficultyQuota.hard != null)) {
+      const rawEasy = Math.max(0, s.difficultyQuota.easy ?? 0);
+      const rawMed = Math.max(0, s.difficultyQuota.medium ?? 0);
+      const rawHard = Math.max(0, s.difficultyQuota.hard ?? 0);
+      const totalRaw = rawEasy + rawMed + rawHard;
+
+      // 题目分桶：easy(<=2)、medium(=3)、hard(>=4)
+      const easyPool = pool.filter((q) => (q.difficulty ?? 2) <= 2);
+      const medPool = pool.filter((q) => (q.difficulty ?? 2) === 3);
+      const hardPool = pool.filter((q) => (q.difficulty ?? 2) >= 4);
+
+      let targetEasy = 0;
+      let targetMed = 0;
+      let targetHard = 0;
+
+      if (totalRaw > 0) {
+        // 使用最大余额法分配各档配额，避免某档因简单四舍五入被截断归零
+        const quotas = [
+          { key: "easy", weight: rawEasy },
+          { key: "med", weight: rawMed },
+          { key: "hard", weight: rawHard },
+        ];
+        const exact = quotas.map((q) => (q.weight / totalRaw) * s.count);
+        const floors = exact.map((e) => Math.floor(e));
+        let allocated = floors.reduce((a, b) => a + b, 0);
+        let rem = s.count - allocated;
+
+        const remainders = exact.map((e, idx) => ({ idx, rem: e - floors[idx] }));
+        remainders.sort((a, b) => b.rem - a.rem);
+        for (let i = 0; i < rem && i < remainders.length; i++) {
+          floors[remainders[i].idx]++;
+        }
+        targetEasy = floors[0];
+        targetMed = floors[1];
+        targetHard = floors[2];
+      } else {
+        targetEasy = s.count;
+      }
+
+      const pickFrom = (targetPool: Question[], num: number) => {
+        let n = 0;
+        while (n < num && targetPool.length) {
+          const idx = Math.floor(rnd() * targetPool.length);
+          const q = targetPool.splice(idx, 1)[0];
+          const pIdx = pool.indexOf(q);
+          if (pIdx >= 0) pool.splice(pIdx, 1);
+          picked.push(q);
+          n++;
+        }
+      };
+
+      pickFrom(easyPool, targetEasy);
+      pickFrom(medPool, targetMed);
+      pickFrom(hardPool, targetHard);
+
+      // 柔性降级与邻档平账：某档不足时从总池剩余题目平滑补齐
+      while (picked.length < s.count && pool.length) {
+        picked.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+      }
+    } else {
+      while (picked.length < s.count && pool.length) {
+        picked.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+      }
     }
+
     const filledFromMixed = Math.max(0, picked.length - strictCount);
     picked.forEach((q) => {
       used.add(q.id);

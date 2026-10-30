@@ -39,6 +39,8 @@ export interface Question {
   sourceKind?: "real" | "mock";
   year?: string;
   kp?: string; // 考点（"资料分析/比重计算"，/ 分层）
+  /** 辅助考查知识点（MathBank / 中学教研多考点解耦规范，可参与精准检索与图谱关联） */
+  secondaryKps?: string[];
   /** 题目标签（可选，支持多维分类与筛选） */
   tags?: string[];
   origin: "imported" | "ai" | "manual";

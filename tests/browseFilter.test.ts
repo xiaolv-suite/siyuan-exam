@@ -49,6 +49,12 @@ describe("浏览过滤谓词（从 PracticeTab.filteredQuestions 抽出）", () 
       expect(questionMatchesKeyword(q({ options: undefined as never }), "北京")).toBe(false);
       expect(questionMatchesKeyword(q({ options: undefined as never }), "首都")).toBe(true);
     });
+
+    it("支持检索命中辅助考点 (secondaryKps)", () => {
+      const item = q({ kp: "数学/函数单调性", secondaryKps: ["导数几何意义", "极值点"] });
+      expect(questionMatchesKeyword(item, "导数")).toBe(true);
+      expect(questionMatchesKeyword(item, "极值点")).toBe(true);
+    });
   });
 
   describe("matchesBrowseFilter 单条件", () => {

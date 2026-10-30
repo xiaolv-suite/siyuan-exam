@@ -96,6 +96,86 @@ describe("组卷", () => {
     const r = assemble(typed, bank, () => 0);
     expect(r.paper.every((x) => x.type === "judge")).toBe(true);
   });
+
+  it("MathCyclus 难度梯度分桶抽样与柔性平账 (7:2:1 规范)", () => {
+    const diffBank: Question[] = [
+      // 5 道基础题 (difficulty: 1, 2)
+      q("e1", "single", "mock", "数学"),
+      q("e2", "single", "mock", "数学"),
+      q("e3", "single", "mock", "数学"),
+      q("e4", "single", "mock", "数学"),
+      q("e5", "single", "mock", "数学"),
+      // 3 道中档题 (difficulty: 3)
+      q("m10", "single", "mock", "数学"),
+      q("m11", "single", "mock", "数学"),
+      q("m12", "single", "mock", "数学"),
+      // 2 道拔高题 (difficulty: 4, 5)
+      q("h1", "single", "mock", "数学"),
+      q("h2", "single", "mock", "数学"),
+    ];
+    diffBank[0].difficulty = 1;
+    diffBank[1].difficulty = 1;
+    diffBank[2].difficulty = 2;
+    diffBank[3].difficulty = 2;
+    diffBank[4].difficulty = 2;
+    diffBank[5].difficulty = 3;
+    diffBank[6].difficulty = 3;
+    diffBank[7].difficulty = 3;
+    diffBank[8].difficulty = 4;
+    diffBank[9].difficulty = 5;
+
+    // 期望 10 题按 7:2:1 抽取，但 easy 仅有 5 题，通过柔性平账从剩余补足
+    const diffBp: Blueprint = {
+      ...bp,
+      sections: [
+        {
+          name: "数学",
+          count: 8,
+          scoreEach: 1,
+          source: "mixed",
+          types: ["single"],
+          difficultyQuota: { easy: 7, medium: 2, hard: 1 },
+        },
+      ],
+    };
+
+    const r = assemble(diffBp, diffBank, () => 0);
+    expect(r.paper).toHaveLength(8);
+    // 包含 easy、medium 与 hard 题目
+    const difficulties = r.paper.map((x) => x.difficulty);
+    expect(difficulties.some((d) => d! <= 2)).toBe(true);
+    expect(difficulties.some((d) => d === 3)).toBe(true);
+    expect(difficulties.some((d) => d! >= 4)).toBe(true);
+  });
+
+  it("支持 matchSecondaryKp 匹配辅助考点", () => {
+    const secBank: Question[] = [
+      {
+        ...q("q-sec-1", "single", "mock", "高等数学/极限"),
+        secondaryKps: ["考点/导数", "考点/连续性"],
+      },
+      q("q-other", "single", "mock", "线性代数/矩阵"),
+    ];
+
+    const secBp: Blueprint = {
+      ...bp,
+      sections: [
+        {
+          name: "导数专项",
+          count: 1,
+          scoreEach: 2,
+          source: "mixed",
+          types: ["single"],
+          kp: "考点/导数",
+          matchSecondaryKp: true,
+        },
+      ],
+    };
+
+    const r = assemble(secBp, secBank, () => 0);
+    expect(r.paper).toHaveLength(1);
+    expect(r.paper[0].id).toBe("q-sec-1");
+  });
 });
 
 describe("模考会话", () => {
