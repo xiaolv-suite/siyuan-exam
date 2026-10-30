@@ -7,6 +7,8 @@ import {
   dailySet,
   deckNameForBank,
   questionToFlashCardMarkdown,
+  weightedRoulettePick,
+  dsrDailyReviewQueue,
 } from "../src/core/memory";
 import { makeQuestion } from "../src/core/blockTemplate";
 
@@ -83,6 +85,40 @@ describe("每日一练", () => {
     expect(set[0].id).toBe(qs[3].id);
     expect(set[1].id).toBe(qs[2].id);
     expect(new Set(set.map((q) => q.id)).size).toBe(3);
+  });
+
+  describe("轮盘赌加权无放回抽样 (weightedRoulettePick)", () => {
+    it("高权重项被抽中的概率显著更高，且无放回不重复", () => {
+      const items = ["A", "B", "C"];
+      const weights = [100, 1, 1]; // A 的权重占绝大多数
+      // 抽2个
+      const picked = weightedRoulettePick(items, weights, 2, () => 0.1);
+      expect(picked).toHaveLength(2);
+      expect(picked[0]).toBe("A"); // A 被优先命中
+      expect(new Set(picked).size).toBe(2); // 无放回不重复
+    });
+
+    it("空集或 count <= 0 安全返回空数组", () => {
+      expect(weightedRoulettePick([], [], 5)).toEqual([]);
+      expect(weightedRoulettePick(["A"], [1], 0)).toEqual([]);
+    });
+  });
+
+  describe("DSR 每日自适应复习队列 (dsrDailyReviewQueue)", () => {
+    it("基于作答历史与遗忘程度生成复习队列", () => {
+      const now = Date.now();
+      const attempts = [
+        // qs[0]: 10天前答错一次，遗忘严重
+        { v: 1, eid: "e1", qid: qs[0].id, verdict: "wrong" as const, ts: now - 10 * 86_400_000, seq: 1, device: "d1", sessionId: "s1", queue: "normal" as const },
+        // qs[1]: 刚刚答对
+        { v: 1, eid: "e2", qid: qs[1].id, verdict: "correct" as const, ts: now - 1000, seq: 2, device: "d1", sessionId: "s1", queue: "normal" as const },
+      ];
+
+      const queue = dsrDailyReviewQueue(qs, attempts, 2, { nowMs: now, rnd: () => 0.05 });
+      expect(queue).toHaveLength(2);
+      // 高危遗忘错题 qs[0] 具有极高权重被优先抽取
+      expect(queue[0].id).toBe(qs[0].id);
+    });
   });
 });
 

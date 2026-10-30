@@ -9,7 +9,7 @@
 //    riff 未使用），会使 fsrs_store.Review 以不存在的键索引调度表。非法值一律不发。）
 // 纯逻辑（映射/挑选）与 IO（riff 调用）分离，测试覆盖纯逻辑
 // ============================================================
-import type { Question } from "./types";
+import type { Question, AttemptEvent } from "./types";
 import { OPTION_LETTERS } from "./answer";
 
 export const DECK_PREFIX = "小驴考试/";
@@ -101,6 +101,95 @@ export function dailySet(
     push(shuffled.splice(Math.floor(rnd() * shuffled.length), 1)[0]);
   }
   return out;
+}
+
+/**
+ * 轮盘赌加权无放回随机抽取算法（Weighted Roulette Wheel Selection without replacement）
+ * 消除复习列表死板固定题序，依据题目遗忘衰退程度动态加权抽样，赋予复习队列有机活力（LogiNote 规范）。
+ */
+export function weightedRoulettePick<T>(
+  items: readonly T[],
+  weights: readonly number[],
+  count: number,
+  rnd: () => number = Math.random,
+): T[] {
+  if (!items || items.length === 0 || count <= 0) return [];
+  const n = Math.min(count, items.length);
+  const remainingItems = [...items];
+  const remainingWeights = weights.map((w) => Math.max(0.001, w));
+  const selected: T[] = [];
+
+  while (selected.length < n && remainingItems.length > 0) {
+    const totalWeight = remainingWeights.reduce((sum, w) => sum + w, 0);
+    let threshold = rnd() * totalWeight;
+
+    let pickIndex = 0;
+    for (let i = 0; i < remainingWeights.length; i++) {
+      threshold -= remainingWeights[i];
+      if (threshold <= 0) {
+        pickIndex = i;
+        break;
+      }
+    }
+
+    selected.push(remainingItems.splice(pickIndex, 1)[0]);
+    remainingWeights.splice(pickIndex, 1);
+  }
+
+  return selected;
+}
+
+/**
+ * 基于 DSR 记忆模型与轮盘赌加权的每日自适应复习队列（DSR-Weighted Daily Review Queue）
+ * 综合「记忆遗忘分 (1 - R)」与「历史错题权重」，为用户动态调度最需要趁热打铁的题目。
+ */
+export function dsrDailyReviewQueue(
+  all: readonly Question[],
+  attempts: readonly AttemptEvent[],
+  count: number,
+  options?: {
+    nowMs?: number;
+    desiredRetention?: number;
+    rnd?: () => number;
+  },
+): Question[] {
+  if (!all.length || count <= 0) return [];
+  const now = options?.nowMs ?? Date.now();
+  const rnd = options?.rnd ?? Math.random;
+
+  // 统计每道题目的最后作答时间、错误数与受助情况
+  const statsMap = new Map<string, { lastAt: number; wrongCount: number; lastVerdict: string; helped: boolean }>();
+  for (const e of attempts) {
+    if (e.verdict === "not_attempted") continue;
+    const cur = statsMap.get(e.qid) ?? { lastAt: 0, wrongCount: 0, lastVerdict: "correct", helped: false };
+    if (e.verdict === "wrong") cur.wrongCount++;
+    if (e.ts >= cur.lastAt) {
+      cur.lastAt = e.ts;
+      cur.lastVerdict = e.verdict;
+      cur.helped = !!e.help;
+    }
+    statsMap.set(e.qid, cur);
+  }
+
+  // 计算每道题目的遗忘权重
+  const weights = all.map((q) => {
+    const stat = statsMap.get(q.id);
+    if (!stat) {
+      // 从未做过的题目给予适度探索权重
+      return 0.5;
+    }
+    const elapsedDays = Math.max(0, (now - stat.lastAt) / 86_400_000);
+    // 估算稳定性：根据错题数与最近结果
+    const baseStability = stat.lastVerdict === "wrong" ? 1.0 : Math.max(1.5, 5.0 - stat.wrongCount * 0.8);
+    const r = Math.exp(-elapsedDays / baseStability);
+    const forgetScore = Math.max(0, Math.min(1, 1 - r));
+    const wrongBonus = Math.min(1, stat.wrongCount / 4);
+
+    // 综合权重：遗忘分（60%） + 错题沉淀（30%） + 底分（10%）
+    return 0.1 + 0.6 * forgetScore + 0.3 * wrongBonus;
+  });
+
+  return weightedRoulettePick(all, weights, count, rnd);
 }
 
 /** 将一道 Question 格式化为思源笔记标准的列表闪卡 Markdown（具有完美的正反面遮挡与复习体验） */

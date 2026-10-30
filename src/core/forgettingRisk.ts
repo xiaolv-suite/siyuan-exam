@@ -34,8 +34,107 @@ export interface ForgettingRiskReport {
   items: KpRetentionItem[];
 }
 
-/** 艾宾浩斯标准保留率经验公式：R(t) = exp(-t / S) */
-function computeEbbinghausRetention(days: number, stabilityFactor = 5): number {
+/**
+ * 现代记忆动力学 DSR 状态模型 (Difficulty, Stability, Retrievability)
+ * 遵循 FSRS 规范与认知记忆科学，用于精准评估单题/单考点的遗忘速度与最佳复习点。
+ */
+export interface DsrState {
+  /** 认知难度 (1-10，初始 5.0) */
+  difficulty: number;
+  /** 记忆稳定性/半衰期 (天数，初始 2.0，最低 0.2，最高 365) */
+  stability: number;
+  /** 当前瞬时可提取度 (0-1) */
+  retrievability: number;
+  /** 上次作答复习时间戳 (ms) */
+  lastReviewedAt: number | null;
+  /** 累计复习次数 */
+  reviewCount: number;
+  /** 连续答对次数 */
+  consecutiveCorrect: number;
+  /** 连续答错次数 */
+  consecutiveWrong: number;
+}
+
+export const DEFAULT_DSR_STATE: DsrState = {
+  difficulty: 5.0,
+  stability: 2.0,
+  retrievability: 1.0,
+  lastReviewedAt: null,
+  reviewCount: 0,
+  consecutiveCorrect: 0,
+  consecutiveWrong: 0,
+};
+
+/** 计算当前可提取度 R ∈ (0, 1] */
+export function calculateRetrievability(stability: number, elapsedDays: number): number {
+  const safeStability = Math.max(0.2, stability);
+  const safeDays = Math.max(0, elapsedDays);
+  return Math.exp(-safeDays / safeStability);
+}
+
+/** 基于目标保留率反推最佳复习间隔天数（FSRS 规范：R(I) = desiredRetention） */
+export function optimalReviewInterval(stability: number, desiredRetention = 0.90): number {
+  const r = Math.min(0.99, Math.max(0.70, desiredRetention));
+  const s = Math.max(0.2, stability);
+  // R = exp(-t/S) => t = -S * ln(R)
+  const interval = -s * Math.log(r);
+  return Math.max(1, Math.round(interval));
+}
+
+/** 状态转移：根据作答结果、自评打分与受助标记更新 DSR 状态 */
+export function updateDsrState(
+  prev: DsrState,
+  verdict: "correct" | "wrong",
+  options?: {
+    selfRating?: number; // 1: Again, 2: Hard, 3: Good, 4: Easy
+    helped?: boolean; // 是否受助作答 (提示/苏格拉底)
+    elapsedDays?: number;
+  },
+): DsrState {
+  const elapsedDays = options?.elapsedDays ?? (prev.lastReviewedAt ? Math.max(0, (Date.now() - prev.lastReviewedAt) / 86_400_000) : 0);
+  const currentR = calculateRetrievability(prev.stability, elapsedDays);
+  const isCorrect = verdict === "correct";
+  const reviewCount = prev.reviewCount + 1;
+  const rating = options?.selfRating ?? (isCorrect ? 3 : 1);
+
+  // 1. 难度 D 更新 (1~10)
+  const ratingDelta = rating === 1 ? 0.4 : rating === 2 ? 0.15 : rating === 3 ? -0.1 : -0.3;
+  const newD = Math.min(10, Math.max(1, prev.difficulty + ratingDelta));
+
+  // 2. 稳定性 S 更新
+  let newS: number;
+  if (isCorrect) {
+    const difficultyFactor = (11 - newD) / 6; // D=5时为1.0
+    const recallBonus = 1 + 1.2 * (1 - currentR) * difficultyFactor;
+    let gain = Math.max(1.1, recallBonus);
+
+    // 受助作答降权（Perseus / LogiNote 准则：看了解析或线索才做对，增益打折）
+    if (options?.helped) {
+      gain = 1 + (gain - 1) * 0.4; // 增益缩减 60%
+    }
+
+    if (rating === 4) gain *= 1.3;
+    if (rating === 2) gain *= 0.85;
+
+    newS = Math.min(365, prev.stability * gain);
+  } else {
+    // 答错（遗忘）：稳定性大幅回落
+    newS = Math.max(0.4, Math.min(prev.stability * 0.3, 1.5));
+  }
+
+  return {
+    difficulty: Math.round(newD * 10) / 10,
+    stability: Math.round(newS * 10) / 10,
+    retrievability: 1.0,
+    lastReviewedAt: Date.now(),
+    reviewCount,
+    consecutiveCorrect: isCorrect ? prev.consecutiveCorrect + 1 : 0,
+    consecutiveWrong: isCorrect ? 0 : prev.consecutiveWrong + 1,
+  };
+}
+
+/** 艾宾浩斯标准保留率经验公式：R(t) = exp(-t / S) * 100 */
+export function computeEbbinghausRetention(days: number, stabilityFactor = 5): number {
   if (days <= 0) return 100;
   // 简化的衰减模型：t=1天约60%，t=3天约45%，t=7天约28%，t=14天约18%
   const retention = Math.exp(-days / stabilityFactor) * 100;
