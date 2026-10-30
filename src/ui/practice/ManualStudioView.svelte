@@ -293,16 +293,16 @@
           {#if mSpecOpen}
             <div class="lv-row" style="margin:4px 0 0;align-items:flex-end">
               <label class="lv-field" style="max-width:160px"><span class="lv-muted">{t("spec.unit")}</span>
-                <input class="lv-input" bind:value={mSpecUnit} placeholder="m/s" />
+                <input class="lv-input" bind:value={mSpecUnit} placeholder="m/s" aria-label={t("spec.unit")} />
               </label>
               <label class="lv-field" style="max-width:150px"><span class="lv-muted">{t("spec.absTol")}</span>
-                <input class="lv-input num" bind:value={mSpecAbsTol} placeholder="0.5" inputmode="decimal" />
+                <input class="lv-input num" bind:value={mSpecAbsTol} placeholder="0.5" inputmode="decimal" aria-label={t("spec.absTol")} />
               </label>
               <label class="lv-field" style="max-width:150px"><span class="lv-muted">{t("spec.relPct")}</span>
-                <input class="lv-input num" bind:value={mSpecRelPct} placeholder="5" inputmode="decimal" />
+                <input class="lv-input num" bind:value={mSpecRelPct} placeholder="5" inputmode="decimal" aria-label={t("spec.relPct")} />
               </label>
               <label class="lv-field" style="flex:1;min-width:180px"><span class="lv-muted">{t("spec.altUnits")}</span>
-                <input class="lv-input" bind:value={mSpecAltUnits} placeholder="km/h, cm/s" />
+                <input class="lv-input" bind:value={mSpecAltUnits} placeholder="km/h, cm/s" aria-label={t("spec.altUnits")} />
               </label>
             </div>
           {/if}
@@ -361,7 +361,7 @@
       </div>
       <div class="lv-row">
         {#if manualErrorMsg}<p class="lv-error" id="manual-validation-error-bottom" role="alert" style="margin:0;display:inline-flex;align-items:center;gap:4px"><Icon name="alert-triangle" size={13} /> {manualErrorMsg}</p>{/if}
-        <button class="lv-btn lv-btn--primary" onclick={() => onsaveManual("published")} disabled={mSaving || !mStem.trim() || (mStatus === "published" && !mAnswer.trim() && mType !== "short")}>
+        <button class="lv-btn lv-btn--primary" onclick={() => onsaveManual("published")} disabled={mSaving || !mStem.trim() || (mStatus === "published" && !mAnswer.trim() && mType !== "short")} aria-busy={mSaving}>
           {mSaving ? "…" : mStatus === "draft" ? t("manual.saveDraft") : t("manual.save")}
         </button>
         {#if mStatus !== "draft"}
@@ -372,7 +372,7 @@
         <button class="lv-btn lv-btn--ghost" onclick={onblankManualDraft} disabled={mSaving || (!mStem && !mAnswer && !mAnalysis)} title={t("manual.blankTitle", "清空并开始录入新题")}>
           {t("manual.blank", "换一道新题")}
         </button>
-        {#if mSaved}<span class="lv-muted">{t("manual.savedHint")}</span>{/if}
+        {#if mSaved}<span class="lv-muted" role="status">{t("manual.savedHint")}</span>{/if}
       </div>
     </div>
     <section class="lv-card lv-pad-card lv-preview-card" aria-live="polite">

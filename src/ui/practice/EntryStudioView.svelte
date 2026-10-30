@@ -181,9 +181,9 @@
       <div class="lv-guard-title" style="margin-top:20px">{t("guard.title")}</div>
       <p class="lv-muted">{t("guard.desc")}</p>
       <div class="lv-row">
-        <input class="lv-input" placeholder={t("guard.namePlaceholder")} bind:value={newBankName} disabled={creating}
+        <input class="lv-input" placeholder={t("guard.namePlaceholder")} aria-label={t("guard.namePlaceholder")} bind:value={newBankName} disabled={creating}
           onkeydown={(e) => !e.isComposing && e.keyCode !== 229 && e.key === "Enter" && oncreateBank()} />
-        <button class="lv-btn lv-btn--primary" onclick={oncreateBank} disabled={creating || !newBankName.trim()}>
+        <button class="lv-btn lv-btn--primary" onclick={oncreateBank} disabled={creating || !newBankName.trim()} aria-busy={creating && !creatingSample}>
           {creating && !creatingSample ? "…" : t("guard.create")}
         </button>
       </div>

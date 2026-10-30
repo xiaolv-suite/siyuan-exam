@@ -1745,8 +1745,8 @@
             {t("mock.resumeLeft")} {Math.max(0, Math.round(((resumable.startedAt + resumable.bp.durationS * 1000 - Date.now()) / 60_000)))} min
           </span>
           <span class="fn__flex-1"></span>
-        <button class="lv-btn lv-btn--primary sm" disabled={resumeBusy || discardBusy || starting || blueprintBusy} onclick={resumeExam}>{resumeBusy ? "…" : t("mock.resumeGo")}</button>
-          <button class="lv-btn sm" disabled={resumeBusy || discardBusy || starting || blueprintBusy} onclick={discardRun}>{discardBusy ? "…" : t("mock.resumeDrop")}</button>
+        <button class="lv-btn lv-btn--primary sm" disabled={resumeBusy || discardBusy || starting || blueprintBusy} aria-busy={resumeBusy} onclick={resumeExam}>{resumeBusy ? "…" : t("mock.resumeGo")}</button>
+          <button class="lv-btn sm" disabled={resumeBusy || discardBusy || starting || blueprintBusy} aria-busy={discardBusy} onclick={discardRun}>{discardBusy ? "…" : t("mock.resumeDrop")}</button>
         </div>
         <p class="lv-muted" style="margin:6px 0 0">{t("mock.resumeHint")}</p>
       </div>
@@ -1855,8 +1855,8 @@
     {/if}
     <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0 8px">
       <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
-        <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
-        <select class="lv-select" style="max-width:180px" onchange={(e) => { const el = e.target as HTMLSelectElement; void onPresetSelected(el.value, el); }}>
+        <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} aria-busy={starting} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
+        <select class="lv-select" style="max-width:180px" aria-label={t("mock.pickPreset")} onchange={(e) => { const el = e.target as HTMLSelectElement; void onPresetSelected(el.value, el); }}>
           <option value="">{t("mock.pickPreset")}</option>
           <optgroup label="职业考证">
             {#each presetOptions.filter((p) => p.category === "qualification") as opt (opt.id)}

@@ -1057,17 +1057,17 @@
     </button>
     <!-- 角色专属快捷导出与体检工具 -->
     {#if userRole === "teacher"}
-      <button class="lv-btn sm" onclick={exportDiscriminationReport} disabled={discriminationExportBusy} title="导出全库试题区分度与难度系数 CSV 清单">
+      <button class="lv-btn sm" onclick={exportDiscriminationReport} disabled={discriminationExportBusy} aria-busy={discriminationExportBusy} title="导出全库试题区分度与难度系数 CSV 清单">
         <Icon name="export" size={13} /> {discriminationExportBusy ? "…" : "区分度CSV"}
       </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportClearanceGuide} disabled={graphGuideBusy} title="导出章节考点通关导学案 Markdown">
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportClearanceGuide} disabled={graphGuideBusy} aria-busy={graphGuideBusy} title="导出章节考点通关导学案 Markdown">
         <Icon name="file" size={13} /> {t("report.graphGuide")}
       </button>
     {:else}
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
         <Icon name="star" size={13} /> 勋章墙
       </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} title="导出备考完备度体检报告">
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title="导出备考完备度体检报告">
         <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
       </button>
     {/if}
@@ -1078,7 +1078,7 @@
     <button class="lv-btn sm" onclick={() => void runNextAction()} disabled={!app || loading || reportRefreshing || scopeLoading || nextActionBusy} aria-busy={nextActionBusy}>
       <Icon name="target" size={13} /> {nextActionBusy ? "…" : t("nextAction.ask")}
     </button>
-    <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} title="一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）">
+    <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} aria-busy={fullHtmlExportBusy} title="一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）">
       <Icon name="file" size={13} /> {fullHtmlExportBusy ? "导出中…" : t("report.fullHtmlReport")}
     </button>
     <span class="lv-chip">{t("report.dataFromLog")}</span>
@@ -1906,7 +1906,7 @@
         <Icon name="activity" size={13} /> {diagnosticsBusy ? t("diag.exporting", "正在生成诊断信息…") : t("diag.export")}
       </button>
       <!-- 69-01/69-06/58-01 lite：存储占用 / 数据体检 / 数据出库 -->
-      <button class="lv-btn sm lv-btn--ghost" style="margin-top:8px" disabled={storageBusy} onclick={() => void toggleStorage()}>
+      <button class="lv-btn sm lv-btn--ghost" style="margin-top:8px" disabled={storageBusy} aria-expanded={storageOpen} onclick={() => void toggleStorage()}>
         <Icon name="save" size={13} /> {storageBusy ? "…" : storageOpen ? t("data.hideStorage") : t("data.showStorage")}{#if storageRows.length}&nbsp;· {storageTotalKb} KB{/if}
       </button>
       {#if storageOpen}
@@ -1936,7 +1936,7 @@
         {/if}
         <div class="lv-muted" style="margin-top:4px;font-size:var(--lv-font-size-caption)">{t("data.storageNote")}</div>
       {/if}
-      <button class="lv-btn sm lv-btn--ghost" style="margin-top:8px" disabled={auditBusy} onclick={() => void runDataAudit()}>
+      <button class="lv-btn sm lv-btn--ghost" style="margin-top:8px" disabled={auditBusy} aria-busy={auditBusy} onclick={() => void runDataAudit()}>
         {auditBusy ? "…" : t("data.audit")}
       </button>
       {#if auditBusy}
