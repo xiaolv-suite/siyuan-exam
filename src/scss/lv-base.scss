@@ -854,6 +854,10 @@ button.lv-chip {
 
 /* —— 键帽 —— */
 .lv-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   font-family: "SF Mono", "Cascadia Code", Consolas, monospace;
   font-size: var(--lv-font-size-label);
   line-height: 1;
@@ -864,6 +868,7 @@ button.lv-chip {
   border: 1px solid var(--lv-border);
   border-bottom-width: 2px;
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 /* —— 插件内焦点可见性（规范 v6：环形投影，随元素圆角自适应） —— */
