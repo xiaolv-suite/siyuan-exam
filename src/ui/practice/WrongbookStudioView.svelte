@@ -152,10 +152,10 @@
         <div class="lv-card">
           <b class="lv-block-title">{t("wrongbook.progress")}</b>
           <div class="lv-row" style="justify-content:space-between;margin:4px 0 8px">
-            <strong class="num" style="font-size:22px">{clearPct}%</strong>
+            <strong class="num" style="font-size:22px;color:var(--lv-data-accent)">{clearPct}%</strong>
             <span class="lv-chip lv-chip--amb num">{t("wrongbook.eliminated.note").replace("{e}", String(eliminatedCount)).replace("{a}", String(wrongList.length))}</span>
           </div>
-          <div class="lv-progress"><i style="width:{clearPct}%"></i></div>
+          <div class="lv-progress"><i style="width:{clearPct}%;background:var(--lv-data-accent)"></i></div>
           <div class="divider" style="margin:16px 0 12px"></div>
           <b class="lv-block-title">{t("wrongbook.reasons")}</b>
           <!-- 多段全圆角比例条（一目了然看清错因结构） -->
@@ -239,24 +239,24 @@
             </div>
           </div>
           {#if wbTab === "active"}
-            <div class="lv-row" style="gap:var(--lv-space-compact);margin:8px 0 12px;flex-wrap:wrap;align-items:center">
-              <button class="lv-chip" class:acc={wbReasonFilter === "all"} onclick={() => wbReasonFilter = "all"}>
+            <div class="lv-row" role="group" aria-label="错因过滤" style="gap:var(--lv-space-compact);margin:8px 0 12px;flex-wrap:wrap;align-items:center">
+              <button class="lv-chip" class:acc={wbReasonFilter === "all"} aria-pressed={wbReasonFilter === "all"} onclick={() => wbReasonFilter = "all"}>
                 {t("wrongbook.filterAll")} ({wrongQueue.length})
               </button>
-              <button class="lv-chip" class:acc={wbReasonFilter === "careless"} onclick={() => wbReasonFilter = "careless"}>
+              <button class="lv-chip" class:acc={wbReasonFilter === "careless"} aria-pressed={wbReasonFilter === "careless"} onclick={() => wbReasonFilter = "careless"}>
                 {t("wrongbook.filterCareless")} ({reasonCounts.careless})
               </button>
-              <button class="lv-chip" class:acc={wbReasonFilter === "unknown"} class:lv-chip--red={reasonCounts.unknown > 0} onclick={() => wbReasonFilter = "unknown"}>
+              <button class="lv-chip" class:acc={wbReasonFilter === "unknown"} class:lv-chip--red={reasonCounts.unknown > 0} aria-pressed={wbReasonFilter === "unknown"} onclick={() => wbReasonFilter = "unknown"}>
                 {t("wrongbook.filterUnknown")} ({reasonCounts.unknown})
               </button>
-              <button class="lv-chip" class:acc={wbReasonFilter === "trap"} onclick={() => wbReasonFilter = "trap"}>
+              <button class="lv-chip" class:acc={wbReasonFilter === "trap"} aria-pressed={wbReasonFilter === "trap"} onclick={() => wbReasonFilter = "trap"}>
                 {t("wrongbook.filterTrap")} ({reasonCounts.trap})
               </button>
-              <button class="lv-chip" class:acc={wbFilterStubborn} class:lv-chip--amb={wbFilterStubborn} onclick={() => wbFilterStubborn = !wbFilterStubborn} title={t("wrongbook.filterStubbornTip")}>
+              <button class="lv-chip" class:acc={wbFilterStubborn} class:lv-chip--amb={wbFilterStubborn} aria-pressed={wbFilterStubborn} onclick={() => wbFilterStubborn = !wbFilterStubborn} title={t("wrongbook.filterStubbornTip")}>
                 <Icon name="flame" size={12} /> {t("wrongbook.filterStubborn")}
               </button>
               {#if wbKpOptions.length > 0}
-                <select class="lv-select" style="max-width:140px;height:28px" bind:value={wbKpFilter}>
+                <select class="lv-select" style="max-width:140px;height:28px" bind:value={wbKpFilter} aria-label="筛选考点章节">
                   <option value="">全部考点章节</option>
                   {#each wbKpOptions as kp (kp)}
                     <option value={kp}>{kp}</option>
@@ -271,6 +271,7 @@
                   bind:value={wbSortMode}
                   onchange={(e) => onchangeWbSortMode((e.target as HTMLSelectElement).value)}
                   title="切换错题排序方式"
+                  aria-label="切换错题排序方式"
                 >
                   <option value="default">最新错题优先</option>
                   <option value="wrongCount">犯错频次降序</option>

@@ -64,7 +64,7 @@
           按考点智能排版、带考生密封线与主客观答题区，排版规整，可直接导出送印。
         </p>
       </div>
-      <button class="lv-btn lv-btn--primary sm" style="width:100%" onclick={onprintPaper} disabled={!practiceQuestionsCount || teacherPrintBusy}>
+      <button class="lv-btn lv-btn--primary sm" style="width:100%" onclick={onprintPaper} disabled={!practiceQuestionsCount || teacherPrintBusy} aria-busy={teacherPrintBusy}>
         <Icon name="printer" size={13} /> {teacherPrintBusy ? "正在排版…" : "打印 A4 双栏卷"}
       </button>
     </div>
@@ -78,7 +78,7 @@
           导出包含题目、正确答案、深度解析、考点大纲与主观采分点细则的教师专用教案。
         </p>
       </div>
-      <button class="lv-btn sm" style="width:100%" onclick={onexportTeacherPaper} disabled={!practiceQuestionsCount || teacherPrintBusy}>
+      <button class="lv-btn sm" style="width:100%" onclick={onexportTeacherPaper} disabled={!practiceQuestionsCount || teacherPrintBusy} aria-busy={teacherPrintBusy}>
         <Icon name="book" size={13} /> 导出教师讲义
       </button>
     </div>
@@ -92,7 +92,7 @@
           生成带学生班级学号填写栏、分步作答区与订正反思框的课后分层导学练习单。
         </p>
       </div>
-      <button class="lv-btn sm" style="width:100%" onclick={onprintHomework} disabled={!practiceQuestionsCount || teacherPrintBusy}>
+      <button class="lv-btn sm" style="width:100%" onclick={onprintHomework} disabled={!practiceQuestionsCount || teacherPrintBusy} aria-busy={teacherPrintBusy}>
         <Icon name="file" size={13} /> 打印课后作业单
       </button>
     </div>
@@ -168,7 +168,7 @@
     <span class="lv-muted" style="font-size:12px;font-weight:400">离线同步思源文档 · 挑战码分享 · 题库包导出</span>
   </div>
   <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
-    <button class="lv-btn" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}>
+    <button class="lv-btn" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} aria-busy={syncDocsBusy} title={t("sync.docsTip")}>
       <Icon name="save" size={15} /> {syncDocsBusy ? "…" : "同步整套题册至思源文档"}
     </button>
     <button class="lv-btn" onclick={oncopyChallengeCode}>

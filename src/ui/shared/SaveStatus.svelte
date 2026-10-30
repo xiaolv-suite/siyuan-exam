@@ -48,7 +48,7 @@
 </script>
 
 {#if worst}
-    <button class="lv-save-status lv-save-{worst}" onclick={detail} title={t("save.detailTitle")}>
+    <button class="lv-save-status lv-save-{worst}" onclick={detail} title={t("save.detailTitle")} aria-live="polite" aria-label={`${t("save." + worst)}: ${count} 项待处理`}>
         <Icon name={worst === "failed" ? "alert-triangle" : "save"} size={13} /> {t("save." + worst)} {count}
     </button>
 {/if}

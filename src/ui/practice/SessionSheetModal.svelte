@@ -40,7 +40,7 @@
         <div class="lv-dialog-title-wrap">
           <span class="lv-dialog-title-icon"><Icon name="grid" size={13} /></span>
           <span>{title}</span>
-          <span class="lv-dialog-title-tag">{doneCount}/{totalCount}</span>
+          <span class="lv-dialog-title-tag num">{doneCount}/{totalCount}</span>
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
@@ -56,6 +56,8 @@
             class="lv-cell"
             class:cur={isCur}
             class:done={isDone}
+            aria-label={`第 ${i + 1} 题${isCur ? "（当前）" : ""}${isCorrect ? "（已答对）" : isWrong ? "（已答错）" : isDone ? "（已作答）" : "（未作答）"}`}
+            aria-current={isCur ? "true" : undefined}
             style={isWrong ? "background:var(--lv-red-soft);color:var(--lv-red);border-color:var(--lv-red);" : isCorrect ? "background:var(--lv-green-soft);color:var(--lv-green);border-color:var(--lv-green);" : ""}
             onclick={() => onjump(i)}
           >

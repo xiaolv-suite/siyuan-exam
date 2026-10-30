@@ -26,7 +26,7 @@
   }: Props = $props();
 </script>
 
-<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:95;width:min(680px, calc(100vw - 32px));animation:lv-appear 0.2s var(--lv-ease-out)">
+<div role="toolbar" aria-label="批量操作快捷栏" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:95;width:min(680px, calc(100vw - 32px));animation:lv-appear 0.2s var(--lv-ease-out)">
   <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 20px);border:1px solid var(--lv-border-subtle, var(--lv-border));background:color-mix(in srgb, var(--lv-surface) 92%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
     <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div class="lv-row" style="margin:0;gap:6px">
@@ -46,7 +46,7 @@
         <button class="lv-btn sm lv-btn--ghost" onclick={onprintHomeworkSheet} title="导出勾选题课后作业单">
           <Icon name="file-text" size={13} /> 作业单
         </button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onbatchConvertToCards} disabled={batchCardBusy || !kernelOnline} title="批量制成闪卡">
+        <button class="lv-btn sm lv-btn--ghost" onclick={onbatchConvertToCards} disabled={batchCardBusy || !kernelOnline} aria-busy={batchCardBusy} title="批量制成闪卡">
           <Icon name="layers" size={13} /> 推送闪卡
         </button>
       </div>

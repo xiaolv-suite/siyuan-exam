@@ -30,12 +30,12 @@
 {#if open}
   <div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:10px 14px">
     <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
-      <div class="lv-row" style="margin:0;gap:6px">
+      <div class="lv-row" role="group" aria-label={t("scratchpad.title")} style="margin:0;gap:6px">
         <b><Icon name="pencil" size={13} /> {t("scratchpad.title")}</b>
-        <button type="button" class="lv-chip sm" class:acc={mode === "per_question"} onclick={() => onmodeChange("per_question")}>
+        <button type="button" class="lv-chip sm" class:acc={mode === "per_question"} aria-pressed={mode === "per_question"} onclick={() => onmodeChange("per_question")}>
           {t("scratchpad.modePerQ")}
         </button>
-        <button type="button" class="lv-chip sm" class:acc={mode === "shared"} onclick={() => onmodeChange("shared")}>
+        <button type="button" class="lv-chip sm" class:acc={mode === "shared"} aria-pressed={mode === "shared"} onclick={() => onmodeChange("shared")}>
           {t("scratchpad.modeShared")}
         </button>
       </div>
@@ -56,6 +56,7 @@
       rows="3"
       style="font-family:monospace;font-size:var(--lv-font-size-sm);line-height:1.4"
       placeholder={t("scratchpad.placeholder")}
+      aria-label={t("scratchpad.title")}
       value={text}
       oninput={(e) => oninput((e.target as HTMLTextAreaElement).value)}
     ></textarea>

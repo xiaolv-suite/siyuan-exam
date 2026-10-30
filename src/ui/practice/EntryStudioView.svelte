@@ -479,7 +479,7 @@
               <b style="display:flex;align-items:center;gap:6px">
                 <Icon name="activity" size={14} /> {t("entry.weekTitle")}
               </b>
-              <span class="lv-chip num sm">{t("entry.weekCount").replace("{n}", String(weekAttemptTotal))}</span>
+              <span class="lv-chip lv-chip--data num sm">{t("entry.weekCount").replace("{n}", String(weekAttemptTotal))}</span>
             </div>
             <div class="lv-week-strip" role="img" aria-label={t("entry.weekAria").replace("{days}", weekTrend.map((day) => `${weekDayLabel(day.date)} ${day.attempts} ${t("browse.count")}`).join("，"))}>
               {#each weekTrend as day (day.date)}
@@ -618,19 +618,19 @@
           <div class="lv-card" style="padding:var(--lv-space-relaxed) var(--lv-space-3);margin-top:6px;border-radius:var(--lv-r-3, 14px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
             <div class="lv-row" style="margin:4px 0">
               <span class="lv-chip">{t("manual.kp")}</span>
-              <select class="lv-select" bind:value={expKp}>
+              <select class="lv-select" bind:value={expKp} aria-label={t("manual.kp")}>
                 <option value="">{t("filter.all")}</option>
                 {#each expKpRoots as k, _i (_i)}<option value={k}>{k}</option>{/each}
               </select>
               <span class="lv-chip">{t("session.reason")}</span>
-              <select class="lv-select" bind:value={expReason}>
+              <select class="lv-select" bind:value={expReason} aria-label={t("session.reason")}>
                 <option value="">{t("filter.all")}</option>
                 <option value="careless">{t("reason.careless")}</option>
                 <option value="unknown">{t("reason.unknown")}</option>
                 <option value="trap">{t("reason.trap")}</option>
               </select>
               <span class="lv-chip">{t("export.range")}</span>
-              <select class="lv-select" bind:value={expDays}>
+              <select class="lv-select" bind:value={expDays} aria-label={t("export.range")}>
                 <option value={0}>{t("export.allTime")}</option>
                 <option value={7}>7{t("entry.days")}</option>
                 <option value={30}>30{t("entry.days")}</option>
