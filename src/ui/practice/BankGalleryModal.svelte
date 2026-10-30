@@ -76,7 +76,7 @@
         <div class="lv-dialog-title-wrap">
           <span class="lv-dialog-title-icon"><Icon name="folder" size={13} /></span>
           <span>{t("bank.hubTitle")}</span>
-          <span class="lv-dialog-title-tag">{banks.length} 题库</span>
+          <span class="lv-dialog-title-tag num">{banks.length} 题库</span>
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>

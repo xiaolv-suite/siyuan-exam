@@ -30,7 +30,7 @@
   <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 20px);border:1px solid var(--lv-border-subtle, var(--lv-border));background:color-mix(in srgb, var(--lv-surface) 92%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
     <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div class="lv-row" style="margin:0;gap:6px">
-        <span class="lv-chip lv-chip--acc num">已选 {selectedCount} 题</span>
+        <span class="lv-chip lv-chip--data num">已选 {selectedCount} 题</span>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclearSelection}>清空选择</button>
       </div>
       <div class="lv-row" style="margin:0;gap:6px">

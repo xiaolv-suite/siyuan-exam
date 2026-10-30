@@ -111,7 +111,7 @@
     <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("import.back")}</button>
     <b><Icon name="book" size={15} /> {t("materials.title")}</b>
     {#if app?.materialsReadonly}<span class="lv-chip lv-chip--amb">{t("materials.readonly")}</span>{/if}
-    <span class="lv-chip num">{materialsList.length}</span>
+    <span class="lv-chip lv-chip--data num">{materialsList.length}</span>
   </div>
   <div class="lv-card" style="margin-top:10px">
     <div class="lv-row">
@@ -155,7 +155,7 @@
   {:else}
     <div class="lv-materials-workspace">
       <aside class="lv-card lv-material-list" aria-label={t("materials.title")}>
-        <div class="lv-section-head"><div><span class="lv-eyebrow">资料库</span><h2>{t("materials.title")}</h2></div><span class="lv-chip num">{materialsFiltered.length}</span></div>
+        <div class="lv-section-head"><div><span class="lv-eyebrow">资料库</span><h2>{t("materials.title")}</h2></div><span class="lv-chip lv-chip--data num">{materialsFiltered.length}</span></div>
         {#each materialsFiltered as m (m.id)}
           <button class="lv-material-item" class:selected={selectedMaterial?.id === m.id} aria-current={selectedMaterial?.id === m.id ? "true" : undefined} disabled={materialsBusy} aria-disabled={materialsBusy} onclick={() => { if (!materialsBusy) onselectMaterial(m.id); }}>
             <span class="lv-material-icon"><Icon name={matIconName(m.kind)} size={15} /></span>

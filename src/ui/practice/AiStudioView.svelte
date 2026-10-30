@@ -216,7 +216,7 @@
     <section class="lv-ai-review">
       <div class="lv-section-head">
         <div><span class="lv-eyebrow">审核工作区</span><h2>{t("ai.queue")}</h2></div>
-        {#if aiQueue.length}<span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审核</span>{/if}
+        {#if aiQueue.length}<span class="lv-chip lv-chip--data num">{aiQueue.length} 待审核</span>{/if}
       </div>
       {#if aiQueueBankId && (aiQueue.length || aiRejected.length)}
         <p class="lv-muted" role="status">{t("ai.queueTarget").replace("{name}", banks.find((b) => b.id === aiQueueBankId)?.name ?? aiQueueBankId)}</p>
@@ -226,7 +226,7 @@
         <div class="lv-row" style="margin-top:14px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div class="lv-row" style="margin:0;gap:6px;align-items:center">
             <b style="font-size:var(--lv-font-size-md)">{t("ai.queue")}</b>
-            <span class="lv-chip lv-chip--acc num">{aiQueue.length} 待审</span>
+            <span class="lv-chip lv-chip--data num">{aiQueue.length} 待审</span>
             {#if aiRejected.length}<span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={11} /> {aiRejected.length}</span>{/if}
             {#if aiDuplicates}<span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="copy" size={11} /> {aiDuplicates}</span>{/if}
             {#if aiCost}<span class="lv-chip num">{aiCost}</span>{/if}
