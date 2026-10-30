@@ -431,7 +431,7 @@
           {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
           <SpeechEvalCapsule result={speechEvalResult} ondismiss={ondismissSpeechEval} />
           {#if q.studyMeta?.phonetic}
-            <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
+            <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
               <Icon name="volume" size={12} />
               <span>注音 / 粤拼：{q.studyMeta.phonetic}</span>
             </div>
@@ -528,14 +528,14 @@
                 </div>
                 {#if paperGridModalOpen}
                   {@const gridModel = generatePaperGrid(feedback?.myAnswer ?? currentDraft ?? "", { columns: 20 })}
-                  <div class="lv-card" style="margin:8px 0;padding:10px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent)">
+                  <div class="lv-card" style="margin:8px 0;padding:12px 14px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-card, 16px);box-shadow:var(--lv-sh-1)">
                     <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
                       <b style="font-size:12px;display:flex;align-items:center;gap:6px">
                         <Icon name="file-text" size={13} /> 考场 20×20 规范作文答题纸模拟（已占 {gridModel.totalCellsOccupied} 格 · {gridModel.totalRows} 行）
                       </b>
-                      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={ontogglePaperGridModal}>✕</button>
+                      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={ontogglePaperGridModal} aria-label="关闭"><Icon name="close" size={12} /></button>
                     </div>
-                    <div style="display:flex;flex-direction:column;gap:2px;overflow-x:auto;padding:4px;background:var(--lv-surface);border:1px solid var(--lv-border);max-height:200px">
+                    <div style="display:flex;flex-direction:column;gap:2px;overflow-x:auto;padding:6px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-card, 10px);max-height:200px">
                       {#each gridModel.rows as r (r.rowNumber)}
                         <div style="display:flex;gap:2px;align-items:center">
                           <span class="lv-muted num" style="width:24px;font-size:9px;text-align:right;flex-shrink:0">{r.rowNumber * 20}</span>
@@ -674,7 +674,10 @@
                 <button class="lv-btn lv-btn--ghost" onclick={onsubmitAnswer}>{t("session.skip")}</button>
               {/if}
             {:else}
-              <button class="lv-btn lv-btn--primary" onclick={onnextQuestion}>{t("session.next")} →</button>
+              <button class="lv-btn lv-btn--primary" onclick={onnextQuestion} style="display:inline-flex;align-items:center;gap:4px">
+                <span>{t("session.next")}</span>
+                <Icon name="chev-right" size={13} />
+              </button>
               {#if feedback.verdict === "wrong"}
                 <button class="lv-btn" onclick={ondrillVariant} title={t("session.drillVariantTip")}><Icon name="layers" size={15} /> {t("session.drillVariant")}</button>
                 <button class="lv-btn" onclick={ontraceMother} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
