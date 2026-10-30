@@ -156,7 +156,7 @@
     <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border:1px solid var(--lv-accent-soft);border-radius:var(--lv-r-3, 16px);box-shadow:var(--lv-sh-1)">
       <label class="lv-field">
         <span style="font-weight:var(--lv-font-weight-semibold)">{t("manual.ocrPrompt")}</span>
-        <textarea class="lv-input lv-textarea" style="min-height:90px;margin-top:6px" bind:value={ocrInputText} placeholder="粘贴整段试题识别文本（支持题干、A. B. C. D. 选项、答案、解析），点击解析填单即可自动分类填入下方表单"></textarea>
+        <textarea class="lv-input lv-textarea" style="min-height:90px;margin-top:6px" bind:value={ocrInputText} aria-label="OCR 识别文本" placeholder="粘贴整段试题识别文本（支持题干、A. B. C. D. 选项、答案、解析），点击解析填单即可自动分类填入下方表单"></textarea>
       </label>
       <div class="lv-row" style="margin-top:8px">
         <button class="lv-btn lv-btn--primary sm" onclick={onapplyOcrFill} disabled={!ocrInputText.trim()}>{t("manual.ocrFastFill")}</button>

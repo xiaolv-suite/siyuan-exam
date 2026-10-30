@@ -331,11 +331,11 @@
       {/if}
       {#if !sylDoc.roots.length || sylPreviewRoots}
         <div class="lv-row" style="margin:4px 0 0">
-          <input class="lv-input" style="max-width:150px" placeholder={t("syl.publisher")} bind:value={sylPublisher} />
-          <input class="lv-input" style="max-width:90px" placeholder={t("syl.year")} bind:value={sylYear} />
-          <input class="lv-input" style="max-width:150px" placeholder={t("syl.source")} bind:value={sylSource} />
+          <input class="lv-input" style="max-width:150px" placeholder={t("syl.publisher")} aria-label={t("syl.publisher")} bind:value={sylPublisher} />
+          <input class="lv-input" style="max-width:90px" placeholder={t("syl.year")} aria-label={t("syl.year")} bind:value={sylYear} />
+          <input class="lv-input" style="max-width:150px" placeholder={t("syl.source")} aria-label={t("syl.source")} bind:value={sylSource} />
         </div>
-        <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={sylText} placeholder={t("syl.placeholder")}></textarea>
+        <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={sylText} placeholder={t("syl.placeholder")} aria-label={t("syl.placeholder")}></textarea>
         <div class="lv-row">
           <button class="lv-btn sm" onclick={onpreviewSyllabus} disabled={!sylText.trim()}><Icon name="search" size={13} /> {t("syl.preview")}</button>
           {#if sylPreviewRoots?.length}

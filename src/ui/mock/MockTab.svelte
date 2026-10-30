@@ -1928,7 +1928,7 @@
       <div class="lv-row" style="margin-top:10px">
         <label class="lv-row" style="margin:0"><input type="checkbox" bind:checked={estFromBank} /> {t("estimate.fromBank")}</label>
         {#if estFromBank}
-          <input class="lv-input num" style="width:140px" bind:value={estSourceFilter} placeholder={t("estimate.sourceFilter")} />
+          <input class="lv-input num" style="width:140px" bind:value={estSourceFilter} placeholder={t("estimate.sourceFilter")} aria-label={t("estimate.sourceFilter")} />
           <span class="lv-chip num">{t("estimate.bankQ")} {estimateBankPool.length}</span>
         {:else}
           <label class="lv-chip" for="estimate-key-input">{t("estimate.key")}</label>
@@ -2030,7 +2030,7 @@
         <button class="lv-btn sm" style="margin-left:8px" disabled={submitting} onclick={retryFinishExam}>{submitting ? "…" : t("mock.retrySubmit")}</button>
       </div>
     {/if}
-    {#if restoreNote}<div class="lv-error">{restoreNote}</div>{/if}
+    {#if restoreNote}<div class="lv-error" role="alert">{restoreNote}</div>{/if}
     <div class="lv-card lv-question">
       {#if !currentQ}
         <div class="lv-empty" style="padding:48px 16px">
