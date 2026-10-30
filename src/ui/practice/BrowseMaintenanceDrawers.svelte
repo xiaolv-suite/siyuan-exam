@@ -558,17 +558,17 @@
     {/if}
     {#if activeClusterIndex >= 0 && health.clusters[activeClusterIndex]}
       {@const cl = health.clusters[activeClusterIndex]}
-      <div class="lv-card lv-pad-card" style="margin:8px 0;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:10px 14px">
+      <div class="lv-card lv-pad-card" style="margin:8px 0;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-card, 16px);padding:12px 16px;box-shadow:var(--lv-sh-1)">
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
           <b><Icon name="copy" size={13} /> {t("health.mergerTitle")}（{cl.ids.length} 题重复 · 相似度 {Math.round(cl.similarity * 100)}%）</b>
-          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => activeClusterIndex = -1}>✕</button>
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => activeClusterIndex = -1} aria-label="关闭"><Icon name="close" size={12} /></button>
         </div>
         <div class="stack-sm">
           {#each cl.ids as qid (qid)}
             {@const q = questionMap.get(qid)}
             {#if q}
               {@const attCount = app?.derived().byQuestion.get(qid)?.attempts ?? 0}
-              <div class="lv-card" style="padding:8px 12px;background:var(--lv-surface-1)">
+              <div class="lv-card" style="padding:10px 14px;background:var(--lv-surface);border-radius:var(--lv-r-card, 12px);border:1px solid var(--lv-border-subtle)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
                   <div class="lv-row" style="margin:0;gap:6px">
                     <span class="lv-chip num sm">{q.id}</span>
