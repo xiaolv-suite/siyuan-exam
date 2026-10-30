@@ -217,7 +217,7 @@
             </div>
           </div>
           <div class="lv-row" style="margin:0;gap:6px">
-            <button class="lv-btn lv-btn--primary sm" disabled={importBusy} onclick={onResumeCheckpoint}>
+            <button class="lv-btn lv-btn--primary sm" disabled={importBusy} aria-busy={importBusy} onclick={onResumeCheckpoint}>
               <Icon name="play" size={12} /> {t("import.checkpointResume").replace("{n}", String(importCheckpoint.pendingQuestions.length))}
             </button>
             <button class="lv-btn lv-btn--ghost sm" disabled={importBusy} onclick={onDiscardCheckpoint}>
@@ -259,12 +259,12 @@
               <span style="position:absolute;left:8px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
                 <Icon name="search" size={13} />
               </span>
-              <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:26px" placeholder={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
+              <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:26px" placeholder={t("import.searchDocPlaceholder")} aria-label={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
               {#if docSearchQuery}
                 <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:3px;padding:2px 4px;min-width:18px;min-height:18px"><Icon name="close" size={11} /></button>
               {/if}
             </div>
-            <button class="lv-btn sm" onclick={() => { if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer); onDoSearchDocs(docSearchQuery); }} disabled={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
+            <button class="lv-btn sm" onclick={() => { if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer); onDoSearchDocs(docSearchQuery); }} disabled={siyuanDocBusy} aria-busy={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
           </div>
           <div class="stack-sm" style="max-height:360px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2);padding:6px;background:var(--lv-surface)">
             {#if siyuanDocCandidates.length === 0}
@@ -288,11 +288,11 @@
                 </div>
                 <div class="lv-row" style="margin:0;gap:6px">
                   {#if selectedDocCount > 0}
-                    <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} onclick={onImportSelectedDocs}>
+                    <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} aria-busy={siyuanDocBusy} onclick={onImportSelectedDocs}>
                       <Icon name="import" size={12} /> {siyuanDocBusy ? "正在提取…" : `提取已选 (${selectedDocCount})`}
                     </button>
                   {/if}
-                  <button class="lv-btn sm lv-btn--ghost" disabled={siyuanDocBusy} onclick={onImportAllSearchedDocs}>
+                  <button class="lv-btn sm lv-btn--ghost" disabled={siyuanDocBusy} aria-busy={siyuanDocBusy} onclick={onImportAllSearchedDocs}>
                     <Icon name="layers" size={12} /> {siyuanDocBusy ? "正在提取…" : `全部提取 (${siyuanDocCandidates.length})`}
                   </button>
                 </div>
@@ -310,7 +310,7 @@
                       <div class="lv-muted" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.hpath}</div>
                     </div>
                   </div>
-                  <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} onclick={() => onPickAndImportSiyuanDoc(doc.id, doc.title)}>
+                  <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} aria-busy={siyuanDocBusy} onclick={() => onPickAndImportSiyuanDoc(doc.id, doc.title)}>
                     <Icon name="import" size={12} /> {siyuanDocBusy ? "提取中…" : "提取此篇"}
                   </button>
                 </div>
@@ -326,13 +326,13 @@
           <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("curly")} aria-pressed={clozeModes.includes("curly")} onclick={() => onToggleClozeMode("curly")}>{t("cloze.modeCurly")}</button>
           <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("bracket")} aria-pressed={clozeModes.includes("bracket")} onclick={() => onToggleClozeMode("bracket")}>{t("cloze.modeBracket")}</button>
         </div>
-        <textarea class="lv-input lv-textarea" rows="6" placeholder={t("cloze.placeholder")} bind:value={clozeInputText} disabled={importBusy || clozeImporting}></textarea>
+        <textarea class="lv-input lv-textarea" rows="6" placeholder={t("cloze.placeholder")} aria-label={t("cloze.tab")} bind:value={clozeInputText} disabled={importBusy || clozeImporting}></textarea>
         <div class="lv-row" style="margin:8px 0">
           <button class="lv-btn lv-btn--primary" onclick={onDoParseCloze} disabled={importBusy || clozeImporting || !clozeInputText.trim()}>
             <Icon name="sparkles" size={14} /> {t("cloze.parseBtn")}
           </button>
           {#if clozeParsedItems.length}
-            <button class="lv-btn lv-btn--primary" onclick={onImportClozeQuestions} disabled={importBusy || clozeImporting}>
+            <button class="lv-btn lv-btn--primary" onclick={onImportClozeQuestions} disabled={importBusy || clozeImporting} aria-busy={clozeImporting}>
               {clozeImporting ? "…" : t("cloze.importBtn").replace("{n}", String(clozeParsedItems.length))}
             </button>
             <span class="lv-chip lv-chip--grn num">{t("cloze.parsedCount").replace("{n}", String(clozeParsedItems.length))}</span>
@@ -361,9 +361,9 @@
           <button class="lv-btn sm lv-btn--ghost" onclick={onPasteClipboard} disabled={importBusy} title={t("import.pasteClipboardTip")}><Icon name="copy" size={14} /> {t("import.pasteClipboard")}</button>
           <span class="lv-muted">{t("import.orPaste")}</span>
         </div>
-        <textarea class="lv-input lv-textarea" rows="8" placeholder={t("import.placeholder")} bind:value={importText} disabled={importBusy}></textarea>
+        <textarea class="lv-input lv-textarea" rows="8" placeholder={t("import.placeholder")} aria-label={t("import.placeholder")} bind:value={importText} disabled={importBusy}></textarea>
         <div class="lv-row">
-          <button class="lv-btn lv-btn--primary" onclick={onDoParseText} disabled={importBusy || !importText.trim()} title={importText.trim() ? t("import.parse") : t("import.needInput")}>{importParsing ? t("import.parsing") : t("import.parse")}</button>
+          <button class="lv-btn lv-btn--primary" onclick={onDoParseText} disabled={importBusy || !importText.trim()} aria-busy={importParsing} title={importText.trim() ? t("import.parse") : t("import.needInput")}>{importParsing ? t("import.parsing") : t("import.parse")}</button>
           <select class="lv-select" bind:value={dupeStrategy} onchange={onImportStrategyChange} disabled={importBusy} title={t("import.strategyHint")} aria-label={t("import.strategyHint")}>
             <option value="skip">{t("import.strategySkip")}</option>
             <option value="coexist">{t("import.strategyCoexist")}</option>
@@ -432,7 +432,7 @@
             <span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="close" size={11} /> {importReport.errors.length}</span>
             {#if importReport.duplicates}<span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px" title={t("import.dupeHint")}><Icon name="copy" size={11} /> {importReport.duplicates}</span>{/if}
             {#if importReport.ok.length}
-              <button class="lv-btn sm lv-btn--ghost" disabled={spotBusy} onclick={onSpotCheckRender}>
+              <button class="lv-btn sm lv-btn--ghost" disabled={spotBusy} aria-busy={spotBusy} onclick={onSpotCheckRender}>
                 <Icon name="shuffle" size={13} /> {t("import.spotCheck")}{#if spotIds.length}（{spotIds.length}）{/if}
               </button>
             {/if}
@@ -489,7 +489,7 @@
                   {#each fixCells as _c, ci (ci)}
                     <div class="lv-row" style="margin:3px 0">
                       <span class="lv-chip num">{ci}</span>
-                      <input class="lv-input" bind:value={fixCells[ci]} />
+                      <input class="lv-input" bind:value={fixCells[ci]} aria-label={`修改第 ${ci} 列单元格`} />
                     </div>
                   {/each}
                 {:else}
@@ -518,7 +518,7 @@
             <button class="lv-btn lv-btn--primary" onclick={onCommitImport} disabled={importBusy || (!remainingImportQuestions.length && !importReport.updates?.length && !trialConfirmed.length)} aria-busy={committing}>
               {committing ? t("import.committing") : importReport.updates?.length ? t("import.commitSummary").replace("{new}", String(remainingImportQuestions.length)).replace("{update}", String(importReport.updates.length)) : remainingImportQuestions.length ? t("import.commit") + " (" + remainingImportQuestions.length + ")" : t("import.finishTrial")}
             </button>
-            <button class="lv-btn sm" onclick={onTrialImport5} disabled={importBusy || !remainingImportQuestions.length}>
+            <button class="lv-btn sm" onclick={onTrialImport5} disabled={importBusy || !remainingImportQuestions.length} aria-busy={trialBusy}>
               {trialBusy ? "…" : t("import.trial5")}
             </button>
             {#if committing && commitProgress}
