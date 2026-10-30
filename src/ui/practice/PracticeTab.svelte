@@ -8,6 +8,8 @@ import { getBridgeSafely } from "@/libs/ecosystem-bridge-kit";
 import { renderMathInText } from "@/core/math";
 import { renderMathDiagramsInText } from "@/core/mathDiagram";
 import { auditForgettingRisks } from "@/core/forgettingRisk";
+import { cbmScan, cbmSettleSummary } from "@/core/cbm";
+import { rankWeakTags, sampleWeakSpotDrill } from "@/core/weakSpot";
 import { sanitizeRichHtml } from "@/libs/sanitize";
 import { confirmDialogSync } from "@/libs/dialog";
     import { ttsSpeak, ttsStop, ttsSupported } from "@/core/tts";
@@ -936,6 +938,18 @@ import { confirmDialogSync } from "@/libs/dialog";
       void sessionRev;
       if (!sessionDone || !session) return [];
       return computeSessionKpBreakdown(session.answered, questionMap);
+    });
+    /** benchmark-fusion（Kangaroo 标杆）：薄弱标签排行——本次会话正确率 < 60% 的考点根标签，最弱优先 */
+    const weakRank = $derived(rankWeakTags(kpBreakdown));
+    /** benchmark-fusion（Moodle CBM）：结算归集——本次会话内的蒙对/自信错信号（done 卡一句式提示） */
+    const cbmSettle = $derived.by(() => {
+      void sessionRev;
+      if (!sessionDone || !session || !app) return null;
+      try {
+        const qids = new Set(session.answered.map((a) => a.qid));
+        const events = app.attempts.all().filter((e) => qids.has(e.qid) && e.sessionId === session.id);
+        return cbmSettleSummary(cbmScan(events), qids);
+      } catch { return null; }
     });
     /** 54 第三刀：数值/多空作答框——curSpec 取当前题的结构化作答规则；多空草稿按 ";;" 切分为逐空输入 */
     const curSpec = $derived.by(() => {
@@ -2055,8 +2069,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       return countEliminatedWrongs(app, questions);
     });
     const clearPct = $derived(calculateClearPercentage(eliminatedCount, wrongList.length));
-    /** 错题队列：错次降序 → 最近错误降序（紧迫度序） */
-    let wbTab = $state<"active" | "archived" | "eliminated">("active");
+    /** 错题队列：错次降序 → 最近错误降序（紧迫度序）；benchmark-fusion 增补 CBM 双维分栏 */
+    let wbTab = $state<"active" | "archived" | "eliminated" | "highrisk" | "fragile">("active");
     let wbReasonFilter = $state<"all" | "careless" | "unknown" | "trap">("all");
     let wbFilterStubborn = $state(false);
     let wbKpFilter = $state("");
@@ -2069,6 +2083,24 @@ import { confirmDialogSync } from "@/libs/dialog";
       void dataRev;
       return queryEliminatedWrongList(app, questions);
     });
+    /** benchmark-fusion（Moodle CBM）：确定度双维信号——高危盲区（自评确定却答错）与脆弱伪掌握（自评模糊/猜测却蒙对）。
+     *  与错题本同库口径：只保留当前题库内的题；流水最新态去重见 core/cbm.ts。 */
+    const cbmScanResult = $derived.by(() => {
+      void dataRev;
+      if (!app) return { highrisk: [], fragile: [] };
+      try { return cbmScan(app.attempts.all()); } catch { return { highrisk: [], fragile: [] }; }
+    });
+    const cbmHighrisk = $derived.by(() => {
+      void dataRev;
+      const ids = new Set(questions.map((q) => q.id));
+      return cbmScanResult.highrisk.filter((s) => ids.has(s.qid));
+    });
+    const cbmFragile = $derived.by(() => {
+      void dataRev;
+      const ids = new Set(questions.map((q) => q.id));
+      return cbmScanResult.fragile.filter((s) => ids.has(s.qid));
+    });
+    const cbmHighriskQids = $derived(new Set(cbmHighrisk.map((s) => s.qid)));
     const wrongQueue = $derived(
       [...wrongList].sort((a, b) => b.wrongCount - a.wrongCount || b.lastWrongAt - a.lastWrongAt),
     );
@@ -2928,6 +2960,35 @@ import { confirmDialogSync } from "@/libs/dialog";
       await safeStart(res.questions, "special", () => {
         enterSessionView();
       });
+    }
+
+    // ---------- 薄弱标签特训（benchmark-fusion，Kangaroo 标杆）----------
+    let weakDrillBusy = $state(false);
+    /** 「立即针对薄弱点再练 10 题」：会话内正确率 < 60% 的考点根标签 →
+     *  历史错题优先 → 未做新题补充 → 已做对兜底（sampleWeakSpotDrill 三层抽样），10 题成卷。 */
+    async function weakSpotDrill() {
+      if (weakDrillBusy || !app) return;
+      const roots = rankWeakTags(kpBreakdown).map((r) => r.root);
+      if (!roots.length) { showMessage(t("weakspot.none", "本次没有正确率低于 60% 的薄弱标签"), 2600, "info"); return; }
+      weakDrillBusy = true;
+      try {
+        const all = await loadQuestions();
+        const derived = app.derived();
+        const wrongQids = new Set(
+          [...derived.wrongbook.values()].filter((w) => w.status === "active").map((w) => w.qid),
+        );
+        const attemptedQids = new Set(derived.byQuestion.keys());
+        const picked = sampleWeakSpotDrill({ bank: all, weakRoots: roots, wrongQids, attemptedQids, count: 10 });
+        if (!picked.length) {
+          showMessage(t("weakspot.empty", "薄弱标签下暂无可练题目（当前题库无对应考点题）"), 3400, "error");
+          return;
+        }
+        await safeStart(picked, "special", () => {
+          enterSessionView();
+        });
+      } finally {
+        weakDrillBusy = false;
+      }
     }
 
     let resumeBusy = $state(false);
@@ -5369,6 +5430,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       {exitBusy}
       {streakDays}
       {kpBreakdown}
+      {cbmSettle}
+      {weakRank}
+      {weakDrillBusy}
       {checkinStatus}
       {checkinNote}
       {settleMode}
@@ -5392,6 +5456,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onexitSession={exitSession}
       ontoggleReview={() => { reviewOpen = !reviewOpen; if (reviewOpen) void loadReflections(); }}
       onsameKpSession={sameKpSession}
+      onweakSpotDrill={() => void weakSpotDrill()}
       onwrongsToCard={wrongsToCard}
       onwrongsToActions={wrongsToActions}
       onopenReport={() => plugin.openReport?.()}
@@ -5514,6 +5579,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       {filteredWrongQueue}
       {archivedWrongList}
       {eliminatedWrongList}
+      {cbmHighrisk}
+      {cbmFragile}
+      {cbmHighriskQids}
       {wrongQueue}
       {effectiveEliminateStreak}
       {printWrongBusy}

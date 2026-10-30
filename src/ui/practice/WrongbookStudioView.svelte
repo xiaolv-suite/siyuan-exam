@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
   import type { Question } from "../../core/types";
+  import type { CbmSignal } from "../../core/cbm";
 
   interface Props {
     wrongList: any[];
@@ -8,7 +9,7 @@
     clearPct: number;
     streakDays: number;
     reasonCounts: { unknown: number; careless: number; trap: number; unmarked: number };
-    wbTab: "active" | "archived" | "eliminated";
+    wbTab: "active" | "archived" | "eliminated" | "highrisk" | "fragile";
     wbReasonFilter: "all" | "careless" | "unknown" | "trap";
     wbFilterStubborn: boolean;
     wbKpOptions: string[];
@@ -17,6 +18,10 @@
     filteredWrongQueue: any[];
     archivedWrongList: any[];
     eliminatedWrongList: any[];
+    /** benchmark-fusion CBM 双维信号：高危盲区（自评确定却答错，最新态）与脆弱伪掌握（模糊/猜测却蒙对） */
+    cbmHighrisk: CbmSignal[];
+    cbmFragile: CbmSignal[];
+    cbmHighriskQids: ReadonlySet<string>;
     wrongQueue: any[];
     effectiveEliminateStreak: number;
     printWrongBusy: boolean;
@@ -68,6 +73,9 @@
     filteredWrongQueue,
     archivedWrongList,
     eliminatedWrongList,
+    cbmHighrisk,
+    cbmFragile,
+    cbmHighriskQids,
     wrongQueue,
     effectiveEliminateStreak,
     printWrongBusy,
@@ -219,6 +227,13 @@
               <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "eliminated"} aria-selected={wbTab === "eliminated"} onclick={() => wbTab = "eliminated"}>
                 {t("wrongbook.tabEliminated")} ({eliminatedWrongList.length})
               </button>
+              <!-- benchmark-fusion（Moodle CBM 标杆）：确定度双维分栏——高危盲区与脆弱伪掌握 -->
+              <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "highrisk"} class:lv-chip--red={wbTab !== "highrisk" && cbmHighrisk.length > 0} aria-selected={wbTab === "highrisk"} title={t("cbm.highrisk.tip", "自评「确定」却答错：疑似概念性误区，优先复核")} onclick={() => wbTab = "highrisk"}>
+                {t("cbm.highrisk", "高危盲区")} ({cbmHighrisk.length})
+              </button>
+              <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "fragile"} class:lv-chip--amb={wbTab !== "fragile" && cbmFragile.length > 0} aria-selected={wbTab === "fragile"} title={t("cbm.fragile.tip", "自评「模糊/猜测」却蒙对：疑似运气分，建议重练验证真实掌握")} onclick={() => wbTab = "fragile"}>
+                {t("cbm.fragile", "脆弱伪掌握")} ({cbmFragile.length})
+              </button>
             </div>
             <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
               <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("retest")} disabled={printWrongBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy} title="导出纯净错题重测卷（含清零目标条与二次订正反思框，绝无答案泄露）"><Icon name="printer" size={13} /> 错题重测卷</button>
@@ -298,6 +313,12 @@
                         <Icon name="flame" size={11} /> {t("wrongbook.stubbornBadge")}
                       </span>
                     {/if}
+                    {#if cbmHighriskQids.has(w.qid)}
+                      <!-- benchmark-fusion：CBM 高危盲区置顶高亮（自评确定却答错） -->
+                      <span class="lv-chip lv-chip--red sm" title={t("cbm.highrisk.tip", "自评「确定」却答错：疑似概念性误区，优先复核")}>
+                        <Icon name="xcircle" size={11} /> {t("cbm.highrisk", "高危盲区")}
+                      </span>
+                    {/if}
                     {#if w.streakCorrect > 0}<span class="lv-chip lv-chip--grn num">{t("wrongbook.reClear").replace("{n}", String(effectiveEliminateStreak - w.streakCorrect))}</span>{/if}
                     {#if reasonOf(w.qid)}<span class="lv-chip num">{t("reason." + reasonOf(w.qid))}</span>{/if}
                     <span>{t("wrongbook.lastWrong")} {new Date(w.lastWrongAt).toLocaleDateString()}</span>
@@ -333,6 +354,59 @@
                 <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-green);font-weight:600" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => onmasterWrong(w.qid)}><Icon name="check" size={13} /> {wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}</button>
               </div>
             {/each}
+          {:else if wbTab === "highrisk"}
+            <!-- benchmark-fusion：高危盲区（Moodle CBM Misconception）——自信答错即概念误区，置顶呈现 -->
+            <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:10px 0 4px">
+              {t("cbm.highrisk.desc", "以下题目最近一次作答自评「确定」却答错——大概率是概念性误区而非粗心，建议优先溯源与重练。")}
+            </p>
+            <div class="stack-sm" style="margin-top:6px">
+              {#each cbmHighrisk as s, wi (s.qid)}
+                {@const q = qOf(s.qid)}
+                <div class="lv-wrong-row" style="border-left:3px solid var(--lv-red)">
+                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red)">{wi + 1}</span>
+                  <div class="lv-wrong-main">
+                    <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
+                    <div class="lv-wrong-meta">
+                      <span class="lv-chip sm lv-chip--red" style="display:inline-flex;align-items:center;gap:4px"><Icon name="xcircle" size={11} /> {t("cbm.highrisk", "高危盲区")}</span>
+                      <span class="lv-chip num">{t("confidence.sure")} ✕</span>
+                      {#if s.myAnswer}<span class="lv-muted num">{t("session.myAnswer")}: {s.myAnswer}</span>{/if}
+                      <span>{new Date(s.ts).toLocaleDateString()}</span>
+                      {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                    </div>
+                  </div>
+                  <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                  <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
+                </div>
+              {:else}
+                <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.highrisk.empty", "暂无高危盲区——作答时按 1/2/3 自评确定度即可积累 CBM 信号")}</div>
+              {/each}
+            </div>
+          {:else if wbTab === "fragile"}
+            <!-- benchmark-fusion：脆弱伪掌握（Moodle CBM Lucky Guess）——蒙对题归集，防考试漏网 -->
+            <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:10px 0 4px">
+              {t("cbm.fragile.desc", "以下题目最近一次作答自评「模糊/猜测」却蒙对——得分可能来自运气，建议重练验证真实掌握。")}
+            </p>
+            <div class="stack-sm" style="margin-top:6px">
+              {#each cbmFragile as s, wi (s.qid)}
+                {@const q = qOf(s.qid)}
+                <div class="lv-wrong-row" style="border-left:3px solid var(--lv-amber)">
+                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-amber) 16%, transparent);color:var(--lv-amber)">{wi + 1}</span>
+                  <div class="lv-wrong-main">
+                    <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
+                    <div class="lv-wrong-meta">
+                      <span class="lv-chip sm lv-chip--amb" style="display:inline-flex;align-items:center;gap:4px"><Icon name="help" size={11} /> {t("cbm.fragile", "脆弱伪掌握")}</span>
+                      <span class="lv-chip num">{t("confidence." + s.confidence)} ✓</span>
+                      <span>{new Date(s.ts).toLocaleDateString()}</span>
+                      {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                    </div>
+                  </div>
+                  <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                  <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
+                </div>
+              {:else}
+                <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.fragile.empty", "暂无脆弱伪掌握——没有蒙对题，掌握很扎实")}</div>
+              {/each}
+            </div>
           {:else if wbTab === "eliminated"}
             <div class="stack-sm" style="margin-top:8px">
               {#each eliminatedWrongList as w, wi (w.qid)}

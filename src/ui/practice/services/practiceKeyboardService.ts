@@ -162,6 +162,13 @@ export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAct
       return { type: "pick_choice", key: upperKey };
     }
 
+    // G 键直标「猜测」（Moodle CBM 标杆，benchmark-fusion）：仅当 G 未被选项键位占用时生效——
+    // 选项数 ≤ 6 时 A-F 已覆盖全部选项，G 空闲；7 选项及以上 G 仍是选项键，置信度用 3 键。
+    // 分类消费口径见 core/cbm.ts（guess/fuzzy 答对→脆弱伪掌握）。
+    if (e.key.toLowerCase() === "g" && (!isChoiceQuestion(q) || choiceCount < 7)) {
+      return { type: "set_confidence", confidence: "guess" };
+    }
+
     if (/^[1-3]$/.test(e.key)) {
       const confidences: ConfidenceKey[] = ["sure", "fuzzy", "guess"];
       return { type: "set_confidence", confidence: confidences[Number(e.key) - 1] };

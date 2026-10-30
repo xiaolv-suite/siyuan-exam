@@ -247,3 +247,58 @@ describe("practiceKeyboardService", () => {
     });
   });
 });
+
+describe("practiceKeyboardService - G 键猜测直标 (benchmark-fusion CBM)", () => {
+  // 选项数 ≤ 6 时 G 未被 A-J 选项键位占用 → 直标「猜测」
+  const fourOptionQ: Question = {
+    id: "q-g1",
+    type: "single",
+    stem: "4选项题",
+    options: ["1", "2", "3", "4"],
+    answer: "A",
+  };
+  // 7 选项题：G 是第 7 个选项键，置信度只能用 3 键
+  const sevenOptionQ: Question = {
+    id: "q-g2",
+    type: "single",
+    stem: "7选项题",
+    options: ["1", "2", "3", "4", "5", "6", "7"],
+    answer: "A",
+  };
+  // 非选择题（fill）：A-J 全部空闲
+  const fillQ: Question = {
+    id: "q-g3",
+    type: "fill",
+    stem: "____是细胞呼吸的主要场所",
+    options: [],
+    answer: "线粒体",
+  };
+
+  const sessionFor = (q: Question) => ({
+    hasSession: true,
+    isSessionDone: false,
+    currentQuestion: q,
+    hasFeedback: false,
+    canSubmit: true,
+    doneCount: 1,
+  });
+
+  it("G/g 键在 4 选项题上直标 guess", () => {
+    expect(resolveKeyboardAction({ event: { key: "g" }, view: "session", session: sessionFor(fourOptionQ) }))
+      .toEqual({ type: "set_confidence", confidence: "guess" });
+    expect(resolveKeyboardAction({ event: { key: "G" }, view: "session", session: sessionFor(fourOptionQ) }))
+      .toEqual({ type: "set_confidence", confidence: "guess" });
+  });
+
+  it("7 选项题上 G 仍是选项键（不抢占 A-J），置信度退回 3 键", () => {
+    expect(resolveKeyboardAction({ event: { key: "g" }, view: "session", session: sessionFor(sevenOptionQ) }))
+      .toEqual({ type: "pick_choice", key: "G" });
+    expect(resolveKeyboardAction({ event: { key: "3" }, view: "session", session: sessionFor(sevenOptionQ) }))
+      .toEqual({ type: "set_confidence", confidence: "guess" });
+  });
+
+  it("非选择题（fill）上 G 直标 guess", () => {
+    expect(resolveKeyboardAction({ event: { key: "g" }, view: "session", session: sessionFor(fillQ) }))
+      .toEqual({ type: "set_confidence", confidence: "guess" });
+  });
+});

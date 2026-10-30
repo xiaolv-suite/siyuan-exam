@@ -90,6 +90,10 @@
     exitBusy: boolean;
     streakDays: number;
     kpBreakdown: any[];
+    /** benchmark-fusion：CBM 结算归集（蒙对→脆弱伪掌握 / 自信错→高危盲区）与薄弱标签特训（Kangaroo） */
+    cbmSettle?: { fragile: { qid: string; confidence: string }[]; highrisk: { qid: string; myAnswer: string | null }[] } | null;
+    weakRank?: { root: string; total: number; correct: number; accuracy: number }[];
+    weakDrillBusy?: boolean;
     checkinStatus: string;
     checkinNote: string;
     settleMode: string;
@@ -113,6 +117,7 @@
     onexitSession: () => void;
     ontoggleReview: () => void;
     onsameKpSession: () => void;
+    onweakSpotDrill: () => void;
     onwrongsToCard: () => void;
     onwrongsToActions: () => void;
     onopenReport: () => void;
@@ -236,6 +241,9 @@
     exitBusy,
     streakDays,
     kpBreakdown,
+    cbmSettle = null,
+    weakRank = [],
+    weakDrillBusy = false,
     checkinStatus,
     checkinNote,
     settleMode,
@@ -259,6 +267,7 @@
     onexitSession,
     ontoggleReview,
     onsameKpSession,
+    onweakSpotDrill,
     onwrongsToCard,
     onwrongsToActions,
     onopenReport,
@@ -321,6 +330,21 @@
   let focusNoiseActive = $state(false);
   const dwellTracker = new FlowDwellTracker(60_000);
 
+  // —— benchmark-fusion：解析 3 阶渐进折叠（Moodle Adaptive Hints + TextFold 标杆）——
+  // 阶1 考点提示：作答中可展开（不暴露答案；默认折叠不弱化独立回忆）
+  // 阶2 核心推导：提交后解锁（默认展开保留既有可读性，可折叠降噪）
+  // 阶3 思源原块溯源：提交后解锁（默认折叠；siyuan:// 深链直达原块）
+  // 切题即重置，防上一题的展开态串扰到下一题。
+  let stageHintOpen = $state(false);
+  let stageAnalysisOpen = $state(true);
+  let stageSourceOpen = $state(false);
+  $effect(() => {
+    void curQ?.id;
+    stageHintOpen = false;
+    stageAnalysisOpen = true;
+    stageSourceOpen = false;
+  });
+
   function ontoggleFocusNoise() {
     if (focusNoiseActive) {
       stopFocusNoise();
@@ -342,6 +366,9 @@
     {sessionDone}
     {streakDays}
     {kpBreakdown}
+    {cbmSettle}
+    {weakRank}
+    {weakDrillBusy}
     {checkinStatus}
     {checkinNote}
     {settleMode}
@@ -360,6 +387,7 @@
     {writeBackReceipt}
     {ontoggleReview}
     {onsameKpSession}
+    {onweakSpotDrill}
     {onwrongsToCard}
     {onwrongsToActions}
     {onopenReport}
@@ -584,6 +612,24 @@
           {/if}
           {/key}
 
+          {#if !feedback && (q.kp || (q.secondaryKps?.length ?? 0) > 0)}
+            <!-- benchmark-fusion 阶1：卡壳时可展开考点提示（Moodle Adaptive Hints）——
+                 只露考点不露答案；默认折叠避免弱化独立回忆；读屏由 aria-expanded 播报展开态 -->
+            <div class="lv-analysis" style="padding:10px 14px">
+              <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
+                aria-expanded={stageHintOpen} aria-controls="lv-stage-hint"
+                onclick={() => (stageHintOpen = !stageHintOpen)}>
+                <Icon name="bulb" size={12} /> {t("session.stageHint", "考点提示（卡壳再看）")}
+              </button>
+              {#if stageHintOpen}
+                <div id="lv-stage-hint" style="margin:8px 0 0;display:flex;flex-wrap:wrap;gap:4px">
+                  {#if q.kp}<span class="lv-chip"><Icon name="layers" size={11} /> {q.kp}</span>{/if}
+                  {#each q.secondaryKps ?? [] as sk (sk)}<span class="lv-chip">{sk}</span>{/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
+
           {#if feedback}
             <div class="lv-feedback" role="status" aria-live="polite" class:good={feedback.verdict === "correct"}>
               <div class="lv-row" style="margin:0;gap:var(--lv-space-2);align-items:center;flex-wrap:wrap">
@@ -655,7 +701,35 @@
                 </div>
               </div>
             {/if}
-            {#if q.analysis}<div class="lv-analysis">{q.analysis}</div>{/if}
+            {#if q.analysis}
+              <!-- benchmark-fusion 阶2：核心推导（提交后解锁；默认展开保留既有可读性，可折叠降噪） -->
+              <div class="lv-analysis" style="padding:10px 14px">
+                <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
+                  aria-expanded={stageAnalysisOpen} aria-controls="lv-stage-analysis"
+                  onclick={() => (stageAnalysisOpen = !stageAnalysisOpen)}>
+                  <Icon name="book" size={12} /> {t("session.stageAnalysis", "核心推导")}
+                </button>
+                {#if stageAnalysisOpen}
+                  <div id="lv-stage-analysis" style="margin:8px 0 0;white-space:pre-wrap;font-size:var(--lv-font-size-body);color:var(--lv-text-2)">{q.analysis}</div>
+                {/if}
+              </div>
+            {/if}
+            {#if feedback && (q.source || q.blockId)}
+              <!-- benchmark-fusion 阶3：思源原块溯源（提交后解锁；默认折叠；siyuan:// 深链直达原块） -->
+              <div class="lv-analysis" style="padding:10px 14px">
+                <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
+                  aria-expanded={stageSourceOpen} aria-controls="lv-stage-source"
+                  onclick={() => (stageSourceOpen = !stageSourceOpen)}>
+                  <Icon name="link" size={12} /> {t("session.stageSource", "思源原块溯源")}
+                </button>
+                {#if stageSourceOpen}
+                  <div id="lv-stage-source" style="margin:8px 0 0;font-size:var(--lv-font-size-sm);color:var(--lv-text-2);display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+                    {#if q.source}<span class="lv-chip num">{q.source}</span>{/if}
+                    {#if q.blockId}<a class="lv-chip" href={`siyuan://blocks/${q.blockId}`}>{t("session.stageSourceOpen", "打开思源原块")} ↗</a>{/if}
+                  </div>
+                {/if}
+              </div>
+            {/if}
             {#if feedback.verdict === "wrong"}
               <div class="lv-row lv-session-reason-row" style="margin:10px 0;gap:var(--lv-space-compact);align-items:center;flex-wrap:wrap">
                 <div class="lv-session-dock" role="group" aria-label={t("session.reason")}>
@@ -684,7 +758,7 @@
               <div class="lv-session-dock" role="group" aria-label={t("confidence.before")}>
                 <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("confidence.before")}</span>
                 {#each ["sure", "fuzzy", "guess"] as c, _i (_i)}
-                  <button type="button" class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={`Key ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => onconfidenceSelect(c as "sure" | "fuzzy" | "guess")}>
+                  <button type="button" class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={c === "guess" ? "Key 3 · G" : `Key ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => onconfidenceSelect(c as "sure" | "fuzzy" | "guess")}>
                     <span class="lv-reason-key">{_i + 1}</span> {t("confidence." + c)}
                   </button>
                 {/each}
@@ -784,6 +858,7 @@
           <div class="lv-row lv-muted" style="font-size:var(--lv-font-size-label);gap:var(--lv-space-compact);flex-wrap:wrap;margin:0">
             <span class="lv-kbd">A</span>-<span class="lv-kbd">J</span> {t("session.choose")} ·
             <span class="lv-kbd">1</span>-<span class="lv-kbd">3</span> {t("confidence.shortcut")} ·
+            <span class="lv-kbd">G</span> {t("confidence.guess")} ·
             <span class="lv-kbd">Enter</span> {t("session.submit")} ·
             <span class="lv-kbd">J</span>/<span class="lv-kbd">K</span> {t("session.next")}/{t("session.kbdPrev")} ·
             <span class="lv-kbd">E</span> {t("session.kbdFav")} ·

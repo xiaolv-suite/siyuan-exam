@@ -17,6 +17,11 @@
     };
     streakDays: number;
     kpBreakdown: Array<{ kp: string; total: number; correct: number; wrong: number }>;
+    /** benchmark-fusion（Moodle CBM）：本次会话蒙对/自信错归集信号 */
+    cbmSettle?: { fragile: { qid: string; confidence: string }[]; highrisk: { qid: string; myAnswer: string | null }[] } | null;
+    /** benchmark-fusion（Kangaroo）：薄弱标签排行（正确率 < 60%，最弱优先） */
+    weakRank?: { root: string; total: number; correct: number; accuracy: number }[];
+    weakDrillBusy?: boolean;
     checkinStatus?: string;
     checkinNote?: string;
     settleMode: string;
@@ -35,6 +40,7 @@
     writeBackReceipt: (m: string) => string;
     ontoggleReview: () => void;
     onsameKpSession: () => void;
+    onweakSpotDrill: () => void;
     onwrongsToCard: () => void;
     onwrongsToActions: () => void;
     onopenReport: () => void;
@@ -49,6 +55,9 @@
     sessionDone,
     streakDays,
     kpBreakdown,
+    cbmSettle = null,
+    weakRank = [],
+    weakDrillBusy = false,
     checkinStatus,
     checkinNote,
     settleMode,
@@ -67,6 +76,7 @@
     writeBackReceipt,
     ontoggleReview,
     onsameKpSession,
+    onweakSpotDrill,
     onwrongsToCard,
     onwrongsToActions,
     onopenReport,
@@ -138,6 +148,21 @@
         <Icon name="info" size={11} /> {queueSemantics(settleMode).label} · {t("session.noWriteBack")}
       </span>
     </div>
+    {#if (cbmSettle?.fragile.length ?? 0) > 0 || (cbmSettle?.highrisk.length ?? 0) > 0}
+      <!-- benchmark-fusion（Moodle CBM 标杆）：结算自动归集——蒙对入脆弱伪掌握，自信错标高危盲区 -->
+      <div class="lv-row" style="justify-content:center;gap:6px;margin:6px 0 2px;flex-wrap:wrap" role="status">
+        {#if (cbmSettle?.fragile.length ?? 0) > 0}
+          <span class="lv-chip lv-chip--amb num" title={t("cbm.fragile.desc", "自评「模糊/猜测」却蒙对——得分可能来自运气，已归入错题本脆弱伪掌握分栏")}>
+            <Icon name="help" size={11} /> {t("cbm.settleFragile", "蒙对 {n} 题已归入脆弱伪掌握").replace("{n}", String(cbmSettle!.fragile.length))}
+          </span>
+        {/if}
+        {#if (cbmSettle?.highrisk.length ?? 0) > 0}
+          <span class="lv-chip lv-chip--red num" title={t("cbm.highrisk.desc", "自评「确定」却答错——疑似概念性误区，已在错题本高危盲区分栏置顶")}>
+            <Icon name="xcircle" size={11} /> {t("cbm.settleHighrisk", "自信答错 {n} 题已标为高危盲区").replace("{n}", String(cbmSettle!.highrisk.length))}
+          </span>
+        {/if}
+      </div>
+    {/if}
     {#if kpBreakdown.length > 1}
       <!-- 知识点分布：本次会话按考点聚合对错，帮助即时识别薄弱考点 -->
       <div class="lv-row" style="flex-wrap:wrap;justify-content:center;gap:var(--lv-space-1);margin:8px 0 2px">
@@ -146,6 +171,29 @@
             {kp.kp} {kp.correct}/{kp.total}
           </span>
         {/each}
+      </div>
+    {/if}
+    {#if weakRank.length}
+      <!-- benchmark-fusion（Kangaroo 标杆）：薄弱标签排行榜 + 「立即针对薄弱点再练 10 题」智能抽样组卷 -->
+      <div class="lv-card" style="margin:12px 0 10px;padding:14px 16px;background:var(--lv-surface-2);border-radius:var(--lv-r-3, 14px);border:1px solid var(--lv-border-subtle);text-align:left">
+        <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
+          <Icon name="target" size={13} /> {t("weakspot.rankTitle", "薄弱标签排行")}（{t("weakspot.below", "正确率低于 60%")}）
+        </b>
+        <div class="stack-sm" style="margin:8px 0 10px">
+          {#each weakRank as w, wi (w.root)}
+            <div class="lv-row" style="margin:0;gap:8px;align-items:center">
+              <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red);min-width:26px;text-align:center">{wi + 1}</span>
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={w.root}>{w.root}</span>
+              <div class="lv-progress" style="flex:1;min-width:80px"><i style="width:{Math.round(w.accuracy * 100)}%;background:var(--lv-red)"></i></div>
+              <span class="lv-chip lv-chip--red num" style="min-width:44px;justify-content:center">{Math.round(w.accuracy * 100)}%</span>
+              <span class="lv-muted num" style="min-width:52px;text-align:right">{w.correct}/{w.total}</span>
+            </div>
+          {/each}
+        </div>
+        <button class="lv-btn lv-btn--primary" style="width:100%" disabled={weakDrillBusy} aria-busy={weakDrillBusy} onclick={onweakSpotDrill}
+          title={t("weakspot.drillTip", "按「历史错题优先 → 未做新题补充 → 已做对兜底」从薄弱考点智能抽样 10 题")}>
+          <Icon name="zap" size={14} /> {weakDrillBusy ? t("weakspot.drilling", "正在组卷…") : t("weakspot.drill10", "立即针对薄弱点再练 10 题")}
+        </button>
       </div>
     {/if}
     {#if checkinStatus && checkinStatus !== "disabled" && checkinStatus !== "below-threshold" && checkinStatus !== "no-api"}
