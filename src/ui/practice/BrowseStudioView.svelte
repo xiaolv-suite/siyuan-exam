@@ -734,7 +734,7 @@
             </span>
           {/if}
           {#if !batchMode && expandedId === q.id}
-            <span class="lv-chip lv-chip--acc num" style="margin-left:auto">{t("browse.viewing", "查看中 ▾")}</span>
+            <span class="lv-chip lv-chip--acc num" style="margin-left:auto;display:inline-flex;align-items:center;gap:3px"><span>{t("browse.viewing", "查看中")}</span><Icon name="chev-left" size={10} /></span>
           {/if}
         </button>
         <div class="lv-qrow-stem" id={`lv-qrow-stem-${q.id}`}>{q.stem}</div>

@@ -278,8 +278,10 @@
         </div>
         {#if mType === "fill"}
           <div class="lv-row" style="margin:4px 0 0">
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mSpecOpen = !mSpecOpen)}>
-              {t("spec.authorSection")}{#if mSpecOpen} ▾{/if}
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mSpecOpen = !mSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
+              <Icon name="edit" size={12} />
+              <span>{t("spec.authorSection")}</span>
+              <Icon name={mSpecOpen ? "chev-left" : "chev-right"} size={11} />
             </button>
           </div>
           {#if mSpecOpen}
@@ -301,8 +303,10 @@
         {/if}
         {#if mType === "short"}
           <div class="lv-row" style="margin:4px 0 0">
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mRubricOpen = !mRubricOpen)}>
-              {t("rubric.authorSection")}{#if mRubricOpen} ▾{/if}
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => (mRubricOpen = !mRubricOpen)} style="display:inline-flex;align-items:center;gap:4px">
+              <Icon name="clipboard" size={12} />
+              <span>{t("rubric.authorSection")}</span>
+              <Icon name={mRubricOpen ? "chev-left" : "chev-right"} size={11} />
             </button>
             {#if authorRubricPreview}<span class="lv-chip num">{t("rubric.criteriaCount").replace("{n}", String(authorRubricPreview.criteria.length))}</span>{/if}
           </div>
