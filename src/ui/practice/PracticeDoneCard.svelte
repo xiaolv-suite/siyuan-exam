@@ -98,6 +98,11 @@
       <span class="lv-achievement-pill num">
         <Icon name="clock" size={13} /> 累计用时 {sessionDone.totalTimeS || 0}s
       </span>
+      {#if sessionDone.totalTimeS && sessionDone.total > 0}
+        <span class="lv-achievement-pill num" title="平均单题有效专注答题时长">
+          <Icon name="zap" size={13} /> 题均 {sessionDone.avgTimeS || Math.round(sessionDone.totalTimeS / sessionDone.total)}s
+        </span>
+      {/if}
     </div>
     <div class="lv-done-stats num">
       <div><strong>{sessionDone.total}</strong><span>{t("session.total")}</span></div>

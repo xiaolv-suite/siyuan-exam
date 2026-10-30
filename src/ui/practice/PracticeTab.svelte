@@ -43,6 +43,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
     import { onExamEvent, emitExamEvent } from "@/core/bus";
+    import { evaluateCognitiveProfile, buildCognitiveProfilePrefix } from "@/core/cognitiveProfile";
     import PracticeSessionView from "./PracticeSessionView.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
@@ -3610,6 +3611,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let aiCount = $state(5);
     let aiDifficulty = $state<"easy" | "medium" | "hard" | "mixed">("mixed");
     let aiKp = $state("");
+    let aiQuote = $state("");
     const aiCustomEndpointSet = $derived(!!String(plugin.settingUtils?.get?.("aiEndpoint") ?? "").trim() && !!resolveAiKey(plugin));
     let aiBusy = $state(false);
     let aiCancel = $state({ aborted: false });
@@ -3621,6 +3623,8 @@ import { confirmDialogSync } from "@/libs/dialog";
     let aiBatchBusy = $state(false);
     let aiQueueOptions = $state<import("@/ai/gen").GenOptions | null>(null);
     function snapshotAiOptions(): import("@/ai/gen").GenOptions {
+      const cognitiveProfile = evaluateCognitiveProfile(attempts, questions, app.wrongItems());
+      const profilePrefix = buildCognitiveProfilePrefix(cognitiveProfile);
       return buildGenOptionsSnapshot({
         count: aiCount,
         difficulty: aiDifficulty,
@@ -3630,6 +3634,8 @@ import { confirmDialogSync } from "@/libs/dialog";
         quality: aiQuality,
         pluginCustomHint: String(plugin.settingUtils?.get?.("aiCustomHint") ?? ""),
         userCustomHint: aiCustomHint,
+        locator: aiQuote.trim() ? { quote: aiQuote.trim() } : undefined,
+        profilePrefix,
       });
     }
     let aiPreset = $state<keyof typeof import("@/ai/gen").PROMPT_PRESETS>("default");
@@ -5585,6 +5591,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:aiPreset
       bind:aiQuality
       bind:aiKp
+      bind:aiQuote
       bind:aiCustomHint
       {aiBusy}
       {aiRegenBusy}

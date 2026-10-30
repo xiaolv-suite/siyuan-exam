@@ -183,11 +183,15 @@ describe("AI 出题工作台队列与审批服务 (aiStudioService)", () => {
       quality: "standard",
       pluginCustomHint: "避免多重否定句",
       userCustomHint: "多出综合分析题",
+      locator: { quote: "核心概念引文" },
+      profilePrefix: "【学习者画像】",
     });
 
     expect(opts.count).toBe(10);
     expect(opts.difficulty).toBe("hard");
     expect(opts.customHint).toContain("避免多重否定句\n多出综合分析题");
+    expect(opts.locator?.quote).toBe("核心概念引文");
+    expect(opts.profilePrefix).toBe("【学习者画像】");
   });
 
   it("8. createAiCandidateEditDraft 与 executeRegenSingleCandidate：草稿构造与单题重出", async () => {

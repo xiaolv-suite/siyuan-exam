@@ -249,6 +249,8 @@ export interface GenOptionsSnapshotParams {
   quality: "standard" | "economy";
   pluginCustomHint?: string;
   userCustomHint?: string;
+  locator?: { materialId?: string; page?: number; quote?: string };
+  profilePrefix?: string;
 }
 
 /**
@@ -271,6 +273,8 @@ export function buildGenOptionsSnapshot(params: GenOptionsSnapshotParams): GenOp
     preset: params.preset,
     quality: params.quality,
     customHint: customHint || undefined,
+    locator: params.locator,
+    profilePrefix: params.profilePrefix,
   };
 }
 

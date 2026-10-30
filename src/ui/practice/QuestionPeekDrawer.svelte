@@ -2,6 +2,7 @@
   import Icon from "../shared/Icon.svelte";
   import type { Question, QuestionLifecycleStatus } from "../../core/types";
   import type { ExamApp } from "../../app";
+  import { renderOcclusionSvg } from "@/core/imageOcclusion";
 
   type QuestionWithBlock = Question & { blockId: string };
 
@@ -237,6 +238,11 @@
     <div class="lv-row" style="margin:0;gap:var(--lv-space-1);flex-wrap:wrap">
       <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
       {#if q.kp}<span class="lv-chip">{q.kp}</span>{/if}
+      {#if q.secondaryKps && q.secondaryKps.length}
+        {#each q.secondaryKps as skp (skp)}
+          <span class="lv-chip sm lv-chip--data num" title="辅助考查知识点">辅: {skp}</span>
+        {/each}
+      {/if}
       {#if q.source}<span class="lv-muted lv-peek-src">{q.source}</span>{/if}
       <span class="lv-chip sm" class:lv-chip--grn={status === "published"} class:lv-chip--amb={status === "draft"} class:lv-chip--acc={status === "review"} style={status === "deprecated" ? "opacity:0.6" : undefined} title={t("browse.lifecycle")}>
         {t("lifecycle." + status, LIFECYCLE_LABELS[status])}
@@ -276,6 +282,11 @@
   </header>
   <div class="lv-peek-body">
     <div class="lv-peek-stem">{q.stem}</div>
+    {#if q.occlusion}
+      <div class="lv-occlusion-wrap" style="margin:8px 0 12px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);max-width:440px">
+        {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: !peekHideAnswer ? [q.occlusion.activeMaskId || ""] : [] })}
+      </div>
+    {/if}
     {#if q.studyMeta?.phonetic}
       <div class="lv-phonetic-badge" style="margin:6px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
         <Icon name="volume" size={12} />
