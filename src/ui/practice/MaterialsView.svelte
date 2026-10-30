@@ -98,7 +98,69 @@
     onsaveNote,
     onresetNoteForm,
   }: Props = $props();
+
+  let selectionToolbar = $state<{ x: number; y: number; text: string } | null>(null);
+
+  function handleSelectionCheck() {
+    if (typeof window === "undefined") return;
+    const sel = window.getSelection();
+    const txt = sel ? sel.toString().trim() : "";
+    if (txt.length >= 2 && txt.length <= 300) {
+      try {
+        const range = sel!.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        selectionToolbar = {
+          x: Math.max(10, Math.min(window.innerWidth - 260, rect.left + rect.width / 2 - 120)),
+          y: Math.max(10, rect.top - 44),
+          text: txt,
+        };
+      } catch {
+        selectionToolbar = null;
+      }
+    } else {
+      selectionToolbar = null;
+    }
+  }
+
+  function handleAction(num: 1 | 2 | 3 | 4) {
+    if (!selectionToolbar || !selectedMaterial) return;
+    const txt = selectionToolbar.text;
+    selectionToolbar = null;
+    if (num === 1) {
+      onbridgeToManual(selectedMaterial, txt);
+    } else if (num === 2) {
+      onbridgeToManual(selectedMaterial, `==${txt}==`);
+    } else if (num === 3) {
+      noteQuote = txt;
+      if (notesOpenId !== selectedMaterial.id) ontoggleNotes(selectedMaterial);
+    } else if (num === 4) {
+      onbridgeToAi(selectedMaterial);
+    }
+  }
+
+  function handleWindowKeyDown(e: KeyboardEvent) {
+    if (!selectionToolbar) return;
+    if (e.key === "Escape") {
+      selectionToolbar = null;
+      return;
+    }
+    if (e.key === "1") {
+      e.preventDefault();
+      handleAction(1);
+    } else if (e.key === "2") {
+      e.preventDefault();
+      handleAction(2);
+    } else if (e.key === "3") {
+      e.preventDefault();
+      handleAction(3);
+    } else if (e.key === "4") {
+      e.preventDefault();
+      handleAction(4);
+    }
+  }
 </script>
+
+<svelte:window onmouseup={handleSelectionCheck} onkeydown={handleWindowKeyDown} />
 
 <div class="lv-pad">
   <div class="lv-screen-head">
@@ -223,6 +285,30 @@
           {/if}
         </section>
       {/if}
+    </div>
+  {/if}
+
+  {#if selectionToolbar}
+    <div
+      class="lv-selection-toolbar"
+      role="toolbar"
+      aria-label="划词快捷操作栏"
+      style="position:fixed;left:{selectionToolbar.x}px;top:{selectionToolbar.y}px;z-index:99;animation:lv-appear 0.15s var(--lv-ease-out)"
+    >
+      <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:3px 8px;display:flex;align-items:center;gap:3px;border-radius:var(--lv-radius-pill);border:1px solid var(--lv-border-subtle);background:var(--lv-surface)">
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => handleAction(1)} title="[1] 将所选词带入手工录题" aria-label="1 学习：录题">
+          <span class="num" style="opacity:0.6;font-size:10px;margin-right:2px">1</span> <Icon name="edit" size={12} /> 学习
+        </button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => handleAction(2)} title="[2] 将所选词挖空成填空题" aria-label="2 挖空制题">
+          <span class="num" style="opacity:0.6;font-size:10px;margin-right:2px">2</span> <Icon name="layers" size={12} /> 挖空
+        </button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => handleAction(3)} title="[3] 作为引文记笔记" aria-label="3 摘录笔记">
+          <span class="num" style="opacity:0.6;font-size:10px;margin-right:2px">3</span> <Icon name="book" size={12} /> 批注
+        </button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => handleAction(4)} title="[4] 带入 AI 追问" aria-label="4 询问 AI">
+          <span class="num" style="opacity:0.6;font-size:10px;margin-right:2px">4</span> <Icon name="sparkles" size={12} /> 询问
+        </button>
+      </div>
     </div>
   {/if}
 </div>

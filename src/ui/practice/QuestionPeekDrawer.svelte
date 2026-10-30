@@ -212,6 +212,22 @@
     onsubmitClearDispute,
     onsubmitFlagDispute,
   }: Props = $props();
+
+  let writeBackBusy = $state<string>("");
+  let writeBackSuccess = $state<Record<string, boolean>>({});
+
+  async function handleWriteBackNote(targetQ: QuestionWithBlock, text: string, rkey: string) {
+    if (!targetQ.blockId || !app?.kernelOnline) return;
+    writeBackBusy = rkey;
+    try {
+      await app.appendQuestionNote(targetQ.id, targetQ.blockId, text, "ai-explain");
+      writeBackSuccess = { ...writeBackSuccess, [rkey]: true };
+    } catch {
+      // 容错处理
+    } finally {
+      writeBackBusy = "";
+    }
+  }
 </script>
 
 <div class="lv-peek-backdrop" onclick={onclose} role="presentation"></div>
@@ -618,7 +634,23 @@
                       onclick={() => onrunReceiptMisdiagnosis(q, e)}><Icon name="flask" size={13} /> {receiptBusy === rkey ? "…" : t("misdiagnosis.ask")}</button>
                   {/if}
                   {#if receiptMisdiagnosis[rkey]}
-                    <div class="lv-detail" style="width:100%;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">{receiptMisdiagnosis[rkey]}</div>
+                    <div class="lv-detail" style="width:100%;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">
+                      {receiptMisdiagnosis[rkey]}
+                      {#if q.blockId}
+                        <div class="lv-row" style="margin-top:6px;gap:6px">
+                          <button
+                            class="lv-btn sm lv-btn--ghost"
+                            disabled={writeBackBusy === rkey || !app?.kernelOnline}
+                            aria-busy={writeBackBusy === rkey}
+                            onclick={() => void handleWriteBackNote(q, receiptMisdiagnosis[rkey], rkey)}
+                            title="将本题 AI 错因推导回写至思源笔记文档原生子块"
+                          >
+                            <Icon name="file-text" size={12} />
+                            <span>{writeBackBusy === rkey ? "回写中…" : writeBackSuccess[rkey] ? "已回写思源文档 ✔" : "回写思源文档"}</span>
+                          </button>
+                        </div>
+                      {/if}
+                    </div>
                   {/if}
                 </div>
               {/each}
