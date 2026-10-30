@@ -370,30 +370,30 @@
         {/if}
         <div class="lv-session-dock" role="group" aria-label="核心学习操作">
           <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => onttsSpeak([q.stem, ...q.options].join(" "), { lang: q.studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 })}><Icon name="volume" size={13} /></button>
-          <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={ontoggleTtsSlow} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
+          <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} onclick={ontoggleTtsSlow} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）" aria-label="切换语音语速">
             {ttsSlowRate ? "0.8x" : "1.0x"}
           </button>
-          <button type="button" class="lv-chip num sm" onclick={oncycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
+          <button type="button" class="lv-chip num sm" onclick={oncycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）" aria-label="切换题干字号大小">
             A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
           </button>
-          <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => onstartSpeech(q.answer || q.stem, q.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
+          <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => onstartSpeech(q.answer || q.stem, q.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评" aria-label="开启麦克风发音跟读录音与匹配度测评" aria-pressed={speechRecording}>
             <Icon name="mic" size={13} /> {speechRecording ? "跟读中…" : "跟读测评"}
           </button>
-          <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={ontoggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
+          <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-label={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={ontoggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
           <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={ontoggleFavCurrent}><Icon name="star" size={13} /></button>
         </div>
         <div class="lv-session-dock" role="group" aria-label="辅助工具坞">
-          <button class="lv-chip" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-pressed={scratchpadOpen} onclick={ontoggleScratchpad}><Icon name="pencil" size={13} /></button>
-          <button class="lv-chip" class:acc={speedDrillEnabled} title={t("session.speedDrillTip")} aria-pressed={speedDrillEnabled} onclick={() => { speedDrillEnabled = !speedDrillEnabled; }}><Icon name="zap" size={13} /></button>
+          <button class="lv-chip" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-label={t("scratchpad.tip")} aria-pressed={scratchpadOpen} onclick={ontoggleScratchpad}><Icon name="pencil" size={13} /></button>
+          <button class="lv-chip" class:acc={speedDrillEnabled} title={t("session.speedDrillTip")} aria-label={t("session.speedDrillTip")} aria-pressed={speedDrillEnabled} onclick={() => { speedDrillEnabled = !speedDrillEnabled; }}><Icon name="zap" size={13} /></button>
           <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={ontogglePureListen}><Icon name="eyeoff" size={13} /></button>
-          <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} onclick={() => { soundEnabled = !soundEnabled; }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
-          <button class="lv-chip" class:acc={hotkeysHelpOpen} title={t("hotkeys.tip")} onclick={() => (hotkeysHelpOpen = !hotkeysHelpOpen)}><Icon name="activity" size={13} /></button>
+          <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-label={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-pressed={soundEnabled} onclick={() => { soundEnabled = !soundEnabled; }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
+          <button class="lv-chip" class:acc={hotkeysHelpOpen} title={t("hotkeys.tip")} aria-label={t("hotkeys.tip")} aria-pressed={hotkeysHelpOpen} onclick={() => (hotkeysHelpOpen = !hotkeysHelpOpen)}><Icon name="activity" size={13} /></button>
         </div>
-        <span class="lv-chip" style="gap:2px;padding:2px 4px">
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("star")} title={t("session.tagStar")} onclick={() => ontoggleUserTag("star")}><Icon name="star" size={12} /></button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("trap")} title={t("session.tagTrap")} onclick={() => ontoggleUserTag("trap")}><Icon name="alert-triangle" size={12} /></button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} onclick={() => ontoggleUserTag("doubt")}><Icon name="help" size={12} /></button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} onclick={() => ontoggleUserTag("key")}><Icon name="bulb" size={12} /></button>
+        <span class="lv-chip" style="gap:2px;padding:2px 4px" role="group" aria-label="试题速记标记">
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("star")} title={t("session.tagStar")} aria-label={t("session.tagStar")} aria-pressed={(q.userTags || []).includes("star")} onclick={() => ontoggleUserTag("star")}><Icon name="star" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("trap")} title={t("session.tagTrap")} aria-label={t("session.tagTrap")} aria-pressed={(q.userTags || []).includes("trap")} onclick={() => ontoggleUserTag("trap")}><Icon name="alert-triangle" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} aria-label={t("session.tagDoubt")} aria-pressed={(q.userTags || []).includes("doubt")} onclick={() => ontoggleUserTag("doubt")}><Icon name="help" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} aria-label={t("session.tagKey")} aria-pressed={(q.userTags || []).includes("key")} onclick={() => ontoggleUserTag("key")}><Icon name="bulb" size={12} /></button>
         </span>
       </div>
       <div class="lv-session-main">

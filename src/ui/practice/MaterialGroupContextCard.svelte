@@ -36,8 +36,9 @@
     <div class="lv-row" style="margin:0 0 6px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
       <b class="lv-mat-chip"><Icon name="paperclip" size={14} /> {groupContext ? formatMaterialGroupHeader(groupContext) : t("material.shared")}</b>
       {#if isLong}
-        <button type="button" class="lv-chip num" onclick={ontoggleExpand}>
-          {materialExpanded ? t("material.fold") : t("material.expand")}
+        <button type="button" class="lv-chip num" onclick={ontoggleExpand} aria-expanded={materialExpanded} style="display:inline-flex;align-items:center;gap:4px">
+          <Icon name={materialExpanded ? "arrow-down" : "chev-right"} size={11} />
+          <span>{materialExpanded ? t("material.fold") : t("material.expand")}</span>
         </button>
       {/if}
     </div>

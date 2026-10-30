@@ -33,7 +33,7 @@
       <Icon name="check" size={15} />
       <span>{t("session.groupFeedback")}（{t("material.subQ").replace("{n}", String(modal.fromIndex))} - {t("material.subQ").replace("{n}", String(modal.toIndex))}）</span>
     </b>
-    <span class="lv-chip lv-chip--acc num" style="font-weight:600">
+    <span class="lv-chip lv-chip--data num" style="font-weight:600">
       {t("session.initialAccuracy")}: {modal.accuracy}% ({modal.correct}/{modal.total})
     </span>
   </div>

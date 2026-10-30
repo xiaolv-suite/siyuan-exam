@@ -2281,6 +2281,8 @@
           style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:var(--lv-radius-pill, 9999px)"
           onclick={() => (mockMiniSheetOpen = !mockMiniSheetOpen)}
           title="展开考场快捷答题卡"
+          aria-expanded={mockMiniSheetOpen}
+          aria-label="展开考场快捷答题卡"
         >
           <Icon name="edit" size={13} />
           <span>{unansweredIndices.length > 0 ? `未答 ${unansweredIndices.length}` : "全部答完"} ({cursor + 1}/{session.state.qids.length})</span>

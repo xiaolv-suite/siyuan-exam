@@ -163,7 +163,7 @@
                 <button class="lv-btn sm lv-btn--ghost" onclick={() => void onsyncBankToDoc(b.id)} title="将整套题库题册格式化同步为思源原生文档，折叠答案，卸载插件依然永久保留">
                   <Icon name="file" size={12} /> {t("bank.syncToDoc")}
                 </button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={() => void onremoveBank(b.id)} title={t("bank.removeTitle")}>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => void onremoveBank(b.id)} title={t("bank.removeTitle")} aria-label={t("bank.removeTitle")}>
                   <Icon name="trash" size={12} />
                 </button>
               </div>

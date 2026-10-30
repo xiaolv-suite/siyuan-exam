@@ -188,7 +188,7 @@
             <button class="lv-btn sm" aria-expanded={notesOpenId === m.id} onclick={() => ontoggleNotes(m)} disabled={materialsBusy}><Icon name="pencil" size={13} /> {t("materials.notes")}（<span class="num">{materialNoteCounts.get(m.id) ?? 0}</span>）</button>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => onbridgeToManual(m)} title="把当前资料来源带入手工录题"><Icon name="edit" size={13} /> {t("materials.toManual", "带入录题")}</button>
             <button class="lv-btn sm lv-btn--ghost" onclick={() => onbridgeToAi(m)} title="把当前资料与笔记带入 AI 出题"><Icon name="sparkles" size={13} /> {t("materials.toAi", "带入 AI")}</button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => onremoveMaterial(m)} disabled={materialsBusy || app?.materialsReadonly} title={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")}><Icon name="trash" size={13} /></button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => onremoveMaterial(m)} disabled={materialsBusy || app?.materialsReadonly} title={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")} aria-label={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")}><Icon name="trash" size={13} /></button>
           </div>
           {#if notesOpenId === m.id}
             <div class="lv-material-notes">
