@@ -1817,8 +1817,10 @@
         <option value="partial_all">{t("mock.policyPartialAll")}</option>
         <option value="penalty">{t("mock.policyPenalty")}</option>
       </select>
-      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => sampleVerifyOpen = !sampleVerifyOpen} title={t("mock.sampleVerifyTip")}>
-        <Icon name="chart" size={12} /> {t("mock.sampleVerify")}{#if sampleVerifyOpen} ▾{:else} ▸{/if}
+      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => sampleVerifyOpen = !sampleVerifyOpen} title={t("mock.sampleVerifyTip")} style="display:inline-flex;align-items:center;gap:4px">
+        <Icon name="chart" size={12} />
+        <span>{t("mock.sampleVerify")}</span>
+        <Icon name={sampleVerifyOpen ? "arrow-down" : "chev-right"} size={11} />
       </button>
     </div>
     {#if sampleVerifyOpen}

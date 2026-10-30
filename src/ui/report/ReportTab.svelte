@@ -1348,7 +1348,7 @@
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "evidence"} style="margin-bottom:12px">
         <b>{t("report.changedTitle")}</b>
         <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" onclick={() => caOpen = !caOpen}>
-          <Icon name={caOpen ? "chev-left" : "chev-right"} size={11} />
+          <Icon name={caOpen ? "arrow-down" : "chev-right"} size={11} />
           <span>{t("report.changedDrill")}（<span class="num">{caList.length}</span>）</span>
         </button>
         {#if caOpen}

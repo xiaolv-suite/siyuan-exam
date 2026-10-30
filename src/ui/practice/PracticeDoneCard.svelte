@@ -180,7 +180,7 @@
             <Icon name="target" size={14} /> 发现 {sessionDone.wrong} 道错题 · 推荐即时强化
           </b>
           <button class="lv-btn sm lv-btn--ghost" onclick={ontoggleReview} style="display:inline-flex;align-items:center;gap:4px">
-            <Icon name={reviewOpen ? "chev-left" : "chev-right"} size={11} />
+            <Icon name={reviewOpen ? "arrow-down" : "chev-right"} size={11} />
             <span>{reviewOpen ? "收起错题" : t("session.reviewWrongs")}</span>
           </button>
         </div>
