@@ -582,7 +582,7 @@
       </div>
 
       <!-- 阶段三：全真模考与实战检验 -->
-      <div class="lv-card" style="margin-top:22px;padding:16px 20px;border-radius:var(--lv-r-3);background:var(--lv-surface);border:1px solid var(--lv-border);box-shadow:var(--lv-sh-card)">
+      <div class="lv-card" style="margin-top:22px;padding:18px 22px;border-radius:var(--lv-r-card, 20px);background:var(--lv-surface);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-card)">
         <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
           <div>
             <span class="lv-eyebrow" style="color:var(--lv-brand);font-weight:600">阶段三：全真模考与实战检验</span>
@@ -615,7 +615,7 @@
         <button class="lv-btn" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}><Icon name="save" size={16} /> {syncDocsBusy ? "…" : t("sync.docsBtn")}</button>
         <details class="lv-export-fold">
           <summary class="lv-btn"><Icon name="export" size={16} /> {t("export.wrongbook")}</summary>
-          <div class="lv-card" style="padding: var(--lv-space-relaxed) var(--lv-space-3);margin-top:6px">
+          <div class="lv-card" style="padding:var(--lv-space-relaxed) var(--lv-space-3);margin-top:6px;border-radius:var(--lv-r-card, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
             <div class="lv-row" style="margin:4px 0">
               <span class="lv-chip">{t("manual.kp")}</span>
               <select class="lv-select" bind:value={expKp}>

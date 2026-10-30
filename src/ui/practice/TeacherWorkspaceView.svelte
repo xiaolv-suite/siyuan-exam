@@ -55,7 +55,7 @@
     <span class="lv-muted" style="font-size:12px;font-weight:400">出版级 A4 排版 · 教学讲义 · 课后作业单</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:14px">
-    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border);border-top:3px solid var(--lv-brand);border-radius:var(--lv-r-3);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
+    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-top:3px solid var(--lv-brand);border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
       <div>
         <b style="font-size:15px;color:var(--lv-text);display:flex;align-items:center;gap:6px">
           <Icon name="printer" size={16} /> A4 双栏试卷印刷
@@ -69,7 +69,7 @@
       </button>
     </div>
 
-    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border);border-top:3px solid var(--lv-accent);border-radius:var(--lv-r-3);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
+    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-top:3px solid var(--lv-accent);border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
       <div>
         <b style="font-size:15px;color:var(--lv-text);display:flex;align-items:center;gap:6px">
           <Icon name="book" size={16} /> 教师讲义教案卷
@@ -83,7 +83,7 @@
       </button>
     </div>
 
-    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border);border-top:3px solid var(--lv-green);border-radius:var(--lv-r-3);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
+    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-top:3px solid var(--lv-green);border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
       <div>
         <b style="font-size:15px;color:var(--lv-text);display:flex;align-items:center;gap:6px">
           <Icon name="file" size={16} /> 课后分层作业单
@@ -97,7 +97,7 @@
       </button>
     </div>
 
-    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border);border-top:3px solid var(--lv-amber);border-radius:var(--lv-r-3);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
+    <div class="lv-card" style="padding:18px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-top:3px solid var(--lv-amber);border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-card);display:flex;flex-direction:column;justify-content:space-between">
       <div>
         <b style="font-size:15px;color:var(--lv-text);display:flex;align-items:center;gap:6px">
           <Icon name="chart" size={16} /> 试题质量与区分度
