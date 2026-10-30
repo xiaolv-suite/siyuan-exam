@@ -355,7 +355,7 @@
         <Icon name="zap" size={15} />
         <span class="lv-quick-create-text">{t("rail.quickActions", "快捷行动")}</span>
       </span>
-      <span class="lv-quick-create-chevron" class:expanded={launcherOpen} aria-hidden="true">▾</span>
+      <span class="lv-quick-create-chevron" class:expanded={launcherOpen} aria-hidden="true" style="display:inline-flex;align-items:center"><Icon name="chev-right" size={12} /></span>
     </button>
 
   </div>
@@ -685,7 +685,7 @@
     transition: transform var(--lv-dur-micro) ease;
   }
   .lv-quick-create-chevron.expanded {
-    transform: rotate(180deg);
+    transform: rotate(90deg);
   }
   .lv-quick-popover {
     position: absolute;

@@ -169,8 +169,9 @@
           <b style="font-size:var(--lv-font-size-body-compact);display:inline-flex;align-items:center;gap:6px">
             <Icon name="target" size={14} /> 发现 {sessionDone.wrong} 道错题 · 推荐即时强化
           </b>
-          <button class="lv-btn sm lv-btn--ghost" onclick={ontoggleReview}>
-            {reviewOpen ? "▾ 收起错题" : "▸ " + t("session.reviewWrongs")}
+          <button class="lv-btn sm lv-btn--ghost" onclick={ontoggleReview} style="display:inline-flex;align-items:center;gap:4px">
+            <Icon name={reviewOpen ? "chev-left" : "chev-right"} size={11} />
+            <span>{reviewOpen ? "收起错题" : t("session.reviewWrongs")}</span>
           </button>
         </div>
         <button class="lv-btn lv-btn--primary" style="width:100%;margin-bottom:8px" disabled={actionBusy} onclick={onsameKpSession}>

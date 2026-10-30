@@ -303,8 +303,10 @@
         </div>
         {#if q.type === "fill"}
           <div class="lv-row" style="margin:6px 0 4px">
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (editSpecOpen = !editSpecOpen)}>
-              ⚙ {t("spec.authorSection")}{#if editSpecOpen} ▾{/if}
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => (editSpecOpen = !editSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
+              <Icon name="edit" size={12} />
+              <span>{t("spec.authorSection")}</span>
+              <Icon name={editSpecOpen ? "chev-left" : "chev-right"} size={11} />
             </button>
           </div>
           {#if editSpecOpen}

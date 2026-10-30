@@ -1304,8 +1304,9 @@
           {/each}
         </div>
       {/if}
-      <button class="lv-btn sm lv-btn--ghost" style="margin:4px 0" aria-expanded={expOpen} onclick={() => expOpen = !expOpen}>
-        {expOpen ? "▾" : "▸"} {expOpen ? t("exposure.hide") : t("exposure.drill")}
+      <button class="lv-btn sm lv-btn--ghost" style="margin:4px 0;display:inline-flex;align-items:center;gap:4px" aria-expanded={expOpen} onclick={() => expOpen = !expOpen}>
+        <Icon name={expOpen ? "chev-left" : "chev-right"} size={11} />
+        <span>{expOpen ? t("exposure.hide") : t("exposure.drill")}</span>
       </button>
       {#if expOpen}
         {#if expList.length}
@@ -1331,8 +1332,9 @@
       <!-- 63-03：改答题清单（首答 → 终答 分离；报告口径：终答==首答不列） -->
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "evidence"} style="margin-bottom:12px">
         <b>{t("report.changedTitle")}</b>
-        <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px" onclick={() => caOpen = !caOpen}>
-          {caOpen ? "▾" : "▸"} {t("report.changedDrill")}（<span class="num">{caList.length}</span>）
+        <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" onclick={() => caOpen = !caOpen}>
+          <Icon name={caOpen ? "chev-left" : "chev-right"} size={11} />
+          <span>{t("report.changedDrill")}（<span class="num">{caList.length}</span>）</span>
         </button>
         {#if caOpen}
           <div class="lv-row" style="margin:6px 0 0;flex-direction:column;align-items:stretch;gap:var(--lv-space-1)">
@@ -1710,8 +1712,9 @@
         {/each}
         {#if calib.rows.some((r) => r.confidence === "sure" && r.accuracy < 80 && r.attempts > 0)}
           <!-- 44-02 lite：确定-错 下钻（低样本不误导，样本门槛沿用校准卡口径） -->
-          <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px" onclick={() => cwOpen = !cwOpen}>
-            {cwOpen ? "▾" : "▸"} {t("report.cwDrill")}
+          <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" onclick={() => cwOpen = !cwOpen}>
+            <Icon name={cwOpen ? "chev-left" : "chev-right"} size={11} />
+            <span>{t("report.cwDrill")}</span>
           </button>
           {#if cwOpen}
             <div class="lv-row" style="margin:6px 0 0;flex-direction:column;align-items:stretch;gap:var(--lv-space-1)">
@@ -1730,8 +1733,9 @@
         {/if}
         {#if calib.rows.some((r) => (r.confidence === "fuzzy" || r.confidence === "guess") && r.accuracy > 0 && r.attempts > 0)}
           <!-- 44-02 lite 对偶：不确定-对 下钻（运气/直觉 vs 真实掌握） -->
-          <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px" onclick={() => ucOpen = !ucOpen}>
-            {ucOpen ? "▾" : "▸"} {t("report.ucDrill")}
+          <button class="lv-btn sm lv-btn--ghost" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px" onclick={() => ucOpen = !ucOpen}>
+            <Icon name={ucOpen ? "chev-left" : "chev-right"} size={11} />
+            <span>{t("report.ucDrill")}</span>
           </button>
           {#if ucOpen}
             <div class="lv-row" style="margin:6px 0 0;flex-direction:column;align-items:stretch;gap:var(--lv-space-1)">
