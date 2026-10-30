@@ -1621,7 +1621,7 @@
           </div>
         {/each}
       {:else if masteryTab === "roadmap"}
-        <!-- 🗺️ 阶段通关学习路线与核心阻断图谱 -->
+        <!-- 阶段通关学习路线与核心阻断图谱 -->
         {#if clearanceLoading}
           <div class="lv-pad" style="text-align:center"><p class="lv-muted">正在根据考点前后拓扑因果关系计算通关地图…</p></div>
         {:else if clearancePlan}
@@ -2049,13 +2049,13 @@
 
           <!-- 异常题目清单 -->
           {#if discriminationAudit.anomalies.length > 0}
-            <div class="lv-card" style="border:1px solid var(--lv-red);padding:14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);margin-bottom:14px">
+            <div class="lv-card" style="border:1px solid color-mix(in srgb, var(--lv-red) 32%, var(--lv-border-subtle));padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-3, 14px);margin-bottom:14px">
               <b style="color:var(--lv-red);font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:8px">
                 <Icon name="alert-triangle" size={14} /> 发现 {discriminationAudit.anomalies.length} 道质量异常题目（高分组正确率反常或题目无效）
               </b>
               <div class="stack-sm">
                 {#each discriminationAudit.anomalies.slice(0, 10) as an (an.qid)}
-                  <div class="lv-row" style="justify-content:space-between;align-items:center;padding:6px 8px;background:var(--lv-surface);border-radius:6px;font-size:12px;gap:8px">
+                  <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 10px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2, 10px);font-size:12px;gap:8px">
                     <div style="flex:1;min-width:0">
                       <b style="color:var(--lv-text)">{an.stemSnippet}</b>
                       <div class="lv-muted" style="font-size:11px">{an.diagnosisNote}</div>
@@ -2063,7 +2063,10 @@
                     <div class="lv-row" style="margin:0;gap:6px">
                       <span class="lv-chip num sm" class:lv-chip--red={an.discriminationD < 0}>D: {an.discriminationD.toFixed(2)}</span>
                       <span class="lv-chip num sm">P: {Math.round(an.difficultyP * 100)}%</span>
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => openPracticeView(plugin, "browse", { bankId, search: an.stemSnippet.slice(0, 8) })}>排查题目</button>
+                      <button class="lv-btn sm lv-btn--ghost" onclick={() => openPracticeView(plugin, "browse", { bankId, search: an.stemSnippet.slice(0, 8) })} style="display:inline-flex;align-items:center;gap:4px">
+                        <Icon name="search" size={12} />
+                        <span>排查题目</span>
+                      </button>
                     </div>
                   </div>
                 {/each}

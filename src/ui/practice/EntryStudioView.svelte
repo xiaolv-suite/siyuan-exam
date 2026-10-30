@@ -416,7 +416,7 @@
         onexportBank={onexportBank}
       />
     {:else}
-      <!-- ===== 👨‍🎓 备考学员与自主研学空间 ===== -->
+      <!-- ===== 备考学员与自主研学空间 ===== -->
       {#if plan}
         {#if criticalForgettingKps.length > 0}
           <div class="lv-card lv-ebbinghaus-banner" role="alert">
