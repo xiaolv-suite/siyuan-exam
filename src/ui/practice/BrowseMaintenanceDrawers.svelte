@@ -367,7 +367,10 @@
         <span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> {paperPreview.items.filter((i: any) => i.verdict === "correct").length}</span>
         <span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="close" size={11} /> {paperPreview.items.filter((i: any) => i.verdict === "wrong").length}</span>
         {#if paperPreview.items.some((i: any) => i.verdict === "not_attempted")}
-          <span class="lv-chip lv-chip--amb num" title={t("paper.shortNote")}>? {paperPreview.items.filter((i: any) => i.verdict === "not_attempted").length}</span>
+          <span class="lv-chip lv-chip--amb num" title={t("paper.shortNote")} style="display:inline-flex;align-items:center;gap:3px">
+            <Icon name="help" size={11} />
+            <span>{paperPreview.items.filter((i: any) => i.verdict === "not_attempted").length}</span>
+          </span>
         {/if}
         {#if paperPreview.outOfRange.length}
           <span class="lv-chip lv-chip--amb num" title={paperPreview.outOfRange.join("、")}>{t("paper.outOfRange").replace("{n}", String(paperPreview.outOfRange.length))}</span>
