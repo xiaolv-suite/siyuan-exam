@@ -225,6 +225,27 @@ export interface SwipeGestureState {
 }
 
 /**
+ * WAI-ARIA tabs 方向键导航：给定当前 tab 索引与按键，返回下一个聚焦索引。
+ * ArrowRight/ArrowLeft 循环移动，Home/End 跳两端；非方向键返回 -1（调用方不处理）。
+ * 配合 roving tabindex（选中 tab tabIndex=0，其余 -1）保证整个 tablist 仅占一个 Tab 停靠。
+ */
+export function tablistNextIndex(key: string, current: number, length: number): number {
+  if (length <= 0 || current < 0 || current >= length) return -1;
+  switch (key) {
+    case "ArrowRight":
+      return (current + 1) % length;
+    case "ArrowLeft":
+      return (current - 1 + length) % length;
+    case "Home":
+      return 0;
+    case "End":
+      return length - 1;
+    default:
+      return -1;
+  }
+}
+
+/**
  * 检测移动端左右滑动手势（用于切题导航）
  */
 export function detectHorizontalSwipe(

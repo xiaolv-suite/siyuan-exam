@@ -2,6 +2,7 @@
   import Icon from "../shared/Icon.svelte";
   import type { Question } from "../../core/types";
   import type { CbmSignal } from "../../core/cbm";
+  import { tablistNextIndex } from "./services/practiceKeyboardService";
 
   interface Props {
     wrongList: any[];
@@ -114,6 +115,19 @@
 
   const qOf = (qid: string) => questionMap.get(qid);
   const totalWrongs = $derived(Math.max(1, wrongList.length));
+
+  /** WAI-ARIA tabs 键盘模式（ux §1 keyboard-nav）：左右方向键在分栏间移动并自动激活，Home/End 跳两端。
+   *  配合 roving tabindex（仅选中分栏 tabIndex=0）避免五个分栏产生连续 Tab 噪声。 */
+  function onWbTablistKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    if (!target || !(target instanceof HTMLButtonElement) || target.getAttribute("role") !== "tab") return;
+    const tabs = Array.from((e.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>("[role='tab']"));
+    const next = tablistNextIndex(e.key, tabs.indexOf(target), tabs.length);
+    if (next < 0) return;
+    e.preventDefault();
+    tabs[next]?.focus();
+    tabs[next]?.click(); // automatic activation：分栏数量少，焦点到达即切换面板
+  }
 </script>
 
 <div class="lv-pad">
@@ -217,21 +231,21 @@
         </div>
         <div class="lv-card">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:8px">
-            <div class="lv-session-dock" role="tablist" aria-label={t("wrongbook.queue")}>
-              <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "active"} aria-selected={wbTab === "active"} onclick={() => wbTab = "active"}>
+            <div class="lv-session-dock" role="tablist" aria-label={t("wrongbook.queue")} onkeydown={onWbTablistKeydown}>
+              <button type="button" role="tab" tabindex={wbTab === "active" ? 0 : -1} class="lv-chip" class:acc={wbTab === "active"} aria-selected={wbTab === "active"} onclick={() => wbTab = "active"}>
                 {t("wrongbook.tabActive")} ({wrongList.length})
               </button>
-              <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "archived"} aria-selected={wbTab === "archived"} onclick={() => wbTab = "archived"}>
+              <button type="button" role="tab" tabindex={wbTab === "archived" ? 0 : -1} class="lv-chip" class:acc={wbTab === "archived"} aria-selected={wbTab === "archived"} onclick={() => wbTab = "archived"}>
                 {t("wrongbook.tabArchived")} ({archivedWrongList.length})
               </button>
-              <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "eliminated"} aria-selected={wbTab === "eliminated"} onclick={() => wbTab = "eliminated"}>
+              <button type="button" role="tab" tabindex={wbTab === "eliminated" ? 0 : -1} class="lv-chip" class:acc={wbTab === "eliminated"} aria-selected={wbTab === "eliminated"} onclick={() => wbTab = "eliminated"}>
                 {t("wrongbook.tabEliminated")} ({eliminatedWrongList.length})
               </button>
               <!-- benchmark-fusion（Moodle CBM 标杆）：确定度双维分栏——高危盲区与脆弱伪掌握 -->
-              <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "highrisk"} class:lv-chip--red={wbTab !== "highrisk" && cbmHighrisk.length > 0} aria-selected={wbTab === "highrisk"} title={t("cbm.highrisk.tip", "自评「确定」却答错：疑似概念性误区，优先复核")} onclick={() => wbTab = "highrisk"}>
+              <button type="button" role="tab" tabindex={wbTab === "highrisk" ? 0 : -1} class="lv-chip" class:acc={wbTab === "highrisk"} class:lv-chip--red={wbTab !== "highrisk" && cbmHighrisk.length > 0} aria-selected={wbTab === "highrisk"} title={t("cbm.highrisk.tip", "自评「确定」却答错：疑似概念性误区，优先复核")} onclick={() => wbTab = "highrisk"}>
                 {t("cbm.highrisk", "高危盲区")} ({cbmHighrisk.length})
               </button>
-              <button type="button" role="tab" class="lv-chip" class:acc={wbTab === "fragile"} class:lv-chip--amb={wbTab !== "fragile" && cbmFragile.length > 0} aria-selected={wbTab === "fragile"} title={t("cbm.fragile.tip", "自评「模糊/猜测」却蒙对：疑似运气分，建议重练验证真实掌握")} onclick={() => wbTab = "fragile"}>
+              <button type="button" role="tab" tabindex={wbTab === "fragile" ? 0 : -1} class="lv-chip" class:acc={wbTab === "fragile"} class:lv-chip--amb={wbTab !== "fragile" && cbmFragile.length > 0} aria-selected={wbTab === "fragile"} title={t("cbm.fragile.tip", "自评「模糊/猜测」却蒙对：疑似运气分，建议重练验证真实掌握")} onclick={() => wbTab = "fragile"}>
                 {t("cbm.fragile", "脆弱伪掌握")} ({cbmFragile.length})
               </button>
             </div>
@@ -363,7 +377,7 @@
               {#each cbmHighrisk as s, wi (s.qid)}
                 {@const q = qOf(s.qid)}
                 <div class="lv-wrong-row" style="border-left:3px solid var(--lv-red)">
-                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red)">{wi + 1}</span>
+                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red-deep, var(--lv-red))">{wi + 1}</span>
                   <div class="lv-wrong-main">
                     <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
                     <div class="lv-wrong-meta">
@@ -390,7 +404,7 @@
               {#each cbmFragile as s, wi (s.qid)}
                 {@const q = qOf(s.qid)}
                 <div class="lv-wrong-row" style="border-left:3px solid var(--lv-amber)">
-                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-amber) 16%, transparent);color:var(--lv-amber)">{wi + 1}</span>
+                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-amber) 16%, transparent);color:var(--lv-amber-deep, var(--lv-amber))">{wi + 1}</span>
                   <div class="lv-wrong-main">
                     <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
                     <div class="lv-wrong-meta">

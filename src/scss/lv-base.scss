@@ -119,22 +119,23 @@
   &.grn,
   &.good,
   &--grn {
-    color: var(--lv-green);
+    /* 文本用深变体保 4.5:1（12px 普通字号）；浅色主题深变体为深色调，暗色主题与亮基色同值 */
+    color: var(--lv-green-deep, var(--lv-green));
     background: var(--lv-green-soft);
   }
   &.red,
   &--red {
-    color: var(--lv-red);
+    color: var(--lv-red-deep, var(--lv-red));
     background: var(--lv-red-soft);
   }
   &.amb,
   &--amb {
-    color: var(--lv-amber);
+    color: var(--lv-amber-deep, var(--lv-amber));
     background: var(--lv-amber-soft);
   }
   &.data,
   &--data {
-    color: var(--lv-data-accent);
+    color: var(--lv-data-deep, var(--lv-data-accent));
     background: var(--lv-data-soft);
   }
 }
@@ -1474,6 +1475,10 @@ input[type="range"] {
     --lv-on-red: CanvasText;
     --lv-amber: CanvasText;
     --lv-amber-soft: transparent;
+    --lv-green-deep: CanvasText;
+    --lv-red-deep: CanvasText;
+    --lv-amber-deep: CanvasText;
+    --lv-data-deep: CanvasText;
     --lv-overlay: transparent;
     --lv-sh-1: none;
     --lv-sh-2: none;

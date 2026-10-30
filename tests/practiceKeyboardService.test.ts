@@ -7,6 +7,7 @@ import {
   shouldBlockGlobalHotkeys,
   detectHorizontalSwipe,
   getNextStudyFontSize,
+  tablistNextIndex,
 } from "@/ui/practice/services/practiceKeyboardService";
 import type { Question } from "@/core/types";
 
@@ -300,5 +301,28 @@ describe("practiceKeyboardService - G 键猜测直标 (benchmark-fusion CBM)", (
   it("非选择题（fill）上 G 直标 guess", () => {
     expect(resolveKeyboardAction({ event: { key: "g" }, view: "session", session: sessionFor(fillQ) }))
       .toEqual({ type: "set_confidence", confidence: "guess" });
+  });
+});
+
+describe("tablistNextIndex — WAI-ARIA tabs 方向键导航 (benchmark-fusion)", () => {
+  const n = 5;
+
+  it("ArrowRight/ArrowLeft 循环移动", () => {
+    expect(tablistNextIndex("ArrowRight", 0, n)).toBe(1);
+    expect(tablistNextIndex("ArrowRight", n - 1, n)).toBe(0);
+    expect(tablistNextIndex("ArrowLeft", 0, n)).toBe(n - 1);
+    expect(tablistNextIndex("ArrowLeft", 2, n)).toBe(1);
+  });
+
+  it("Home/End 跳两端", () => {
+    expect(tablistNextIndex("Home", 3, n)).toBe(0);
+    expect(tablistNextIndex("End", 0, n)).toBe(n - 1);
+  });
+
+  it("非方向键与越界入参返回 -1 不处理", () => {
+    expect(tablistNextIndex("Enter", 0, n)).toBe(-1);
+    expect(tablistNextIndex("ArrowRight", -1, n)).toBe(-1);
+    expect(tablistNextIndex("ArrowRight", 9, n)).toBe(-1);
+    expect(tablistNextIndex("ArrowRight", 0, 0)).toBe(-1);
   });
 });

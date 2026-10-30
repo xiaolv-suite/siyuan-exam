@@ -521,6 +521,23 @@ import { confirmDialogSync } from "@/libs/dialog";
     let viewportBottomPad = $state(0);
     const hasCardsPlugin = $derived(Boolean(getBridgeSafely("cards")));
 
+    // —— ux §9 focus-on-route-change（WCAG 2.4.3）：视图切换后把键盘/读屏焦点移交新视图主标题，
+    // 读屏才能口述"到达了哪里"，键盘用户不必从页面顶端重新 Tab。会话/背诵视图有专属焦点编排
+    // （restoreQuestionControls/漏题守卫），不在此接管；无 .lv-screen-head 标题的视图安静跳过。
+    let lastFocusView = "";
+    $effect(() => {
+      const v = view;
+      if (v === lastFocusView) return;
+      lastFocusView = v;
+      if (v === "session" || v === "recite") return;
+      void tick().then(() => {
+        const head = tabRoot?.querySelector<HTMLElement>(".lv-screen-head .lv-h1, .lv-screen-head h1");
+        if (!head) return;
+        head.setAttribute("tabindex", "-1");
+        head.focus();
+      });
+    });
+
     const criticalForgettingKps = $derived.by(() => {
       if (!questions.length || !app) return [];
       const rep = auditForgettingRisks(questions, app.attempts.all());

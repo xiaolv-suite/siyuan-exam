@@ -182,7 +182,7 @@
         <div class="stack-sm" style="margin:8px 0 10px">
           {#each weakRank as w, wi (w.root)}
             <div class="lv-row" style="margin:0;gap:8px;align-items:center">
-              <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red);min-width:26px;text-align:center">{wi + 1}</span>
+              <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red-deep, var(--lv-red));min-width:26px;text-align:center">{wi + 1}</span>
               <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={w.root}>{w.root}</span>
               <div class="lv-progress" style="flex:1;min-width:80px"><i style="width:{Math.round(w.accuracy * 100)}%;background:var(--lv-red)"></i></div>
               <span class="lv-chip lv-chip--red num" style="min-width:44px;justify-content:center">{Math.round(w.accuracy * 100)}%</span>

@@ -67,6 +67,12 @@
   --lv-amber: #d97706;
   --lv-amber-soft: rgba(217, 119, 6, 0.1);
   --lv-on-amber: #ffffff;
+  /* —— 深变体（浅色主题 chip 文本专用）：基色作 12px 普通字号 chip 文本对 soft 底仅 ~2.8-4.0:1，
+     低于 WCAG 4.5:1；深变体 ≥4.8:1。基色保留给边框/图标/大文本等 3:1 非文本场景 —— */
+  --lv-green-deep: #065f46;
+  --lv-red-deep: #be123c;
+  --lv-amber-deep: #92400e;
+  --lv-data-deep: #0369a1;
   /* —— 教师教研端专属角色主题色 Token —— */
   --lv-teacher-primary: #7c3aed;
   --lv-teacher-soft: rgba(124, 58, 237, 0.1);
@@ -253,6 +259,11 @@ html[data-theme-mode="dark"] {
   --lv-amber: #fbbf24;
   --lv-amber-soft: rgba(251, 191, 36, 0.15);
   --lv-on-amber: #090d16;
+  /* —— 深变体（暗色主题）：暗底 chip 文本直接用亮基色即达标，deep 与基色同值保持视觉不变 —— */
+  --lv-green-deep: #34d399;
+  --lv-red-deep: #fb7185;
+  --lv-amber-deep: #fbbf24;
+  --lv-data-deep: #38bdf8;
 
   --lv-teacher-primary: #a78bfa;
   --lv-teacher-soft: rgba(167, 139, 250, 0.14);
