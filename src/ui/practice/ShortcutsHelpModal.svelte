@@ -25,7 +25,7 @@
           <span id="lv-hotkeys-title">{title}</span>
           <span class="lv-dialog-title-tag">v{version}</span>
         </div>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onclose}>✕</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
       <div class="lv-session-dock" role="tablist" aria-label="快捷键分类" style="margin:0 0 12px;width:100%">
         <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "all"} aria-selected={hotkeyCategory === "all"} onclick={() => hotkeyCategory = "all"}>全部</button>
@@ -60,11 +60,11 @@
 <style>
   .lv-hotkeys-backdrop { position: fixed; inset: 0; z-index: 124; background: var(--lv-overlay); border: 0; padding: 0; cursor: pointer; backdrop-filter: blur(10px); animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
   .lv-hotkeys-wrap { position: fixed; inset: 0; z-index: 125; display: grid; place-items: center; padding: 16px; pointer-events: none; animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }
-  .lv-hotkeys-card { width: min(480px, 100%); pointer-events: auto; background: var(--lv-surface); border: 1px solid var(--lv-border); border-radius: var(--lv-r-4, 22px); box-shadow: var(--lv-sh-pop), var(--lv-inset-card); padding: 24px 26px; max-height: 85vh; overflow-y: auto; }
+  .lv-hotkeys-card { width: min(480px, 100%); pointer-events: auto; background: var(--lv-surface); border: 1px solid var(--lv-border-subtle); border-radius: var(--lv-r-card, 20px); box-shadow: var(--lv-sh-pop), var(--lv-inset-card); padding: 24px 26px; max-height: 85vh; overflow-y: auto; }
   .lv-hotkeys-grid { display: flex; flex-direction: column; gap: 8px; font-size: var(--lv-font-size-body-compact); }
   .lv-hotkeys-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--lv-border-subtle); }
   .lv-hotkeys-row:last-child { border-bottom: 0; }
   .lv-dialog-title-wrap { display: flex; align-items: center; gap: 8px; font-weight: var(--lv-font-weight-semibold); font-size: 15px; }
-  .lv-dialog-title-icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--lv-accent-soft); color: var(--lv-accent); }
-  .lv-dialog-title-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: var(--lv-surface-2); color: var(--lv-text-3); font-family: ui-monospace, monospace; }
+  .lv-dialog-title-icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--lv-radius-control-sm, 8px); background: var(--lv-accent-soft); color: var(--lv-accent); }
+  .lv-dialog-title-tag { font-size: 11px; padding: 2px 8px; border-radius: var(--lv-radius-pill, 9999px); background: var(--lv-surface-2); color: var(--lv-text-3); font-family: ui-monospace, monospace; }
 </style>

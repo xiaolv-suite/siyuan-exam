@@ -1543,8 +1543,8 @@ input[type="range"] {
 .lv-palette {
   width: min(620px, 100%);
   background: var(--lv-surface);
-  border: 1px solid var(--lv-border-subtle, var(--lv-border));
-  border-radius: var(--lv-r-3);
+  border: 1px solid var(--lv-border-subtle);
+  border-radius: var(--lv-r-card, 20px);
   box-shadow: var(--lv-sh-pop), var(--lv-inset-highlight, inset 0 1px 0 transparent);
   overflow: hidden;
   animation: lv-pop-in 0.2s var(--lv-ease-out);
@@ -1554,7 +1554,7 @@ input[type="range"] {
   align-items: center;
   gap: var(--lv-space-3);
   padding: 15px 22px;
-  border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border));
+  border-bottom: 1px solid var(--lv-border-subtle);
   color: var(--lv-text-3);
   background: var(--lv-surface);
 }
@@ -1594,14 +1594,13 @@ input[type="range"] {
   text-align: left;
   background: transparent;
   border: 0;
-  border-left: 3px solid transparent;
-  border-radius: var(--lv-radius-control-sm);
+  border-radius: var(--lv-r-card, 12px);
   padding: 10px 14px;
   min-height: 42px;
   color: var(--lv-text);
   font-size: var(--lv-font-size-body);
   cursor: pointer;
-  transition: background-color var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease;
+  transition: background-color var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease;
 
   .lv-icon {
     color: var(--lv-text-2);
@@ -1610,7 +1609,6 @@ input[type="range"] {
   &:hover,
   &.sel {
     background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface));
-    border-left-color: var(--lv-accent);
     color: var(--lv-accent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lv-accent) 20%, transparent);
     .lv-icon {
@@ -1626,7 +1624,7 @@ input[type="range"] {
   gap: var(--lv-space-loose);
   align-items: center;
   padding: 11px 18px;
-  border-top: 1px solid var(--lv-border-subtle, var(--lv-border));
+  border-top: 1px solid var(--lv-border-subtle);
   font-size: var(--lv-font-size-label);
   color: var(--lv-text-3);
   background: var(--lv-surface-2);

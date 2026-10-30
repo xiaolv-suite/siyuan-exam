@@ -34,7 +34,7 @@
       aria-modal="true"
       tabindex="-1"
       aria-label={title}
-      style="width:min(520px, 100%);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:clamp(14px, 4vw, 22px);border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border)"
+      style="width:min(520px, 100%);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:clamp(14px, 4vw, 22px);border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border-subtle)"
     >
       <div class="lv-row" style="justify-content:space-between;margin:0 0 14px">
         <div class="lv-dialog-title-wrap">
@@ -42,7 +42,7 @@
           <span>{title}</span>
           <span class="lv-dialog-title-tag">{doneCount}/{totalCount}</span>
         </div>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onclose}>✕</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
       <div class="lv-grid-nav" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));gap:6px">
         {#each session.state.qids as qid, i (qid)}

@@ -177,7 +177,7 @@
           aria-activedescendant={shown[sel] ? `lv-palette-opt-${uid}-${sel}` : undefined}
         />
         {#if q}
-          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { q = ""; sel = 0; inputEl?.focus(); }} title="清空输入" style="min-width:28px;min-height:28px;padding:2px 6px">✕</button>
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { q = ""; sel = 0; inputEl?.focus(); }} title="清空输入" style="min-width:28px;min-height:28px;padding:2px 6px"><Icon name="close" size={12} /></button>
         {/if}
         <span class="lv-kbd">Esc</span>
       </div>
