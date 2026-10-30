@@ -62,7 +62,7 @@
 </script>
 
 <div class="fn__flex-1 fn__flex sidebar-tabs-layout">
-    <ul class="b3-tab-bar b3-list b3-list--background" role="tablist">
+    <ul class="b3-tab-bar b3-list b3-list--background" role="tablist" aria-label="设置分组导航">
         {#each tabs as tab (tab.key)}
             <li
                 class="b3-list-item"

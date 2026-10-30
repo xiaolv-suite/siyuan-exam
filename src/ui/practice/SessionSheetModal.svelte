@@ -44,7 +44,7 @@
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
-      <div class="lv-grid-nav" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));gap:6px">
+      <div class="lv-grid-nav" role="group" aria-label="答题卡题目导航矩阵" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));gap:6px">
         {#each session.state.qids as qid, i (qid)}
           {@const isCur = i === session.state.cursor}
           {@const myA = session.answered.find((a) => a.qid === qid)}

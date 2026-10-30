@@ -221,10 +221,10 @@
               </button>
             </div>
             <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("retest")} disabled={printWrongBusy || !filteredWrongQueue.length} title="导出纯净错题重测卷（含清零目标条与二次订正反思框，绝无答案泄露）"><Icon name="printer" size={13} /> 错题重测卷</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("question")} disabled={printWrongBusy || !filteredWrongQueue.length} title="将当前筛选的错题导出或打印为 A4 双栏试卷（绝不泄题）"><Icon name="file" size={13} /> {t("mock.printCompact")}</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("answer")} disabled={printWrongBusy || !filteredWrongQueue.length} title="导出或打印配套答案册"><Icon name="book" size={13} /> 答案册</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={onexportCheatSheet} disabled={cheatSheetBusy || !filteredWrongQueue.length} title={t("cram.cheatSheetTip")}><Icon name="file-text" size={13} /> {t("cram.cheatSheet")}</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("retest")} disabled={printWrongBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy} title="导出纯净错题重测卷（含清零目标条与二次订正反思框，绝无答案泄露）"><Icon name="printer" size={13} /> 错题重测卷</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("question")} disabled={printWrongBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy} title="将当前筛选的错题导出或打印为 A4 双栏试卷（绝不泄题）"><Icon name="file" size={13} /> {t("mock.printCompact")}</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("answer")} disabled={printWrongBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy} title="导出或打印配套答案册"><Icon name="book" size={13} /> 答案册</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={onexportCheatSheet} disabled={cheatSheetBusy || !filteredWrongQueue.length} aria-busy={cheatSheetBusy} title={t("cram.cheatSheetTip")}><Icon name="file-text" size={13} /> {t("cram.cheatSheet")}</button>
               <button class="lv-btn sm lv-btn--ghost" onclick={onsaveWrongbookAsDoc} disabled={!filteredWrongQueue.length} title="将当前筛选的错题组建排版为思源笔记文档，折叠答案，卸载插件永久保留"><Icon name="file" size={13} /> {t("wrongbook.saveAsSiyuanDoc")}</button>
               <button
                 class="lv-btn sm {wbFilterStubborn ? 'lv-btn--primary' : 'lv-btn--ghost'}"

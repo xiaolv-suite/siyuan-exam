@@ -27,7 +27,7 @@
   let { modal, questionMap, t, oncontinue }: Props = $props();
 </script>
 
-<div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);padding:14px 16px;border-radius:var(--lv-r-3, 16px);box-shadow:var(--lv-sh-card)">
+<div class="lv-card lv-pad-card" role="region" aria-label={t("session.groupFeedback")} style="margin-bottom:12px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-left:3.5px solid var(--lv-accent);padding:14px 16px;border-radius:var(--lv-r-3, 16px);box-shadow:var(--lv-sh-card)">
   <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
     <b style="font-size:14px;display:inline-flex;align-items:center;gap:6px">
       <Icon name="check" size={15} />

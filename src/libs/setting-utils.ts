@@ -423,6 +423,7 @@ export class SettingUtils {
         const buttonElement: HTMLButtonElement = document.createElement("button");
         buttonElement.className = "b3-button b3-button--outline fn__flex-center fn__size200";
         buttonElement.innerText = item.button?.label ?? "Button";
+        buttonElement.setAttribute("aria-label", item.title);
         buttonElement.onclick = item.button?.callback ?? (() => {});
         itemElement = buttonElement;
         break;

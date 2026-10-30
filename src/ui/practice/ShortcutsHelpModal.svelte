@@ -33,7 +33,7 @@
         <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "recite"} aria-selected={hotkeyCategory === "recite"} onclick={() => hotkeyCategory = "recite"}>纸面背诵</button>
         <button type="button" role="tab" class="lv-chip" class:acc={hotkeyCategory === "nav"} aria-selected={hotkeyCategory === "nav"} onclick={() => hotkeyCategory = "nav"}>全局导航</button>
       </div>
-      <div class="lv-hotkeys-grid">
+      <div class="lv-hotkeys-grid" role="region" aria-label="快捷键清单">
         {#if hotkeyCategory === "all" || hotkeyCategory === "session"}
           <div class="lv-hotkeys-row"><span class="lv-kbd">A</span> - <span class="lv-kbd">D</span><span>快速选择答案选项</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">Enter</span><span>确认作答 / 极速下一题</span></div>
