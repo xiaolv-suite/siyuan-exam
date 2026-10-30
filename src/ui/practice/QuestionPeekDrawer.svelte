@@ -270,12 +270,12 @@
     <div class="lv-detail">
       {#if editingId === q.id && editDraft}
         <div class="lv-row" style="margin:2px 0"><b>{t("edit.title")}</b><span class="lv-chip">{t("qtype." + q.type)}</span></div>
-        <textarea class="lv-input lv-textarea" rows="3" bind:value={editDraft.stem} placeholder={t("manual.stemPlaceholder")}></textarea>
+        <textarea class="lv-input lv-textarea" rows="3" bind:value={editDraft.stem} placeholder={t("manual.stemPlaceholder")} aria-label={t("manual.stem")}></textarea>
         {#if editDraft.options.length}
           {#each editDraft.options as _o, oi (oi)}
             <div class="lv-row" style="margin:4px 0">
               <span class="lv-chip">{String.fromCharCode(65 + oi)}</span>
-              <input class="lv-input" bind:value={editDraft.options[oi]} />
+              <input class="lv-input" bind:value={editDraft.options[oi]} aria-label={`选项 ${String.fromCharCode(65 + oi)}`} />
               <button class="lv-btn sm lv-btn--ghost" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} onclick={() => { const next = removeChoiceOption(q.type, editDraft!.options, editDraft!.answer, oi); editDraft = { ...editDraft!, ...next }; }}><Icon name="close" size={12} /></button>
             </div>
           {/each}
@@ -306,30 +306,30 @@
             <button class="lv-btn sm lv-btn--ghost" aria-expanded={editSpecOpen} onclick={() => (editSpecOpen = !editSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
               <Icon name="edit" size={12} />
               <span>{t("spec.authorSection")}</span>
-              <Icon name={editSpecOpen ? "arrow-down" : "chev-right"} size={11} />
+              <Icon name={editSpecOpen ? "arrow-down" : "chev-right"} size={10} />
             </button>
           </div>
           {#if editSpecOpen}
             <div class="lv-row" style="margin:4px 0 0;align-items:flex-end">
               <label class="lv-field" style="max-width:140px"><span class="lv-muted">{t("spec.unit")}</span>
-                <input class="lv-input" bind:value={editSpecUnit} placeholder="m/s" />
+                <input class="lv-input" bind:value={editSpecUnit} placeholder="m/s" aria-label={t("spec.unit")} />
               </label>
               <label class="lv-field" style="max-width:130px"><span class="lv-muted">{t("spec.absTol")}</span>
-                <input class="lv-input num" bind:value={editSpecAbsTol} placeholder="0.5" inputmode="decimal" />
+                <input class="lv-input num" bind:value={editSpecAbsTol} placeholder="0.5" inputmode="decimal" aria-label={t("spec.absTol")} />
               </label>
               <label class="lv-field" style="max-width:130px"><span class="lv-muted">{t("spec.relPct")}</span>
-                <input class="lv-input num" bind:value={editSpecRelPct} placeholder="5" inputmode="decimal" />
+                <input class="lv-input num" bind:value={editSpecRelPct} placeholder="5" inputmode="decimal" aria-label={t("spec.relPct")} />
               </label>
               <label class="lv-field" style="flex:1;min-width:160px"><span class="lv-muted">{t("spec.altUnits")}</span>
-                <input class="lv-input" bind:value={editSpecAltUnits} placeholder="km/h, cm/s" />
+                <input class="lv-input" bind:value={editSpecAltUnits} placeholder="km/h, cm/s" aria-label={t("spec.altUnits")} />
               </label>
             </div>
           {/if}
         {/if}
-        <textarea class="lv-input lv-textarea" rows="2" bind:value={editDraft.analysis} placeholder={t("manual.analysis")}></textarea>
-        {#if editError}<div class="lv-error">{editError}</div>{/if}
+        <textarea class="lv-input lv-textarea" rows="2" bind:value={editDraft.analysis} placeholder={t("manual.analysis")} aria-label={t("manual.analysis")}></textarea>
+        {#if editError}<div class="lv-error" role="alert">{editError}</div>{/if}
         <div class="lv-row">
-          <button class="lv-btn lv-btn--primary sm" disabled={editBusy || offline} onclick={() => onsaveEdit(q)}>
+          <button class="lv-btn lv-btn--primary sm" disabled={editBusy || offline} aria-busy={editBusy} onclick={() => onsaveEdit(q)}>
             {editBusy ? "…" : t("edit.save")}
           </button>
           <button class="lv-btn sm lv-btn--ghost" onclick={oncloseEdit}>{t("edit.cancel")}</button>
@@ -339,7 +339,7 @@
         {@const st = app.derived().byQuestion.get(q.id)}
         {@const wr = app.derived().wrongbook.get(q.id)}
         <div class="lv-row" style="margin:8px 0 6px;align-items:center;justify-content:space-between">
-          <button class="lv-chip" class:acc={!peekHideAnswer} onclick={ontoggleHideAnswer}>
+          <button class="lv-chip" class:acc={!peekHideAnswer} aria-pressed={!peekHideAnswer} onclick={ontoggleHideAnswer}>
             <Icon name={peekHideAnswer ? "eyeoff" : "eye"} size={12} /> {peekHideAnswer ? t("browse.showAnswer") : t("browse.hideAnswer")}
           </button>
           {#if peekHideAnswer}
@@ -561,12 +561,12 @@
         {#if qrefFormFor === q.id}
           <div class="lv-detail" style="margin:4px 0">
             <div class="lv-row" style="flex-wrap:wrap">
-              <select class="lv-select" bind:value={qrefMatId}>
+              <select class="lv-select" bind:value={qrefMatId} aria-label={t("qref.pickMaterial")}>
                 <option value="">{t("qref.pickMaterial")}</option>
                 {#each app.listMaterials() as m (m.id)}<option value={m.id}>{m.title}</option>{/each}
               </select>
-              <input class="lv-input" style="max-width:90px" placeholder={t("materials.page")} bind:value={qrefPage} />
-              <input class="lv-input" style="max-width:110px" placeholder="mm:ss" bind:value={qrefTime} />
+              <input class="lv-input" style="max-width:90px" placeholder={t("materials.page")} aria-label={t("materials.page")} bind:value={qrefPage} />
+              <input class="lv-input" style="max-width:110px" placeholder="mm:ss" aria-label="时间点 (mm:ss)" bind:value={qrefTime} />
               <button class="lv-btn lv-btn--primary sm" onclick={() => onsaveQref(q.id)} disabled={!qrefMatId || !!qrefBusyFor} aria-busy={qrefBusyFor === q.id}>{qrefBusyFor === q.id ? "…" : t("qref.save")}</button>
               <button class="lv-btn sm lv-btn--ghost" onclick={() => (qrefFormFor = "")}>{t("edit.cancel")}</button>
             </div>
@@ -575,7 +575,7 @@
         {/if}
         {#if st && st.attempts}
           <div class="lv-row" style="font-size:var(--lv-font-size-caption)">
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => ontoggleReceipts(q.id)}>
+            <button class="lv-btn sm lv-btn--ghost" aria-expanded={receiptOpenFor === q.id} onclick={() => ontoggleReceipts(q.id)}>
               <Icon name="table" size={13} /> {t("receipt.title")}（<span class="num">{st.attempts}</span>）
             </button>
           </div>
@@ -614,7 +614,7 @@
                   {#if e.recall}<span class="lv-chip"><Icon name="eyeoff" size={11} /> {t("receipt.recall")}</span>{/if}
                   {#if e.timeMs}<span class="lv-chip num">{Math.round(e.timeMs / 1000)}s</span>{/if}
                   {#if e.verdict === "wrong"}
-                    <button class="lv-btn sm lv-btn--ghost" disabled={receiptBusy === rkey}
+                    <button class="lv-btn sm lv-btn--ghost" disabled={receiptBusy === rkey} aria-busy={receiptBusy === rkey}
                       onclick={() => onrunReceiptMisdiagnosis(q, e)}><Icon name="flask" size={13} /> {receiptBusy === rkey ? "…" : t("misdiagnosis.ask")}</button>
                   {/if}
                   {#if receiptMisdiagnosis[rkey]}
@@ -625,9 +625,9 @@
             </div>
           {/if}
         {/if}
-        {#if flashError[q.id]}<div class="lv-error">{flashError[q.id]}</div>{/if}
+        {#if flashError[q.id]}<div class="lv-error" role="alert">{flashError[q.id]}</div>{/if}
         <div class="lv-row" style="font-size:var(--lv-font-size-caption)">
-          <button class="lv-btn sm lv-btn--ghost" disabled={flashBusy === q.id} onclick={() => onmakeFlashCandidates(q)}>
+          <button class="lv-btn sm lv-btn--ghost" disabled={flashBusy === q.id} aria-busy={flashBusy === q.id} onclick={() => onmakeFlashCandidates(q)}>
             <Icon name="layers" size={13} /> {flashBusy === q.id ? "…" : t("flash.ask")}
           </button>
           {#if flashCandidates[q.id]?.cards?.length}
@@ -647,7 +647,7 @@
               </div>
             {/each}
             <div class="lv-row">
-              <button class="lv-btn lv-btn--primary sm" disabled={flashBusy === q.id} onclick={() => onconfirmFlashCards(q)}>
+              <button class="lv-btn lv-btn--primary sm" disabled={flashBusy === q.id} aria-busy={flashBusy === q.id} onclick={() => onconfirmFlashCards(q)}>
                 {t("flash.confirm").replace("{n}", String(flashCandidates[q.id]!.cards.length))}
               </button>
               <button class="lv-btn sm lv-btn--ghost" onclick={() => { flashCandidates = { ...flashCandidates, [q.id]: { cards: [] } }; }}>{t("edit.cancel")}</button>
