@@ -513,6 +513,16 @@ button.lv-chip {
   resize: vertical;
 }
 
+/* —— 原生折叠元素 details / summary 体验收敛 —— */
+details summary {
+  list-style: none;
+  cursor: pointer;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+}
+
 /* —— 写作信纸横线背景模式（申论/主观题专用） —— */
 .lv-textarea--ruled {
   background-image: repeating-linear-gradient(transparent, transparent 27px, color-mix(in srgb, var(--lv-border) 42%, transparent) 27px, color-mix(in srgb, var(--lv-border) 42%, transparent) 28px);

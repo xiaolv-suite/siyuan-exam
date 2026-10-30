@@ -281,7 +281,7 @@
             <button class="lv-btn sm lv-btn--ghost" onclick={() => (mSpecOpen = !mSpecOpen)} style="display:inline-flex;align-items:center;gap:4px">
               <Icon name="edit" size={12} />
               <span>{t("spec.authorSection")}</span>
-              <Icon name={mSpecOpen ? "chev-left" : "chev-right"} size={11} />
+              <Icon name={mSpecOpen ? "arrow-down" : "chev-right"} size={10} />
             </button>
           </div>
           {#if mSpecOpen}
@@ -306,7 +306,7 @@
             <button class="lv-btn sm lv-btn--ghost" onclick={() => (mRubricOpen = !mRubricOpen)} style="display:inline-flex;align-items:center;gap:4px">
               <Icon name="clipboard" size={12} />
               <span>{t("rubric.authorSection")}</span>
-              <Icon name={mRubricOpen ? "chev-left" : "chev-right"} size={11} />
+              <Icon name={mRubricOpen ? "arrow-down" : "chev-right"} size={10} />
             </button>
             {#if authorRubricPreview}<span class="lv-chip num">{t("rubric.criteriaCount").replace("{n}", String(authorRubricPreview.criteria.length))}</span>{/if}
           </div>
@@ -319,7 +319,7 @@
               <p class="lv-muted" style="margin:4px 0 0;font-size:var(--lv-font-size-caption)">{t("rubric.textHint")}</p>
             </div>
             {#if authorRubricPreview}
-              <div class="lv-detail" style="margin:4px 0 0;padding:8px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-1)">
+              <div class="lv-detail" style="margin:4px 0 0;padding:8px 10px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle)">
                 {#each authorRubricPreview.criteria as c, ci (ci)}
                   <div class="lv-row" style="margin:2px 0;gap:var(--lv-space-2)">
                     <span class="lv-chip num">{Math.round(c.weight * 100)}%</span>
