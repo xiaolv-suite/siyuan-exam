@@ -71,7 +71,7 @@
 {#if open}
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={onclose}></button>
   <div class="lv-hotkeys-wrap">
-    <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:24px;border-radius:var(--lv-r-4, 22px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border)">
+    <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:24px;border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border-subtle)">
       <div class="lv-row" style="justify-content:space-between;margin:0 0 12px">
         <div class="lv-dialog-title-wrap">
           <span class="lv-dialog-title-icon"><Icon name="folder" size={13} /></span>
@@ -125,7 +125,7 @@
       </div>
       <div class="stack-sm" style="max-height:450px;overflow-y:auto">
         {#each filteredBanks as b (b.id)}
-          <div class="lv-card" style="padding:12px;margin-bottom:6px;border-left:3px solid {b.id === activeBankId ? 'var(--lv-accent)' : 'transparent'};background:var(--lv-surface-2)">
+          <div class="lv-card lv-card--hover" style="padding:12px 14px;margin-bottom:6px;border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);border-left:3.5px solid {b.id === activeBankId ? 'var(--lv-accent)' : 'transparent'};background:var(--lv-surface-2)">
             <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
               <div style="flex:1;min-width:0;margin-right:8px">
                 {#if renamingBankId === b.id}

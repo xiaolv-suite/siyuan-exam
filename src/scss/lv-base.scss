@@ -17,7 +17,7 @@
 }
 
 /* —— 现代平滑细滚动条（遵从设计系统 Token，替换 Windows 粗灰原生条） —— */
-.lv-exam-tab {
+:where(.lv-exam-tab, .lv-palette, .lv-hotkeys-wrap, .lv-modal, .lv-drawer) {
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -2148,8 +2148,8 @@ input[type="range"] {
   width: min(480px, 100%);
   pointer-events: auto;
   background: var(--lv-surface);
-  border: 1px solid var(--lv-border);
-  border-radius: var(--lv-r-4, 22px);
+  border: 1px solid var(--lv-border-subtle);
+  border-radius: var(--lv-r-card, 20px);
   box-shadow: var(--lv-sh-pop), var(--lv-inset-card);
   padding: 24px 26px;
   max-height: 85vh;
