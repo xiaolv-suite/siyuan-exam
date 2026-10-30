@@ -50,7 +50,7 @@
       </span>
     {/each}
   </div>
-  <button class="lv-btn lv-btn--primary" onclick={oncontinue} style="min-height:36px;border-radius:9999px">
+  <button class="lv-btn lv-btn--primary" onclick={oncontinue} style="min-height:36px;border-radius:var(--lv-radius-pill, 9999px)">
     <Icon name="play" size={13} /> {t("session.groupContinue")}
   </button>
 </div>

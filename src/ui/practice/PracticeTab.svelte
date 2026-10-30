@@ -6012,7 +6012,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         <button
           type="button"
           class="lv-achievement-pill"
-          style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:9999px"
+          style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:var(--lv-radius-pill, 9999px)"
           onclick={() => (sessionSheetOpen = !sessionSheetOpen)}
           title="展开会话答题卡"
         >

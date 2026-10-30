@@ -297,7 +297,7 @@
       </div>
     {:else if questionsLoaded && !practiceQuestions.length}
       <!-- 空库全学段研学导航中心 -->
-      <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:36px 28px;border-radius:var(--lv-r-4, 22px);background:var(--lv-surface);border:1px solid var(--lv-border);max-width:920px;margin:16px auto 36px">
+      <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:36px 28px;border-radius:var(--lv-r-card, 20px);background:var(--lv-surface);border:1px solid var(--lv-border-subtle);max-width:920px;margin:16px auto 36px">
         <div style="text-align:center;margin-bottom:24px">
           <div class="lv-empty-icon" style="width:54px;height:54px;border-radius:16px;background:var(--lv-brand-soft);color:var(--lv-brand);display:grid;place-items:center;margin:0 auto 12px;box-shadow:0 4px 14px color-mix(in srgb, var(--lv-brand) 18%, transparent)">
             <Icon name="book" size={26} />

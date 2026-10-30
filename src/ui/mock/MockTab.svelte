@@ -2062,7 +2062,7 @@
         <div class="lv-stem" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{currentQ.stem}</div>
       {/if}
       {#if currentQ.studyMeta?.phonetic}
-        <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:6px;background:var(--lv-surface-2);border:1px solid var(--lv-border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
+        <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
           <Icon name="volume" size={12} />
           <span>注音 / 音标：{currentQ.studyMeta.phonetic}</span>
         </div>
@@ -2278,7 +2278,7 @@
         <button
           type="button"
           class="lv-achievement-pill lv-achievement-pill--seal"
-          style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:9999px"
+          style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:var(--lv-radius-pill, 9999px)"
           onclick={() => (mockMiniSheetOpen = !mockMiniSheetOpen)}
           title="展开考场快捷答题卡"
         >
@@ -2290,7 +2290,7 @@
     {#if mockMiniSheetOpen && session}
       <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭答题卡" onclick={() => (mockMiniSheetOpen = false)}></button>
       <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="考场快捷答题卡" style="width:min(520px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-4, 22px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop)">
+        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="考场快捷答题卡" style="width:min(520px, 92vw);max-height:80vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-card, 20px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop)">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px">
             <div class="lv-dialog-title-wrap">
               <span class="lv-dialog-title-icon"><Icon name="edit" size={13} /></span>

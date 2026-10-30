@@ -116,7 +116,7 @@
   </div>
   {#if reciteDone}
     {@const forgotCount = reciteRatings.filter((x) => x === 1).length}
-    <div class="lv-card lv-guard" style="border-radius:var(--lv-r-4, 22px);box-shadow:var(--lv-sh-card);padding:24px">
+    <div class="lv-card lv-guard" style="border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-card);padding:24px">
       <div class="lv-guard-title"><Icon name="trophy" size={18} /> {t("recite.done")}</div>
       <div class="lv-done-stats num" style="grid-template-columns:repeat(4, 1fr);margin:14px 0 10px">
         <div class="bad"><strong>{reciteRatings.filter((x) => x === 1).length}</strong><span>{t("rate.1")}</span></div>
