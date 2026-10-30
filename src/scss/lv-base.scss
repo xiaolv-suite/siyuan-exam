@@ -944,31 +944,101 @@ input[type="range"] {
   }
 }
 
-/* —— Tab shell（原型 .shell：rail + main；三 Tab 共用，rail 组件见 ui/shared/Rail） —— */
+/* —— Tab shell（原型 .shell：三段式极窄导航 + 浮层外壳 + 可折叠上下文面板） —— */
 .lv-shell {
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   min-height: 0;
+  background: var(--lv-canvas);
 }
 
 .lv-shell > .lv-rail {
-  width: 184px;
-  min-width: 184px;
+  width: 72px;
+  min-width: 72px;
   flex-shrink: 0;
 }
 
-/* 窄桌面/平板分屏（760px - 1119px）：侧栏转为 74px 紧凑功能模式，主内容区防挤压 */
+/* 宽屏三段式自适应：当开启上下文面板时，形成 72px 极窄导航 + 主内容 + 300px 上下文面板 */
+@container lv-exam (min-width: 1200px) {
+  .lv-shell.has-context-pane {
+    grid-template-columns: 72px minmax(0, 1fr) 300px;
+  }
+}
+
+/* 窄桌面/平板分屏（760px - 1119px）：保持极窄 72px 图标模式，主内容区防挤压 */
 @container lv-exam (min-width: 760px) and (max-width: 1119px) {
   .lv-shell {
-    grid-template-columns: 74px minmax(0, 1fr);
+    grid-template-columns: 72px minmax(0, 1fr);
   }
   .lv-shell > .lv-rail {
-    width: 74px;
-    min-width: 74px;
+    width: 72px;
+    min-width: 72px;
     flex-shrink: 0;
   }
+}
+
+/* 统计优先：主内容顶部固定指标行，竖分割线无外卡片包裹，4倍悬殊字阶 */
+.lv-metrics-bar {
+  display: flex;
+  align-items: center;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+  background: var(--lv-surface);
+  border-radius: var(--lv-r-card, 20px);
+  box-shadow: var(--lv-sh-card);
+  border: 1px solid var(--lv-border-subtle);
+
+  .lv-metric-item {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 16px;
+
+    &:first-child {
+      padding-left: 0;
+    }
+
+    + .lv-metric-item {
+      border-left: 1px solid var(--lv-border-subtle);
+    }
+
+    .lv-metric-val {
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      font-variant-numeric: tabular-nums;
+      color: var(--lv-data-accent);
+    }
+
+    .lv-metric-lbl {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--lv-text-3);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+  }
+}
+
+/* 右侧可折叠上下文面板（Context Panel） */
+.lv-context-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lv-space-3);
+  padding: 20px 18px;
+  background: color-mix(in srgb, var(--lv-surface-2) 65%, var(--lv-surface));
+  border-left: 1px solid var(--lv-border-subtle);
+  border-radius: var(--lv-r-card, 20px) 0 0 var(--lv-r-card, 20px);
+  overflow-y: auto;
+  min-width: 0;
 }
 
 /* R54 专注态：进入连续作答或回看成绩时移除工作台导航，让题面成为唯一主任务。
@@ -1592,12 +1662,21 @@ input[type="range"] {
   display: flex;
   gap: var(--lv-space-4);
   align-items: center;
-  padding: 18px 22px;
-  border-radius: var(--lv-r-3);
+  padding: 16px 20px;
+  border-radius: var(--lv-r-card, 20px);
   background: var(--lv-surface);
-  border: 1px solid var(--lv-border);
+  border: 1px solid var(--lv-border-subtle, var(--lv-border));
   box-shadow: var(--lv-sh-card);
   transition: transform var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease;
+
+  strong.num {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--lv-data-accent);
+  }
 }
 .lv-widget--click {
   cursor: pointer;

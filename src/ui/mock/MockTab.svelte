@@ -153,6 +153,7 @@
     // 考试/成绩页保留原题库上下文；配置页再消费题库变化，读取中的后续变化合并重试。
     let bankDataDirty = false;
     let mockDataLoading = false;
+    let mockLoadSeq = 0;
     let pendingBankId: string | null = null;
     let historyLoading = $state(true);
     let historyError = $state("");
@@ -330,6 +331,7 @@
         return;
       }
       if (!app) { loading = false; errorMsg = t("state.appNotReady"); return; }
+      const currentSeq = ++mockLoadSeq;
       mockDataLoading = true;
       bankDataDirty = false;
       const requestedBankId = pendingBankId;
@@ -352,27 +354,36 @@
         try { rememberedBank = localStorage.getItem(BANK_PREF_KEY) ?? ""; } catch { /* 隐私模式 */ }
         const previousBankId = activeBankId;
         const preferredBankId = requestedBankId ?? rememberedBank;
-        activeBankId = banks.some((b) => b.id === preferredBankId) ? preferredBankId : banks[0].id;
+        const targetBankId = banks.some((b) => b.id === preferredBankId) ? preferredBankId : banks[0].id;
+        const loadedQuestions = await app.listQuestions(targetBankId);
+        if (currentSeq !== mockLoadSeq) return;
+
+        activeBankId = targetBankId;
         activeBankName = banks.find((b) => b.id === activeBankId)?.name ?? "";
-        questions = await app.listQuestions(activeBankId);
+        questions = loadedQuestions;
         // 仅在没有可编辑蓝图时生成默认模块，重试不会覆盖用户已经配置的内容。
         if (!bp.sections.length || (previousBankId && previousBankId !== activeBankId)) bp.sections = defaultMockSections(questions);
         // 历史成绩用于恢复报告中的趋势对比；历史读取失败不应阻断当前模考。
         await reloadMockHistory();
+        if (currentSeq !== mockLoadSeq) return;
 
         // 恢复提示（读不到快照=无进行中考试，静默即可；题库不可读时不给恢复入口）
         try {
           const snap = await app.loadMockRun();
+          if (currentSeq !== mockLoadSeq) return;
           resumable = null;
           if (snap?.finishedAt) await app.clearMockRun();
           else if (snap && questions.length) resumable = snap;
         } catch { /* 恢复快照失败不应阻断题库使用 */ }
       } catch (e) {
+        if (currentSeq !== mockLoadSeq) return;
         questions = [];
         errorMsg = String(e instanceof Error ? e.message : e);
       } finally {
-        mockDataLoading = false;
-        loading = false;
+        if (currentSeq === mockLoadSeq) {
+          mockDataLoading = false;
+          loading = false;
+        }
         refreshPendingBankData();
       }
     }
@@ -1500,6 +1511,7 @@
         return;
       }
       if (view !== "exam" || !session || !currentQ || examLocked) return;
+      if (handInConfirming || submitting || mockMiniSheetOpen || paletteOpen || !!document.querySelector('[role="dialog"]')) return;
       if (!tabRoot?.getClientRects().length) return;
       const tgt = e.target as HTMLElement | null;
       if (tgt && tgt !== document.body && !tabRoot.contains(tgt)) return;

@@ -458,7 +458,7 @@
     min-width: 0;
     min-height: 0;
     flex: 1;
-    padding: 26px 14px 18px;
+    padding: 20px 8px 16px;
     display: flex;
     flex-direction: column;
     gap: var(--lv-space-section);
@@ -466,19 +466,20 @@
   }
   .lv-brand {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 9px;
-    padding: 0 10px;
+    gap: 6px;
+    padding: 0;
   }
   .lv-brand-logo-wrap {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--lv-r-2, 10px);
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, var(--lv-brand) 0%, color-mix(in srgb, var(--lv-brand) 82%, var(--lv-brand-deep, #000)) 100%);
+    background: var(--lv-accent);
     color: var(--lv-on-accent, #fff);
-    box-shadow: 0 3px 10px color-mix(in srgb, var(--lv-brand) 36%, transparent);
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--lv-accent) 30%, transparent);
     flex-shrink: 0;
   }
   .lv-brand-logo-svg {
@@ -487,17 +488,15 @@
     height: 22px;
   }
   .lv-brand-name {
-    font-size: var(--lv-font-size-h3);
-    font-weight: var(--lv-font-weight-semibold);
-    line-height: 1.25;
+    display: none;
   }
   .lv-brand-sub {
-    display: block;
     font-size: 9px;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     color: var(--lv-text-3);
-    font-weight: 500;
-    white-space: nowrap; /* 极窄屏 Rail 挤压时防竖排 */
+    font-weight: 600;
+    white-space: nowrap;
+    text-transform: uppercase;
   }
   .lv-rail-nav {
     display: grid;
@@ -806,17 +805,19 @@
   .lv-rail-btn {
     position: relative;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: var(--lv-space-relaxed);
+    justify-content: center;
+    gap: 4px;
     width: 100%;
-    text-align: left;
-    padding: 10px 14px;
+    text-align: center;
+    padding: 8px 4px;
     border: 1px solid transparent;
-    border-radius: var(--lv-radius-control-sm);
+    border-radius: var(--lv-r-2, 10px);
     background: transparent;
     color: var(--lv-text-2);
-    font-size: var(--lv-font-size-body-compact);
-    min-height: 46px;
+    font-size: 11px;
+    min-height: 52px;
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
@@ -826,21 +827,20 @@
       transform var(--lv-dur-micro) ease;
   }
   .lv-rail-btn-text {
+    font-size: 11px;
+    line-height: 1.1;
+    font-weight: 500;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .lv-rail-btn:hover {
     background: var(--lv-surface);
     color: var(--lv-text);
-    transform: translateX(2px);
   }
   .lv-rail-btn.on {
     background: var(--lv-accent-soft);
     color: var(--lv-accent);
     border-color: color-mix(in srgb, var(--lv-accent) 22%, transparent);
     font-weight: 600;
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--lv-accent) 15%, transparent);
   }
   .lv-rail-btn.on::before {
     content: "";
