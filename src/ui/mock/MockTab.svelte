@@ -1725,6 +1725,7 @@
     </div>
   {:else if !questions.length}
     <div class="lv-empty" role="status">
+      <div class="lv-empty-icon"><Icon name="book" size={26} /></div>
       <b>{t("state.emptyBank")}</b>
       <p class="lv-muted">{t("mock.emptyBankDesc")}</p>
       <button class="lv-btn lv-btn--primary sm" onclick={() => plugin.openPractice?.()}>{t("mock.goPractice")}</button>
@@ -1844,7 +1845,12 @@
         </div>
       </div>
     {/if}
-    {#if !bp.sections.length}<div class="lv-empty">{t("mock.needSec")}</div>{/if}
+    {#if !bp.sections.length}
+      <div class="lv-empty" style="padding:28px 16px;margin:8px 0">
+        <div class="lv-empty-icon" style="width:46px;height:46px"><Icon name="clipboard" size={20} /></div>
+        <b>{t("mock.needSec")}</b>
+      </div>
+    {/if}
     <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0 8px">
       <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
         <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
@@ -1964,6 +1970,7 @@
         </div>
       {:else}
         <div class="lv-empty" style="margin-top:10px">
+          <div class="lv-empty-icon"><Icon name="chart" size={24} /></div>
           <b>{t("estimate.historyEmptyTitle")}</b>
           <p class="lv-muted">{t("estimate.historyEmptyDesc")}</p>
           <button class="lv-btn sm" onclick={() => estimateMineInput?.focus()}>{t("estimate.getStarted")}</button>
@@ -2006,7 +2013,7 @@
     <div class="lv-card lv-question">
       {#if !currentQ}
         <div class="lv-empty" style="padding:48px 16px">
-          <Icon name="alert-triangle" size={32} />
+          <div class="lv-empty-icon"><Icon name="alert-triangle" size={26} /></div>
           <p style="margin:12px 0 16px">{t("mock.emptyPaper", "当前考卷试题内容为空或无法读取")}</p>
           <button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button>
         </div>

@@ -1970,8 +1970,8 @@ input[type="range"] {
 .lv-material-list, .lv-material-detail { min-width: 0; }
 .lv-material-list { padding: 16px 12px; }
 .lv-material-list .lv-section-head { padding: 0 4px; margin-bottom: 10px; }
-.lv-material-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px 9px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--lv-text); text-align: left; font: inherit; cursor: pointer; transition: background-color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
-.lv-material-item:hover { background: var(--lv-surface-2); border-color: var(--lv-border); }
+.lv-material-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 10px 9px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--lv-text); text-align: left; font: inherit; cursor: pointer; transition: background-color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out); }
+.lv-material-item:hover { background: var(--lv-surface-2); border-color: var(--lv-border-hover, var(--lv-border)); transform: translateX(1.5px); }
 .lv-material-item.selected { background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); border-color: var(--lv-accent); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 4px 12px color-mix(in srgb, var(--lv-accent) 15%, transparent); }
 .lv-material-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; background: var(--lv-surface-2); color: var(--lv-accent); }
 .lv-material-item.selected .lv-material-icon { background: var(--lv-surface); }

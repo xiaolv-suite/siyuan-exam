@@ -201,7 +201,10 @@
     <span class="lv-chip">{t("import.title")}</span>
   </div>
   {#if !hasBank}
-    <div class="lv-empty">{t("guard.needBankFirst")}</div>
+    <div class="lv-empty">
+      <div class="lv-empty-icon"><Icon name="folder" size={24} /></div>
+      <p style="margin:8px 0 0">{t("guard.needBankFirst")}</p>
+    </div>
   {:else}
     {#if importCheckpoint}
       <!-- 38-04 / U08：未完成导入任务断点恢复提示条 -->

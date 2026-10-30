@@ -140,7 +140,10 @@
   {#if materialsList.length === 0}
     <div class="lv-empty"><div class="lv-empty-icon"><Icon name="book" size={24} /></div><b>{t("materials.title")}</b><p class="lv-muted">{t("materials.empty")}</p></div>
   {:else if materialsFiltered.length === 0}
-    <div class="lv-empty">{t("materials.noMatch")}</div>
+    <div class="lv-empty">
+      <div class="lv-empty-icon"><Icon name="search" size={24} /></div>
+      <p style="margin:8px 0 0">{t("materials.noMatch")}</p>
+    </div>
   {:else}
     <div class="lv-materials-workspace">
       <aside class="lv-card lv-material-list" aria-label={t("materials.title")}>
