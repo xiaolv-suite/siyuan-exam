@@ -4,6 +4,7 @@ import {
   cleanSiyuanDocMarkdown,
   parseQuestionsFromSiyuanDoc,
   parseQuestionsFromSiyuanDocBatch,
+  parseInlineFlashcards,
 } from "../src/core/siyuanDocImporter";
 import {
   buildSiyuanExamDocMarkdown,
@@ -157,6 +158,75 @@ ANSWER: A
       const dupeBatchReport = await parseQuestionsFromSiyuanDocBatch([docWithDupe]);
       expect(dupeBatchReport.ok.length).toBe(1);
       expect(dupeBatchReport.duplicates).toBe(1);
+    });
+
+    it("支持 Obsidian SR 规范单行极速制卡 (:: 单向卡 与 ::: 双向互逆卡)", () => {
+      const meta = { docId: "doc-flash", title: "计算机网络术语" };
+      const raw = `
+# 笔记正文
+HTTP :: 超文本传输协议
+TCP ::: 传输控制协议
+      `.trim();
+
+      const questions = parseInlineFlashcards(raw, meta);
+      // HTTP :: 超文本传输协议 生成 1 题
+      // TCP ::: 传输控制协议 生成 2 题（正反向题族）
+      expect(questions.length).toBe(3);
+
+      const q1 = questions[0];
+      expect(q1.stem).toBe("HTTP");
+      expect(q1.answer).toBe("超文本传输协议");
+
+      const q2 = questions[1];
+      const q3 = questions[2];
+      expect(q2.stem).toContain("【正向考查】TCP");
+      expect(q2.answer).toBe("传输控制协议");
+      expect(q3.stem).toContain("【逆向考查】");
+      expect(q3.stem).toContain("传输控制协议");
+      expect(q3.answer).toBe("TCP");
+
+      // 验证双向卡正确绑定了 reverse 题族
+      expect(q2.family?.variantKind).toBe("reverse");
+      expect(q3.family?.variantKind).toBe("reverse");
+      expect(q2.family?.parentId).toBe(q2.id);
+      expect(q3.family?.parentId).toBe(q2.id);
+    });
+
+    it("支持 Obsidian SR 规范多行问答卡 (? 与 ?? 双向卡)", () => {
+      const meta = { docId: "doc-qa", title: "操作系统核心原理" };
+      const raw = `
+死锁产生的四个必要条件是什么？
+?
+互斥条件、请求与保持条件、不剥夺条件、循环等待条件。
+
+进程
+??
+计算机中程序关于某数据集合上的一次运行活动，是系统进行资源分配和调度的基本单位。
+      `.trim();
+
+      const questions = parseInlineFlashcards(raw, meta);
+      expect(questions.length).toBe(3); // 1道单向多行卡 + 2道双向多行卡
+      expect(questions[0].stem).toContain("死锁产生的四个必要条件是什么？");
+      expect(questions[0].answer).toContain("互斥条件");
+      expect(questions[1].stem).toContain("进程");
+      expect(questions[2].stem).toContain("【逆向回忆】");
+      expect(questions[2].answer).toBe("进程");
+    });
+
+    it("parseQuestionsFromSiyuanDoc 能自动识别并提取文档内的 :: 制卡语法", async () => {
+      const meta = { docId: "doc-inline-doc", title: "英语考研词汇" };
+      const docMarkdown = `
+# 词汇打卡清单
+abandon :: 放弃，抛弃
+abundant :: 丰富的，充裕的
+      `.trim();
+
+      const report = await parseQuestionsFromSiyuanDoc(docMarkdown, meta);
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].stem).toBe("abandon");
+      expect(report.ok[0].answer).toBe("放弃,抛弃");
+      expect(report.ok[1].stem).toBe("abundant");
+      expect(report.ok[1].answer).toBe("丰富的,充裕的");
     });
   });
 

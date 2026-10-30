@@ -170,6 +170,140 @@ export function parseMarkdownTableToQuestions(
 }
 
 /**
+ * 9. 解析思源笔记中的 Markdown 极速制卡语法 (Obsidian SR & Anki 范式)
+ * - 单行单向问答卡：`问题 :: 答案` 或 `概念 :: 释义`
+ * - 单行双向互逆卡：`概念 ::: 释义` (生成正反两道互逆题，绑定 family.variantKind = "reverse")
+ * - 多行问答卡：以单行 `?` 或 `??` (双向) 分隔的问题与答案段落
+ */
+export function parseInlineFlashcards(
+  rawText: string,
+  docMeta: SiyuanDocMeta,
+): Question[] {
+  if (!rawText || !rawText.trim()) return [];
+
+  const questions: Question[] = [];
+  const lines = rawText.split(/\r?\n/);
+
+  // 1. 先扫描处理单行 :: 与 :::
+  let inCodeFence = false;
+  const nonInlineLines: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) {
+      inCodeFence = !inCodeFence;
+      nonInlineLines.push(line);
+      continue;
+    }
+    if (inCodeFence) {
+      nonInlineLines.push(line);
+      continue;
+    }
+
+    // 匹配双向互逆卡：概念 ::: 释义
+    const revMatch = line.match(/^([^:\n\r]+?)\s*:::\s*([^:\n\r]+)$/);
+    if (revMatch) {
+      const term = revMatch[1].trim();
+      const def = revMatch[2].trim();
+      if (term && def) {
+        // 正向题：给出概念，回答释义
+        const q1 = makeQuestion({
+          type: def.length > 50 ? "short" : "fill",
+          stem: `【正向考查】${term}`,
+          options: [],
+          answer: def,
+          kp: docMeta.title,
+          source: docMeta.title,
+        });
+        q1.sourceKind = "real";
+
+        // 反向题：给出释义，回答概念
+        const q2 = makeQuestion({
+          type: term.length > 50 ? "short" : "fill",
+          stem: `【逆向考查】根据以下描述写出对应概念或术语：\n${def}`,
+          options: [],
+          answer: term,
+          kp: docMeta.title,
+          source: docMeta.title,
+        });
+        q2.sourceKind = "real";
+
+        // 绑定兄弟题题族关联（用于 siblingBury 隔日防干扰）
+        q1.family = { parentId: q1.id, variantKind: "reverse", verified: true };
+        q2.family = { parentId: q1.id, variantKind: "reverse", verified: true };
+
+        questions.push(q1, q2);
+        continue;
+      }
+    }
+
+    // 匹配单向问答卡：概念 :: 释义
+    const singleMatch = line.match(/^([^:\n\r]+?)\s*::\s*([^:\n\r]+)$/);
+    if (singleMatch) {
+      const qText = singleMatch[1].trim();
+      const aText = singleMatch[2].trim();
+      if (qText && aText) {
+        const q = makeQuestion({
+          type: aText.length > 50 ? "short" : "fill",
+          stem: qText,
+          options: [],
+          answer: aText,
+          kp: docMeta.title,
+          source: docMeta.title,
+        });
+        q.sourceKind = "real";
+        questions.push(q);
+        continue;
+      }
+    }
+
+    nonInlineLines.push(line);
+  }
+
+  // 2. 扫描多行问答卡：问题段落 \n? 或 ??\n 答案段落
+  const remainingText = nonInlineLines.join("\n");
+  const multiCardRegex = /((?:^[^\n\r?]+\r?\n)+)^\s*(\?{1,2})\s*$\r?\n((?:^[^\n\r?]+\r?\n?)+)/gm;
+  let m: RegExpExecArray | null;
+  while ((m = multiCardRegex.exec(remainingText)) !== null) {
+    const qText = m[1].trim();
+    const sep = m[2].trim();
+    const aText = m[3].trim();
+    if (qText && aText) {
+      const isBi = sep === "??";
+      const q1 = makeQuestion({
+        type: aText.length > 60 ? "short" : "fill",
+        stem: qText,
+        options: [],
+        answer: aText,
+        kp: docMeta.title,
+        source: docMeta.title,
+      });
+      q1.sourceKind = "real";
+
+      if (isBi) {
+        const q2 = makeQuestion({
+          type: qText.length > 60 ? "short" : "fill",
+          stem: `【逆向回忆】${aText}`,
+          options: [],
+          answer: qText,
+          kp: docMeta.title,
+          source: docMeta.title,
+        });
+        q2.sourceKind = "real";
+        q1.family = { parentId: q1.id, variantKind: "reverse", verified: true };
+        q2.family = { parentId: q1.id, variantKind: "reverse", verified: true };
+        questions.push(q1, q2);
+      } else {
+        questions.push(q1);
+      }
+    }
+  }
+
+  return questions;
+}
+
+/**
  * 从思源笔记文档 Markdown 原文解析提取全套题目
  */
 export async function parseQuestionsFromSiyuanDoc(
@@ -189,6 +323,19 @@ export async function parseQuestionsFromSiyuanDoc(
 
   // 统一通过导入分流引擎解析（支持 MarkdownExam / Aiken / TSV / GIFT / 挖空）
   let report = await parseText(cleanedText, options);
+
+  // 兜底 0：极速单行与多行制卡语法（支持 :: 单向卡、::: 双向互逆卡与 ? 问答卡）
+  if (!report.ok.length && !report.duplicates && (docMarkdown.includes("::") || /^\s*\?{1,2}\s*$/m.test(docMarkdown))) {
+    const flashcards = parseInlineFlashcards(docMarkdown, docMeta);
+    if (flashcards.length > 0) {
+      report = {
+        batch: report.batch || newBatchId(),
+        ok: flashcards,
+        errors: [],
+        duplicates: 0,
+      };
+    }
+  }
 
   // 兜底 1：Markdown 表格试题识别（用户用表格制作的生词表、概念表、问答表、选项表）
   if (!report.ok.length && !report.duplicates && docMarkdown.includes("|")) {

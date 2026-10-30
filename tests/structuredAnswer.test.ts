@@ -37,6 +37,26 @@ describe("54-02 数值解析", () => {
     expect(parseNumeric("85.5％")).toBe(85.5);
     expect(parseNumeric("abc")).toBeNull();
   });
+
+  it("有理分数、带分数与 LaTeX 分数解析 (Perseus 标准)", () => {
+    expect(parseNumeric("3/4")).toBe(0.75);
+    expect(parseNumeric("-1/2")).toBe(-0.5);
+    expect(parseNumeric("1 1/2")).toBe(1.5);
+    expect(parseNumeric("-2 3/4")).toBe(-2.75);
+    expect(parseNumeric("\\frac{3}{4}")).toBe(0.75);
+    expect(parseNumeric("\\frac{-5}{2}")).toBe(-2.5);
+  });
+
+  it("π 倍数与符号解析", () => {
+    expect(parseNumeric("\\pi")).toBeCloseTo(Math.PI);
+    expect(parseNumeric("pi")).toBeCloseTo(Math.PI);
+    expect(parseNumeric("2pi")).toBeCloseTo(2 * Math.PI);
+    expect(parseNumeric("-pi")).toBeCloseTo(-Math.PI);
+    expect(parseNumeric("pi/2")).toBeCloseTo(Math.PI / 2);
+    expect(parseNumeric("-pi/4")).toBeCloseTo(-Math.PI / 4);
+    expect(parseNumeric("\\frac{\\pi}{2}")).toBeCloseTo(Math.PI / 2);
+    expect(parseNumeric("\\frac{3\\pi}{4}")).toBeCloseTo(0.75 * Math.PI);
+  });
 });
 
 describe("54-02 数值判分（54-02 验收 fixtures：边界/负数/小数分隔/等价单位）", () => {
@@ -129,5 +149,42 @@ describe("54-03 多空题逐空判分", () => {
     const v = gradeMultiBlank(mbSpec, "H2O；；氧；；2");
     expect(v.allCorrect).toBe(true);
     expect(v.correctCount).toBe(3);
+  });
+
+  describe("orderIndependent 无序可交换多空判分与防作弊验证 (Khan/Perseus 规范)", () => {
+    const unorderedSpec = {
+      v: 1 as const,
+      kind: "multiBlank" as const,
+      orderIndependent: true,
+      blanks: [
+        { answers: ["光反应"] },
+        { answers: ["暗反应"] },
+      ],
+    };
+
+    it("顺序颠倒作答顺利判定全对", () => {
+      const v = gradeMultiBlank(unorderedSpec, "暗反应;;光反应");
+      expect(v.allCorrect).toBe(true);
+      expect(v.correctCount).toBe(2);
+      expect(v.blanks[0].correct).toBe(true);
+      expect(v.blanks[1].correct).toBe(true);
+    });
+
+    it("严防作弊：重复填同一词不能重复得分", () => {
+      // 两个空都填“光反应”，只有第一个得分，第二个不能重复匹配
+      const v = gradeMultiBlank(unorderedSpec, "光反应;;光反应");
+      expect(v.allCorrect).toBe(false);
+      expect(v.correctCount).toBe(1);
+      expect(v.blanks[0].correct).toBe(true);
+      expect(v.blanks[1].correct).toBe(false);
+    });
+
+    it("漏答其中一空判定部分对但 allCorrect 为 false", () => {
+      const v = gradeMultiBlank(unorderedSpec, "暗反应");
+      expect(v.allCorrect).toBe(false);
+      expect(v.correctCount).toBe(1);
+      expect(v.blanks[0].correct).toBe(true);
+      expect(v.blanks[1].empty).toBe(true);
+    });
   });
 });

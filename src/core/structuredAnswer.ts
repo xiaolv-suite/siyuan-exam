@@ -22,11 +22,13 @@ export interface NumericAnswerSpec {
 }
 
 /** 多空题（54-03）：逐空独立身份=数组下标；answers=候选（首项主答案）；大小写策略逐空可配。
- *  作答分段符 ";;"（按位置对应空位）；顺序政策（可交换空位）待 v2，本版按位置对应。 */
+ *  作答分段符 ";;"。orderIndependent=true 时支持无序一对一可交换判分（Perseus规范）。 */
 export interface MultiBlankSpec {
   v: 1;
   kind: "multiBlank";
   blanks: { answers: string[]; caseSensitive?: boolean }[];
+  /** 允许任意顺序作答（空位可交换对齐，严禁同一词重复匹配骗分） */
+  orderIndependent?: boolean;
 }
 
 export type AnswerSpec = NumericAnswerSpec | MultiBlankSpec;
@@ -41,22 +43,86 @@ export function specOf(
   return spec as unknown as NumericAnswerSpec | MultiBlankSpec;
 }
 
-/** 宽容数值解析：全角小数点/句号、千分位逗号、负号变体、科学计数法（1e-3 / ×10^）；失败 null */
+/** 宽容数值解析：支持十进制小数、全角符号、千分位、百分号、有理分数、带分数、LaTeX 分数、π 倍数与科学计数法 */
 export function parseNumeric(raw: string): number | null {
-  const s = String(raw ?? "")
-    .trim()
+  if (raw == null) return null;
+  let s = String(raw).trim()
     .replace(/．/g, ".")
     .replace(/－/g, "-")
-    .replace(/[，\s]/g, "")
-    .replace(/,/g, "")
-    .replace(/[×xX]\s*10\s*\^?/i, "e");
+    .replace(/／/g, "/")
+    .replace(/，/g, "");
+
   if (!s) return null;
-  // 百分号数字支持：如 85% 或 85.5％ 转换为标准数值 85
+
+  // 1. 带分数支持：例如 "1 1/2" 或 "-2 3/4"
+  const mixedMatch = s.match(/^([+-]?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mixedMatch) {
+    const whole = Number(mixedMatch[1]);
+    const num = Number(mixedMatch[2]);
+    const den = Number(mixedMatch[3]);
+    if (den === 0 || !Number.isFinite(whole) || !Number.isFinite(num) || !Number.isFinite(den)) return null;
+    return whole >= 0 ? whole + num / den : whole - num / den;
+  }
+
+  // 去除剩余普通空格与逗号千分位
+  s = s.replace(/[\s,]/g, "");
+
+  // 2. LaTeX 分数支持：\frac{a}{b}
+  const latexFracMatch = s.match(/^\\frac\{([+-]?\d+(?:\.\d+)?)\}\{(\d+(?:\.\d+)?)\}$/);
+  if (latexFracMatch) {
+    const num = Number(latexFracMatch[1]);
+    const den = Number(latexFracMatch[2]);
+    if (den === 0 || !Number.isFinite(num) || !Number.isFinite(den)) return null;
+    return num / den;
+  }
+
+  // 3. 普通有理分数支持：a/b
+  const fracMatch = s.match(/^([+-]?\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);
+  if (fracMatch) {
+    const num = Number(fracMatch[1]);
+    const den = Number(fracMatch[2]);
+    if (den === 0 || !Number.isFinite(num) || !Number.isFinite(den)) return null;
+    return num / den;
+  }
+
+  // 4. π 倍数支持：如 \pi, 2pi, 2*pi, pi/2, \frac{\pi}{2}, -3.5pi
+  // 4.1 LaTeX 分数包含 \pi：\frac{\pi}{2} 或 \frac{3\pi}{4}
+  const latexPiFracMatch = s.match(/^\\frac\{([+-]?\d*(?:\.\d+)?)\s*(?:\\pi|π|pi)\}\{(\d+(?:\.\d+)?)\}$/i);
+  if (latexPiFracMatch) {
+    const rawCoeff = latexPiFracMatch[1];
+    const coeff = rawCoeff === "" || rawCoeff === "+" ? 1 : rawCoeff === "-" ? -1 : Number(rawCoeff);
+    const den = Number(latexPiFracMatch[2]);
+    if (den === 0 || !Number.isFinite(coeff) || !Number.isFinite(den)) return null;
+    return (coeff * Math.PI) / den;
+  }
+
+  // 4.2 普通除法包含 π：pi/2 或 2pi/3
+  const piDivMatch = s.match(/^([+-]?\d*(?:\.\d+)?)\s*\*?\s*(?:\\pi|π|pi)\s*\/\s*(\d+(?:\.\d+)?)$/i);
+  if (piDivMatch) {
+    const rawCoeff = piDivMatch[1];
+    const coeff = rawCoeff === "" || rawCoeff === "+" ? 1 : rawCoeff === "-" ? -1 : Number(rawCoeff);
+    const den = Number(piDivMatch[2]);
+    if (den === 0 || !Number.isFinite(coeff) || !Number.isFinite(den)) return null;
+    return (coeff * Math.PI) / den;
+  }
+
+  // 4.3 乘积 π：2pi, -pi, 0.5pi, \pi, π
+  const piMulMatch = s.match(/^([+-]?\d*(?:\.\d+)?)\s*\*?\s*(?:\\pi|π|pi)$/i);
+  if (piMulMatch) {
+    const rawCoeff = piMulMatch[1];
+    const coeff = rawCoeff === "" || rawCoeff === "+" ? 1 : rawCoeff === "-" ? -1 : Number(rawCoeff);
+    return Number.isFinite(coeff) ? coeff * Math.PI : null;
+  }
+
+  // 5. 百分号数字支持：如 85% 或 85.5% 转换为标准数值 85
   if (s.endsWith("%") || s.endsWith("％")) {
     const numPart = s.slice(0, -1).trim();
     const n = Number(numPart);
     return Number.isFinite(n) ? n : null;
   }
+
+  // 6. 科学计数法（1e-3 / 1.5×10^4）
+  s = s.replace(/[×xX]\s*10\s*\^?/i, "e");
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
@@ -150,11 +216,53 @@ export interface MultiBlankVerdict {
   allCorrect: boolean;
 }
 
-/** 逐空判分：作答按 ";;" 分段、按位置对应空位；缺段=空白（incorrect+empty，部分作答可逐空解释） */
+/** 逐空判分：作答按 ";;" 分段；orderIndependent=true 时按无序一对一匹配，否则按位置对应空位 */
 export function gradeMultiBlank(spec: MultiBlankSpec, given: string): MultiBlankVerdict {
   // 兼容中文输入法连续全角分号 "；；" 归一化为半角 ";;"
   const normalizedGiven = String(given ?? "").replace(/；；/g, MULTI_BLANK_SEP);
   const parts = normalizedGiven.split(MULTI_BLANK_SEP).map((s) => s.trim());
+
+  if (spec.orderIndependent) {
+    // 无序可交换空位判分（Khan/Perseus 防作弊规范：1对1贪心对齐，严防填重复词骗分）
+    const matchedBlankIndices = new Set<number>();
+    const blanks: BlankResult[] = [];
+
+    parts.forEach((g, i) => {
+      const empty = g === "";
+      if (empty) {
+        blanks.push({ index: i, given: g, correct: false, empty: true });
+        return;
+      }
+      // 查找一个尚未被匹配的空位
+      const targetIdx = spec.blanks.findIndex((b, j) => {
+        if (matchedBlankIndices.has(j)) return false;
+        return b.answers.some((a) => (b.caseSensitive ? a === g : a.toLowerCase() === g.toLowerCase()));
+      });
+
+      if (targetIdx >= 0) {
+        matchedBlankIndices.add(targetIdx);
+        blanks.push({ index: i, given: g, correct: true, empty: false });
+      } else {
+        blanks.push({ index: i, given: g, correct: false, empty: false });
+      }
+    });
+
+    // 若提供的作答段数少于规格空数，补齐缺省空白项
+    for (let i = parts.length; i < spec.blanks.length; i++) {
+      blanks.push({ index: i, given: "", correct: false, empty: true });
+    }
+
+    const correctCount = matchedBlankIndices.size;
+    const filledCount = blanks.filter((b) => !b.empty).length;
+    return {
+      blanks,
+      correctCount,
+      filledCount,
+      allCorrect: spec.blanks.length > 0 && correctCount === spec.blanks.length && blanks.every((b) => b.correct || b.empty),
+    };
+  }
+
+  // 严格位置对应判分（默认）
   const blanks: BlankResult[] = spec.blanks.map((b, i) => {
     const g = parts[i] ?? "";
     const empty = g === "";

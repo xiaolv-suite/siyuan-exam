@@ -60,7 +60,7 @@ export interface Question {
         relTolerance?: number;
         altUnits?: { unit: string; factor: number }[];
       }
-    | { v: 1; kind: "multiBlank"; blanks: { answers: string[]; caseSensitive?: boolean }[] };
+    | { v: 1; kind: "multiBlank"; blanks: { answers: string[]; caseSensitive?: boolean }[]; orderIndependent?: boolean };
   /** 55-05 主观采分点规格（简答/论述题自评依据）；缺省 = 无 rubric，按纯展示题处理 */
   rubric?: {
     v: 1;
