@@ -1575,9 +1575,10 @@
               <!-- 3. 能力多边形面积 -->
               <polygon
                 points={radarChart.polygonPointsString}
-                fill="color-mix(in srgb, var(--lv-accent) 22%, transparent)"
-                stroke="var(--lv-accent)"
-                stroke-width="2"
+                fill="color-mix(in srgb, var(--lv-data-accent) 20%, transparent)"
+                stroke="var(--lv-data-accent)"
+                stroke-width="2.2"
+                stroke-linejoin="round"
               />
 
               <!-- 4. 顶点微圆点徽章 -->
@@ -1588,7 +1589,7 @@
                   cy={pt.y}
                   r="4"
                   fill="var(--lv-surface)"
-                  stroke="var(--lv-accent)"
+                  stroke="var(--lv-data-accent)"
                   stroke-width="2"
                 >
                   <title>{dim ? `${dim.label}: ${dim.score}%` : ""}</title>

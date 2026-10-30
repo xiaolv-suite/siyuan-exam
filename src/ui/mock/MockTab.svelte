@@ -2433,10 +2433,10 @@
               role="img" aria-label={t("mock.percentileCurveAria")}>
               <polyline
                 points={percentileCurve.points.map((p) => `${(p.x - percentileCurve!.xMin)},${100 - (p.pdf / percentileCurve!.pdfPeak) * 92}`).join(" ")}
-                fill="none" stroke="var(--lv-border-subtle)" stroke-width="1.2" vector-effect="non-scaling-stroke" />
+                fill="none" stroke="var(--lv-border-subtle)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
               <polyline
                 points={percentileCurve.points.map((p) => `${(p.x - percentileCurve!.xMin)},${100 - p.cdf}`).join(" ")}
-                fill="none" stroke="var(--lv-accent)" stroke-width="2" vector-effect="non-scaling-stroke" />
+                fill="none" stroke="var(--lv-data-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
               {#each percentileCurve.points.filter((p) => p.mine) as mp (mp.x)}
                 <line x1={mp.x - percentileCurve!.xMin} y1="0" x2={mp.x - percentileCurve!.xMin} y2="100" stroke="var(--lv-amber)" stroke-width="1.5" vector-effect="non-scaling-stroke" />
               {/each}
@@ -2529,9 +2529,9 @@
       <div class="lv-card" style="margin:12px 0">
         <b style="font-size:var(--lv-font-size-body-compact)">{t("mock.radar")}</b>
         <svg viewBox="0 0 220 190" style="width:100%;max-width:300px;margin:0 auto;display:block" role="img" aria-label={t("mock.radar")}>
-          <polygon points={radarPoints(score.sections.map(() => 1))} fill="none" stroke="var(--lv-border)" />
-          <polygon points={radarPoints(score.sections.map(() => 0.5))} fill="none" stroke="var(--lv-border)" stroke-dasharray="3 3" />
-          <polygon points={radarPoints(secAccuracy)} fill="var(--lv-accent-soft)" stroke="var(--lv-accent)" stroke-width="2" />
+          <polygon points={radarPoints(score.sections.map(() => 1))} fill="none" stroke="var(--lv-border-subtle)" stroke-width="0.8" />
+          <polygon points={radarPoints(score.sections.map(() => 0.5))} fill="none" stroke="var(--lv-border-subtle)" stroke-width="0.8" stroke-dasharray="3 3" />
+          <polygon points={radarPoints(secAccuracy)} fill="var(--lv-data-soft)" stroke="var(--lv-data-accent)" stroke-width="2" stroke-linejoin="round" />
           {#each radarLabel(secAccuracy) as lb, _i (_i)}
             <text x={lb.x} y={lb.y} font-size="10" fill="var(--lv-text-3)" text-anchor="middle">{lb.name}</text>
           {/each}
