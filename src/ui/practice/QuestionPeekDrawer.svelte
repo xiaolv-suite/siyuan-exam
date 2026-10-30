@@ -241,10 +241,10 @@
           {currentPeekIndex + 1} / {shownQuestionsCount}
         </span>
         <button class="lv-btn sm lv-btn--ghost" title={t("browse.prevQuestion", "上一题 (↑/k)")} aria-label={t("browse.prevQuestion", "上一题")} disabled={!hasPrevPeek} onclick={onprev}>
-          ‹
+          <Icon name="chev-left" size={13} />
         </button>
         <button class="lv-btn sm lv-btn--ghost" title={t("browse.nextQuestion", "下一题 (↓/j)")} aria-label={t("browse.nextQuestion", "下一题")} disabled={!hasNextPeek} onclick={onnext}>
-          ›
+          <Icon name="chev-right" size={13} />
         </button>
       {/if}
       <button class="lv-btn sm lv-btn--ghost" class:lv-chip--amb={!!q.fav} title={`${t("session.kbdFav")} (E)`} aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} disabled={favBusy} onclick={() => ontoggleFav(q)}>

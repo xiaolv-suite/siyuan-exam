@@ -1460,7 +1460,7 @@
       const text = lines.join("\n");
       try {
         await navigator.clipboard.writeText(text);
-        showMessage(t("mock.summaryCopied", "📋 模考战报已复制，可直接粘贴到思源笔记！"), 3200, "info");
+        showMessage(t("mock.summaryCopied", "模考战报已复制，可直接粘贴到思源笔记！"), 3200, "info");
       } catch {
         showMessage(t("mock.summaryCopyFailed", "复制失败，请重试或导出 CSV。"), 3200, "error");
       }
@@ -2348,7 +2348,7 @@
         {/if}
       </div>
       <div class="lv-row" style="align-items:center;padding:6px 4px">
-        <span class="num" style="font-size:40px;font-weight:800;color:var(--lv-accent)">{score.total}</span>
+        <span class="num" style="font-size:40px;font-weight:800;color:var(--lv-data-accent)">{score.total}</span>
         <span class="lv-muted">/ {score.full}</span>
         <span class="lv-chip" class:grn={score.pass} class:red={!score.pass}>{score.pass ? t("mock.pass") : t("mock.fail")}（{t("mock.passLine")} {bp.passLine}%）</span>
         <span class="lv-chip num">{score.percent}%</span>
@@ -2382,7 +2382,7 @@
           </div>
         </div>
         <div class="lv-row" style="margin:8px 0 0;align-items:baseline;gap:var(--lv-space-3);flex-wrap:wrap">
-          <span class="num" style="font-size:26px;font-weight:800;color:var(--lv-accent)">{t("mock.percentileTop").replace("{n}", String(percentileVerdict.topPercent))}</span>
+          <span class="num" style="font-size:26px;font-weight:800;color:var(--lv-data-accent)">{t("mock.percentileTop").replace("{n}", String(percentileVerdict.topPercent))}</span>
           <span class="lv-chip num" title={t("mock.percentilePercentileTip")}>{t("mock.percentilePercentile").replace("{n}", String(percentileVerdict.percentile))}</span>
           <span class="lv-chip num" title={t("mock.percentileZTip")}>z = {percentileVerdict.zScore}</span>
         </div>
@@ -2395,7 +2395,7 @@
             {#each percentileBands as band, bi (bi)}
               <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px">
                 <span class="lv-muted num" style="font-size:9px">{band.share}</span>
-                <div style="width:100%;background:{band.mine ? 'var(--lv-accent)' : 'var(--lv-surface-3, var(--lv-surface-2))'};height:{(band.share / percentileBandMax) * 46}px;min-height:2px;border-radius:2px 2px 0 0;border:1px solid {band.mine ? 'var(--lv-accent)' : 'transparent'}"
+                <div style="width:100%;background:{band.mine ? 'var(--lv-data-accent)' : 'var(--lv-surface-3, var(--lv-surface-2))'};height:{(band.share / percentileBandMax) * 46}px;min-height:2px;border-radius:2px 2px 0 0;border:1px solid {band.mine ? 'var(--lv-data-accent)' : 'transparent'}"
                   title={t("mock.percentileBandTip").replace("{label}", band.label).replace("{share}", String(band.share))}></div>
                 <span class="lv-muted num" style="font-size:9px">{band.label}</span>
               </div>

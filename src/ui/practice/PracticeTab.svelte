@@ -543,7 +543,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (reciteAutoTts && reciteQueue[0]) {
         ttsSpeak(reciteQueue[0].stem, { lang: reciteQueue[0].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
       }
-      showMessage(`🚨 已开启艾宾浩斯临界考点背诵流（共 ${qs.length} 题）`, 3000, "info");
+      showMessage(`已开启艾宾浩斯临界考点背诵流（共 ${qs.length} 题）`, 3000, "info");
     }
 
     // 题库管理画廊 Hub 状态
