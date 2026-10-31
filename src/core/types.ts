@@ -72,6 +72,7 @@ export interface Question {
     revision?: number;
   };
   confidence?: number; // AI 二遍核验置信度 0-1（ Quanta 范式：≥0.90 可信）
+  lintIssues?: string[]; // 试题质检异常警示清单（缺少答案/选项异常等）
   fav?: boolean; // 收藏（exam-fav="1"，docs/02 §2.4）
   /** 用户速记标签（如 star:好题, trap:陷阱, doubt:存疑, key:重点） */
   userTags?: string[];

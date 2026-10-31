@@ -5256,6 +5256,7 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     // ---------- 52-09 正文划重点挖空出题（Cloze Generator） ----------
     let importSubTab = $state<"standard" | "cloze" | "siyuan" | "tag">("standard");
+    let importDocProfile = $state<"all" | "paper" | "notes" | "cloze" | "table">("all");
     let clozeInputText = $state("");
     let clozeModes = $state<("highlight" | "curly" | "bracket")[]>(["highlight", "curly"]);
     let clozeParsedItems = $state<ParsedClozeItem[]>([]);
@@ -5354,17 +5355,17 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     async function importSelectedDocs() {
       const ids = Object.keys(selectedDocIds);
-      if (ids.length) await runDocExtract(() => extractFromBatchSiyuanDocs(app, ids), "批量提取失败");
+      if (ids.length) await runDocExtract(() => extractFromBatchSiyuanDocs(app, ids, { profile: importDocProfile }), "批量提取失败");
     }
 
     const toggleSelectAllDocs = () => { selectedDocIds = toggleSelectAllDocCandidates(siyuanDocCandidates, selectedDocIds); };
 
     const pickAndImportSiyuanDoc = (docId: string, title: string) =>
-      runDocExtract(() => extractFromSingleSiyuanDoc(app, docId, title), "提取失败");
+      runDocExtract(() => extractFromSingleSiyuanDoc(app, docId, title, { profile: importDocProfile }), "提取失败");
 
     const importAllSearchedDocs = () => {
       if (!siyuanDocCandidates.length) return;
-      return runDocExtract(() => extractFromBatchSiyuanDocs(app, siyuanDocCandidates.map((d) => d.id)), "批量提取失败", 3500);
+      return runDocExtract(() => extractFromBatchSiyuanDocs(app, siyuanDocCandidates.map((d) => d.id), { profile: importDocProfile }), "批量提取失败", 3500);
     };
 
     async function aiExtractSiyuanDoc(docId: string, title: string) {
@@ -6450,6 +6451,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {importBusy}
       bind:importDragOver
       bind:importSubTab
+      bind:importDocProfile
       bind:docSearchQuery
       {siyuanDocBusy}
       {siyuanDocCandidates}

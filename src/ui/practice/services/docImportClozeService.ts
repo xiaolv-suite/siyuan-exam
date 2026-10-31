@@ -35,11 +35,12 @@ export async function extractFromSingleSiyuanDoc(
   app: any,
   docId: string,
   title: string,
+  options?: any,
 ): Promise<DocExtractResult> {
   if (!app || !docId) {
     return { report: null, message: "参数错误", isError: true };
   }
-  const report = (await app.importFromSiyuanDoc(docId)) as ImportReport;
+  const report = (await app.importFromSiyuanDoc(docId, options)) as ImportReport;
   if (!report.ok.length) {
     const rawReason = report.errors[0]?.reason || "";
     const reason = /缺少 ANSWER 行|Aiken/i.test(rawReason)
@@ -58,11 +59,12 @@ export async function extractFromSingleSiyuanDoc(
 export async function extractFromBatchSiyuanDocs(
   app: any,
   docIds: string[],
+  options?: any,
 ): Promise<DocExtractResult> {
   if (!app || !docIds.length) {
     return { report: null, message: "未选择任何文档", isError: true };
   }
-  const report = (await app.importFromSiyuanDocBatch(docIds)) as ImportReport;
+  const report = (await app.importFromSiyuanDocBatch(docIds, options)) as ImportReport;
   if (!report.ok.length) {
     const rawReason = report.errors[0]?.reason || "";
     const reason = /缺少 ANSWER 行|Aiken/i.test(rawReason)

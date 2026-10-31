@@ -13,6 +13,13 @@ import { newBatchId } from "./ids";
 import type { Question, QuestionType } from "./types";
 import { makeQuestion } from "./blockTemplate";
 import { questionHash } from "./answer";
+import { lintQuestion, autoFixQuestion } from "./questionLinter";
+
+export type DocImportProfile = "all" | "paper" | "notes" | "cloze" | "table";
+
+export interface SiyuanImportOptions extends ImportOptions {
+  profile?: DocImportProfile;
+}
 
 export interface SiyuanDocMeta {
   docId: string;
@@ -565,7 +572,7 @@ export function extractNaturalPaperQuestions(rawText: string, docMeta: SiyuanDoc
 export async function parseQuestionsFromSiyuanDoc(
   docMarkdown: string,
   docMeta: SiyuanDocMeta,
-  options: ImportOptions = {},
+  options: SiyuanImportOptions = {},
 ): Promise<ImportReport> {
   const cleanedText = cleanSiyuanDocMarkdown(docMarkdown);
   if (!cleanedText) {
@@ -577,60 +584,102 @@ export async function parseQuestionsFromSiyuanDoc(
     };
   }
 
+  const profile: DocImportProfile = options.profile || "all";
+  const shouldRunPaper = profile === "all" || profile === "paper";
+  const shouldRunNotes = profile === "all" || profile === "notes";
+  const shouldRunCloze = profile === "all" || profile === "cloze" || profile === "notes";
+  const shouldRunTable = profile === "all" || profile === "table" || profile === "notes";
+
   const allCandidates: Question[] = [];
+  let batchId = newBatchId();
+  let standardReportDuplicates = 0;
 
   // 1. 标准导入分流引擎解析（支持 MarkdownExam / Aiken / TSV / GIFT / 挖空）
-  const standardReport = await parseText(cleanedText, options);
-  if (standardReport.ok?.length) {
-    allCandidates.push(...standardReport.ok);
+  if (shouldRunPaper) {
+    const standardReport = await parseText(cleanedText, options);
+    if (standardReport.batch) batchId = standardReport.batch;
+    if (standardReport.duplicates) standardReportDuplicates = standardReport.duplicates;
+    if (standardReport.ok?.length) {
+      allCandidates.push(...standardReport.ok);
+    }
   }
 
   // 2. 极速单行与多行制卡语法（支持 :: 单向卡、::: 双向互逆卡与 ? 问答卡）
-  if (cleanedText.includes("::") || /^\s*\?{1,2}\s*$/m.test(cleanedText)) {
-    allCandidates.push(...parseInlineFlashcards(cleanedText, docMeta));
+  if (shouldRunNotes || profile === "cloze") {
+    if (cleanedText.includes("::") || /^\s*\?{1,2}\s*$/m.test(cleanedText)) {
+      allCandidates.push(...parseInlineFlashcards(cleanedText, docMeta));
+    }
   }
 
   // 3. Markdown 表格试题识别（用户用表格制作的生词表、概念表、问答表、选项表）
-  if (cleanedText.includes("|")) {
-    allCandidates.push(...parseMarkdownTableToQuestions(cleanedText, docMeta));
+  if (shouldRunTable) {
+    if (cleanedText.includes("|")) {
+      allCandidates.push(...parseMarkdownTableToQuestions(cleanedText, docMeta));
+    }
   }
 
   // 4. 思源自然试卷与自由排版考题识别（单行题号 1. / 1、 / (1)、一行多选项 A. xx B. yy、题干括号答案等）
-  allCandidates.push(...extractNaturalPaperQuestions(cleanedText, docMeta));
+  if (shouldRunPaper) {
+    allCandidates.push(...extractNaturalPaperQuestions(cleanedText, docMeta));
 
-  // 5. 句末带对错符号的自然判断题识别（如：质数只有两个因数 (√)）
-  if (/[（(]\s*[√×对错vVxX正确错误TFN]+\s*[)）]/.test(cleanedText)) {
-    allCandidates.push(...parseInlineJudgeQuestions(cleanedText, docMeta));
-  }
-
-  // 6. 标题与段落问答结构识别（如：# 什么是死锁？\n回答段落...）
-  if (/#{1,6}\s+[^\n\r]+/.test(cleanedText)) {
-    allCandidates.push(...parseHeadingQaQuestions(cleanedText, docMeta));
-  }
-
-  // 7. 无序列表与有序列表概念定义卡（如 - 临界区：访问临界资源的代码段）
-  allCandidates.push(...parseBulletDefinitions(cleanedText, docMeta));
-
-  // 8. 正文粗体概念定义句（如 **虚拟内存**是指利用外存空间扩展物理内存的技术）
-  if (cleanedText.includes("**")) {
-    allCandidates.push(...parseBoldSentenceDefinitions(cleanedText, docMeta));
-  }
-
-  // 9. 高亮挖空（Cloze）：文档包含思源原生高亮标记 ==重点== 或 {{挖空}}
-  if (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText)) {
+    // 4.1 整卷大题章节智能切分与答案回填（支持试卷专区）
     try {
-      const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
-      const clozeItems = parseClozeText(cleanedText, { modes: ["highlight", "curly"] });
-      if (clozeItems.length > 0) {
-        allCandidates.push(...clozeItemsToQuestions(clozeItems));
+      const { segmentExamPaper } = await import("../importer/examSegmenter");
+      const segmented = segmentExamPaper(cleanedText, {
+        source: docMeta.title,
+        defaultKp: docMeta.title,
+      });
+      if (segmented.questions.length > 0) {
+        allCandidates.push(...segmented.questions);
       }
     } catch {
       // 容错降级
     }
   }
 
+  // 5. 句末带对错符号的自然判断题识别（如：质数只有两个因数 (√)）
+  if (shouldRunPaper || shouldRunNotes) {
+    if (/[（(]\s*[√×对错vVxX正确错误TFN]+\s*[)）]/.test(cleanedText)) {
+      allCandidates.push(...parseInlineJudgeQuestions(cleanedText, docMeta));
+    }
+  }
+
+  // 6. 标题与段落问答结构识别（如：# 什么是死锁？\n回答段落...）
+  if (shouldRunNotes) {
+    if (/#{1,6}\s+[^\n\r]+/.test(cleanedText)) {
+      allCandidates.push(...parseHeadingQaQuestions(cleanedText, docMeta));
+    }
+  }
+
+  // 7. 无序列表与有序列表概念定义卡（如 - 临界区：访问临界资源的代码段）
+  if (shouldRunNotes) {
+    allCandidates.push(...parseBulletDefinitions(cleanedText, docMeta));
+  }
+
+  // 8. 正文粗体概念定义句（如 **虚拟内存**是指利用外存空间扩展物理内存的技术）
+  if (shouldRunNotes) {
+    if (cleanedText.includes("**")) {
+      allCandidates.push(...parseBoldSentenceDefinitions(cleanedText, docMeta));
+    }
+  }
+
+  // 9. 高亮挖空（Cloze）：文档包含思源原生高亮标记 ==重点== 或 {{挖空}}
+  if (shouldRunCloze) {
+    if (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText)) {
+      try {
+        const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
+        const clozeItems = parseClozeText(cleanedText, { modes: ["highlight", "curly"] });
+        if (clozeItems.length > 0) {
+          allCandidates.push(...clozeItemsToQuestions(clozeItems));
+        }
+      } catch {
+        // 容错降级
+      }
+    }
+  }
+
   // 10. 渐进式阅读笔记概念与列表制卡提取（概念摘抄兜底）
-  if (allCandidates.length === 0 && cleanedText.trim().length >= 10) {
+  if (shouldRunNotes && allCandidates.length === 0 && cleanedText.trim().length >= 10) {
     try {
       const { extractCardsFromExcerpt } = await import("./excerptCard");
       const excerptResult = extractCardsFromExcerpt({
@@ -688,7 +737,7 @@ export async function parseQuestionsFromSiyuanDoc(
   // 如果文档内确实没有任何可提取的题目，归一化错误信息，引导一键 AI 提炼
   if (deduplicated.length === 0) {
     return {
-      batch: standardReport.batch || newBatchId(),
+      batch: batchId,
       ok: [],
       errors: [
         {
@@ -697,23 +746,30 @@ export async function parseQuestionsFromSiyuanDoc(
           reason: `《${docMeta.title}》未检测到题目内容（为日常叙述性笔记，建议使用「AI 提炼试题」一键自动阅读正文出题）`,
         },
       ],
-      duplicates: standardReport.duplicates || 0,
+      duplicates: 0,
     };
   }
 
-  // 为所有成功提取的题目注入文档元数据
+  // 为所有成功提取的题目运行自愈纠偏、质量巡检并计算置信度评分
   const enrichedQuestions = deduplicated.map((q) => {
+    const { question: fixedQ } = autoFixQuestion(q);
+    const lint = lintQuestion(fixedQ);
+    const confidence = Math.round(lint.score) / 100;
+    const lintIssues = lint.issues.map((i) => i.message);
+
     return {
-      ...q,
-      source: q.source && q.source !== "Markdown文档导入" ? q.source : docMeta.title,
+      ...fixedQ,
+      confidence,
+      lintIssues,
+      source: fixedQ.source && fixedQ.source !== "Markdown文档导入" ? fixedQ.source : docMeta.title,
       sourceKind: "real" as const,
       ...(docMeta.docId ? { sourceBlockId: docMeta.docId } : {}),
-      kp: q.kp || (docMeta.hpath ? docMeta.hpath.replace(/^\/|\/$/g, "").replace(/\/[^/]+$/, "") : docMeta.title),
+      kp: fixedQ.kp || (docMeta.hpath ? docMeta.hpath.replace(/^\/|\/$/g, "").replace(/\/[^/]+$/, "") : docMeta.title),
     };
   });
 
   // 处理 existingHashes 幂等去重
-  let duplicates = standardReport.duplicates || 0;
+  let duplicates = standardReportDuplicates;
   let finalQuestions: Question[] = enrichedQuestions;
   if (options.existingHashes && options.existingHashes.size > 0) {
     const seen = options.existingHashes;
@@ -746,7 +802,7 @@ export async function parseQuestionsFromSiyuanDoc(
   }
 
   return {
-    batch: standardReport.batch || newBatchId(),
+    batch: batchId,
     ok: finalQuestions,
     errors: [],
     duplicates,

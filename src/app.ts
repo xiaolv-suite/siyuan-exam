@@ -3698,7 +3698,7 @@ export class ExamApp {
     }
   }
 
-  async importFromSiyuanDoc(docId: string): Promise<import("./importer/pipeline").ImportReport> {
+  async importFromSiyuanDoc(docId: string, options?: import("./core/siyuanDocImporter").SiyuanImportOptions): Promise<import("./importer/pipeline").ImportReport> {
     const docRes = await this.deps.client.exportDocMarkdown(docId);
     const rawMd = docRes.content || "";
     let title = docRes.title || "思源文档";
@@ -3714,10 +3714,10 @@ export class ExamApp {
     } catch { /* 容错 */ }
 
     const { parseQuestionsFromSiyuanDoc } = await import("./core/siyuanDocImporter");
-    return parseQuestionsFromSiyuanDoc(rawMd, { docId, title, hpath });
+    return parseQuestionsFromSiyuanDoc(rawMd, { docId, title, hpath }, options);
   }
 
-  async importFromSiyuanDocBatch(docIds: string[]): Promise<import("./importer/pipeline").ImportReport> {
+  async importFromSiyuanDocBatch(docIds: string[], options?: import("./core/siyuanDocImporter").SiyuanImportOptions): Promise<import("./importer/pipeline").ImportReport> {
     const { newBatchId } = await import("./core/ids");
     if (!docIds.length) return { batch: newBatchId(), ok: [], errors: [], duplicates: 0 };
     const batchItems: import("./core/siyuanDocImporter").SiyuanDocBatchItem[] = [];
@@ -3736,7 +3736,7 @@ export class ExamApp {
       } catch { /* 容错跳过不可读文档 */ }
     }
     const { parseQuestionsFromSiyuanDocBatch } = await import("./core/siyuanDocImporter");
-    return parseQuestionsFromSiyuanDocBatch(batchItems);
+    return parseQuestionsFromSiyuanDocBatch(batchItems, options);
   }
 
   async searchBlocksByTag(tag: string): Promise<Array<{ id: string; content: string; rootId: string; hpath: string }>> {

@@ -104,6 +104,7 @@
     paperOcrBusy?: boolean;
     onSegmentPaperText?: (text: string, name?: string) => void;
     onPaperImageUpload?: (file: File | Blob) => void;
+    importDocProfile?: "all" | "paper" | "notes" | "cloze" | "table";
   }
 
   let {
@@ -113,6 +114,7 @@
     importBusy,
     importDragOver = $bindable(),
     importSubTab = $bindable(),
+    importDocProfile = $bindable("all"),
     docSearchQuery = $bindable(),
     siyuanDocBusy,
     siyuanDocCandidates,
@@ -217,10 +219,53 @@
   let paperRawText = $state("");
   let paperFileInput = $state<HTMLInputElement | null>(null);
   let selectedImportQids = $state<Record<string, boolean>>({});
+  let confidenceFilter = $state<"all" | "high" | "need_review">("all");
 
   const selectedImportCount = $derived(
     importReport?.ok?.filter((q, qi) => selectedImportQids[q.id || String(qi)] !== false).length ?? 0,
   );
+
+  const highConfidenceCount = $derived(
+    importReport?.ok?.filter((q) => (q.confidence ?? 1) >= 0.85 && (!q.lintIssues || q.lintIssues.length === 0)).length ?? 0,
+  );
+
+  const needReviewCount = $derived(
+    (importReport?.ok?.length ?? 0) - highConfidenceCount,
+  );
+
+  const visibleImportQuestions = $derived.by(() => {
+    if (!importReport?.ok) return [];
+    if (confidenceFilter === "high") {
+      return importReport.ok.map((q, qi) => ({ q, qi })).filter(({ q }) => (q.confidence ?? 1) >= 0.85 && (!q.lintIssues || q.lintIssues.length === 0));
+    }
+    if (confidenceFilter === "need_review") {
+      return importReport.ok.map((q, qi) => ({ q, qi })).filter(({ q }) => (q.confidence ?? 1) < 0.85 || (q.lintIssues && q.lintIssues.length > 0));
+    }
+    return importReport.ok.map((q, qi) => ({ q, qi }));
+  });
+
+  function selectOnlyHighConfidence() {
+    if (!importReport?.ok) return;
+    const next: Record<string, boolean> = {};
+    for (let i = 0; i < importReport.ok.length; i++) {
+      const q = importReport.ok[i];
+      const isHigh = (q.confidence ?? 1) >= 0.85 && (!q.lintIssues || q.lintIssues.length === 0);
+      next[q.id || String(i)] = isHigh;
+    }
+    selectedImportQids = next;
+  }
+
+  async function autoFixImportQuestions() {
+    if (!importReport?.ok) return;
+    const { autoFixQuestion, lintQuestion } = await import("@/core/questionLinter");
+    importReport.ok = importReport.ok.map((q) => {
+      const { question: fixedQ } = autoFixQuestion(q);
+      const lint = lintQuestion(fixedQ);
+      fixedQ.confidence = Math.round(lint.score) / 100;
+      fixedQ.lintIssues = lint.issues.map((i) => i.message);
+      return fixedQ;
+    });
+  }
 
   function toggleSelectAllImportQuestions() {
     if (!importReport?.ok) return;
@@ -320,6 +365,28 @@
           </div>
           <div class="lv-chip lv-chip--grn" style="font-size:11px;padding:4px 8px;margin-bottom:4px" role="note">
             {t("import.siyuanDocSafety")}
+          </div>
+          <!-- 识别场景模式预设切换 -->
+          <div class="lv-row" role="group" aria-label="识别场景模式预设" style="margin:4px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
+            <span class="lv-muted" style="font-size:11.5px">识别模式：</span>
+            {#each [
+              { id: "all", label: "🎯 智能全能", desc: "10大引擎全量并发，并自动排重与置信度评分" },
+              { id: "paper", label: "📄 标准试卷", desc: "专精大题章节、题号与选项，屏蔽正文概念" },
+              { id: "notes", label: "📖 读书笔记", desc: "专精列表术语、粗体加粗与问答标题提炼" },
+              { id: "cloze", label: "⚡ 高光挖空", desc: "专门提取 ==高亮== 与 {{挖空}} 记忆卡" },
+              { id: "table", label: "📊 表格矩阵", desc: "专门提取 Markdown 表格问答对照" },
+            ] as mode (mode.id)}
+              <button
+                type="button"
+                class="lv-chip sm"
+                class:acc={importDocProfile === mode.id}
+                style="{importDocProfile === mode.id ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}font-size:11px;padding:2px 8px;cursor:pointer"
+                title={mode.desc}
+                onclick={() => { importDocProfile = mode.id as any; }}
+              >
+                {mode.label}
+              </button>
+            {/each}
           </div>
           <div class="lv-row" style="margin:0;gap:6px;align-items:center">
             <div style="position:relative;flex:1;display:flex;align-items:center">
@@ -635,15 +702,37 @@
           {#if importReport.ok.length}
             <div class="lv-import-preview-section" style="margin:14px 0 12px;padding:14px 16px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 12px);border:1px solid var(--lv-border-subtle)">
               <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:8px">
-                <div style="display:flex;align-items:center;gap:8px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <span class="lv-achievement-pill lv-achievement-pill--seal" style="font-size:11.5px;padding:2px 8px;font-weight:700">
                     <Icon name="file" size={12} /> 待入库试题校对与微调清单
                   </span>
                   <b style="font-size:13.5px;color:var(--lv-text)">
                     已识别 {importReport.ok.length} 题 · 已勾选 {selectedImportCount} 题
                   </b>
+                  <!-- 置信度筛选器 -->
+                  <div class="lv-row" style="margin:0;gap:4px">
+                    <button type="button" class="lv-chip sm" class:acc={confidenceFilter === "all"} onclick={() => confidenceFilter = "all"}>
+                      全部 ({importReport.ok.length})
+                    </button>
+                    <button type="button" class="lv-chip lv-chip--grn sm" class:acc={confidenceFilter === "high"} onclick={() => confidenceFilter = "high"} title="置信度≥85%且无严重瑕疵的题目">
+                      🎯 高置信 ({highConfidenceCount})
+                    </button>
+                    {#if needReviewCount > 0}
+                      <button type="button" class="lv-chip lv-chip--amb sm" class:acc={confidenceFilter === "need_review"} onclick={() => confidenceFilter = "need_review"} title="缺少答案或格式存疑需核验的题目">
+                        ⚠️ 待核验 ({needReviewCount})
+                      </button>
+                    {/if}
+                  </div>
                 </div>
-                <div class="lv-row" style="margin:0;gap:6px">
+                <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
+                  {#if highConfidenceCount > 0}
+                    <button type="button" class="lv-btn sm lv-btn--primary" onclick={selectOnlyHighConfidence} title="只勾选高置信度好题，一键剔除噪音">
+                      <Icon name="check" size={12} /> 仅勾选高置信题
+                    </button>
+                  {/if}
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={autoFixImportQuestions} title="自动标准化多选题答案、修正大小写与标点瑕疵">
+                    ⚡ 一键自愈修偏
+                  </button>
                   <button type="button" class="lv-btn sm lv-btn--ghost" onclick={toggleSelectAllImportQuestions}>
                     {selectedImportCount === importReport.ok.length ? "取消全选" : "全选所有题目"}
                   </button>
@@ -655,11 +744,11 @@
 
               <!-- 每道题目的展开预览与编辑卡片列表 -->
               <div class="stack-sm" style="display:grid;gap:10px;max-height:480px;overflow-y:auto;padding-right:4px">
-                {#each importReport.ok as q, qi (q.id || qi)}
+                {#each visibleImportQuestions as { q, qi } (q.id || qi)}
                   {@const isChecked = selectedImportQids[q.id || String(qi)] !== false}
                   <div class="lv-card" style="padding:12px 14px;background:var(--lv-surface);border-radius:var(--lv-r-2);border:1px solid {isChecked ? 'var(--lv-border)' : 'var(--lv-border-subtle)'};opacity:{isChecked ? 1 : 0.6};transition:all var(--lv-dur-micro) ease;box-shadow:var(--lv-sh-1)">
                     <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;gap:8px">
-                      <div class="lv-row" style="margin:0;gap:8px;align-items:center;flex:1;min-width:0">
+                      <div class="lv-row" style="margin:0;gap:8px;align-items:center;flex:1;min-width:0;flex-wrap:wrap">
                         <input type="checkbox" checked={isChecked} onchange={(e) => {
                           const checked = (e.target as HTMLInputElement).checked;
                           selectedImportQids[q.id || String(qi)] = checked;
@@ -672,6 +761,14 @@
                           <option value="fill">填空题</option>
                           <option value="short">简答题</option>
                         </select>
+                        <!-- 置信度评分勋章 -->
+                        {#if (q.confidence ?? 1) >= 0.85 && (!q.lintIssues || q.lintIssues.length === 0)}
+                          <span class="lv-chip lv-chip--grn num sm" style="font-size:10.5px;padding:1px 6px">🎯 {Math.round((q.confidence ?? 1) * 100)}% 高置信</span>
+                        {:else if (q.confidence ?? 0.7) >= 0.60}
+                          <span class="lv-chip lv-chip--amb num sm" style="font-size:10.5px;padding:1px 6px">⚠️ {Math.round((q.confidence ?? 0.7) * 100)}% 待核对</span>
+                        {:else}
+                          <span class="lv-chip lv-chip--red num sm" style="font-size:10.5px;padding:1px 6px">❓ {Math.round((q.confidence ?? 0.5) * 100)}% 存疑</span>
+                        {/if}
                         {#if q.kp}
                           <span class="lv-chip num sm" style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={q.kp}>{q.kp}</span>
                         {/if}
@@ -680,6 +777,15 @@
                         <Icon name="close" size={12} /> 不导入
                       </button>
                     </div>
+
+                    <!-- 质检问题提示气泡 -->
+                    {#if q.lintIssues && q.lintIssues.length > 0}
+                      <div class="lv-row" style="margin:2px 0 6px;gap:4px;flex-wrap:wrap">
+                        {#each q.lintIssues as issue (issue)}
+                          <span class="lv-chip lv-chip--red num sm" style="font-size:10px;padding:1px 6px">🚩 {issue}</span>
+                        {/each}
+                      </div>
+                    {/if}
 
                     <div style="margin:4px 0 8px">
                       <textarea class="lv-input lv-textarea sm" bind:value={q.stem} style="width:100%;min-height:48px;font-size:13px;line-height:1.5;resize:vertical!important" placeholder="题干内容…" aria-label="题干修改"></textarea>

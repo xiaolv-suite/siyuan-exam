@@ -13,6 +13,7 @@
 import type { Question, QuestionType } from "@/core/types";
 import { questionHash } from "@/core/answer";
 import { newQuestionId } from "@/core/ids";
+import { lintQuestion, autoFixQuestion } from "@/core/questionLinter";
 
 export interface SegmentedExamResult {
   questions: Question[];
@@ -24,6 +25,74 @@ export interface SegmentOptions {
   source?: string;
   defaultBankName?: string;
   defaultKp?: string;
+}
+
+/**
+ * OCR 与试卷文本自愈清洗（容错全角字符与常见OCR误识别）
+ */
+export function autoHealExamText(raw: string): string {
+  if (!raw) return "";
+  let s = raw;
+  // 1. 题号全角句点与顿号统一归一为半角点
+  s = s.replace(/^([0-9]+)[．、]/gm, "$1. ");
+  // 2. OCR 常见数字首位误判为英文字母 l 或 I 的容错（行首 l. 或 I. 纠偏为 1.）
+  s = s.replace(/^[lI][.、]\s*/gm, "1. ");
+  return s;
+}
+
+/**
+ * 密集型与矩阵式答案解码器 (Compact Answer Matrix Decoder)
+ * 支持格式：
+ * 1. 范围型单连字符/波浪号展开：1-5: A B C D A 或 1~5 BACDA 或 6-10: C B A D D
+ * 2. 连续字母无空格串：1-5 ABCDE
+ * 3. 单行密集键值对：1.A 2.B 3.C 4.D 或 (1) A (2) B (3) C
+ * 4. 判断题紧凑符号：1-5: √ × √ × √ 或 1-5: 对 错 对 对 错
+ */
+export function decodeCompactAnswerMatrix(text: string): Map<number, string> {
+  const result = new Map<number, string>();
+  if (!text) return result;
+
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.includes("解析")) continue;
+
+    // 格式 1：范围型 1-5: A B C D A 或 1~5 BACDA 或 【1-5】A B C D A
+    const rangeMatches = Array.from(trimmed.matchAll(/(?:【?\s*(\d+)\s*[-~—至到]\s*(\d+)\s*】?[:：.\s]*)([A-Za-z0-9\s√×对错vVxXTFN,，、]+)(?=(?:【?\s*\d+\s*[-~—至到])|$)/g));
+    if (rangeMatches.length > 0) {
+      for (const rm of rangeMatches) {
+        const start = parseInt(rm[1], 10);
+        const end = parseInt(rm[2], 10);
+        const rawAnswers = rm[3].trim();
+        const count = end - start + 1;
+        if (count > 0 && count <= 50) {
+          let tokens = rawAnswers.split(/[\s,，、]+/).filter(Boolean);
+          if (tokens.length === 1 && tokens[0].length === count && /^[A-Ha-h对错√×]+$/.test(tokens[0])) {
+            tokens = tokens[0].split("");
+          }
+          if (tokens.length >= count) {
+            for (let i = 0; i < count; i++) {
+              result.set(start + i, tokens[i].toUpperCase());
+            }
+          }
+        }
+      }
+    }
+
+    // 格式 2：单行密集键值对，例如 "1. A  2. B  3. C  4. D" 或 "(1) A  (2) B"
+    const denseMatches = Array.from(trimmed.matchAll(/(?:^|\s+|[;；])(?:[（(【]?(\d+)[)）】]?[.、:：\s]+)([A-Ha-h对错√×TFN]+)(?=(?:\s+[（(【]?\d+)|$)/g));
+    if (denseMatches.length >= 2) {
+      for (const dm of denseMatches) {
+        const num = parseInt(dm[1], 10);
+        const ans = dm[2].trim().toUpperCase();
+        if (num > 0) {
+          result.set(num, ans);
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 // 大题章节标题正则：例如 "一、单项选择题（每小题3分）"、"第二部分 填空题"
@@ -97,7 +166,8 @@ export function segmentExamPaper(
     return { questions: [], warnings: ["输入试卷内容为空"], sections: [] };
   }
 
-  const lines = rawText.split(/\r?\n/);
+  const healedText = autoHealExamText(rawText);
+  const lines = healedText.split(/\r?\n/);
   let currentSectionTitle = "基础试题";
   let currentType: QuestionType = "single";
   let currentScore = 3;
@@ -117,6 +187,16 @@ export function segmentExamPaper(
     if (ANSWER_ZONE_RE.test(line)) {
       inAnswerZone = true;
       currentDraft = null;
+
+      // 自动预先解码紧凑型与矩阵式答案卡（例如 1-5: BACDA 6-10: CDDCB 或 1. A 2. B 3. C）
+      const remainingZoneText = lines.slice(idx).join("\n");
+      const compactMatrix = decodeCompactAnswerMatrix(remainingZoneText);
+      for (const [qNum, matrixAns] of compactMatrix.entries()) {
+        const target = draftByNum.get(qNum);
+        if (target && !target.answer) {
+          target.answer = matrixAns;
+        }
+      }
       continue;
     }
 
@@ -264,8 +344,14 @@ export function segmentExamPaper(
         }
       }
 
-      // 否则作为题干后续行
-      currentDraft.stemLines.push(line);
+      // 多行选项粘连缝合与题干拼接：
+      // 如果已经开始记录选项，则将该行拼接到上一选项的末尾（多行选项粘连拼接）
+      if (currentDraft.options.length > 0) {
+        currentDraft.options[currentDraft.options.length - 1] += "\n" + line;
+      } else {
+        // 否则作为题干后续行
+        currentDraft.stemLines.push(line);
+      }
     }
   }
 
@@ -339,7 +425,12 @@ export function segmentExamPaper(
       hash: questionHash(cleanStem, d.options),
     };
 
-    finalQuestions.push(q);
+    // 运行试题质检与自愈修正
+    const { question: fixedQ } = autoFixQuestion(q);
+    const lintReport = lintQuestion(fixedQ);
+    fixedQ.confidence = Math.round(lintReport.score) / 100;
+
+    finalQuestions.push(fixedQ);
   }
 
   return {

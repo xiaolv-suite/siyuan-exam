@@ -88,11 +88,16 @@ export function splitMarkdownExamBlocks(text: string): Array<{ blockText: string
 
     if (isQStart && currentLines.length > 0) {
       // 遇到下一题题号，保存前一题块
-      blocks.push({
-        blockText: currentLines.join("\n").trim(),
-        startLine: blockStartLine,
-        sectionKp: currentSectionKp || undefined,
-      });
+      // 防御：若当前累计块并不以题号开头且不含选项与答案（属于卷首注意事项/导语说明），直接丢弃不当作试题
+      const firstNonEmpty = currentLines.find((l) => l.trim())?.trim() || "";
+      const isActualQ = QUESTION_START_REGEX.test(firstNonEmpty) || currentLines.some((l) => /^[A-D][.、\s]|(?:【(?:参考)?答案】|^(?:参考)?答案\s*[:：])/m.test(l.trim()));
+      if (isActualQ) {
+        blocks.push({
+          blockText: currentLines.join("\n").trim(),
+          startLine: blockStartLine,
+          sectionKp: currentSectionKp || undefined,
+        });
+      }
       currentLines = [line];
       blockStartLine = lineNo;
     } else {
@@ -108,17 +113,21 @@ export function splitMarkdownExamBlocks(text: string): Array<{ blockText: string
   }
 
   if (currentLines.length > 0 && currentLines.join("\n").trim()) {
-    blocks.push({
-      blockText: currentLines.join("\n").trim(),
-      startLine: blockStartLine,
-      sectionKp: currentSectionKp || undefined,
-    });
+    const firstNonEmpty = currentLines.find((l) => l.trim())?.trim() || "";
+    const isActualQ = QUESTION_START_REGEX.test(firstNonEmpty) || currentLines.some((l) => /^[A-D][.、\s]|(?:【(?:参考)?答案】|^(?:参考)?答案\s*[:：])/m.test(l.trim()));
+    if (isActualQ) {
+      blocks.push({
+        blockText: currentLines.join("\n").trim(),
+        startLine: blockStartLine,
+        sectionKp: currentSectionKp || undefined,
+      });
+    }
   }
 
-  // 兜底：如果没按题号切出来（可能只有一道题或按双换行分隔）
-  if (blocks.length <= 1) {
+  // 兜底：如果没按题号切出来（可能只有一道无题号题或按双换行分隔）
+  if (blocks.length === 0) {
     const rawBlankBlocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
-    if (rawBlankBlocks.length > 1) {
+    if (rawBlankBlocks.length > 0) {
       return rawBlankBlocks.map((b, idx) => ({
         blockText: b,
         startLine: idx * 5 + 1,

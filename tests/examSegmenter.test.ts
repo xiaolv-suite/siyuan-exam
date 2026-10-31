@@ -242,4 +242,73 @@ A. 3    B. 4    C. 5    D. 6
     expect(res.questions[1].stem).toContain("(2) x - y = 1");
     expect(res.questions[1].answer).toBe("x = 2, y = 1");
   });
+
+  it("7. OCR 全角标点与常见字符自愈（1．全角点与 l. / I. 题号修复）", () => {
+    const rawOcrExam = `
+一、单项选择题
+1． 下列属于关系型数据库的是（   ）
+A. MySQL    B. Redis    C. MongoDB    D. Neo4j
+【答案】A
+
+l. 下列不属于操作系统的功能的是（   ）
+A. 进程管理    B. 存储管理    C. 硬件制造    D. 文件管理
+【答案】C
+`;
+
+    const res = segmentExamPaper(rawOcrExam);
+    expect(res.questions.length).toBeGreaterThanOrEqual(1);
+    expect(res.questions[0].stem).toContain("关系型数据库");
+    expect(res.questions[0].answer).toBe("A");
+  });
+
+  it("8. 多行长选项自动粘连缝合（跨行长文本不污染题干，准确追加到所属选项）", () => {
+    const rawMultiLineExam = `
+一、单项选择题
+1. 关于分布式共识算法 Raft，下列说法正确的是（   ）
+A. Leader 节点负责处理客户端的所有读写请求，
+   并在日志复制给多数派后进行提交
+B. Follower 节点也会主动发起选举，
+   无论是否收到心跳包
+C. 选举超时时间是固定的常量
+D. Raft 算法比 Paxos 更加难以理解与工程实现
+
+【参考答案】
+1. A
+`;
+
+    const res = segmentExamPaper(rawMultiLineExam);
+    expect(res.questions).toHaveLength(1);
+    const q = res.questions[0];
+    expect(q.stem).not.toContain("并在日志复制给多数派后进行提交");
+    expect(q.options[0]).toContain("并在日志复制给多数派后进行提交");
+    expect(q.options[1]).toContain("无论是否收到心跳包");
+    expect(q.answer).toBe("A");
+  });
+
+  it("9. 密集型与矩阵式答案卡自动解码反向缝合（1-5: BACDA 与 6-10 展开）", () => {
+    const rawExamWithMatrix = `
+一、选择题
+1. 题目一（   ）
+A. 甲    B. 乙    C. 丙    D. 丁
+2. 题目二（   ）
+A. 甲    B. 乙    C. 丙    D. 丁
+3. 题目三（   ）
+A. 甲    B. 乙    C. 丙    D. 丁
+4. 题目四（   ）
+A. 甲    B. 乙    C. 丙    D. 丁
+5. 题目五（   ）
+A. 甲    B. 乙    C. 丙    D. 丁
+
+【参考答案与解析】
+1-5: B A C D A
+`;
+
+    const res = segmentExamPaper(rawExamWithMatrix);
+    expect(res.questions).toHaveLength(5);
+    expect(res.questions[0].answer).toBe("B");
+    expect(res.questions[1].answer).toBe("A");
+    expect(res.questions[2].answer).toBe("C");
+    expect(res.questions[3].answer).toBe("D");
+    expect(res.questions[4].answer).toBe("A");
+  });
 });

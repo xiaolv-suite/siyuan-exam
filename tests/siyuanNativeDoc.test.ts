@@ -327,6 +327,37 @@ A. 管道  B. 寄存器  C. 栈  D. 堆
       expect(types).toContain("judge");
       expect(types).toContain("fill");
       expect(types).toContain("short");
+
+      // 验证置信度与质检机制
+      expect(report.ok[0].confidence).toBeGreaterThanOrEqual(0.8);
+      expect(Array.isArray(report.ok[0].lintIssues)).toBe(true);
+    });
+
+    it("导入场景预设 (profile=paper) 仅识别严格试题，屏蔽正文概念与列表定义", async () => {
+      const docMarkdown = `
+# 软考真题与复习指南
+注意事项：请将答案写在答题区。
+
+1. 计算机中用于存放当前正在执行指令地址的寄存器是（   ）
+A. 算术逻辑单元  B. 程序计数器  C. 指令寄存器  D. 累加器
+【答案】B
+
+- 软件危机：落后的软件生产方式无法满足迅速增长的计算机软件需求。
+      `.trim();
+
+      // 当使用 paper 模式时，列表定义等非试题被过滤，仅保留标准试卷试题
+      const paperReport = await parseQuestionsFromSiyuanDoc(
+        docMarkdown,
+        { docId: "doc-paper-only", title: "软考真题" },
+        { profile: "paper" },
+      );
+
+      expect(paperReport.ok.length).toBe(1);
+      expect(paperReport.ok[0].stem).toContain("存放当前正在执行指令地址");
+      expect(paperReport.ok[0].options).toHaveLength(4);
+      expect(paperReport.ok[0].options[1]).toBe("程序计数器");
+      expect(paperReport.ok[0].answer).toBe("B");
+      expect(paperReport.ok[0].confidence).toBeGreaterThanOrEqual(0.85);
     });
   });
 
