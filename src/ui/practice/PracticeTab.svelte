@@ -5213,6 +5213,11 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     function applyDocExtractionResult(res: { report?: import("../../importer/pipeline").ImportReport; message: string; isError?: boolean }, toastTime = 4000) {
       if (res.report) {
+        importResult = null;
+        updateResult = null;
+        trialConfirmed = [];
+        trialNote = "";
+        retryPool = [];
         importReport = res.report;
         importText = "";
         importSubTab = "standard";

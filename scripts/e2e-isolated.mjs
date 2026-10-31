@@ -236,10 +236,11 @@ try {
       document.querySelectorAll(".b3-dialog--open .b3-dialog__close, .b3-dialog--open .b3-button--cancel").forEach((el) => {
         if (el instanceof HTMLElement) el.click();
       });
+      document.querySelectorAll(".onboarding").forEach((el) => el.remove());
       if (!document.getElementById("lv-e2e-no-toast-intercept")) {
         const st = document.createElement("style");
         st.id = "lv-e2e-no-toast-intercept";
-        st.textContent = "#message, #message *, #tempMessage, #tempMessage * { pointer-events: none !important; }";
+        st.textContent = "#message, #message *, #tempMessage, #tempMessage *, .onboarding, .onboarding * { pointer-events: none !important; display: none !important; }";
         document.head.appendChild(st);
       }
     });
@@ -249,6 +250,41 @@ try {
   await page.locator(entrySelector).first().waitFor({ state: "visible", timeout: 30000 });
   await page.waitForFunction(() => Boolean(window.siyuanExam?.version), undefined, { timeout: 30000 });
   await dismissHostDialogs();
+
+  // 预置多形态思源研学笔记供端到端直接导入测试（多方位验证：一行多选项、括号答案、自然判断、标题问答）
+  try {
+    const testNbRes = await api("/api/notebook/createNotebook", { name: "思源研学笔记本" });
+    const testNbId = typeof testNbRes?.data === "object" ? testNbRes.data?.notebook?.id : testNbRes?.data;
+    if (testNbId) {
+      for (let retry = 0; retry < 6; retry++) {
+        try {
+          const r1 = await api("/api/filetree/createDocWithMd", {
+            notebook: testNbId,
+            path: "/自然排版试卷",
+            markdown: `# 自然排版试卷\n\n1. 下列选项中不属于面向对象特征的是（ C ）\nA. 封装  B. 继承  C. 递归  D. 多态\n【解析】三大特征为封装继承多态。\n\n2、软件生命周期时间最长的阶段是（   ）\nA. 需求分析\nB. 概要设计\nC. 编码测试\nD. 运行维护\n【答案】D\n`,
+          });
+          if (r1?.code === 0) break;
+        } catch {
+          /* wait */
+        }
+        await sleep(500);
+      }
+
+      await api("/api/filetree/createDocWithMd", {
+        notebook: testNbId,
+        path: "/自然判断题笔记",
+        markdown: `# 自然判断题笔记\n\n1. 任何无向树都是二部图。( √ )\n2. 所有的偶数都是合数。( × )\n【解析】2是偶数也是质数。\n`,
+      });
+
+      await api("/api/filetree/createDocWithMd", {
+        notebook: testNbId,
+        path: "/核心概念速查",
+        markdown: `# 核心概念速查\n\n### 什么是死锁？\n死锁是指多个进程因争夺资源造成的互相等待。\n\n### 简述进程与线程区别？\n进程是资源分配单位，线程是调度单位。\n`,
+      });
+    }
+  } catch {
+    /* 容错降级 */
+  }
 
   const activeTab = () => page.locator(".layout-tab-container > div:not(.fn__none) .lv-exam-tab").first();
 
@@ -311,6 +347,69 @@ try {
   await snap("03-import-studio.png");
   record("5. OCR 按钮真 button 可聚焦、手工录题落块与批量导入读回确认", ocrUploadTag === "BUTTON", `ocrBtn=${ocrUploadTag}`);
 
+  // ---------- 阶段 3.5：多方位真机测试从思源笔记直接提取导入题库 ----------
+  // 1. 切换到「从思源文档导入」子分面
+  const siyuanDocTabBtn = activeTab().getByRole("tab", { name: /从思源文档导入/ });
+  await siyuanDocTabBtn.click();
+  await sleep(500);
+
+  // 2. 检索并直接提取「自然排版试卷」（一行多选项 + 题干括号答案）
+  const searchDocInput = activeTab().locator('input[placeholder*="搜索思源文档"]');
+  await searchDocInput.fill("自然排版");
+  await activeTab().locator(".stack-sm").getByRole("button", { name: "搜索", exact: true }).click();
+  await sleep(600);
+  await dismissHostDialogs();
+  const paperDocRow = activeTab().locator(".lv-row").filter({ hasText: "自然排版试卷" }).first();
+  await paperDocRow.waitFor({ state: "visible", timeout: 15000 });
+  await paperDocRow.getByRole("button", { name: /直接提取/ }).click();
+
+  // 3. 自动切到解析预览：验证提取出 2 题且成功入库读回确认
+  const commitPaperBtn = activeTab().getByRole("button", { name: /^入库\s*\(/ });
+  await commitPaperBtn.waitFor({ state: "visible", timeout: 15000 });
+  await commitPaperBtn.click();
+  await activeTab().getByText(/读回确认 2 题/).waitFor({ state: "visible", timeout: 20000 });
+  await snap("03b-siyuan-doc-import-paper.png");
+
+  // 4. 再次切到「从思源文档导入」，测试自然判断题笔记直接提取
+  await siyuanDocTabBtn.click();
+  await sleep(400);
+  await searchDocInput.fill("判断题");
+  await activeTab().locator(".stack-sm").getByRole("button", { name: "搜索", exact: true }).click();
+  await sleep(500);
+  await dismissHostDialogs();
+  const judgeDocRow = activeTab().locator(".lv-row").filter({ hasText: "自然判断题笔记" }).first();
+  await judgeDocRow.waitFor({ state: "visible", timeout: 15000 });
+  await judgeDocRow.getByRole("button", { name: /直接提取/ }).click();
+
+  const commitJudgeBtn = activeTab().getByRole("button", { name: /^入库\s*\(/ });
+  await commitJudgeBtn.waitFor({ state: "visible", timeout: 15000 });
+  await commitJudgeBtn.click();
+  await activeTab().getByText(/读回确认 2 题/).waitFor({ state: "visible", timeout: 20000 });
+  await snap("03c-siyuan-doc-import-judge.png");
+
+  // 5. 再次切到「从思源文档导入」，测试概念速查问答笔记提取
+  await siyuanDocTabBtn.click();
+  await sleep(400);
+  await searchDocInput.fill("概念速查");
+  await activeTab().locator(".stack-sm").getByRole("button", { name: "搜索", exact: true }).click();
+  await sleep(500);
+  await dismissHostDialogs();
+  const qaDocRow = activeTab().locator(".lv-row").filter({ hasText: "核心概念速查" }).first();
+  await qaDocRow.waitFor({ state: "visible", timeout: 15000 });
+  await qaDocRow.getByRole("button", { name: /直接提取/ }).click();
+
+  const commitQaBtn = activeTab().getByRole("button", { name: /^入库\s*\(/ });
+  await commitQaBtn.waitFor({ state: "visible", timeout: 15000 });
+  await commitQaBtn.click();
+  await activeTab().getByText(/读回确认 2 题/).waitFor({ state: "visible", timeout: 20000 });
+  await snap("03d-siyuan-doc-import-qa.png");
+
+  record(
+    "6. 从思源笔记智能导入题库（单选一行多选项/题干括号答案/自然判断/概念问答多方位全真机跑通）",
+    true,
+    "自然试卷(2题)+自然判断(2题)+概念问答(2题)共6题真机提取并入库读回确认",
+  );
+
   // ---------- 阶段 4：专注做题会话（普通题隐藏跟读、侧栏防泄题、提示+草稿刷新恢复、AI 讲解深度下拉） ----------
   await activeTab().locator(".lv-rail").getByRole("button", { name: "今日", exact: true }).click();
   await activeTab().getByRole("button", { name: /开始今日练习/ }).click();
@@ -341,7 +440,7 @@ try {
   await activeTab().getByRole("button", { name: /草稿纸/ }).click();
   const restoredPadValue = await activeTab().getByPlaceholder(/在此演练计算/).inputValue();
   record(
-    "6. 做题会话：普通题隐藏跟读、答前侧栏不泄考点、重载后提示受助态与草稿纸完整恢复",
+    "7. 做题会话：普通题隐藏跟读、答前侧栏不泄考点、重载后提示受助态与草稿纸完整恢复",
     micOnNormal === 0 && sideChipsAfterHint.length > sideChipsBefore.length && hintStillExpanded === "true" && restoredPadValue === "真机E2E草稿：重载不能丢",
     `mic=${micOnNormal}, hintExpanded=${hintStillExpanded}, pad="${restoredPadValue}"`,
   );
@@ -395,7 +494,7 @@ try {
     await confirmBtn.click();
   }
   record(
-    "7. 错题反馈态 AI 讲解下拉与按钮胶囊等高同行对齐（38px/9999px）且含 3 档深度模式",
+    "8. 错题反馈态 AI 讲解下拉与按钮胶囊等高同行对齐（38px/9999px）且含 3 档深度模式",
     explainModes.length === 3 && actionAlign.ok && (await explainBtn.count()) >= 0,
     `${explainModes.join(" / ")} · align=${JSON.stringify(actionAlign)}`,
   );
@@ -446,7 +545,7 @@ try {
   if (await confirmBtn.isVisible().catch(() => false)) {
     await confirmBtn.click();
   }
-  record("8. 背诵模式空格翻面/评级后整页刷新自动续做第 2 题", reciteProgressText.startsWith("2/"), `进度=${reciteProgressText}`);
+  record("9. 背诵模式空格翻面/评级后整页刷新自动续做第 2 题", reciteProgressText.startsWith("2/"), `进度=${reciteProgressText}`);
 
   // ---------- 阶段 6：题库详情抽屉「衍生变式题」规格继承 + 批量勾选四合一打印版式 ----------
   await activeTab().locator(".lv-rail").getByRole("button", { name: "题库", exact: true }).click();
@@ -495,7 +594,7 @@ try {
   const batchBottomPx = await batchToolbar.evaluate((el) => parseFloat(getComputedStyle(el).bottom));
   await page.setViewportSize({ width: 1440, height: 960 });
   record(
-    "9. 衍生变式题继承辅助考点、批量浮岛导出「授课讲义卷」HTML 且 390px 窄屏自动抬升防遮挡",
+    "10. 衍生变式题继承辅助考点、批量浮岛导出「授课讲义卷」HTML 且 390px 窄屏自动抬升防遮挡",
     clonedStem.includes("（变式）") &&
       clonedSecKp.includes("协议端口") &&
       lectureHtml.includes("教师授课讲义卷") &&
@@ -556,7 +655,7 @@ try {
   const reportPrintOpts = await mockTab().getByRole("combobox", { name: "选择考后打印版式" }).locator("option").allInnerTexts();
   await snap("08-mock-score.png");
   record(
-    "10. 全真模考首屏开始按钮置顶无需滚动、中断刷新恢复（含草稿纸）并交卷出分与写入成绩单文档",
+    "11. 全真模考首屏开始按钮置顶无需滚动、中断刷新恢复（含草稿纸）并交卷出分与写入成绩单文档",
     Boolean(startMockBox && startMockBox.y < 480) && restoredMockPad === "模考真机草稿888" && reportPrintOpts.length === 4,
     `startBtnY=${Math.round(startMockBox?.y ?? 999)}px, pad="${restoredMockPad}", PrintFormats=${reportPrintOpts.join("/")}`,
   );
@@ -590,7 +689,7 @@ try {
   await snap("10-responsive-390.png");
   await page.setViewportSize({ width: 1440, height: 960 });
   record(
-    "11. 复盘报告三分面、1100px 紧凑侧栏隐藏文字与 390px 窄屏零溢出",
+    "12. 复盘报告三分面、1100px 紧凑侧栏隐藏文字与 390px 窄屏零溢出",
     navLabelDisplay1100 === "none" && overflow390 <= 2,
     `1100px navLabel=${navLabelDisplay1100}, 390px overflow=${overflow390}px`,
   );
@@ -635,7 +734,7 @@ try {
   const phoneticBadgeCount = await activeTab().locator(".lv-phonetic-badge").count();
   await snap("11-language-speech-auto.png");
   record(
-    "12. 英语词汇题库（含 studyMeta）做题时自动显示「跟读测评」麦克风按钮与音标胶囊",
+    "13. 英语词汇题库（含 studyMeta）做题时自动显示「跟读测评」麦克风按钮与音标胶囊",
     micOnEnglish === 1 && phoneticBadgeCount === 1,
     `micButton=${micOnEnglish}, phoneticBadge=${phoneticBadgeCount}`,
   );
@@ -682,7 +781,7 @@ try {
   const nativeRefsCount = Array.isArray(refRes?.data) ? refRes.data.length : 0;
 
   record(
-    "13. 思源笔记 8 类真实文档全量落盘、((blockId)) 原生双链 refs 入表与源题块 IAL 属性回写核验",
+    "14. 思源笔记 8 类真实文档全量落盘、((blockId)) 原生双链 refs 入表与源题块 IAL 属性回写核验",
     overviewMd.length > 100 &&
       journalMd.length > 80 &&
       fullBankMd.length > 100 &&
@@ -698,7 +797,7 @@ try {
     `len={总览:${overviewMd.length}, 日志:${journalMd.length}, 题册:${fullBankMd.length}, 错题册:${wrongExportMd.length}, 攻坚手册:${wrongManualMd.length}, 模拟卷:${mockPaperMd.length}, 成绩单:${scoreMd.length}, 战报:${dailyReportMd.length}}, nativeRefs=${nativeRefsCount}, syncedAttrs=${syncedAttrsCount}, wbBtns=${wbJumpBtnCount}/${wbReflectBtnCount}`,
   );
 
-  record("14. 全程浏览器 0 未捕获页面异常", pageErrors.length === 0, `pageErrors=${pageErrors.length}`);
+  record("15. 全程浏览器 0 未捕获页面异常", pageErrors.length === 0, `pageErrors=${pageErrors.length}`);
 } finally {
   await browser?.close().catch(() => undefined);
   if (keep) {

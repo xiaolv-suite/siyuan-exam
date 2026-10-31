@@ -483,10 +483,10 @@
               <Icon name="xcircle" size={13} /> {t("mode.wrong", "消灭在册错题")}
               {#if wrongList.length}<span class="lv-chip num sm" style="color:var(--lv-accent-seal)">{wrongList.length}</span>{/if}
             </button>
-            <button class="lv-btn sm lv-btn--ghost" disabled={!cramCount} onclick={() => onstartDrill("cram")}>
+            <button class="lv-btn sm" disabled={!cramCount} onclick={() => onstartDrill("cram")}>
               <Icon name="flame" size={13} /> {t("mode.cram", "考前极速冲刺")}
             </button>
-            <button class="lv-btn sm lv-btn--ghost" disabled={!favoriteCount} onclick={() => onstartDrill("fav")}>
+            <button class="lv-btn sm" disabled={!favoriteCount} onclick={() => onstartDrill("fav")}>
               <Icon name="star" size={13} /> {t("mode.fav", "重点题目收藏")}
               {#if favoriteCount}<span class="lv-chip num sm">{favoriteCount}</span>{/if}
             </button>
@@ -508,11 +508,11 @@
             <button class="lv-btn sm lv-mode" disabled={!practiceQuestions.length} onclick={onstartRecite} title="不看答案先回忆，以纸面背题模式进行记忆巩固">
               <Icon name="rotate" size={13} /> {t("mode.recite", "纸面背诵模式")}
             </button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={onopenReport} title="查看学情诊断报告">
+            <button class="lv-btn sm" onclick={onopenReport} title="查看学情诊断报告">
               <Icon name="chart" size={13} /> 查看学情诊断报告
             </button>
             {#if criticalForgettingKps.length > 0}
-              <button class="lv-btn sm lv-btn--ghost" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title="临界记忆抢救">
+              <button class="lv-btn sm" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title="临界记忆抢救">
                 <Icon name="flame" size={13} /> 临界记忆抢救 (5题)
               </button>
             {/if}
@@ -534,17 +534,17 @@
             <button class="lv-btn sm" onclick={() => onnavView("import", "standard")}>
               <Icon name="import" size={13} /> 批量导入 (Excel/CSV/Aiken)
             </button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => onnavView("manual")}>
+            <button class="lv-btn sm" onclick={() => onnavView("manual")}>
               <Icon name="pencil" size={13} /> 手工录题 (带原文溯源)
             </button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => { onnavView("materials"); onloadMaterials(); }}>
+            <button class="lv-btn sm" onclick={() => { onnavView("materials"); onloadMaterials(); }}>
               <Icon name="book" size={13} /> 研学大纲与资料库
             </button>
             <div class="lv-row" style="margin:4px 0 0;gap:6px;width:100%">
-              <button class="lv-btn sm lv-btn--ghost" style="flex:1" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}>
+              <button class="lv-btn sm" style="flex:1" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}>
                 <Icon name="save" size={13} /> {syncDocsBusy ? "…" : t("sync.docsBtn")}
               </button>
-              <button class="lv-btn sm lv-btn--ghost" style="flex:1" onclick={onopenBankHub}>
+              <button class="lv-btn sm" style="flex:1" onclick={onopenBankHub}>
                 <Icon name="grid" size={13} /> 切换与管理题库
               </button>
             </div>
