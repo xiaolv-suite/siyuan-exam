@@ -135,6 +135,35 @@ export function buildSiyuanExamDocMarkdown(
 }
 
 /**
+ * 将单个题目格式化为可直接嵌入思源普通笔记文档的折叠自测块
+ */
+export function formatQuestionForNoteEmbed(q: Question): string {
+  const lines: string[] = [];
+  const title = String(q.stem ?? "")
+    .replace(/\r?\n.*/s, "")
+    .replace(/[#`*]/g, "")
+    .slice(0, 45)
+    .trim() || "练习试题";
+
+  lines.push(`\n::: details ❓ 试题自测：${title}（点击展开答案）`);
+  lines.push(`**【题干】** ${String(q.stem ?? "").trim()}\n`);
+
+  if (Array.isArray(q.options) && q.options.length > 0) {
+    q.options.forEach((opt, oi) => {
+      lines.push(`- **${String.fromCharCode(65 + oi)}.** ${String(opt ?? "").trim()}`);
+    });
+    lines.push("");
+  }
+
+  lines.push(`> **【参考答案】** \`${String(q.answer ?? "").trim()}\``);
+  if (q.kp) lines.push(`> **【核心考点】** \`${q.kp}\``);
+  if (q.analysis) lines.push(`> **【试题解析】** ${String(q.analysis).trim()}`);
+  lines.push(`:::\n{: custom-exam-id="${escIal(q.id)}" custom-exam-type="${escIal(q.type)}" custom-exam-kp="${escIal(q.kp || "")}"}\n`);
+
+  return lines.join("\n");
+}
+
+/**
  * 将错题本格式化为思源笔记错题攻坚手册文档
  */
 export function buildSiyuanWrongbookDocMarkdown(

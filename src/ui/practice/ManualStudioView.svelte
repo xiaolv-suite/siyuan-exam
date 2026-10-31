@@ -54,6 +54,9 @@
     onsaveManual: (status: QuestionLifecycleStatus) => void;
     onblankManualDraft: () => void;
     onshowChartMessage: () => void;
+    mSourceBlockId?: string;
+    onopenInSiYuan?: (rootId?: string, blockId?: string) => void;
+    onsearchSiyuanDocs?: (query: string) => Promise<Array<{ id: string; title: string; hpath: string }>>;
   }
 
   let {
@@ -106,7 +109,32 @@
     onsaveManual,
     onblankManualDraft,
     onshowChartMessage,
+    mSourceBlockId = $bindable(""),
+    onopenInSiYuan = () => {},
+    onsearchSiyuanDocs = async () => [],
   }: Props = $props();
+
+  let docPickerOpen = $state(false);
+  let docPickerSearch = $state("");
+  let docPickerCandidates = $state<Array<{ id: string; title: string; hpath: string }>>([]);
+  let docPickerBusy = $state(false);
+  let syncAppendToNote = $state(false);
+
+  async function searchDocsForManual(q: string) {
+    docPickerBusy = true;
+    try {
+      docPickerCandidates = await onsearchSiyuanDocs(q);
+    } finally {
+      docPickerBusy = false;
+    }
+  }
+
+  function pickDocForManual(doc: { id: string; title: string; hpath: string }) {
+    mSourceBlockId = doc.id;
+    mSource = doc.title;
+    if (!mKp.trim()) mKp = doc.title;
+    docPickerOpen = false;
+  }
 
   const hasStem = $derived(Boolean(mStem.trim()));
   const hasAnswer = $derived(Boolean(mAnswer.trim() || mType === "short"));
@@ -451,6 +479,58 @@
         <label class="lv-chip" for="lv-manual-source">{t("manual.source")}</label><input id="lv-manual-source" class="lv-input" style="max-width:160px" bind:value={mSource} placeholder={t("manual.sourceHint")} />
         <label class="lv-chip" for="lv-manual-group">{t("manual.group")}</label><input id="lv-manual-group" class="lv-input num" style="max-width:200px" bind:value={mGroup} placeholder="grp-…" />
       </div>
+      <!-- 深度绑定思源笔记文档工具条 -->
+      <div class="lv-row" style="margin:6px 0 2px;flex-wrap:wrap;align-items:center;gap:8px">
+        <button type="button" class="lv-btn sm" onclick={() => { docPickerOpen = !docPickerOpen; if (docPickerOpen && !docPickerCandidates.length) searchDocsForManual(""); }} title="从思源笔记本中搜索并绑定此题对应的笔记文档或段落">
+          <Icon name="link" size={12} /> {mSourceBlockId ? "换绑思源笔记" : "🔗 绑定思源笔记文档"}
+        </button>
+        {#if mSourceBlockId}
+          <span class="lv-chip lv-chip--acc" style="display:inline-flex;align-items:center;gap:5px;font-size:12px">
+            <Icon name="check" size={11} />
+            <span>已绑定笔记：《{mSource || mSourceBlockId.slice(-8)}》</span>
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan("", mSourceBlockId)} title="在思源中打开并高亮原笔记段落" style="padding:1px 5px;font-size:11px">
+              <Icon name="pin" size={11} /> 定位原块 ↗
+            </button>
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { mSourceBlockId = ""; mSource = ""; }} title="解除文档绑定" style="padding:1px 5px;font-size:11px">
+              <Icon name="close" size={11} />
+            </button>
+          </span>
+          <label class="lv-chip" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+            <input type="checkbox" bind:checked={syncAppendToNote} />
+            <span>保存时同步在原笔记末尾追加折叠题块</span>
+          </label>
+        {/if}
+      </div>
+
+      <!-- 思源笔记文档搜索选择器 -->
+      {#if docPickerOpen}
+        <div class="lv-card" style="margin:6px 0 10px;padding:12px 14px;background:var(--lv-surface-2);border:1.5px solid var(--lv-accent);border-radius:var(--lv-r-2);box-shadow:var(--lv-sh-pop)">
+          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px">
+            <b style="font-size:13px;color:var(--lv-text);display:flex;align-items:center;gap:5px">
+              <Icon name="link" size={13} /> 选择要绑定的思源笔记文档
+            </b>
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => docPickerOpen = false}><Icon name="close" size={12} /></button>
+          </div>
+          <div class="lv-row" style="margin:0 0 8px;gap:6px">
+            <input class="lv-input sm" style="flex:1" placeholder="输入关键词搜索思源笔记本或文档标题…" bind:value={docPickerSearch} oninput={(e) => searchDocsForManual((e.target as HTMLInputElement).value)} />
+            <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => searchDocsForManual(docPickerSearch)}>搜索</button>
+          </div>
+          <div class="stack-sm" style="max-height:180px;overflow-y:auto;border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2);padding:4px;background:var(--lv-surface)">
+            {#if docPickerBusy}
+              <div class="lv-muted" style="padding:12px;text-align:center">正在检索思源笔记…</div>
+            {:else if !docPickerCandidates.length}
+              <div class="lv-muted" style="padding:12px;text-align:center">未找到相关笔记文档</div>
+            {:else}
+              {#each docPickerCandidates as cd (cd.id)}
+                <button type="button" class="lv-row" style="width:100%;text-align:left;padding:6px 8px;border-radius:4px;border:none;background:transparent;cursor:pointer;justify-content:space-between;align-items:center" onclick={() => pickDocForManual(cd)}>
+                  <span style="font-size:12.5px;font-weight:600;color:var(--lv-text)">{cd.title}</span>
+                  <span class="lv-muted" style="font-size:11px">{cd.hpath}</span>
+                </button>
+              {/each}
+            {/if}
+          </div>
+        </div>
+      {/if}
       <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
         <span class="lv-chip"><Icon name="volume" size={12} /> 朗读语言</span>
         <select class="lv-select sm" bind:value={mStudyLang} aria-label="朗读语言" style="max-width:140px">

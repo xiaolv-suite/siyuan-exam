@@ -3780,6 +3780,13 @@ export class ExamApp {
     return buildReportFromTaggedBlocks(blocks, tag);
   }
 
+  async appendQuestionToSiyuanDoc(docId: string, q: Question): Promise<string[]> {
+    if (!this.kernelOnline) throw new Error("思源内核离线，无法写入文档。");
+    const { formatQuestionForNoteEmbed } = await import("./core/siyuanSyncDoc");
+    const md = formatQuestionForNoteEmbed(q);
+    return this.deps.client.appendBlock(docId, md);
+  }
+
   async syncBankToSiyuanDoc(bankId?: string): Promise<{ docId: string; title: string; hpath: string }> {
     const targetBank = bankId ?? this.listBanks()[0]?.id;
     if (!targetBank) throw new Error("请先选择或创建一个题库");

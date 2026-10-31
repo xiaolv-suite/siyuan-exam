@@ -231,6 +231,47 @@
       writeBackBusy = "";
     }
   }
+
+  let drawerDocPickerOpen = $state(false);
+  let drawerDocSearch = $state("");
+  let drawerDocCandidates = $state<Array<{ id: string; title: string; hpath: string }>>([]);
+  let drawerDocBusy = $state(false);
+
+  async function searchDocsForDrawer(query: string) {
+    if (!app) return;
+    drawerDocBusy = true;
+    try {
+      drawerDocCandidates = query.trim()
+        ? await app.searchSiyuanDocs(query.trim())
+        : await app.searchSiyuanDocs("");
+    } catch {
+      drawerDocCandidates = [];
+    } finally {
+      drawerDocBusy = false;
+    }
+  }
+
+  async function bindDocToQuestion(doc: { id: string; title: string; hpath: string }) {
+    q.sourceBlockId = doc.id;
+    q.source = doc.title;
+    drawerDocPickerOpen = false;
+    if (app?.writeManualQuestion) {
+      try {
+        await app.writeManualQuestion(q.rootId || "", q);
+      } catch {
+        // 容错
+      }
+    }
+  }
+
+  async function appendCurrentQToBoundNote() {
+    if (!q.sourceBlockId || !app?.appendQuestionToSiyuanDoc) return;
+    try {
+      await app.appendQuestionToSiyuanDoc(q.sourceBlockId, q);
+    } catch {
+      // 容错
+    }
+  }
 </script>
 
 <div class="lv-peek-backdrop" onclick={onclose} role="presentation"></div>
@@ -284,6 +325,61 @@
   </header>
   <div class="lv-peek-body">
     <div class="lv-peek-stem">{q.stem}</div>
+
+    <!-- 来源思源笔记与双向溯源 -->
+    <div class="lv-row" style="margin:6px 0 10px;gap:6px;align-items:center;flex-wrap:wrap">
+      {#if q.sourceBlockId}
+        <span class="lv-chip lv-chip--acc" style="font-size:11px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px">
+          <Icon name="link" size={11} /> 来源笔记: {q.source || "思源笔记文档"}
+        </span>
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan("", q.sourceBlockId)} title="在思源笔记中打开并定位原段落" style="font-size:11px;padding:2px 6px">
+          <Icon name="pin" size={11} /> 定位原笔记 ↗
+        </button>
+      {/if}
+      {#if q.blockId}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(q.rootId, q.blockId)} title="在思源中定位此题题库块" style="font-size:11px;padding:2px 6px">
+          <Icon name="folder" size={11} /> 题库块 ↗
+        </button>
+      {/if}
+      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { drawerDocPickerOpen = !drawerDocPickerOpen; if (drawerDocPickerOpen && !drawerDocCandidates.length) searchDocsForDrawer(""); }} title="绑定或换绑来源思源笔记文档" style="font-size:11px;padding:2px 6px">
+        <Icon name="link" size={11} /> {q.sourceBlockId ? "换绑笔记" : "🔗 绑定思源笔记"}
+      </button>
+      {#if q.sourceBlockId}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={appendCurrentQToBoundNote} title="在绑定的思源原笔记末尾追加该题折叠自测块" style="font-size:11px;padding:2px 6px">
+          <Icon name="plus" size={11} /> 写入原笔记
+        </button>
+      {/if}
+    </div>
+
+    <!-- 弹出的笔记选择器 -->
+    {#if drawerDocPickerOpen}
+      <div class="lv-card" style="margin:6px 0 10px;padding:10px 12px;background:var(--lv-surface-2);border:1px solid var(--lv-accent);border-radius:var(--lv-r-2);box-shadow:var(--lv-sh-pop)">
+        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+          <b style="font-size:12px;color:var(--lv-text);display:flex;align-items:center;gap:4px">
+            <Icon name="link" size={12} /> 选择要绑定的思源笔记文档
+          </b>
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => drawerDocPickerOpen = false}><Icon name="close" size={11} /></button>
+        </div>
+        <div class="lv-row" style="margin:0 0 6px;gap:6px">
+          <input class="lv-input sm" style="flex:1" placeholder="搜索文档标题或路径…" bind:value={drawerDocSearch} oninput={(e) => searchDocsForDrawer((e.target as HTMLInputElement).value)} />
+          <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => searchDocsForDrawer(drawerDocSearch)}>搜索</button>
+        </div>
+        <div class="stack-sm" style="max-height:160px;overflow-y:auto;border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2);padding:4px;background:var(--lv-surface)">
+          {#if drawerDocBusy}
+            <div class="lv-muted" style="padding:10px;text-align:center">正在检索思源笔记…</div>
+          {:else if !drawerDocCandidates.length}
+            <div class="lv-muted" style="padding:10px;text-align:center">未找到相关笔记文档</div>
+          {:else}
+            {#each drawerDocCandidates as cd (cd.id)}
+              <button type="button" class="lv-row" style="width:100%;text-align:left;padding:5px 8px;border-radius:4px;border:none;background:transparent;cursor:pointer;justify-content:space-between;align-items:center" onclick={() => bindDocToQuestion(cd)}>
+                <span style="font-size:12px;font-weight:600;color:var(--lv-text)">{cd.title}</span>
+                <span class="lv-muted" style="font-size:10.5px">{cd.hpath}</span>
+              </button>
+            {/each}
+          {/if}
+        </div>
+      </div>
+    {/if}
     {#if q.occlusion}
       <div class="lv-occlusion-wrap" style="margin:8px 0 12px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);max-width:440px">
         {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: !peekHideAnswer ? [q.occlusion.activeMaskId || ""] : [] })}

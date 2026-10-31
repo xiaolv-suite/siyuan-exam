@@ -6068,6 +6068,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       onsaveManual={(st) => void saveManual(st)}
       onblankManualDraft={blankManualDraft}
       onshowChartMessage={() => showMessage("已在题干插入图表模板", 2500, "info")}
+      bind:mSourceBlockId
+      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+      onsearchSiyuanDocs={async (q) => app ? (q.trim() ? await searchSiyuanDocCandidates(app, q.trim()) : await app.searchSiyuanDocs("")) : []}
     />
     <!-- 图片遮挡填图可视化编辑器：拖拽框选 → 填答案 → 裂变同族题（遮挡题唯一创作入口） -->
     <div class="lv-row" style="margin:8px 0 0">
