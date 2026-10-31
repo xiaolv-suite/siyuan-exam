@@ -4230,12 +4230,37 @@ import { confirmDialogSync } from "@/libs/dialog";
     async function onExcelFile(e: Event) {
       if (importBusy) return;
       importError = ""; importResult = null; importReport = null; retryPool = []; trialConfirmed = []; trialNote = "";
-      // 清理上次导入残留（TODO 27 组：多 Sheet 残留状态 bug 预防）
       sheetRowsCache = new Map();
-      manualMap = null; mapEditorOpen = false; mapErrors = []; // 38-02：手动映射随文件更换重置
+      manualMap = null; mapEditorOpen = false; mapErrors = [];
       const input = e.target as HTMLInputElement;
       const file = input.files?.[0];
       if (!file) return;
+
+      const fileName = file.name.toLowerCase();
+      // 1. 如果是纯文本试题文件（.txt / .gift / .aiken / .md）：直接读入文本输入框并自动触发解析预览
+      if (/\.(txt|gift|aiken|md|text)$/i.test(fileName)) {
+        input.value = "";
+        importParsing = true;
+        try {
+          const content = await file.text();
+          importText = content;
+          showMessage(`已成功载入纯文本文件《${file.name}》，正在自动解析预览…`, 3000, "info");
+          doParseText();
+        } catch (err) {
+          importError = `文本文件读取失败：${String(err instanceof Error ? err.message : err)}`;
+        } finally {
+          importParsing = false;
+        }
+        return;
+      }
+
+      // 2. 如果用户误选了 Word 文档 (.docx / .doc)：友好提示分流
+      if (/\.(docx|doc)$/i.test(fileName)) {
+        input.value = "";
+        showMessage(`《${file.name}》为 Word 文档。请在上方切换到「研学资料库」上传，或复制文档正文直接粘贴到下方文本框中导入！`, 5200, "info");
+        return;
+      }
+
       importParsing = true; updateResult = null;
       try {
         const parsed = await readAndParseWorkbookFile(file, t, showMessage);
@@ -5192,6 +5217,25 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!siyuanDocCandidates.length) return;
       return runDocExtract(() => extractFromBatchSiyuanDocs(app, siyuanDocCandidates.map((d) => d.id)), "批量提取失败", 3500);
     };
+
+    async function aiExtractSiyuanDoc(docId: string, title: string) {
+      if (!app || !docId) return;
+      try {
+        const docRes = await app.deps.client.exportDocMarkdown(docId);
+        const mdText = docRes.content || "";
+        if (!mdText.trim()) {
+          showMessage(`《${title}》文档内容为空，无法进行 AI 出题`, 3000, "info");
+          return;
+        }
+        aiSource = mdText;
+        aiSourceOrigin = `来源思源笔记文档：${title}`;
+        aiSourceBlockId = docId;
+        switchView("ai");
+        showMessage(`已将笔记《${title}》载入 AI 智能出题（原笔记未受任何修改）✓`, 3400, "info");
+      } catch (err) {
+        showMessage(`读取笔记失败：${String(err instanceof Error ? err.message : err)}`, 4000, "error");
+      }
+    }
 
     function toggleClozeMode(mode: "highlight" | "curly" | "bracket") {
       clozeModes = toggleClozeSupportMode(clozeModes, mode);
@@ -6309,6 +6353,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onImportSelectedDocs={importSelectedDocs}
       onImportAllSearchedDocs={importAllSearchedDocs}
       onPickAndImportSiyuanDoc={(id, title) => void pickAndImportSiyuanDoc(id, title)}
+      onAiExtractDoc={(id, title) => void aiExtractSiyuanDoc(id, title)}
       onToggleClozeMode={(m) => toggleClozeMode(m)}
       onDoParseCloze={doParseCloze}
       onImportClozeQuestions={importClozeQuestions}

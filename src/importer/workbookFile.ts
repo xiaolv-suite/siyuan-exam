@@ -9,10 +9,10 @@ import { decodeCsv, detectDelimiter } from "./csvDecode";
 
 export type WorkbookKind = "xlsx" | "csv" | "unsupported";
 
-/** 按扩展名分流（拖拽与文件选择共用；无扩展名视为不支持） */
+/** 按扩展名分流（拖拽与文件选择共用；支持 .xlsx/.xls/.csv/.tsv） */
 export function resolveWorkbookKind(fileName: string): WorkbookKind {
   if (/\.(xlsx|xls)$/i.test(fileName)) return "xlsx";
-  if (/\.csv$/i.test(fileName)) return "csv";
+  if (/\.(csv|tsv)$/i.test(fileName)) return "csv";
   return "unsupported";
 }
 

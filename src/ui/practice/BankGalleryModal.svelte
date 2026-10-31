@@ -83,6 +83,8 @@
     await onrenameBank(id, renameInputName.trim());
     renamingBankId = "";
   }
+
+  const curBank = $derived(banks.find((b) => b.id === activeBankId));
 </script>
 
 <svelte:window onkeydown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); onclose(); } }} />
@@ -98,6 +100,17 @@
           <span class="lv-dialog-title-tag num">{banks.length} 题库</span>
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
+      </div>
+
+      <!-- 置顶重点提示当前激活题库与切换说明 -->
+      <div class="lv-card" style="margin:0 0 14px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 40%, var(--lv-surface));border:1.5px solid var(--lv-accent);border-radius:var(--lv-r-2, 10px);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="lv-achievement-pill lv-achievement-pill--seal" style="font-size:11px;padding:2px 8px;font-weight:700">
+            <Icon name="check" size={11} /> 当前正在使用的题库
+          </span>
+          <b style="font-size:15px;color:var(--lv-text)">{curBank ? curBank.name : "未选定题库"}</b>
+        </div>
+        <span class="lv-muted" style="font-size:11px">在下方题库列表中点击「切换至该题库」即可直接切换</span>
       </div>
       <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto" onkeydown={handleTablistKeydown}>
         <button type="button" role="tab" tabindex={bankFilterCategory === "all" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>
@@ -137,7 +150,7 @@
       </div>
       <div class="stack-sm" role="region" aria-label="题库清单" style="max-height:450px;overflow-y:auto">
         {#each filteredBanks as b (b.id)}
-          <div class="lv-card lv-card--hover" style="padding:12px 14px;margin-bottom:6px;border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);border-left:3.5px solid {b.id === activeBankId ? 'var(--lv-accent)' : 'transparent'};background:var(--lv-surface-2)">
+          <div class="lv-card" style="padding:14px 16px;margin-bottom:8px;border-radius:var(--lv-r-2, 10px);border:{b.id === activeBankId ? '2px solid var(--lv-accent)' : '1px solid var(--lv-border-subtle)'};background:{b.id === activeBankId ? 'color-mix(in srgb, var(--lv-accent-soft) 30%, var(--lv-surface))' : 'var(--lv-surface-2)'};box-shadow:{b.id === activeBankId ? '0 0 0 1px var(--lv-accent), var(--lv-sh-1)' : 'none'}">
             <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
               <div style="flex:1;min-width:0;margin-right:8px">
                 {#if renamingBankId === b.id}
@@ -147,21 +160,29 @@
                     <button class="lv-btn sm lv-btn--ghost" onclick={() => { renamingBankId = ""; }}>取消</button>
                   </div>
                 {:else}
-                  <b style="font-size:var(--lv-font-size-body)">{b.name}</b>
-                  <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="margin-left:6px;display:inline-flex;align-items:center;gap:4px" onclick={() => void oncycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）" aria-label={`切换研学场景分类: ${b.name}`}><span>{getBankCategoryMeta(b.category).badge}</span> <Icon name="rotate" size={11} /></button>
-                  {#if b.id === activeBankId}<span class="lv-chip sm lv-chip--acc" style="margin-left:4px">当前激活</span>{/if}
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <b style="font-size:15px;color:var(--lv-text)">{b.name}</b>
+                    <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="display:inline-flex;align-items:center;gap:4px" onclick={() => void oncycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）" aria-label={`切换研学场景分类: ${b.name}`}><span>{getBankCategoryMeta(b.category).badge}</span> <Icon name="rotate" size={11} /></button>
+                    {#if b.id === activeBankId}
+                      <span class="lv-chip sm lv-chip--acc" style="font-weight:700">✓ 当前正在使用</span>
+                    {/if}
+                  </div>
                   <div class="lv-muted" style="font-size:11px;margin-top:2px">ID: {b.id} · 创建于 {new Date(b.createdAt || Date.now()).toLocaleDateString()}</div>
                 {/if}
               </div>
-              <div class="lv-row" style="margin:0;gap:4px">
+              <div class="lv-row" style="margin:0;gap:6px">
                 {#if renamingBankId !== b.id}
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => startRename(b)} title={t("bank.rename")}>
                     <Icon name="pencil" size={12} /> {t("bank.rename")}
                   </button>
                 {/if}
                 {#if b.id !== activeBankId}
-                  <button class="lv-btn sm lv-btn--primary" onclick={() => onselectBank(b.id)} aria-label={`激活题库: ${b.name}`}>
-                    激活开练
+                  <button class="lv-btn sm lv-btn--primary" onclick={() => onselectBank(b.id)} aria-label={`切换题库: ${b.name}`}>
+                    切换至该题库
+                  </button>
+                {:else}
+                  <button class="lv-btn sm lv-btn--ghost" onclick={onclose} title="已处于当前题库，点击进入">
+                    <Icon name="check" size={12} /> 已在此题库
                   </button>
                 {/if}
                 <button class="lv-btn sm lv-btn--ghost" onclick={() => void onsyncBankToDoc(b.id)} title="将整套题库题册格式化同步为思源原生文档，折叠答案，卸载插件依然永久保留" aria-label={`同步题库到思源文档: ${b.name}`}>

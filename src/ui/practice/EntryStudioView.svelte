@@ -246,19 +246,30 @@
     </div>
   {/if}
   <div class="lv-pad">
-    <div class="lv-screen-head">
-      <span class="lv-eyebrow">
-        {#if hasBank}
-          <span style="display:inline-flex;align-items:center;gap:5px">
-            <Icon name={getBankCategoryMeta(bankCategory).icon} size={13} />
-            <span>{getBankCategoryMeta(bankCategory).label} · 研学空间</span>
+    <div class="lv-screen-head" style="margin-bottom:14px">
+      <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 4px;flex-wrap:wrap;gap:8px">
+        <div>
+          <span class="lv-eyebrow">
+            {#if hasBank}
+              <span style="display:inline-flex;align-items:center;gap:5px">
+                <Icon name={getBankCategoryMeta(bankCategory).icon} size={13} />
+                <span>当前题库：{getBankCategoryMeta(bankCategory).label} · 研学空间</span>
+              </span>
+            {:else}
+              {t("head.entry.eyebrow")}
+            {/if}
           </span>
-        {:else}
-          {t("head.entry.eyebrow")}
-        {/if}
-      </span>
-      <h1 class="lv-h1">{hasBank ? bankName : t("head.entry.title")}</h1>
-      <p>先输入理解，再背诵内化；既有日常沉浸自测，亦有全真限时模考。</p>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h1 class="lv-h1" style="margin:0">{hasBank ? bankName : t("head.entry.title")}</h1>
+            {#if hasBank}
+              <button type="button" class="lv-chip lv-chip--acc" onclick={onopenBankHub} title="点击展开题库列表，快速切换或新建其他题库" style="cursor:pointer;font-weight:600">
+                <Icon name="folder" size={12} /> 切换其他题库 ({banks.length}) ▾
+              </button>
+            {/if}
+          </div>
+        </div>
+      </div>
+      <p style="margin:4px 0 0;font-size:12.5px;color:var(--lv-text-3)">备考闭环：导入/录题 → 今日练习 → 错题消灭 → 全真模考 → 复盘沉淀。</p>
     </div>
     {#if bankCreateError}<div class="lv-error" role="alert" style="margin-bottom:14px">{bankCreateError}</div>{/if}
     {#if sampleNotice}

@@ -69,6 +69,7 @@
     onImportSelectedDocs: () => void;
     onImportAllSearchedDocs: () => void;
     onPickAndImportSiyuanDoc: (id: string, title: string) => void;
+    onAiExtractDoc?: (id: string, title: string) => void;
     onToggleClozeMode: (mode: "highlight" | "curly" | "bracket") => void;
     onDoParseCloze: () => void;
     onImportClozeQuestions: () => void;
@@ -158,6 +159,7 @@
     onImportSelectedDocs,
     onImportAllSearchedDocs,
     onPickAndImportSiyuanDoc,
+    onAiExtractDoc = () => {},
     onToggleClozeMode,
     onDoParseCloze,
     onImportClozeQuestions,
@@ -319,9 +321,14 @@
                       <div class="lv-muted" title={doc.hpath} style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.hpath}</div>
                     </div>
                   </div>
-                  <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} aria-busy={siyuanDocBusy} onclick={() => onPickAndImportSiyuanDoc(doc.id, doc.title)}>
-                    <Icon name="import" size={12} /> {siyuanDocBusy ? "提取中…" : "提取此篇"}
-                  </button>
+                  <div class="lv-row" style="margin:0;gap:6px">
+                    <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} aria-busy={siyuanDocBusy} onclick={() => onPickAndImportSiyuanDoc(doc.id, doc.title)} title="直接提取文中文法题（选择题/高亮挖空/加粗术语定义）">
+                      <Icon name="import" size={12} /> {siyuanDocBusy ? "提取中…" : "直接提取"}
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" disabled={siyuanDocBusy} onclick={() => onAiExtractDoc?.(doc.id, doc.title)} title="由 AI 自动阅读此篇笔记正文提炼试题（完全不改动原笔记！）">
+                      <Icon name="sparkles" size={12} /> AI 提炼试题
+                    </button>
+                  </div>
                 </div>
               {/each}
             {/if}
@@ -329,6 +336,10 @@
         </div>
       {:else if importSubTab === "cloze"}
         <!-- 52-09 正文划重点挖空出题工作台 -->
+        <div class="lv-card" style="margin:2px 0 8px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+          <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 正文划重点挖空出题说明：</b>
+          将任意复习段落粘贴到下方，使用 <code>==高亮==</code>、<code>{`{大括号}`}</code> 或 <code>((圆括号))</code> 标记想要作为考点的重点词汇，点击「生成挖空试题」即可一键批量转换入库！
+        </div>
         <div class="lv-row" role="group" aria-label="识别语法模式" style="margin:4px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
           <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">识别语法：</span>
           <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("highlight")} aria-pressed={clozeModes.includes("highlight")} onclick={() => onToggleClozeMode("highlight")}>{t("cloze.modeHighlight")}</button>
@@ -364,6 +375,12 @@
           </div>
         {/if}
       {:else}
+        <!-- 批量文件导入与纯文本 Aiken/GIFT 导入向导 -->
+        <div class="lv-card" style="margin:2px 0 10px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+          <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 批量试题导入说明：</b>
+          1. <b>支持表格文件</b>：Excel (.xlsx / .xls)、CSV、TSV，可点击「下载标准模板」查看题目/答案/选项标准列头；<br />
+          2. <b>支持试题文本</b>：直接选择纯文本文件 (.txt / .gift / .md) 或将 Aiken 格式文本（如“1. 题干\nA. 选项\n答案: A”）粘贴到下方文本框中即可一键解析入库！
+        </div>
         <div class="lv-row">
           <button type="button" class="lv-btn" disabled={importBusy} onclick={() => { if (importFileInput) importFileInput.click(); else onPickExcel(); }}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
           <input type="file" bind:this={importFileInput} accept=".xlsx,.xls,.csv,.tsv,.txt,.gift" hidden onchange={onExcelFile} disabled={importBusy} />

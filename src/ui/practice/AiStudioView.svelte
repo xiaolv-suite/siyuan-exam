@@ -123,6 +123,13 @@
     <p>{t("head.ai.desc")}</p>
   </div>
   <StudioSubNav currentView="ai" {t} {onchangeView} />
+  <!-- AI 出题使用说明向导卡片 -->
+  <div class="lv-card" style="margin:8px 0 10px;padding:12px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+    <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 AI 智能出题使用说明：</b>
+    1. <b>出题材料</b>：在左侧粘贴课文段落、读书笔记或知识点（亦可从思源笔记或研学资料库一键带入）；<br />
+    2. <b>生成配置</b>：可自选题量、难度倾向与重点提示词，点击「开始生成」；<br />
+    3. <b>审核入库</b>：AI 生成的试题会在右侧清晰陈列，支持逐题微调或一键全量存入当前题库！
+  </div>
   {#if aiError}<div class="lv-error" role="alert">{aiError}</div>{/if}
   <div class="lv-row">
     <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
