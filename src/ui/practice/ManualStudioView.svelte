@@ -328,17 +328,38 @@
           {/if}
         </div>
         <textarea id="lv-manual-stem" class="lv-input lv-textarea" style="min-height:90px;resize:vertical!important;width:100%" bind:value={mStem} oninput={onclearManualValidation} placeholder={t("manual.stemPlaceholder")} data-manual-field="stem" aria-invalid={manualErrorField === "stem" ? "true" : undefined} aria-describedby={manualErrorField === "stem" ? "manual-validation-error" : undefined}></textarea>
+        {#if mStem.length > 15 && (/(?:^|\s+)[A-D][.、:：\s]/m.test(mStem) || /答案|解析|【答案】/i.test(mStem) || /[（(]\s*[A-D√×对错]\s*[)）]/.test(mStem))}
+          <div class="lv-row" style="margin:4px 0;padding:6px 10px;background:color-mix(in srgb, var(--lv-accent-soft) 28%, var(--lv-surface));border-radius:var(--lv-r-2);align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--lv-text);display:inline-flex;align-items:center;gap:5px">
+              <Icon name="sparkles" size={13} /> 检测到题干中包含选项或答案内容
+            </span>
+            <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => {
+              ocrInputText = mStem;
+              onapplyOcrFill();
+            }}>
+              ⚡ 一键自动拆分到各选项与答案
+            </button>
+          </div>
+        {/if}
       </div>
       {#if mType === "single" || mType === "multiple"}
         <div class="lv-field" role="group" aria-label={t("manual.options")}>
-          <span class="lv-muted">{t("manual.options")}</span>
+          <span class="lv-muted">{t("manual.options")}（点击字母圆圈设为正确答案）</span>
           {#each mOptions as _opt, i (i)}
+            {@const letter = String.fromCharCode(65 + i)}
+            {@const isSelected = mAnswer.includes(letter)}
             <div class="lv-row" style="margin:4px 0">
-              <button class="lv-chip" class:acc={mAnswer.includes(String.fromCharCode(65 + i))}
-                title={t("manual.setCorrect")} aria-label={`${t("manual.setCorrect")} ${String.fromCharCode(65 + i)}`} onclick={() => { onclearManualValidation(); onsetCorrectOption(i); }} data-manual-field={i === 0 ? "answer" : undefined} aria-pressed={mAnswer.includes(String.fromCharCode(65 + i))} aria-describedby={manualErrorField === "answer" && i === 0 ? "manual-validation-error" : undefined}>{String.fromCharCode(65 + i)}</button>
-              <input class="lv-input" style="flex:1" bind:value={mOptions[i]} oninput={onclearManualValidation} aria-label={`${t("manual.options")} ${String.fromCharCode(65 + i)}`} data-manual-field={`option-${i}`} aria-invalid={manualErrorField === `option-${i}` ? "true" : undefined} aria-describedby={manualErrorField === `option-${i}` ? "manual-validation-error" : undefined} />
+              <button type="button" class="lv-chip" class:acc={isSelected}
+                style="{isSelected ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}cursor:pointer"
+                title={`${t("manual.setCorrect")} ${letter}`} aria-label={`${t("manual.setCorrect")} ${letter}`} onclick={() => { onclearManualValidation(); onsetCorrectOption(i); }} data-manual-field={i === 0 ? "answer" : undefined} aria-pressed={isSelected} aria-describedby={manualErrorField === "answer" && i === 0 ? "manual-validation-error" : undefined}>
+                {letter}
+              </button>
+              <input class="lv-input" style="flex:1" bind:value={mOptions[i]} oninput={onclearManualValidation} placeholder={`选项 ${letter} 内容`} aria-label={`${t("manual.options")} ${letter}`} data-manual-field={`option-${i}`} aria-invalid={manualErrorField === `option-${i}` ? "true" : undefined} aria-describedby={manualErrorField === `option-${i}` ? "manual-validation-error" : undefined} />
+              {#if isSelected}
+                <span class="lv-chip lv-chip--grn num sm" style="font-size:11px;padding:2px 6px">正确项</span>
+              {/if}
               {#if mOptions.length > 2}
-                <button class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + i)}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }}><Icon name="close" size={12} /></button>
+                <button type="button" class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${letter}`} title={`${t("manual.removeOption", "删除选项")} ${letter}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }}><Icon name="close" size={12} /></button>
               {/if}
             </div>
           {/each}
@@ -479,6 +500,20 @@
           onsaveManual("published");
         }} disabled={mSaving || !hasStem} aria-busy={mSaving} title="保存题目并直接存为思源笔记题库块">
           <Icon name="save" size={14} /> {mSaving ? "正在写入思源块…" : "入库并存为思源块"}
+        </button>
+        <button class="lv-btn sm" onclick={() => {
+          if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
+            onsetCorrectOption(0);
+          }
+          onsaveManual("published");
+          mStem = "";
+          mOptions = mType === "single" || mType === "multiple" ? ["", ""] : [];
+          mAnswer = "";
+          mAnalysis = "";
+          const stemEl = document.getElementById("lv-manual-stem");
+          if (stemEl) stemEl.focus();
+        }} disabled={mSaving || !hasStem} title="保存当前题后保留考点与出处，直接继续录入下一题">
+          <Icon name="plus" size={13} /> 入库并继续下一题
         </button>
         <button class="lv-btn lv-btn--ghost" onclick={() => onsaveManual("draft")} disabled={mSaving || !hasStem} title="未填答案亦可保存为思源草稿块，方便随时暂存">
           存为草稿块

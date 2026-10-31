@@ -345,6 +345,12 @@
           <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("highlight")} aria-pressed={clozeModes.includes("highlight")} onclick={() => onToggleClozeMode("highlight")}>{t("cloze.modeHighlight")}</button>
           <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("curly")} aria-pressed={clozeModes.includes("curly")} onclick={() => onToggleClozeMode("curly")}>{t("cloze.modeCurly")}</button>
           <button type="button" class="lv-chip sm" class:acc={clozeModes.includes("bracket")} aria-pressed={clozeModes.includes("bracket")} onclick={() => onToggleClozeMode("bracket")}>{t("cloze.modeBracket")}</button>
+          <button type="button" class="lv-chip sm" onclick={() => {
+            clozeInputText = "在操作系统的体系结构中，==内核== 是最核心的部分，负责直接管理硬件资源，运行在最高特权级的 ==内核态== 中。";
+          }}>⚡ 高亮示例</button>
+          <button type="button" class="lv-chip sm" onclick={() => {
+            clozeInputText = "TCP 提供 {{面向连接}} 的、{{可靠}} 的字节流服务，而 UDP 提供 {{无连接}} 的数据报服务。";
+          }}>⚡ 大括号示例</button>
         </div>
         <textarea class="lv-input lv-textarea" rows="6" placeholder={t("cloze.placeholder")} aria-label={t("cloze.tab")} bind:value={clozeInputText} disabled={importBusy || clozeImporting}></textarea>
         <div class="lv-row" style="margin:8px 0">
