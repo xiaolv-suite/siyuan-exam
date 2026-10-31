@@ -338,66 +338,86 @@
               {@const q = qOf(w.qid)}
               {@const stubborn = isStubbornWrong(w)}
               <div class="lv-wrong-row">
-                <span class="task-number num">{wi + 1}</span>
-                <div class="lv-wrong-main">
-                  <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 80) ?? w.qid}</div>
-                  <div class="lv-wrong-meta">
-                    <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
-                    {#if stubborn}
-                      <span class="lv-chip lv-chip--amb sm" title={getStubbornRemediation(w).reasonText}>
-                        <Icon name="flame" size={11} /> {t("wrongbook.stubbornBadge")}
-                      </span>
+                <div class="lv-wrong-header">
+                  <span class="task-number num">{wi + 1}</span>
+                  <div class="lv-wrong-main">
+                    <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>
+                      {q?.stem ? q.stem.slice(0, 120) : `[错题 ${w.qid.slice(-8)}] 原题目已不在当前题库中`}
+                    </div>
+                    <div class="lv-wrong-meta">
+                      <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
+                      {#if stubborn}
+                        <span class="lv-chip lv-chip--amb sm" title={getStubbornRemediation(w).reasonText}>
+                          <Icon name="flame" size={11} /> {t("wrongbook.stubbornBadge")}
+                        </span>
+                      {/if}
+                      {#if cbmHighriskQids.has(w.qid)}
+                        <span class="lv-chip lv-chip--red sm" title={t("cbm.highrisk.tip", "自评「确定」却答错：疑似概念性误区，优先复核")}>
+                          <Icon name="xcircle" size={11} /> {t("cbm.highrisk", "高危盲区")}
+                        </span>
+                      {/if}
+                      {#if w.streakCorrect > 0}<span class="lv-chip lv-chip--grn num">{t("wrongbook.reClear").replace("{n}", String(effectiveEliminateStreak - w.streakCorrect))}</span>{/if}
+                      {#if reasonOf(w.qid)}<span class="lv-chip num">{t("reason." + reasonOf(w.qid))}</span>{/if}
+                      <span>{t("wrongbook.lastWrong")} {new Date(w.lastWrongAt).toLocaleDateString()}</span>
+                      {#if q?.kp}
+                        <button
+                          type="button"
+                          class="lv-chip num"
+                          style="cursor:pointer"
+                          title="点击筛选该章节考点错题"
+                          onclick={() => { wbKpFilter = q.kp.split("/")[0]; }}
+                        >
+                          {q.kp}
+                        </button>
+                      {/if}
+                    </div>
+                    {#if reflections[w.qid]?.text}
+                      <div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px">
+                        <Icon name="pencil" size={11} /> 复盘反思：{reflections[w.qid].text}
+                      </div>
                     {/if}
-                    {#if cbmHighriskQids.has(w.qid)}
-                      <!-- benchmark-fusion：CBM 高危盲区置顶高亮（自评确定却答错） -->
-                      <span class="lv-chip lv-chip--red sm" title={t("cbm.highrisk.tip", "自评「确定」却答错：疑似概念性误区，优先复核")}>
-                        <Icon name="xcircle" size={11} /> {t("cbm.highrisk", "高危盲区")}
-                      </span>
+                  </div>
+                </div>
+
+                <div class="lv-wrong-toolbar">
+                  <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+                    <button class="lv-btn sm lv-btn--primary" onclick={() => onstartWrongFor(w.qid)}>
+                      <Icon name="play" size={13} /> {t("wrongbook.retry")}
+                    </button>
+                    {#if q?.blockId && onopenInSiYuan}
+                      <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}>
+                        <Icon name="pin" size={12} /> 原题 ↗
+                      </button>
                     {/if}
-                    {#if w.streakCorrect > 0}<span class="lv-chip lv-chip--grn num">{t("wrongbook.reClear").replace("{n}", String(effectiveEliminateStreak - w.streakCorrect))}</span>{/if}
-                    {#if reasonOf(w.qid)}<span class="lv-chip num">{t("reason." + reasonOf(w.qid))}</span>{/if}
-                    <span>{t("wrongbook.lastWrong")} {new Date(w.lastWrongAt).toLocaleDateString()}</span>
-                    {#if q?.kp}
-                      <button
-                        type="button"
-                        class="lv-chip num"
-                        style="cursor:pointer"
-                        title="点击筛选该章节考点错题"
-                        onclick={() => { wbKpFilter = q.kp.split("/")[0]; }}
-                      >
-                        {q.kp}
+                    {#if oneditReflection}
+                      <button class="lv-btn sm lv-btn--ghost" title="记录或修改本题复盘反思（同步写回思源题块）" onclick={() => oneditReflection(w.qid)}>
+                        <Icon name="pencil" size={12} /> {reflections[w.qid]?.text ? t("reflection.edit", "改反思") : t("reflection.add", "写反思")}
                       </button>
                     {/if}
                   </div>
-                  {#if reflections[w.qid]?.text}
-                    <div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:3px">
-                      <Icon name="pencil" size={11} /> 复盘反思：{reflections[w.qid].text}
-                    </div>
-                  {/if}
+                  <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+                    {#if w.wrongCount >= 2}
+                      <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-brand-deep);font-weight:600" title="顽疾错题：推送到小驴闪卡卡包进行 FSRS 间隔复习" onclick={() => onsyncSingleWrongToCard(w.qid)}>
+                        <Icon name="layers" size={12} /> 推闪卡
+                      </button>
+                    {/if}
+                    <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.traceMother")} onclick={() => { const q = qOf(w.qid); if (q) ontraceMotherQuestion(q); }}>
+                      <Icon name="compass" size={12} /> 母题
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" title={t("session.drillVariantTip")} onclick={() => { const q = qOf(w.qid); if (q) ondrillVariantFor(q); }}>
+                      <Icon name="layers" size={12} /> 变式
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.snooze7")} onclick={() => onsnoozeWrong(w.qid, 7)}>
+                      <Icon name="clock" size={12} /> 暂缓7天
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.archiveTip")} onclick={() => onarchiveWrong(w.qid)}>
+                      <Icon name="folder" size={12} /> 归档
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-green);font-weight:600" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => onmasterWrong(w.qid)}>
+                      <Icon name="check" size={12} /> {wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}
+                    </button>
+                  </div>
                 </div>
-                <button class="lv-btn sm" onclick={() => onstartWrongFor(w.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
-                {#if q?.blockId && onopenInSiYuan}
-                  <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
-                {/if}
-                {#if oneditReflection}
-                  <button class="lv-btn sm lv-btn--ghost" title="记录或修改本题复盘反思（同步写回思源题块）" onclick={() => oneditReflection(w.qid)}><Icon name="pencil" size={12} /> {reflections[w.qid]?.text ? t("reflection.edit", "改反思") : t("reflection.add", "写反思")}</button>
-                {/if}
-                {#if w.wrongCount >= 2}
-                  <button
-                    class="lv-btn sm lv-btn--ghost"
-                    style="color:var(--lv-brand-deep);font-weight:600"
-                    title="该题犯错频次较高（顽疾错题），可一键推送到小驴闪卡进行 FSRS 间隔强化训练"
-                    onclick={() => onsyncSingleWrongToCard(w.qid)}
-                  >
-                    <Icon name="layers" size={12} /> 推闪卡
-                  </button>
-                {/if}
-                <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.traceMother")} onclick={() => { const q = qOf(w.qid); if (q) ontraceMotherQuestion(q); }}><Icon name="compass" size={13} /> {t("wrongbook.traceMother")}</button>
-                <button class="lv-btn sm lv-btn--ghost" title={t("session.drillVariantTip")} onclick={() => { const q = qOf(w.qid); if (q) ondrillVariantFor(q); }}><Icon name="layers" size={13} /> {t("session.drillVariant")}</button>
-                <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.snooze7")} onclick={() => onsnoozeWrong(w.qid, 7)}><Icon name="clock" size={12} /> {t("wrongbook.snooze7")}</button>
-                <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.archiveTip")} onclick={() => onarchiveWrong(w.qid)}><Icon name="folder" size={12} /> {t("wrongbook.archive")}</button>
-                <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(w.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
-                <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-green);font-weight:600" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => onmasterWrong(w.qid)}><Icon name="check" size={13} /> {wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}</button>
               </div>
             {:else}
               <div class="lv-muted" style="padding:16px 0;text-align:center">

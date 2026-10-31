@@ -2240,7 +2240,40 @@ import { confirmDialogSync } from "@/libs/dialog";
       },
     }));
 
-    function onTaskNav(target: "today" | "bank" | "create" | "mock" | "report") {
+    async function onTaskNav(target: "today" | "bank" | "create" | "mock" | "report") {
+      if (target === "mock") {
+        if (questions.length < 3) {
+          const { confirmDialogSync } = await import("../../libs/dialog");
+          const proceed = await confirmDialogSync({
+            title: "全真模拟考场使用说明",
+            content: `<p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">全真模考提供标准限时交卷、CBT 答题卡与防漏答强校验。</p><p class="lv-hint" style="text-align:left;line-height:1.55">当前题库仅有 <b>${questions.length}</b> 题，至少需要 3-5 道试题才能组建完整模拟卷。<br/>点击「确定」仍打开考场；点击「取消」前往出题录题。</p>`,
+          });
+          if (!proceed) {
+            switchView("manual");
+            return;
+          }
+        }
+        showMessage("正在打开全真模拟考场… ✓", 2600, "info");
+        plugin.openMock?.();
+        return;
+      }
+      if (target === "report") {
+        const attemptCount = app?.attempts?.all?.()?.length ?? 0;
+        if (attemptCount === 0) {
+          const { confirmDialogSync } = await import("../../libs/dialog");
+          const proceed = await confirmDialogSync({
+            title: "学情复盘报告使用说明",
+            content: `<p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">学情复盘中心提供三维度学情诊断、四象限薄弱考点雷达与连续自律趋势大屏。</p><p class="lv-hint" style="text-align:left;line-height:1.55">检测到您当前尚未产生作答记录。<br/>在「今日」完成日常练习或参加一次模考后，系统将自动基于您的真实作答证据演算出专属复盘大屏！<br/>点击「确定」仍打开报告中心；点击「取消」前往今日练习。</p>`,
+          });
+          if (!proceed) {
+            switchView("entry");
+            return;
+          }
+        }
+        showMessage("正在打开学情诊断与复盘报告中心… ✓", 2600, "info");
+        plugin.openReport?.();
+        return;
+      }
       const res = resolveTaskNavigation(target, plugin.openMock, plugin.openReport);
       if (res.nextView) {
         switchView(res.nextView);

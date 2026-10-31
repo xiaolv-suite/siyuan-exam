@@ -1916,35 +1916,49 @@ input[type="range"] {
 }
 .lv-wrong-row {
   display: flex;
-  gap: 13px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  margin-bottom: 9px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
   border: 1px solid var(--lv-border-subtle, var(--lv-border));
-  border-radius: var(--lv-r-3);
+  border-radius: var(--lv-r-card, 14px);
   background: var(--lv-surface);
-  box-shadow: var(--lv-sh-1), var(--lv-inset-card);
+  box-shadow: var(--lv-sh-1);
   transition:
     transform var(--lv-dur-micro) var(--lv-ease-out),
     box-shadow var(--lv-dur-micro) var(--lv-ease-out),
     border-color var(--lv-dur-micro) var(--lv-ease-out);
 
   &:hover {
-    transform: translateY(-1.5px);
     border-color: var(--lv-border-hover, var(--lv-accent));
     box-shadow: var(--lv-sh-card);
+  }
+  .lv-wrong-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
   }
   .lv-wrong-main {
     flex: 1;
     min-width: 0;
   }
   .lv-wrong-stem {
-    font-size: var(--lv-font-size-body);
-    font-weight: var(--lv-font-weight-medium);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.55;
+    color: var(--lv-text);
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .lv-wrong-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--lv-border-subtle);
   }
   .lv-wrong-meta {
     display: flex;
