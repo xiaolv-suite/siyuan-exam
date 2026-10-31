@@ -4320,6 +4320,63 @@ import { confirmDialogSync } from "@/libs/dialog";
       finally { importParsing = false; input.value = ""; }
     }
 
+    let paperOcrBusy = $state(false);
+
+    async function doSegmentPaperText(text: string, sourceName = "纸质扫描试卷") {
+      if (!text.trim()) return;
+      importParsing = true;
+      try {
+        const { segmentExamPaper } = await import("@/importer/examSegmenter");
+        const result = segmentExamPaper(text, {
+          source: sourceName,
+          defaultKp: bankName || "纸质试卷",
+        });
+        if (!result.questions.length) {
+          importError = "整卷切题未检测到有效题目，请检查试卷是否有题号（如 1. / 2. / 一、单选）";
+          return;
+        }
+        const { newBatchId } = await import("@/core/ids");
+        importReport = {
+          batch: newBatchId(),
+          ok: result.questions,
+          errors: result.warnings.map((w, wi) => ({ row: wi + 1, reason: w, raw: "" })),
+          duplicates: 0,
+        };
+        importResult = null;
+        updateResult = null;
+        trialConfirmed = [];
+        trialNote = "";
+        retryPool = [];
+        importText = "";
+        importSubTab = "standard";
+        showMessage(`整卷切题完成！成功识别并缝合 ${result.questions.length} 道试题，请在下方清单校对！`, 4000, "info");
+      } catch (err) {
+        importError = `整卷切题失败：${String(err instanceof Error ? err.message : err)}`;
+      } finally {
+        importParsing = false;
+      }
+    }
+
+    async function handlePaperImageFile(file: File | Blob) {
+      if (!app) return;
+      paperOcrBusy = true;
+      try {
+        showMessage("正在上传试卷图片并执行 OCR 文本提取…", 4000, "info");
+        const fileName = (file as File).name || "scanned-paper.png";
+        const assetPath = await app.deps.client.uploadAsset(file, fileName);
+        const ocrData = await app.deps.client.assetOcr(assetPath);
+        if (!ocrData?.text?.trim()) {
+          showMessage("OCR 未在试卷图片中识别到文字内容，请确保图片清晰且无强烈反光", 4500, "error");
+          return;
+        }
+        await doSegmentPaperText(ocrData.text, fileName);
+      } catch (err) {
+        showMessage(`试卷 OCR 识别失败：${String(err instanceof Error ? err.message : err)}`, 4000, "error");
+      } finally {
+        paperOcrBusy = false;
+      }
+    }
+
     /** 多 Sheet 支持（TODO 12 组）：读文件时缓存各行，选择工作表重解析 */
     let activeSheet = $state("");
     let sheetRowsCache = $state(new Map<string, string[][]>());
@@ -6477,6 +6534,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       {tagSearchBusy}
       onDoSearchTags={(tg) => void doSearchTags(tg)}
       onImportTagQuestions={(tg) => void doImportTagQuestions(tg)}
+      {paperOcrBusy}
+      onSegmentPaperText={(txt, name) => void doSegmentPaperText(txt, name)}
+      onPaperImageUpload={(file) => void handlePaperImageFile(file)}
     />
   {/if}
     </div>

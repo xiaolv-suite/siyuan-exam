@@ -101,6 +101,9 @@
     tagSearchBusy?: boolean;
     onDoSearchTags?: (tag: string) => void;
     onImportTagQuestions?: (tag: string) => void;
+    paperOcrBusy?: boolean;
+    onSegmentPaperText?: (text: string, name?: string) => void;
+    onPaperImageUpload?: (file: File | Blob) => void;
   }
 
   let {
@@ -197,6 +200,9 @@
     tagSearchBusy = false,
     onDoSearchTags = () => {},
     onImportTagQuestions = () => {},
+    paperOcrBusy = false,
+    onSegmentPaperText = () => {},
+    onPaperImageUpload = () => {},
   }: Props = $props();
 
   let docSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -205,6 +211,41 @@
     docSearchDebounceTimer = setTimeout(() => {
       onDoSearchDocs(val);
     }, 150);
+  }
+
+  let paperOcrModalOpen = $state(false);
+  let paperRawText = $state("");
+  let paperFileInput = $state<HTMLInputElement | null>(null);
+  let selectedImportQids = $state<Record<string, boolean>>({});
+
+  const selectedImportCount = $derived(
+    importReport?.ok?.filter((q, qi) => selectedImportQids[q.id || String(qi)] !== false).length ?? 0,
+  );
+
+  function toggleSelectAllImportQuestions() {
+    if (!importReport?.ok) return;
+    const allSelected = selectedImportCount === importReport.ok.length;
+    const next: Record<string, boolean> = {};
+    for (let i = 0; i < importReport.ok.length; i++) {
+      const q = importReport.ok[i];
+      next[q.id || String(i)] = !allSelected;
+    }
+    selectedImportQids = next;
+  }
+
+  function removeImportQuestion(idx: number) {
+    if (!importReport?.ok) return;
+    importReport.ok.splice(idx, 1);
+    importReport.ok = [...importReport.ok];
+  }
+
+  function onPaperFileSelected(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) {
+      onPaperImageUpload(file);
+    }
+    input.value = "";
   }
 </script>
 
@@ -444,13 +485,44 @@
           1. <b>支持表格文件</b>：Excel (.xlsx / .xls)、CSV、TSV，可点击「下载标准模板」查看题目/答案/选项标准列头；<br />
           2. <b>支持试题文本</b>：直接选择纯文本文件 (.txt / .gift / .md) 或将 Aiken 格式文本（如“1. 题干\nA. 选项\n答案: A”）粘贴到下方文本框中即可一键解析入库！
         </div>
-        <div class="lv-row">
+        <div class="lv-row" style="flex-wrap:wrap;gap:8px;align-items:center">
           <button type="button" class="lv-btn" disabled={importBusy} onclick={() => { if (importFileInput) importFileInput.click(); else onPickExcel(); }}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
           <input type="file" bind:this={importFileInput} accept=".xlsx,.xls,.csv,.tsv,.txt,.gift,.docx,.md" hidden onchange={onExcelFile} disabled={importBusy} />
+          <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => paperOcrModalOpen = !paperOcrModalOpen} title="上传整张纸质试卷扫描件或照片，一键整卷切题并反向缝合参考答案">
+            <Icon name="camera" size={13} /> 📄 纸质试卷整卷 OCR 导入
+          </button>
           <button class="lv-btn sm" onclick={onDownloadTemplate}><Icon name="import" size={15} /> {t("import.template")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={onPasteClipboard} disabled={importBusy} title={t("import.pasteClipboardTip")}><Icon name="copy" size={14} /> {t("import.pasteClipboard")}</button>
           <span class="lv-muted">{t("import.orPaste")}</span>
         </div>
+        {#if paperOcrModalOpen}
+          <div class="lv-card" style="margin:10px 0 14px;padding:14px 18px;background:var(--lv-surface-2);border:1.5px solid var(--lv-accent);border-radius:var(--lv-r-2);box-shadow:var(--lv-sh-pop)">
+            <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <Icon name="camera" size={15} />
+                <b style="font-size:13.5px;color:var(--lv-text)">📄 纸质整卷扫描 OCR 智能切题与缝合导入</b>
+              </div>
+              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => paperOcrModalOpen = false} aria-label="关闭"><Icon name="close" size={12} /></button>
+            </div>
+            <p class="lv-muted" style="margin:0 0 10px;font-size:12px;line-height:1.55">
+              支持上传整张纸质试卷照片、扫描件（或截图直接 Ctrl+V 粘贴），亦可直接粘贴整份试卷文本。系统将自动切分大题章节（单选/多选/判断/填空/简答），水平切分选项，并将文末的「参考答案」跨段反向自动缝合回母题！
+            </p>
+            <div class="lv-row" style="margin:8px 0;gap:8px;align-items:center;flex-wrap:wrap">
+              <button type="button" class="lv-btn sm lv-btn--primary" disabled={paperOcrBusy} onclick={() => paperFileInput?.click()}>
+                <Icon name="camera" size={13} /> {paperOcrBusy ? "正在识别整卷…" : "选择试卷图片 / 扫描件"}
+              </button>
+              <input type="file" bind:this={paperFileInput} accept="image/*,.pdf" style="display:none" onchange={onPaperFileSelected} disabled={paperOcrBusy} />
+              <span class="lv-muted" style="font-size:11.5px">或在下方直接粘贴整份试卷的文本或 OCR 结果：</span>
+            </div>
+            <textarea class="lv-input lv-textarea sm" rows="5" bind:value={paperRawText} placeholder="在此粘贴整卷文本（例如：&#10;一、单选题&#10;1. 计算机中用于存放当前指令地址的寄存器是（ ） A. PC  B. IR  C. AR  D. DR&#10;二、判断题&#10;2. 虚拟内存容量不受任何硬件限制。( × )&#10;【参考答案】&#10;1. A 解析：PC 为程序计数器&#10;2. 错）" disabled={paperOcrBusy}></textarea>
+            <div class="lv-row" style="margin-top:8px;justify-content:space-between;align-items:center">
+              <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => { onSegmentPaperText(paperRawText); paperOcrModalOpen = false; }} disabled={paperOcrBusy || !paperRawText.trim()}>
+                <Icon name="sparkles" size={12} /> ⚡ 立即整卷切题并缝合答案入库
+              </button>
+              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => paperOcrModalOpen = false}>取消</button>
+            </div>
+          </div>
+        {/if}
         <div class="lv-row" style="margin:4px 0 6px;gap:6px;align-items:center;flex-wrap:wrap">
           <span class="lv-muted" style="font-size:11px">⚡ 快速插入格式示例：</span>
           <button type="button" class="lv-chip sm" onclick={() => {
@@ -558,29 +630,129 @@
             <span class="lv-chip lv-chip--grn num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> {importReport.ok.length}</span>
             <span class="lv-chip lv-chip--red num" style="display:inline-flex;align-items:center;gap:3px"><Icon name="close" size={11} /> {importReport.errors.length}</span>
             {#if importReport.duplicates}<span class="lv-chip lv-chip--amb num" style="display:inline-flex;align-items:center;gap:4px" title={t("import.dupeHint")}><Icon name="copy" size={11} /> {importReport.duplicates}</span>{/if}
-            {#if importReport.ok.length}
-              <button class="lv-btn sm lv-btn--ghost" disabled={spotBusy} aria-busy={spotBusy} onclick={onSpotCheckRender}>
-                <Icon name="shuffle" size={13} /> {t("import.spotCheck")}{#if spotIds.length}（{spotIds.length}）{/if}
-              </button>
-            {/if}
           </div>
-          {#if spotIds.length}
-            {#each spotIds as sid, _si (_si)}
-              {@const sq = importReport.ok.find((q) => q.id === sid)}
-              {#if sq}
-                <div class="lv-detail" style="margin:6px 0">
-                  <div class="lv-row" style="margin:0">
-                    <span class="lv-chip lv-chip--acc">{t("qtype." + sq.type)}</span>
-                    {#if sq.kp}<span class="lv-chip">{sq.kp}</span>{/if}
-                    <span class="lv-muted num">{t("browse.answer")}: {sq.answer}</span>
-                  </div>
-                  <div class="lv-rich b3-typography" style="font-size:var(--lv-font-size-body-compact)">{@html spotHtml[sid] || escapeHtml(sq.stem)}</div>
-                  {#each sq.options as opt, oi (oi)}
-                    <div class="lv-muted">{String.fromCharCode(65 + oi)}. {opt}</div>
-                  {/each}
+          <!-- 待入库试题校对与修改清单（支持行内编辑、题型切换、勾选选择性导入与删除） -->
+          {#if importReport.ok.length}
+            <div class="lv-import-preview-section" style="margin:14px 0 12px;padding:14px 16px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 12px);border:1px solid var(--lv-border-subtle)">
+              <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:8px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="lv-achievement-pill lv-achievement-pill--seal" style="font-size:11.5px;padding:2px 8px;font-weight:700">
+                    <Icon name="file" size={12} /> 待入库试题校对与微调清单
+                  </span>
+                  <b style="font-size:13.5px;color:var(--lv-text)">
+                    已识别 {importReport.ok.length} 题 · 已勾选 {selectedImportCount} 题
+                  </b>
                 </div>
-              {/if}
-            {/each}
+                <div class="lv-row" style="margin:0;gap:6px">
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={toggleSelectAllImportQuestions}>
+                    {selectedImportCount === importReport.ok.length ? "取消全选" : "全选所有题目"}
+                  </button>
+                  <button type="button" class="lv-btn sm lv-btn--ghost" disabled={spotBusy} aria-busy={spotBusy} onclick={onSpotCheckRender}>
+                    <Icon name="shuffle" size={12} /> 抽查排版渲染
+                  </button>
+                </div>
+              </div>
+
+              <!-- 每道题目的展开预览与编辑卡片列表 -->
+              <div class="stack-sm" style="display:grid;gap:10px;max-height:480px;overflow-y:auto;padding-right:4px">
+                {#each importReport.ok as q, qi (q.id || qi)}
+                  {@const isChecked = selectedImportQids[q.id || String(qi)] !== false}
+                  <div class="lv-card" style="padding:12px 14px;background:var(--lv-surface);border-radius:var(--lv-r-2);border:1px solid {isChecked ? 'var(--lv-border)' : 'var(--lv-border-subtle)'};opacity:{isChecked ? 1 : 0.6};transition:all var(--lv-dur-micro) ease;box-shadow:var(--lv-sh-1)">
+                    <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;gap:8px">
+                      <div class="lv-row" style="margin:0;gap:8px;align-items:center;flex:1;min-width:0">
+                        <input type="checkbox" checked={isChecked} onchange={(e) => {
+                          const checked = (e.target as HTMLInputElement).checked;
+                          selectedImportQids[q.id || String(qi)] = checked;
+                        }} aria-label={`选择第 ${qi + 1} 题`} style="cursor:pointer" />
+                        <span class="num" style="font-weight:700;color:var(--lv-accent);font-size:13px">#{qi + 1}</span>
+                        <select class="lv-select sm" bind:value={q.type} style="max-width:110px;font-size:12px;padding:2px 8px;height:28px" aria-label="题型选择">
+                          <option value="single">单选题</option>
+                          <option value="multiple">多选题</option>
+                          <option value="judge">判断题</option>
+                          <option value="fill">填空题</option>
+                          <option value="short">简答题</option>
+                        </select>
+                        {#if q.kp}
+                          <span class="lv-chip num sm" style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={q.kp}>{q.kp}</span>
+                        {/if}
+                      </div>
+                      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => removeImportQuestion(qi)} title="不导入此题" aria-label="删除此题" style="color:var(--lv-red);padding:2px 6px">
+                        <Icon name="close" size={12} /> 不导入
+                      </button>
+                    </div>
+
+                    <div style="margin:4px 0 8px">
+                      <textarea class="lv-input lv-textarea sm" bind:value={q.stem} style="width:100%;min-height:48px;font-size:13px;line-height:1.5;resize:vertical!important" placeholder="题干内容…" aria-label="题干修改"></textarea>
+                    </div>
+
+                    {#if q.type === "single" || q.type === "multiple"}
+                      <div style="display:grid;gap:6px;margin:6px 0 8px">
+                        {#each q.options as _opt, oi (oi)}
+                          {@const letter = String.fromCharCode(65 + oi)}
+                          {@const isAns = q.answer && q.answer.includes(letter)}
+                          <div class="lv-row" style="margin:0;gap:8px;align-items:center">
+                            <button type="button" class="lv-chip" class:acc={isAns}
+                              style="{isAns ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}cursor:pointer;padding:2px 8px;font-size:11px"
+                              title="点击将该选项设为正确答案"
+                              onclick={() => {
+                                if (q.type === "single") q.answer = letter;
+                                else {
+                                  if (q.answer.includes(letter)) q.answer = q.answer.replace(letter, "");
+                                  else q.answer = (q.answer + letter).split("").sort().join("");
+                                }
+                              }}>
+                              {letter}
+                            </button>
+                            <input class="lv-input sm" style="flex:1;font-size:12.5px" bind:value={q.options[oi]} placeholder={`选项 ${letter} 内容`} aria-label={`选项 ${letter}`} />
+                            {#if isAns}
+                              <span class="lv-chip lv-chip--grn num sm" style="font-size:10px;padding:1px 5px">正确项</span>
+                            {/if}
+                            {#if q.options.length > 2}
+                              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { q.options.splice(oi, 1); q.options = [...q.options]; }} title="删除该选项" style="padding:2px 4px"><Icon name="close" size={11} /></button>
+                            {/if}
+                          </div>
+                        {/each}
+                        {#if q.options.length < 6}
+                          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { q.options = [...q.options, ""]; }} style="justify-content:flex-start;font-size:11px;color:var(--lv-brand)">
+                            <Icon name="plus" size={11} /> 增加选项
+                          </button>
+                        {/if}
+                      </div>
+                    {:else if q.type === "judge"}
+                      <div class="lv-row" style="margin:6px 0 8px;gap:8px;align-items:center">
+                        <span class="lv-muted" style="font-size:12px">设定标准答案：</span>
+                        <button type="button" class="lv-chip" class:acc={q.answer === "对" || q.answer === "正确"} onclick={() => q.answer = "对"}>✓ 对（正确）</button>
+                        <button type="button" class="lv-chip" class:acc={q.answer === "错" || q.answer === "错误"} onclick={() => q.answer = "错"}>✗ 错（错误）</button>
+                      </div>
+                    {:else}
+                      <div class="lv-row" style="margin:6px 0 8px;gap:8px;align-items:center">
+                        <span class="lv-muted" style="font-size:12px;min-width:60px">参考答案：</span>
+                        <input class="lv-input sm" style="flex:1" bind:value={q.answer} placeholder="输入标准答案…" aria-label="标准答案" />
+                      </div>
+                    {/if}
+
+                    <div class="lv-row" style="margin:4px 0 0;gap:8px;align-items:center">
+                      <span class="lv-muted" style="font-size:11px;min-width:60px">💡 试题解析：</span>
+                      <input class="lv-input sm" style="flex:1;font-size:12px" bind:value={q.analysis} placeholder="试题解析与破题思路（可选）…" aria-label="试题解析" />
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          {#if spotIds.length}
+            <div class="lv-detail" style="margin:8px 0;padding:10px 14px;background:var(--lv-surface);border:1px solid var(--lv-border);border-radius:var(--lv-r-2)">
+              <b>抽查题面富文本渲染：</b>
+              {#each spotIds as sid, _si (_si)}
+                {@const sq = importReport.ok.find((q) => q.id === sid)}
+                {#if sq}
+                  <div style="margin:6px 0;padding-bottom:6px;border-bottom:1px solid var(--lv-border-subtle)">
+                    <span class="lv-chip lv-chip--acc">{t("qtype." + sq.type)}</span>
+                    <div class="lv-rich b3-typography" style="font-size:var(--lv-font-size-body-compact)">{@html spotHtml[sid] || escapeHtml(sq.stem)}</div>
+                  </div>
+                {/if}
+              {/each}
+            </div>
           {/if}
           {#each importReport.dupeSamples ?? [] as d, _i (_i)}
             <div class="lv-error-row num" title={t("import.dupeHint")} style="display:flex;align-items:center;gap:4px">
@@ -642,7 +814,12 @@
             </div>
           {/if}
           <div class="lv-row">
-            <button class="lv-btn lv-btn--primary" onclick={onCommitImport} disabled={importBusy || (!remainingImportQuestions.length && !importReport.updates?.length && !trialConfirmed.length)} aria-busy={committing}>
+            <button class="lv-btn lv-btn--primary" onclick={() => {
+              if (importReport) {
+                importReport.ok = importReport.ok.filter((q, qi) => selectedImportQids[q.id || String(qi)] !== false);
+              }
+              onCommitImport();
+            }} disabled={importBusy || (!remainingImportQuestions.length && !importReport.updates?.length && !trialConfirmed.length)} aria-busy={committing}>
               {committing ? t("import.committing") : importReport.updates?.length ? t("import.commitSummary").replace("{new}", String(remainingImportQuestions.length)).replace("{update}", String(importReport.updates.length)) : remainingImportQuestions.length ? t("import.commit") + " (" + remainingImportQuestions.length + ")" : t("import.finishTrial")}
             </button>
             <button class="lv-btn sm" onclick={onTrialImport5} disabled={importBusy || !remainingImportQuestions.length} aria-busy={trialBusy}>
