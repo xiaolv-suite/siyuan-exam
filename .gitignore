@@ -11,6 +11,8 @@ dev
 dist
 build
 tmp
+.tmp
+.tmp/
 
 # e2e 产物（playwright 痕迹/截图）
 output/

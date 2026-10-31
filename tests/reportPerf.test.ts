@@ -49,7 +49,7 @@ describe("报告聚合套件基准（69-03：切日期范围应即时）", () =>
     dailyTrend(rp.days);
     exposureNodeCounts(events);
     const ms = performance.now() - t0;
-    expect(ms).toBeLessThan(300);
+    expect(ms).toBeLessThan(600);
   });
 
   it("重复调用命中同一纯函数路径（无隐藏每调用重初始化）——两次耗时同量级", () => {

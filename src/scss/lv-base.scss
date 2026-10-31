@@ -525,7 +525,7 @@ details summary {
   font-size: var(--lv-font-size-stat);
 }
 
-/* —— 线性图标（V03：与文字基线对齐，currentColor 取色） —— */
+/* —— 线性图标（V03：与文字基线对齐，currentColor 取色，强行免疫思源实心污染） —— */
 .lv-icon {
   display: inline-flex;
   align-items: center;
@@ -536,6 +536,24 @@ details summary {
 
   svg {
     display: block;
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 1.7 !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
+  }
+
+  svg path,
+  svg rect,
+  svg circle,
+  svg line,
+  svg polyline,
+  svg polygon {
+    fill: none !important;
+    stroke: currentColor !important;
+    stroke-width: 1.7 !important;
+    stroke-linecap: round !important;
+    stroke-linejoin: round !important;
   }
 }
 
@@ -995,30 +1013,30 @@ input[type="range"] {
   }
 }
 
-/* —— Tab shell（原型 .shell：三段式极窄导航 + 浮层外壳 + 可折叠上下文面板） —— */
+/* —— Tab shell（响应式侧栏：宽屏 200px 完整导航 / 中屏分屏 72px 图标模式 / 窄屏抽屉） —— */
 .lv-shell {
   position: relative;
   flex: 1;
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   min-height: 0;
   background: var(--lv-canvas);
 }
 
 .lv-shell > .lv-rail {
-  width: 72px;
-  min-width: 72px;
+  width: 200px;
+  min-width: 200px;
   flex-shrink: 0;
 }
 
-/* 宽屏三段式自适应：当开启上下文面板时，形成 72px 极窄导航 + 主内容 + 300px 上下文面板 */
+/* 宽屏三段式自适应：当开启上下文面板时，形成 200px 完整导航 + 主内容 + 300px 上下文面板 */
 @container lv-exam (min-width: 1200px) {
   .lv-shell.has-context-pane {
-    grid-template-columns: 72px minmax(0, 1fr) 300px;
+    grid-template-columns: 200px minmax(0, 1fr) 300px;
   }
 }
 
-/* 窄桌面/平板分屏（760px - 1119px）：保持极窄 72px 图标模式，主内容区防挤压 */
+/* 窄桌面/平板分屏（760px - 1119px）：自适应切换为 72px 极窄图标模式，文字隐藏防挤压错位 */
 @container lv-exam (min-width: 760px) and (max-width: 1119px) {
   .lv-shell {
     grid-template-columns: 72px minmax(0, 1fr);

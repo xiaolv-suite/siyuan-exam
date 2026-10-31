@@ -316,15 +316,15 @@
 {#if drawerOpen}
   <button class="lv-nav-backdrop" aria-label={t("menu.closeNav", "关闭导航")} onclick={() => onclose?.()}></button>
 {/if}
-<aside class="lv-rail" class:open={drawerOpen} bind:this={asideEl} role={drawerOpen ? "dialog" : undefined} aria-modal={drawerOpen ? "true" : undefined} aria-label="小驴学习（内测版）">
+<aside class="lv-rail" class:open={drawerOpen} bind:this={asideEl} role={drawerOpen ? "dialog" : undefined} aria-modal={drawerOpen ? "true" : undefined} aria-label="小驴考试">
   <div class="lv-rail-scroll">
   <div class="lv-brand">
     <div class="lv-brand-logo-wrap" aria-hidden="true">
-      <svg class="lv-brand-logo-svg" viewBox="0 0 32 32" width="22" height="22">
+      <svg class="lv-brand-logo-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="fill:none!important;stroke:currentColor!important">
         <use href="#iconExam"></use>
       </svg>
     </div>
-    <span class="lv-brand-name">小驴学习（内测版）<span class="lv-brand-sub">LV STUDY</span></span>
+    <span class="lv-brand-name">小驴考试<span class="lv-brand-sub">LV EXAM</span></span>
     <button class="lv-drawer-close" bind:this={closeBtn} aria-label={t("menu.close", "关闭")} onclick={() => onclose?.()}>
       <Icon name="close" size={15} />
     </button>
@@ -466,14 +466,14 @@
   }
   .lv-brand {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 0;
+    gap: 10px;
+    padding: 0 4px;
+    position: relative;
   }
   .lv-brand-logo-wrap {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     border-radius: var(--lv-r-2, 10px);
     display: grid;
     place-items: center;
@@ -484,11 +484,18 @@
   }
   .lv-brand-logo-svg {
     display: block;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
   }
   .lv-brand-name {
-    display: none;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--lv-text);
+    line-height: 1.2;
+    flex: 1;
+    min-width: 0;
   }
   .lv-brand-sub {
     font-size: 9px;
@@ -805,19 +812,18 @@
   .lv-rail-btn {
     position: relative;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
+    justify-content: flex-start;
+    gap: 10px;
     width: 100%;
-    text-align: center;
-    padding: 8px 4px;
+    text-align: left;
+    padding: 8px 12px;
     border: 1px solid transparent;
-    border-radius: var(--lv-r-2, 10px);
+    border-radius: var(--lv-r-2, 8px);
     background: transparent;
     color: var(--lv-text-2);
-    font-size: 11px;
-    min-height: 52px;
+    font-size: 13px;
+    min-height: 40px;
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
@@ -827,8 +833,8 @@
       transform var(--lv-dur-micro) ease;
   }
   .lv-rail-btn-text {
-    font-size: 11px;
-    line-height: 1.1;
+    font-size: 13px;
+    line-height: 1.2;
     font-weight: 500;
     white-space: nowrap;
   }

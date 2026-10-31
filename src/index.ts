@@ -75,21 +75,22 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
 
     this.addIcons(`
-<symbol id="iconExam" viewBox="0 0 32 32">
-  <path d="M11 5h9c1.7 0 3 1.3 3 3v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.4"/>
-  <rect x="6" y="8" width="16" height="19" rx="3.5" fill="none" stroke="currentColor" stroke-width="2"/>
-  <path d="M10 13h5M10 16h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-opacity="0.5"/>
-  <path d="m9.5 21 2.5 2.5 5.5-5.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="22.5" cy="24" r="3" fill="currentColor"/>
+<symbol id="iconExam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+  <path d="m9 12 2 2 4-4"/>
 </symbol>
-<symbol id="iconMock" viewBox="0 0 32 32">
-<path d="M16 3a13 13 0 1 0 13 13 13 13 0 0 0-13-13zM16 26a10 10 0 1 1 10-10 10 10 0 0 1-10 10zM17 9h-2v8l6 3.6 1-1.6-5-3z"></path>
+<symbol id="iconMock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="9"/>
+  <polyline points="12 7 12 12 15 15"/>
 </symbol>
-<symbol id="iconReport" viewBox="0 0 32 32">
-<path d="M5 27h22v2h-24v-26h2v24zM11 21h3v-8h-3v8zM17 21h3v-14h-3v14zM23 21h3v-5h-3v5z"></path>
+<symbol id="iconReport" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3 3v18h18"/>
+  <path d="m19 8-6 6-4-4-5 5"/>
 </symbol>
-<symbol id="iconWrongbook" viewBox="0 0 32 32">
-<path d="M16 3a13 13 0 1 0 13 13 13 13 0 0 0-13-13zM16 26a10 10 0 1 1 10-10 10 10 0 0 1-10 10zM21 12.4l-1.4-1.4-3.6 3.6-3.6-3.6-1.4 1.4 3.6 3.6-3.6 3.6 1.4 1.4 3.6-3.6 3.6 3.6 1.4-1.4-3.6-3.6z"></path>
+<symbol id="iconWrongbook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="9"/>
+  <line x1="15" y1="9" x2="9" y2="15"/>
+  <line x1="9" y1="9" x2="15" y2="15"/>
 </symbol>`);
 
     this.settingUtils = new SettingUtils({

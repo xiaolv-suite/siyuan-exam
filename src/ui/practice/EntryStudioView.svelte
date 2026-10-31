@@ -448,114 +448,133 @@
         </button>
       </div>
 
-      <div class="lv-section-title">
-        <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="zap" size={14} /> 阶段一：日常自测与靶向精练</span>
-        <span class="lv-muted" style="font-size:12px;font-weight:400">边学边练 · 查漏补缺 · 即时反馈</span>
-      </div>
-      <div class="lv-modes">
-        <button class="lv-mode" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => onstartDrill("quick")}>
-          <span class="lv-mode-icon lv-mode-icon--quick"><Icon name="zap" /></span><span class="lv-mode-body"><b>{t("mode.quick")}</b><span class="lv-muted">{t("mode.quick.desc")}</span></span>
-        </button>
-        <button class="lv-mode" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={() => onstartDrill("daily")}>
-          <span class="lv-mode-icon lv-mode-icon--daily"><Icon name="calendar" /></span><span class="lv-mode-body"><b>{t("mode.daily")}</b><span class="lv-muted">{t("mode.daily.desc")}</span></span>
-        </button>
-        <button class="lv-mode" disabled={!wrongList.length} title={!wrongList.length ? t("state.noWrong") : ""} onclick={() => onstartDrill("wrong")}>
-          <span class="lv-mode-icon lv-mode-icon--wrong"><Icon name="xcircle" /></span><span class="lv-mode-body"><b>{t("mode.wrong")}</b><span class="lv-muted num">{wrongList.length} {t("mode.wrong.unit")}</span></span>
-        </button>
-      </div>
-
-      <div class="lv-section-title" style="margin-top:20px">
-        <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="rotate" size={14} /> 阶段二：概念内化与纸面背诵</span>
-        <span class="lv-muted" style="font-size:12px;font-weight:400">主动回忆 · 遮盖自评 · 听音伴读</span>
-      </div>
-      <div class="lv-modes">
-        <button class="lv-mode lv-mode--minor" disabled={!practiceQuestions.length} title={!practiceQuestions.length ? t("state.emptyBank") : ""} onclick={onstartRecite}>
-          <span class="lv-mode-icon lv-mode-icon--recite"><Icon name="rotate" /></span><span class="lv-mode-body"><b>{t("mode.recite")}</b><span class="lv-muted">{t("mode.recite.desc")}</span></span>
-        </button>
-        <button class="lv-mode lv-mode--minor" disabled={!cramCount} title={!cramCount ? t("state.noCram") : ""} onclick={() => onstartDrill("cram")}>
-          <span class="lv-mode-icon lv-mode-icon--cram"><Icon name="flame" /></span><span class="lv-mode-body"><b>{t("mode.cram")}</b><span class="lv-muted">{t("mode.cram.desc")}</span></span>
-        </button>
-        <button class="lv-mode lv-mode--minor" disabled={!favoriteCount} title={!favoriteCount ? t("state.noFav") : ""} onclick={() => onstartDrill("fav")}>
-          <span class="lv-mode-icon lv-mode-icon--fav"><Icon name="star" /></span><span class="lv-mode-body"><b>{t("mode.fav")}</b><span class="lv-muted">{t("mode.fav.desc")}（<span class="num">{favoriteCount}</span> {t("mode.wrong.unit")}）</span></span>
-        </button>
-        {#if practiceQuestions.filter((q) => (q.userTags || []).includes("star")).length > 0}
-          {@const count = practiceQuestions.filter((q) => (q.userTags || []).includes("star")).length}
-          <button class="lv-mode lv-mode--minor" onclick={() => onstartDrill("tag:star")}>
-            <span class="lv-mode-icon lv-mode-icon--fav"><Icon name="star" size={16} /></span><span class="lv-mode-body"><b>好题特训</b><span class="lv-muted">必背好题专项（<span class="num">{count}</span> {t("mode.wrong.unit")}）</span></span>
-          </button>
-        {/if}
-        {#if practiceQuestions.filter((q) => (q.userTags || []).includes("trap")).length > 0}
-          {@const count = practiceQuestions.filter((q) => (q.userTags || []).includes("trap")).length}
-          <button class="lv-mode lv-mode--minor" onclick={() => onstartDrill("tag:trap")}>
-            <span class="lv-mode-icon lv-mode-icon--wrong"><Icon name="alert-triangle" size={16} /></span><span class="lv-mode-body"><b>陷阱排雷</b><span class="lv-muted">易混陷阱攻坚（<span class="num">{count}</span> {t("mode.wrong.unit")}）</span></span>
-          </button>
-        {/if}
-      </div>
-
-      <!-- 阶段三：全真模考与实战检验 -->
-      <div class="lv-card" style="margin-top:22px;padding:18px 22px;border-radius:var(--lv-r-card, 20px);background:var(--lv-surface);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-card)">
-        <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-          <div>
-            <span class="lv-eyebrow" style="color:var(--lv-brand);font-weight:600">阶段三：全真模考与实战检验</span>
-            <h3 style="margin:4px 0 2px;font-size:16px;color:var(--lv-text)">标准化机考沙盘 · 出版级试卷印刷</h3>
-            <p class="lv-muted" style="margin:0;font-size:12px">考试是检验能力的试金石。支持标准限时模考、CBT 答题卡、防漏答强校验与双栏纸笔试卷。</p>
+      <!-- ===== 备战功能中心：三大规整卡片网格 ===== -->
+      <div class="lv-home-grids" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;margin-top:20px">
+        <!-- 卡片 1：专项自测与错题靶向 -->
+        <section class="lv-card lv-home-panel" aria-label="专项自测与错题靶向">
+          <div class="lv-home-panel-head">
+            <b style="display:inline-flex;align-items:center;gap:6px">
+              <Icon name="zap" size={15} /> 专项自测与错题消灭
+            </b>
+            <span class="lv-muted" style="font-size:12px">即时反馈 · 靶向击破</span>
           </div>
-          <div class="lv-row" style="margin:0;gap:8px">
-            <button class="lv-btn lv-btn--primary" onclick={onopenMock} title="进入全真模拟考场">
-              <Icon name="clock" size={15} /> 进入全真模考场
+          <div class="lv-home-btn-group">
+            <button class="lv-btn sm" disabled={!practiceQuestions.length} onclick={() => onstartDrill("quick")}>
+              <Icon name="play" size={13} /> {t("mode.quick", "快速刷题 (10题)")}
             </button>
-            <button class="lv-btn" onclick={onopenReport} title="查看学情诊断报告">
-              <Icon name="chart" size={15} /> 查看学情报告
+            <button class="lv-btn sm" disabled={!wrongList.length} onclick={() => onstartDrill("wrong")}>
+              <Icon name="xcircle" size={13} /> {t("mode.wrong", "消灭在册错题")}
+              {#if wrongList.length}<span class="lv-chip num sm" style="color:var(--lv-accent-seal)">{wrongList.length}</span>{/if}
+            </button>
+            <button class="lv-btn sm lv-btn--ghost" disabled={!cramCount} onclick={() => onstartDrill("cram")}>
+              <Icon name="flame" size={13} /> {t("mode.cram", "考前极速冲刺")}
+            </button>
+            <button class="lv-btn sm lv-btn--ghost" disabled={!favoriteCount} onclick={() => onstartDrill("fav")}>
+              <Icon name="star" size={13} /> {t("mode.fav", "重点题目收藏")}
+              {#if favoriteCount}<span class="lv-chip num sm">{favoriteCount}</span>{/if}
             </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="lv-section-title" style="margin-top:22px">
-        <span style="display:inline-flex;align-items:center;gap:6px"><Icon name="compass" size={14} /> {t("entry.tools")}</span>
-        <span class="lv-muted" style="font-size:12px;font-weight:400">题库导入、AI出题与资料整理</span>
-      </div>
-      <div class="lv-row" style="margin-top:0">
-        <button class="lv-btn lv-btn--ghost" onclick={() => oncreateSampleBank()} disabled={creating || offline} title={offline ? t("state.offlineHint") : t("guard.demoDesc")}><Icon name="book" size={16} /> {creatingSample ? t("guard.sampleCreating") : t("guard.sampleOpen")}</button>
-        <button class="lv-btn lv-btn--ghost" onclick={() => onnavView("import")}><Icon name="import" size={16} /> {t("import.title")}</button>
-        <button class="lv-btn lv-btn--ghost" onclick={() => onnavView("ai")}><Icon name="sparkles" size={16} /> {t("ai.title")}</button>
-        <button class="lv-btn lv-btn--ghost" onclick={() => onnavView("manual")}><Icon name="pencil" size={16} /> {t("entry.manual")}</button>
-        <button class="lv-btn lv-btn--ghost" onclick={() => { onnavView("materials"); onloadMaterials(); }}><Icon name="book" size={16} /> {t("materials.title")}</button>
-        <button class="lv-btn" onclick={oncopyChallengeCode}><Icon name="target" size={16} /> {t("challenge.copy")}</button>
-        <button class="lv-btn" onclick={onimportChallengeCode}><Icon name="import" size={16} /> {t("challenge.import")}</button>
-        <button class="lv-btn" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}><Icon name="save" size={16} /> {syncDocsBusy ? "…" : t("sync.docsBtn")}</button>
-        <details class="lv-export-fold">
-          <summary class="lv-btn"><Icon name="export" size={16} /> {t("export.wrongbook")}</summary>
-          <div class="lv-card" style="padding:var(--lv-space-relaxed) var(--lv-space-3);margin-top:6px;border-radius:var(--lv-r-3, 14px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
-            <div class="lv-row" style="margin:4px 0">
-              <span class="lv-chip">{t("manual.kp")}</span>
-              <select class="lv-select" bind:value={expKp} aria-label={t("manual.kp")}>
-                <option value="">{t("filter.all")}</option>
-                {#each expKpRoots as k, _i (_i)}<option value={k}>{k}</option>{/each}
-              </select>
-              <span class="lv-chip">{t("session.reason")}</span>
-              <select class="lv-select" bind:value={expReason} aria-label={t("session.reason")}>
-                <option value="">{t("filter.all")}</option>
-                <option value="careless">{t("reason.careless")}</option>
-                <option value="unknown">{t("reason.unknown")}</option>
-                <option value="trap">{t("reason.trap")}</option>
-              </select>
-              <span class="lv-chip">{t("export.range")}</span>
-              <select class="lv-select" bind:value={expDays} aria-label={t("export.range")}>
-                <option value={0}>{t("export.allTime")}</option>
-                <option value={7}>7{t("entry.days")}</option>
-                <option value={30}>30{t("entry.days")}</option>
-              </select>
-            </div>
-            <button class="lv-btn sm lv-btn--primary" onclick={onexportWrong}><Icon name="export" size={14} /> {t("export.run")}</button>
-            <div class="lv-row" style="margin:6px 0 0">
-              <button class="lv-btn sm" disabled={offline} onclick={onexportBank}><Icon name="export" size={14} /> {t("share.export")}</button>
-              <button type="button" class="lv-btn sm" disabled={offline} onclick={() => bankFileInput?.click()}><Icon name="import" size={14} /> {t("share.import")}</button>
-              <input bind:this={bankFileInput} type="file" accept=".sy.zip,.zip" hidden onchange={onimportBank} disabled={offline} />
-              <span class="lv-muted">{t("share.desktopOnly")}</span>
-            </div>
+        <!-- 卡片 2：主动背诵与实战模考 -->
+        <section class="lv-card lv-home-panel" aria-label="概念背诵与全真模考">
+          <div class="lv-home-panel-head">
+            <b style="display:inline-flex;align-items:center;gap:6px">
+              <Icon name="clock" size={15} /> 概念背诵与全真模考
+            </b>
+            <span class="lv-muted" style="font-size:12px">主动回忆 · 实战验真</span>
           </div>
-        </details>
+          <div class="lv-home-btn-group">
+            <button class="lv-btn sm lv-btn--primary" onclick={onopenMock} title="进入全真模拟考场">
+              <Icon name="clock" size={13} /> 进入全真模考场
+            </button>
+            <button class="lv-btn sm lv-mode" disabled={!practiceQuestions.length} onclick={onstartRecite} title="不看答案先回忆，以纸面背题模式进行记忆巩固">
+              <Icon name="rotate" size={13} /> {t("mode.recite", "纸面背诵模式")}
+            </button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={onopenReport} title="查看学情诊断报告">
+              <Icon name="chart" size={13} /> 查看学情诊断报告
+            </button>
+            {#if criticalForgettingKps.length > 0}
+              <button class="lv-btn sm lv-btn--ghost" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title="临界记忆抢救">
+                <Icon name="flame" size={13} /> 临界记忆抢救 (5题)
+              </button>
+            {/if}
+          </div>
+        </section>
+
+        <!-- 卡片 3：试题录入与题库维护 -->
+        <section class="lv-card lv-home-panel" aria-label="试题录入与题库维护">
+          <div class="lv-home-panel-head">
+            <b style="display:inline-flex;align-items:center;gap:6px">
+              <Icon name="folder" size={15} /> 试题录入与题库维护
+            </b>
+            <span class="lv-muted" style="font-size:12px">思源沉淀 · 格式导入</span>
+          </div>
+          <div class="lv-home-btn-group">
+            <button class="lv-btn sm" onclick={() => onnavView("import", "siyuan")}>
+              <Icon name="file" size={13} /> 从思源笔记智能提取
+            </button>
+            <button class="lv-btn sm" onclick={() => onnavView("import", "standard")}>
+              <Icon name="import" size={13} /> 批量导入 (Excel/CSV/Aiken)
+            </button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => onnavView("manual")}>
+              <Icon name="pencil" size={13} /> 手工录题 (带原文溯源)
+            </button>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => { onnavView("materials"); onloadMaterials(); }}>
+              <Icon name="book" size={13} /> 研学大纲与资料库
+            </button>
+            <div class="lv-row" style="margin:4px 0 0;gap:6px;width:100%">
+              <button class="lv-btn sm lv-btn--ghost" style="flex:1" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}>
+                <Icon name="save" size={13} /> {syncDocsBusy ? "…" : t("sync.docsBtn")}
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" style="flex:1" onclick={onopenBankHub}>
+                <Icon name="grid" size={13} /> 切换与管理题库
+              </button>
+            </div>
+            <!-- 高级分享与归档折叠 -->
+            <details class="lv-home-tools-details" style="margin-top:4px">
+              <summary class="lv-btn sm lv-btn--ghost" style="font-size:11px;color:var(--lv-text-3);width:100%">
+                <Icon name="export" size={12} /> 更多数据与分享工具…
+              </summary>
+              <div class="lv-home-tools-pop" style="display:flex;flex-direction:column;gap:6px;padding:8px;margin-top:4px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border-subtle)">
+                <div class="lv-row" style="gap:6px;margin:0">
+                  <button class="lv-btn sm" style="flex:1" onclick={onexportWrong}><Icon name="export" size={12} /> 导出错题册</button>
+                  <button class="lv-btn sm" style="flex:1" disabled={offline} onclick={onexportBank}><Icon name="export" size={12} /> 导出题库</button>
+                  <button class="lv-btn sm" style="flex:1" disabled={offline} onclick={() => bankFileInput?.click()}><Icon name="import" size={12} /> 导入题库</button>
+                  <input bind:this={bankFileInput} type="file" accept=".sy.zip,.zip" hidden onchange={onimportBank} disabled={offline} />
+                </div>
+                <div class="lv-row" style="gap:6px;margin:0">
+                  <button class="lv-btn sm lv-btn--ghost" style="flex:1" onclick={oncopyChallengeCode}><Icon name="target" size={12} /> 复制挑战码</button>
+                  <button class="lv-btn sm lv-btn--ghost" style="flex:1" onclick={onimportChallengeCode}><Icon name="import" size={12} /> 导入挑战码</button>
+                </div>
+                {#if expKpRoots.length > 0}
+                  <div class="lv-row" style="gap:4px;font-size:11px;margin:0">
+                    <span class="lv-muted">考点:</span>
+                    <select class="lv-select sm" bind:value={expKp} style="flex:1;font-size:11px">
+                      <option value="">全部考点</option>
+                      {#each expKpRoots as k, _i (_i)}<option value={k}>{k}</option>{/each}
+                    </select>
+                  </div>
+                {/if}
+                <div class="lv-row" style="gap:4px;font-size:11px;margin:0">
+                  <span class="lv-muted">错因:</span>
+                  <select class="lv-select sm" bind:value={expReason} style="flex:1;font-size:11px">
+                    <option value="">全部</option>
+                    <option value="careless">粗心</option>
+                    <option value="unknown">盲区</option>
+                    <option value="trap">陷阱</option>
+                  </select>
+                  <span class="lv-muted">范围:</span>
+                  <select class="lv-select sm" bind:value={expDays} style="flex:1;font-size:11px">
+                    <option value={0}>全部</option>
+                    <option value={7}>近7天</option>
+                    <option value={30}>近30天</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
       </div>
       {#if lastSyncedDocs && onopenInSiYuan && (lastSyncedDocs.overviewDocId || lastSyncedDocs.bankDocId || lastSyncedDocs.wrongbookDocId || lastSyncedDocs.actionJournalDocId)}
         <div class="lv-row" style="margin:8px 0 0;padding:8px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);gap:8px;align-items:center;flex-wrap:wrap" role="status">
@@ -589,6 +608,40 @@
 {/if}
 
 <style>
+  .lv-home-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 18px 20px;
+    background: var(--lv-surface);
+    border: 1px solid var(--lv-border-subtle);
+    border-radius: var(--lv-r-card, 16px);
+    box-shadow: var(--lv-sh-card);
+    transition: box-shadow var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease;
+  }
+  .lv-home-panel:hover {
+    border-color: var(--lv-border);
+    box-shadow: var(--lv-sh-pop);
+  }
+  .lv-home-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--lv-border-subtle);
+  }
+  .lv-home-btn-group {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    flex: 1;
+  }
+  .lv-home-btn-group .lv-btn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 8px 12px;
+    height: 38px;
+  }
   .lv-sample-welcome-banner {
     display: flex;
     justify-content: space-between;
@@ -667,24 +720,4 @@
   .lv-onboard-step b { display: block; font-size: var(--lv-font-size-body); margin: 8px 0 0; }
   .lv-onboard-step-desc { margin-top: 5px; font-size: var(--lv-font-size-caption); line-height: 1.5; }
   @container lv-exam (max-width: 760px) { .lv-guard-steps { grid-template-columns: minmax(0, 1fr); } }
-  .lv-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--lv-space-loose); }
-  .lv-mode { color: var(--lv-text); font: inherit; padding: 18px 20px; border-radius: var(--lv-r-3); text-align: left; background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); cursor: pointer; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-highlight, inset 0 1px 0 transparent); transition: background-color var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out); display: flex; align-items: flex-start; gap: var(--lv-space-3); }
-  .lv-mode:hover:not(:disabled) { box-shadow: 0 6px 20px color-mix(in srgb, var(--lv-accent) 16%, transparent); border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface)); transform: translateY(-2px); }
-  .lv-mode:active:not(:disabled) { transform: translateY(-0.5px) scale(0.985); }
-  .lv-mode .lv-mode-icon { color: var(--lv-accent); display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--lv-r-2); background: var(--lv-accent-soft); flex-shrink: 0; font-size: var(--lv-font-size-stat); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 18%, transparent); transition: transform var(--lv-dur-micro) var(--lv-ease-out), background-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-mode-icon--quick { background: var(--lv-amber-soft) !important; color: var(--lv-amber) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-amber) 22%, transparent) !important; }
-  .lv-mode-icon--daily { background: var(--lv-accent-soft) !important; color: var(--lv-accent) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 22%, transparent) !important; }
-  .lv-mode-icon--wrong { background: var(--lv-red-soft) !important; color: var(--lv-red) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-red) 22%, transparent) !important; }
-  .lv-mode-icon--recite { background: color-mix(in srgb, var(--lv-accent) 15%, transparent) !important; color: var(--lv-accent) !important; box-shadow: var(--lv-sh-1) !important; }
-  .lv-mode-icon--cram { background: color-mix(in srgb, var(--lv-amber) 24%, var(--lv-red-soft)) !important; color: var(--lv-red) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-red) 16%, transparent) !important; }
-  .lv-mode-icon--fav { background: color-mix(in srgb, var(--lv-amber) 20%, transparent) !important; color: var(--lv-amber) !important; box-shadow: var(--lv-sh-1) !important; }
-  .lv-mode:hover:not(:disabled) .lv-mode-icon { transform: scale(1.06); background: color-mix(in srgb, var(--lv-accent) 16%, var(--lv-surface)); }
-  .lv-mode .lv-mode-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .lv-mode b { font-size: var(--lv-font-size-md); font-weight: var(--lv-font-weight-semibold); letter-spacing: -0.01em; }
-  .lv-mode:disabled { opacity: .62; cursor: not-allowed; }
-  .lv-mode--minor .lv-mode-icon { background: var(--lv-surface-2); color: var(--lv-text-2); box-shadow: var(--lv-sh-1); }
-  .lv-mode--minor:hover:not(:disabled) .lv-mode-icon { background: color-mix(in srgb, var(--lv-text) 8%, var(--lv-surface-2)); }
-  .lv-mode--minor b { font-size: var(--lv-font-size-body-compact); font-weight: 600; }
-  @container lv-exam (max-width: 960px) { .lv-modes { grid-template-columns: repeat(2, 1fr); } }
-  @container lv-exam (max-width: 480px) { .lv-modes { grid-template-columns: 1fr; } }
 </style>

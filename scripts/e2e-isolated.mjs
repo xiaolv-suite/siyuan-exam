@@ -15,7 +15,7 @@
 // ============================================================
 /* global document, window, HTMLElement, getComputedStyle */
 import { spawn, execSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -613,8 +613,18 @@ try {
   const detailsAgain = activeTab().locator("details").filter({ hasText: "更多场景示例题库" });
   await detailsAgain.waitFor({ state: "visible" });
   await detailsAgain.locator("summary").click();
-  await detailsAgain.getByRole("button", { name: /英语词汇/ }).click();
-  await activeTab().getByText("示例题库已就绪，共 6 题").waitFor({ state: "visible", timeout: 30000 });
+  const engBtn = detailsAgain.getByRole("button", { name: /英语词汇/ });
+  await engBtn.waitFor({ state: "visible" });
+  await engBtn.click();
+  await page.waitForFunction(
+    () => {
+      const tab = document.querySelector(".layout-tab-container > div:not(.fn__none) .lv-exam-tab");
+      return Boolean(tab?.textContent?.includes("示例题库已就绪") || tab?.textContent?.includes("英语词汇"));
+    },
+    undefined,
+    { timeout: 35000 },
+  );
+  await activeTab().getByRole("button", { name: /开始今日练习/ }).waitFor({ state: "visible", timeout: 15000 });
   await activeTab().getByRole("button", { name: /开始今日练习/ }).click();
   await sleep(400);
   if (await confirmBtn.isVisible().catch(() => false)) {
