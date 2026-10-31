@@ -70,8 +70,8 @@ async function findAvailablePort(preferredPort = 43921) {
   if (envPort && (await isPortAvailable(envPort))) return envPort;
   if (await isPortAvailable(preferredPort)) return preferredPort;
   for (let p = preferredPort + 1; p <= preferredPort + 50; p++) {
-    // 避开 43919(小驴管家), 43920(小驴常用), 6806(思源主实例), 6807(闪卡/测试)
-    if ([43919, 43920, 6806, 6807].includes(p)) continue;
+    // 避开 43919(小驴管家), 43920(小驴常用), 43921(小驴考试常驻), 43922(常驻重定向兼容), 6806(思源主实例), 6807(闪卡/测试)
+    if ([43919, 43920, 43921, 43922, 6806, 6807].includes(p)) continue;
     if (await isPortAvailable(p)) return p;
   }
   return getFreePort();
