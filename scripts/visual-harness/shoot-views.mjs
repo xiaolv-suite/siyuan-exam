@@ -58,7 +58,7 @@ await shot("ai", [{ click: btn("AI 出题") }]);
 await shot("materials", [{ click: btn("学习资料") }]);
 await shot("recite", [{ click: "#app .lv-mode:has-text('背诵')" }]);
 await shot("session-feedback", [
-  { click: btn("开始（零决策）"), wait: 900 },
+  { click: "#app button.lv-btn--primary", wait: 900 },
   { click: "#app button.lv-opt" },
   // Production copy is "确认作答 (Enter)"; keep the selector semantic so
   // this capture does not silently stop before the feedback state.

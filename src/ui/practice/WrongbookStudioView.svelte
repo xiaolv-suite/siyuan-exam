@@ -61,6 +61,7 @@
     onmasterAllWrong: () => void;
     onbrowseWrongFilter: () => void;
     onchangeWbSortMode: (val: string) => void;
+    onstartCbmDrill?: (kind: "highrisk" | "fragile") => void;
   }
 
   let {
@@ -118,10 +119,18 @@
     onmasterAllWrong,
     onbrowseWrongFilter,
     onchangeWbSortMode,
+    onstartCbmDrill,
   }: Props = $props();
 
   const qOf = (qid: string) => questionMap.get(qid);
   const totalWrongs = $derived(Math.max(1, wrongList.length));
+  const hasAnyWrongbookItems = $derived(
+    wrongList.length > 0 ||
+    archivedWrongList.length > 0 ||
+    eliminatedWrongList.length > 0 ||
+    cbmHighrisk.length > 0 ||
+    cbmFragile.length > 0,
+  );
 </script>
 
 <div class="lv-pad">
@@ -130,7 +139,7 @@
     <h1 class="lv-h1">{t("wrongbook.title")}</h1>
     <p>{t("wrongbook.desc").replace("{n}", String(effectiveEliminateStreak))}</p>
   </div>
-  {#if !wrongList.length}
+  {#if !hasAnyWrongbookItems}
     <div class="lv-empty">
       <div class="lv-empty-icon"><Icon name="check" size={26} /></div>
       <b>{t("wrongbook.emptyTitle")}</b>
@@ -225,7 +234,7 @@
         </div>
         <div class="lv-card">
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 10px;flex-wrap:wrap;gap:8px">
-            <div class="lv-session-dock" role="tablist" aria-label={t("wrongbook.queue")} onkeydown={handleTablistKeydown}>
+            <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label={t("wrongbook.queue")} onkeydown={handleTablistKeydown}>
               <button type="button" role="tab" tabindex={wbTab === "active" ? 0 : -1} class="lv-chip" class:acc={wbTab === "active"} aria-selected={wbTab === "active"} onclick={() => wbTab = "active"}>
                 {t("wrongbook.tabActive")} ({wrongList.length})
               </button>
@@ -361,6 +370,10 @@
                 <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(w.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
                 <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-green);font-weight:600" title={t("wrongbook.masteredTip")} disabled={wrongBusyId === w.qid || !!wrongBusyId} aria-busy={wrongBusyId === w.qid} onclick={() => onmasterWrong(w.qid)}><Icon name="check" size={13} /> {wrongBusyId === w.qid ? "…" : t("wrongbook.mastered")}</button>
               </div>
+            {:else}
+              <div class="lv-muted" style="padding:16px 0;text-align:center">
+                {wrongList.length === 0 ? "当前在册错题已全部清零！可切换上方分栏查看脆弱伪掌握、高危盲区、已消灭或已归档题目。" : t("wrongbook.noFiltered")}
+              </div>
             {/each}
             {#if wbQueueHasMore}
               <!-- ux §3 virtualize-lists：长队列分批渲染，与浏览页 200/+=200 同口径；上方计数/操作按钮仍按全量口径 -->
@@ -372,9 +385,16 @@
             {/if}
           {:else if wbTab === "highrisk"}
             <!-- benchmark-fusion：高危盲区（Moodle CBM Misconception）——自信答错即概念误区，置顶呈现 -->
-            <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:10px 0 4px">
-              {t("cbm.highrisk.desc", "以下题目最近一次作答自评「确定」却答错——大概率是概念性误区而非粗心，建议优先溯源与重练。")}
-            </p>
+            <div class="lv-row" style="justify-content:space-between;align-items:center;margin:8px 0 4px;flex-wrap:wrap;gap:8px">
+              <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:0">
+                {t("cbm.highrisk.desc", "以下题目最近一次作答自评「确定」却答错——大概率是概念性误区而非粗心，建议优先溯源与重练。")}
+              </p>
+              {#if cbmHighrisk.length > 0 && onstartCbmDrill}
+                <button class="lv-btn sm lv-btn--primary" onclick={() => onstartCbmDrill("highrisk")}>
+                  <Icon name="play" size={13} /> 一键攻坚高危盲区 ({cbmHighrisk.length})
+                </button>
+              {/if}
+            </div>
             <div class="stack-sm" style="margin-top:6px">
               {#each cbmHighrisk as s, wi (s.qid)}
                 {@const q = qOf(s.qid)}
@@ -399,9 +419,16 @@
             </div>
           {:else if wbTab === "fragile"}
             <!-- benchmark-fusion：脆弱伪掌握（Moodle CBM Lucky Guess）——蒙对题归集，防考试漏网 -->
-            <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:10px 0 4px">
-              {t("cbm.fragile.desc", "以下题目最近一次作答自评「模糊/猜测」却蒙对——得分可能来自运气，建议重练验证真实掌握。")}
-            </p>
+            <div class="lv-row" style="justify-content:space-between;align-items:center;margin:8px 0 4px;flex-wrap:wrap;gap:8px">
+              <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:0">
+                {t("cbm.fragile.desc", "以下题目最近一次作答自评「模糊/猜测」却蒙对——得分可能来自运气，建议重练验证真实掌握。")}
+              </p>
+              {#if cbmFragile.length > 0 && onstartCbmDrill}
+                <button class="lv-btn sm lv-btn--primary" onclick={() => onstartCbmDrill("fragile")}>
+                  <Icon name="play" size={13} /> 一键重练脆弱伪掌握 ({cbmFragile.length})
+                </button>
+              {/if}
+            </div>
             <div class="stack-sm" style="margin-top:6px">
               {#each cbmFragile as s, wi (s.qid)}
                 {@const q = qOf(s.qid)}

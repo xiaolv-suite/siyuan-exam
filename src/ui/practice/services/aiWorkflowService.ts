@@ -1,6 +1,6 @@
 import type { KernelApiClient } from "@/kernel/client";
 import type { Question } from "@/core/types";
-import { questionFingerprint, type AiTaskContext } from "@/ai/task";
+import { questionFingerprint, type AiTaskContext, type ExplainTemplateId } from "@/ai/task";
 
 export interface AiChannelConfig {
   endpoint?: string;
@@ -83,7 +83,7 @@ export async function executeAiExplain(options: ExplainRequestOptions) {
   const { buildExplainMessages } = await import("@/ai/explain");
   const { AiTaskRunner } = await import("@/ai/task");
 
-  const templateMap: Record<string, string> = {
+  const templateMap: Record<ExplainMode, ExplainTemplateId> = {
     explain: "practice.explain",
     "dual-loop": "practice.dual-loop",
     storm: "practice.storm",

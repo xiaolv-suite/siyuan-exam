@@ -17,15 +17,23 @@ function record(name, ok, note = "") {
 }
 
 async function api(path, body) {
-  const res = await fetch(BASE + path, {
-    method: "POST",
-    headers: { Authorization: `Token ${TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body ?? {}),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  if (json.code !== 0) throw new Error(`${path} code=${json.code} ${json.msg}`);
-  return json;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await fetch(BASE + path, {
+      method: "POST",
+      headers: { Authorization: `Token ${TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.code !== 0) {
+      if (/metadata is not ready|indexUnavailable/i.test(String(json.msg ?? "")) && attempt < 5) {
+        await new Promise((r) => setTimeout(r, 450));
+        continue;
+      }
+      throw new Error(`${path} code=${json.code} ${json.msg}`);
+    }
+    return json;
+  }
 }
 
 const esc = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');

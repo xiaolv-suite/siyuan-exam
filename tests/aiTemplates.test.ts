@@ -61,6 +61,8 @@ describe("114-02 严格模考跨入口 AI 禁用（枚举锁）", () => {
       "practice.hint",
       "practice.socratic",
       "practice.explain",
+      "practice.dual-loop",
+      "practice.storm",
       "practice.misdiagnosis",
       "report.explain",
       "plan.nextaction",

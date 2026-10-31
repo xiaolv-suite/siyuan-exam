@@ -197,7 +197,7 @@ try {
       });
     });
   await reportTabs.getByRole("button", { name: "概览", exact: true }).waitFor();
-  assert.equal(await page.locator(".lv-kpis").isVisible(), true);
+  assert.equal(await page.locator(".lv-metrics-bar, .lv-kpis").first().isVisible(), true);
   assert.match(await page.locator(".lv-report-week-scope").innerText(), /按自然周比较本周与上周，不受上方日期范围筛选影响/);
   console.log("✓ 周对比明确说明使用本周/上周自然周口径，不随日期筛选变化");
   const overviewGrid = page.locator(".lv-report-overview-grid.has-both");
@@ -219,7 +219,7 @@ try {
     await reportTabs.getByRole("button", { name: "考点与错题", exact: true }).getAttribute("aria-pressed"),
     "true",
   );
-  assert.equal(await page.locator(".lv-kpis").isVisible(), false);
+  assert.equal(await page.locator(".lv-metrics-bar, .lv-kpis").first().isVisible(), false);
   assert.ok((await page.locator(".lv-card.lv-section:not(.lv-report-section--hidden)").count()) > 0);
   await page.getByText("考点掌握度（正确率 × 留存衰减）", { exact: true }).waitFor();
   await resetReportScroll();

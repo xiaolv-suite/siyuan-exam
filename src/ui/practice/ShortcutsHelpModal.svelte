@@ -28,7 +28,7 @@
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
-      <div class="lv-session-dock" role="tablist" aria-label="快捷键分类" style="margin:0 0 12px;width:100%" onkeydown={handleTablistKeydown}>
+      <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="快捷键分类" style="margin:0 0 12px;width:100%" onkeydown={handleTablistKeydown}>
         <button type="button" role="tab" tabindex={hotkeyCategory === "all" ? 0 : -1} class="lv-chip" class:acc={hotkeyCategory === "all"} aria-selected={hotkeyCategory === "all"} onclick={() => hotkeyCategory = "all"}>全部</button>
         <button type="button" role="tab" tabindex={hotkeyCategory === "session" ? 0 : -1} class="lv-chip" class:acc={hotkeyCategory === "session"} aria-selected={hotkeyCategory === "session"} onclick={() => hotkeyCategory = "session"}>做题台</button>
         <button type="button" role="tab" tabindex={hotkeyCategory === "recite" ? 0 : -1} class="lv-chip" class:acc={hotkeyCategory === "recite"} aria-selected={hotkeyCategory === "recite"} onclick={() => hotkeyCategory = "recite"}>纸面背诵</button>
@@ -39,6 +39,7 @@
           <div class="lv-hotkeys-row"><span class="lv-kbd">A</span> - <span class="lv-kbd">D</span><span>快速选择答案选项</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">Enter</span><span>确认作答 / 极速下一题</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">3</span><span>作答前标记把握度 / 答错后一键标记错因</span></div>
+          <div class="lv-hotkeys-row"><span class="lv-kbd">G</span><span>直接标记本题为猜测（Moodle CBM）</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">E</span><span>收藏 / 取消收藏本题</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">V</span><span>朗读本题题干（语音助记）</span></div>
         {/if}

@@ -9,9 +9,9 @@
 > **Personal Notes → Independent Retrieval → Reflective Action → Scheduled Retest → Knowledge Compounding**  
 > Your questions live in your own SiYuan notebooks — every question is a searchable, linkable, syncable **SiYuan block**, not rows in someone else's cloud.
 
-[![Release](https://img.shields.io/badge/release-v0.13.0-blue.svg)](https://github.com/ai68298100/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.13.1-blue.svg)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
-[![Tests](https://img.shields.io/badge/tests-1768%20passed-brightgreen)](#-development)
+[![Tests](https://img.shields.io/badge/tests-1842%20passed-brightgreen)](#-development)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
 

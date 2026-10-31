@@ -76,7 +76,13 @@ export async function executeSaveQuestionEdit(
     return { error: t("edit.needAnswer") };
   }
 
-  const answerSpec = buildNumericAnswerSpec(numericParams);
+  const builtNumericSpec = buildNumericAnswerSpec(numericParams);
+  const answerSpec =
+    builtNumericSpec !== undefined
+      ? builtNumericSpec
+      : q.answerSpec?.kind === "numeric"
+        ? null
+        : undefined;
   const next = await app.updateQuestionContent(q, {
     stem: draft.stem.trim(),
     options: draft.options,

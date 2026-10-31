@@ -9,8 +9,6 @@ import {
   buildWrongbookRetestSheetPro,
   auditQuestionSheetSafety,
   computeOptionColumns,
-  renderSealLineBar,
-  renderExamNoticeBox,
 } from "../src/core/printPro";
 
 function mkQ(id: string, overrides: Partial<Question> = {}): Question {

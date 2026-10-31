@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { questionFromBlock } from "../src/core/blockTemplate";
+import { ialOf, parseIal, questionFromBlock, makeQuestion } from "../src/core/blockTemplate";
+import { createOcclusionQuestions } from "../src/core/imageOcclusion";
 import { grade } from "../src/core/answer";
 
 const SPEC = { v: 1 as const, kind: "numeric" as const, unit: "km", absTol: 0.01, altUnits: [{ unit: "m", factor: 0.001 }] };
@@ -101,5 +102,46 @@ describe("55-05：rubric 块属性（往返不丢 + 诚实降级）", () => {
   it("简答题答案不受 rubric 影响（旧答案可读）", () => {
     const q = questionFromBlock(shortBlockInput(JSON.stringify(RUBRIC)));
     expect(q?.answer).toBe("参考答案要点");
+  });
+
+  it("multiBlank 无序判分 (orderIndependent) 与大小写敏感 (caseSensitive) 块属性往返不丢", () => {
+    const q = makeQuestion({
+      type: "fill",
+      stem: "写出两个直辖市：____、____",
+      answer: "北京;;上海",
+    });
+    if (q.answerSpec?.kind === "multiBlank") {
+      q.answerSpec.orderIndependent = true;
+      q.answerSpec.blanks[0].caseSensitive = true;
+    }
+    q.secondaryKps = ["中国地理/行政区划", "政治常识"];
+
+    const attrs = parseIal(ialOf(q));
+    const restored = questionFromBlock({ attrs, text: q.stem });
+    expect(restored?.secondaryKps).toEqual(["中国地理/行政区划", "政治常识"]);
+    expect(restored?.answerSpec?.kind).toBe("multiBlank");
+    if (restored?.answerSpec?.kind === "multiBlank") {
+      expect(restored.answerSpec.orderIndependent).toBe(true);
+      expect(restored.answerSpec.blanks[0].caseSensitive).toBe(true);
+    }
+    // 交换填写顺序仍判正确
+    expect(restored ? gradeCheck(restored, "上海;;北京") : false).toBe(true);
+  });
+
+  it("图片遮挡题 (occlusion) 与题族关系 (family) 块属性往返不丢", () => {
+    const qs = createOcclusionQuestions({
+      imageUrl: "assets/heart.png",
+      masks: [
+        { id: "m-1", x: 0.1, y: 0.2, w: 0.3, h: 0.2, answer: "左心室", hint: "泵血腔" },
+        { id: "m-2", x: 0.5, y: 0.2, w: 0.25, h: 0.2, answer: "右心房" },
+      ],
+      kp: "解剖学/心脏",
+      source: "医考图谱",
+    });
+    expect(qs).toHaveLength(2);
+    const attrs = parseIal(ialOf(qs[0]));
+    const restored = questionFromBlock({ attrs, text: qs[0].stem });
+    expect(restored?.occlusion).toEqual(qs[0].occlusion);
+    expect(restored?.family).toEqual(qs[0].family);
   });
 });

@@ -81,7 +81,7 @@
         </div>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
       </div>
-      <div class="lv-session-dock" role="tablist" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto" onkeydown={handleTablistKeydown}>
+      <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="场景分类过滤" style="margin:0 0 12px;width:100%;overflow-x:auto" onkeydown={handleTablistKeydown}>
         <button type="button" role="tab" tabindex={bankFilterCategory === "all" ? 0 : -1} class="lv-chip" class:acc={bankFilterCategory === "all"} aria-selected={bankFilterCategory === "all"} onclick={() => bankFilterCategory = "all"}>
           全部 ({banks.length})
         </button>

@@ -72,7 +72,9 @@
     onToggleClozeMode: (mode: "highlight" | "curly" | "bracket") => void;
     onDoParseCloze: () => void;
     onImportClozeQuestions: () => void;
+    importFileInput?: HTMLInputElement | null;
     onPickExcel: () => void;
+    onExcelFile?: (e: Event) => void;
     onDownloadTemplate: () => void;
     onPasteClipboard: () => void;
     onDoParseText: () => void;
@@ -159,7 +161,9 @@
     onToggleClozeMode,
     onDoParseCloze,
     onImportClozeQuestions,
+    importFileInput = $bindable(null),
     onPickExcel,
+    onExcelFile,
     onDownloadTemplate,
     onPasteClipboard,
     onDoParseText,
@@ -238,7 +242,7 @@
       ondrop={onImportFileDrop}
     >
       <!-- 52-09 导入方式子分面切换：批量文件导入 vs 思源笔记文档直接导入 vs 正文划重点挖空出题 -->
-      <div class="lv-session-dock" role="tablist" aria-label="导入方式切换" style="margin-bottom:14px" onkeydown={handleTablistKeydown}>
+      <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="导入方式切换" style="margin-bottom:14px" onkeydown={handleTablistKeydown}>
         <button type="button" role="tab" tabindex={importSubTab === "standard" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "standard"} aria-selected={importSubTab === "standard"} onclick={() => importSubTab = "standard"}>
           <Icon name="import" size={12} /> {t("import.title")}（Excel / CSV / Aiken）
         </button>
@@ -357,7 +361,8 @@
         {/if}
       {:else}
         <div class="lv-row">
-          <button type="button" class="lv-btn" disabled={importBusy} onclick={onPickExcel}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
+          <button type="button" class="lv-btn" disabled={importBusy} onclick={() => { if (importFileInput) importFileInput.click(); else onPickExcel(); }}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
+          <input type="file" bind:this={importFileInput} accept=".xlsx,.xls,.csv,.tsv,.txt,.gift" hidden onchange={onExcelFile} disabled={importBusy} />
           <button class="lv-btn sm" onclick={onDownloadTemplate}><Icon name="import" size={15} /> {t("import.template")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={onPasteClipboard} disabled={importBusy} title={t("import.pasteClipboardTip")}><Icon name="copy" size={14} /> {t("import.pasteClipboard")}</button>
           <span class="lv-muted">{t("import.orPaste")}</span>

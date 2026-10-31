@@ -15,9 +15,16 @@ const { base: BASE, token: TOKEN } = resolveTarget({ baseArg: process.argv[2], t
 const H = { Authorization: `Token ${TOKEN}`, "Content-Type": "application/json" };
 
 async function api(path, body) {
-  const res = await fetch(BASE + path, { method: "POST", headers: H, body: JSON.stringify(body ?? {}) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const res = await fetch(BASE + path, { method: "POST", headers: H, body: JSON.stringify(body ?? {}) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.code !== 0 && /metadata is not ready|indexUnavailable/i.test(String(json.msg ?? "")) && attempt < 5) {
+      await new Promise((r) => setTimeout(r, 450));
+      continue;
+    }
+    return json;
+  }
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

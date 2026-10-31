@@ -159,7 +159,7 @@ export function assemble(
       const medPool = pool.filter((q) => (q.difficulty ?? 2) === 3);
       const hardPool = pool.filter((q) => (q.difficulty ?? 2) >= 4);
 
-      let targetEasy = 0;
+      let targetEasy: number;
       let targetMed = 0;
       let targetHard = 0;
 
@@ -172,8 +172,8 @@ export function assemble(
         ];
         const exact = quotas.map((q) => (q.weight / totalRaw) * s.count);
         const floors = exact.map((e) => Math.floor(e));
-        let allocated = floors.reduce((a, b) => a + b, 0);
-        let rem = s.count - allocated;
+        const allocated = floors.reduce((a, b) => a + b, 0);
+        const rem = s.count - allocated;
 
         const remainders = exact.map((e, idx) => ({ idx, rem: e - floors[idx] }));
         remainders.sort((a, b) => b.rem - a.rem);

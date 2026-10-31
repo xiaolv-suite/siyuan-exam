@@ -909,13 +909,20 @@ export class ExamApp {
         if (!blockId || !pending.some((q) => q.id === qid)) continue;
         writtenIds.add(qid);
         knownIds.add(qid);
-        const spec = pending.find((q) => q.id === qid)?.answerSpec;
-        const rubric = pending.find((q) => q.id === qid)?.rubric;
-        if (!spec && !rubric) continue;
+        const pq = pending.find((q) => q.id === qid);
+        const spec = pq?.answerSpec;
+        const rubric = pq?.rubric;
+        const secondaryKps = pq?.secondaryKps;
+        const occlusion = pq?.occlusion;
+        const family = pq?.family;
+        if (!spec && !rubric && !secondaryKps?.length && !occlusion && !family) continue;
         try {
           await this.deps.client.setExamAttrs(blockId, {
             ...(spec ? { "exam-answer-spec": JSON.stringify(spec) } : {}),
             ...(rubric ? { "exam-rubric": JSON.stringify(rubric) } : {}),
+            ...(secondaryKps?.length ? { "exam-secondary-kps": secondaryKps.join(",") } : {}),
+            ...(occlusion ? { "exam-occlusion": JSON.stringify(occlusion) } : {}),
+            ...(family ? { "exam-family": JSON.stringify(family) } : {}),
           });
         } catch { /* spec 写失败不影响题目入库；读回时该题按旧口径判分（如实降级） */ }
       }
@@ -1190,6 +1197,9 @@ export class ExamApp {
       }
     } else if (q.type === "fill" && answer !== q.answer) {
       const spec = inferAnswerSpec("fill", answer);
+      if (spec?.kind === "multiBlank" && q.answerSpec?.kind === "multiBlank" && q.answerSpec.orderIndependent) {
+        spec.orderIndependent = true;
+      }
       specWasChanged = specChanged(q.answerSpec, spec);
       next.answerSpec = spec;
       try {
@@ -1839,6 +1849,15 @@ export class ExamApp {
       // 55-05：主观采分点规格（简答题）同样写入属性表，读回不丢
       if (q.rubric) {
         attrs["exam-rubric"] = JSON.stringify(q.rubric);
+      }
+      if (q.secondaryKps?.length) {
+        attrs["exam-secondary-kps"] = q.secondaryKps.join(",");
+      }
+      if (q.occlusion) {
+        attrs["exam-occlusion"] = JSON.stringify(q.occlusion);
+      }
+      if (q.family) {
+        attrs["exam-family"] = JSON.stringify(q.family);
       }
       try {
         await this.deps.client.setExamAttrs(blockId, attrs);

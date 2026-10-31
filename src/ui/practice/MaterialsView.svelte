@@ -36,6 +36,7 @@
     needsRelocate: (n: any, rev: number) => boolean;
     onback: () => void;
     onchangeView: (view: "manual" | "materials" | "import" | "ai") => void;
+    materialFileInput?: HTMLInputElement | null;
     onpickFile: () => void;
     onfileChange: (e: Event) => void;
     onregisterLink: () => void;
@@ -83,6 +84,7 @@
     needsRelocate,
     onback,
     onchangeView,
+    materialFileInput = $bindable(null),
     onpickFile,
     onfileChange,
     onregisterLink,
@@ -189,10 +191,10 @@
   </div>
   <div class="lv-card" style="margin-top:10px">
     <div class="lv-row">
-      <button type="button" class="lv-btn" disabled={materialsBusy || offline || app?.materialsReadonly} title={app?.materialsReadonly ? t("materials.readonly") : offline ? t("state.offlineHint") : ""} onclick={onpickFile}>
+      <button type="button" class="lv-btn" disabled={materialsBusy || offline || app?.materialsReadonly} title={app?.materialsReadonly ? t("materials.readonly") : offline ? t("state.offlineHint") : ""} onclick={() => { if (materialFileInput) materialFileInput.click(); else onpickFile(); }}>
         <Icon name="paperclip" size={14} /> {t("materials.pickFile")}
       </button>
-      <input type="file" accept=".pdf,.mp4,.webm,.m4v,.mp3,.m4a,.wav,.ogg,.png,.jpg,.jpeg,.gif,.webp,.md,.txt,.docx,.epub" hidden onchange={onfileChange} disabled={materialsBusy || offline || app?.materialsReadonly} />
+      <input type="file" bind:this={materialFileInput} accept=".pdf,.mp4,.webm,.m4v,.mp3,.m4a,.wav,.ogg,.png,.jpg,.jpeg,.gif,.webp,.md,.txt,.docx,.epub" hidden onchange={onfileChange} disabled={materialsBusy || offline || app?.materialsReadonly} />
       <span class="lv-muted">{t("materials.copyHint")}</span>
     </div>
     <div class="lv-row">

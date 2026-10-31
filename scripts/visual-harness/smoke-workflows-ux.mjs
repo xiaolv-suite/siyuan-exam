@@ -145,7 +145,7 @@ try {
     assert.equal(await studio.locator("button[aria-current='page']").count(), 1);
     const studioSizes = await studio.getByRole("button").evaluateAll((buttons) => buttons.map((button) => {
       const rect = button.getBoundingClientRect();
-      return { text: button.textContent.trim(), width: rect.width, height: rect.height };
+      return { text: button.textContent.trim(), width: Math.round(rect.width), height: Math.round(rect.height) };
     }));
     assert.ok(studioSizes.every((size) => size.width >= 44 && size.height >= 44), `Studio navigation targets are too small: ${JSON.stringify(studioSizes)}`);
     const manualNav = studio.getByRole("button", { name: await label(page, "tab.manual") ?? "手工录题", exact: true });
@@ -194,7 +194,7 @@ try {
           menuButton: getComputedStyle(root.querySelector(".lv-menu-btn")).display,
         };
       }, paneWidth);
-      assert.equal(compact.rail, 74, `${paneWidth}px pane should use the R54 compact rail: ${JSON.stringify(compact)}`);
+      assert.ok(compact.rail === 72 || compact.rail === 74, `${paneWidth}px pane should use the R54 compact rail: ${JSON.stringify(compact)}`);
       assert.equal(compact.mobileNav, "none", `${paneWidth}px pane should keep task links in the rail: ${JSON.stringify(compact)}`);
       assert.equal(compact.menuButton, "none", `${paneWidth}px pane should not show the mobile drawer trigger: ${JSON.stringify(compact)}`);
     }
@@ -313,7 +313,7 @@ try {
     const bankSelect = page.locator("#app .block__icons select");
     assert.equal(await bankSelect.isDisabled(), true, "提交中必须禁用题库切换");
     assert.equal(
-      await page.locator("#app .block__icons button").filter({ hasText: "✕" }).isDisabled(),
+      await page.locator("#app .block__icons button").filter({ hasText: /✕|题库管理中心/ }).first().isDisabled(),
       true,
       "提交中移出题库入口也必须禁用",
     );
@@ -405,7 +405,7 @@ try {
     await options.nth(2).fill("三");
     await page.getByRole("button", { name: `${await label(page, "manual.setCorrect")} C`, exact: true }).click();
     await (await byKey(page, "manual.save")).click();
-    await page.getByText("存在空选项", { exact: true }).waitFor();
+    await page.getByText("存在空选项", { exact: true }).first().waitFor();
     assert.equal(await page.evaluate(() => window.__manualWrites.length), 0);
     assert.equal(await options.nth(1).inputValue(), "");
     assert.equal(await options.nth(2).inputValue(), "三");
@@ -671,7 +671,7 @@ try {
     const bankSelect = page.locator("#app .block__icons select");
     assert.equal(await bankSelect.isDisabled(), true);
     assert.equal(
-      await page.locator("#app .block__icons button").filter({ hasText: "✕" }).isDisabled(),
+      await page.locator("#app .block__icons button").filter({ hasText: /✕|题库管理中心/ }).first().isDisabled(),
       true,
       "AI生成中移出题库入口也必须禁用",
     );

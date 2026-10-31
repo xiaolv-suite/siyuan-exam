@@ -198,6 +198,13 @@ export async function processAndSaveManualQuestion(
       : {}),
   });
 
+  if (data.secondaryKps && data.secondaryKps.length > 0) {
+    q.secondaryKps = data.secondaryKps;
+  }
+  if (data.type === "fill" && data.orderIndependent && q.answerSpec?.kind === "multiBlank") {
+    q.answerSpec.orderIndependent = true;
+  }
+
   if (data.status === "published") {
     const { checkPublishGuard } = await import("@/core/revision");
     const guard = checkPublishGuard(q);

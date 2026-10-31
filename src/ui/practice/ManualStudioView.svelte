@@ -196,7 +196,7 @@
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px;flex-wrap:wrap;gap:6px">
           <label class="lv-muted" for="lv-manual-stem">{t("manual.stem")}</label>
           <div class="lv-row" style="margin:0;gap:4px;align-items:center;flex-wrap:wrap">
-            <div class="lv-session-dock" role="tablist" aria-label="符号分类" style="margin:0" onkeydown={handleTablistKeydown}>
+            <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="符号分类" style="margin:0" onkeydown={handleTablistKeydown}>
               <button type="button" role="tab" tabindex={manualSymbolTab === "math" ? 0 : -1} class="lv-chip sm" class:acc={manualSymbolTab === "math"} aria-selected={manualSymbolTab === "math"} onclick={() => (manualSymbolTab = "math")}><Icon name="compass" size={12} /> 数理</button>
               <button type="button" role="tab" tabindex={manualSymbolTab === "pinyin" ? 0 : -1} class="lv-chip sm" class:acc={manualSymbolTab === "pinyin"} aria-selected={manualSymbolTab === "pinyin"} onclick={() => (manualSymbolTab = "pinyin")}><Icon name="edit" size={12} /> 拼音</button>
               <button type="button" role="tab" tabindex={manualSymbolTab === "phonetic" ? 0 : -1} class="lv-chip sm" class:acc={manualSymbolTab === "phonetic"} aria-selected={manualSymbolTab === "phonetic"} onclick={() => (manualSymbolTab = "phonetic")}><Icon name="mic" size={12} /> 音标</button>

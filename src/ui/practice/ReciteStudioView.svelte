@@ -3,6 +3,7 @@
   import SpeechEvalCapsule from "./SpeechEvalCapsule.svelte";
   import type { Question } from "../../core/types";
   import type { SpeechEvalResult } from "@/core/speechEval";
+  import { renderOcclusionSvg } from "@/core/imageOcclusion";
 
   interface Props {
     reciteQueue: Question[];
@@ -165,13 +166,18 @@
         <div class="lv-analysis" style="margin-bottom:12px"><b class="lv-mat-chip"><Icon name="paperclip" size={14} /> {t("material.shared")}</b>{reciteMaterial}</div>
       {/if}
       {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
+      {#if q.occlusion}
+        <div class="lv-occlusion-wrap" style="margin:10px 0 14px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
+          {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: reciteRevealed ? [q.occlusion.activeMaskId || ""] : [] })}
+        </div>
+      {/if}
       <SpeechEvalCapsule result={speechEvalResult} ondismiss={ondismissSpeechEval} />
       {#if !reciteRevealed}
         {#if q.kp || q.analysis}
           <div class="lv-row"><button class="lv-chip" onclick={ontoggleHint} title={q.analysis ? t("recite.hint2Key") : ""}><Icon name="bulb" size={12} /> {reciteHint >= 2 ? t("recite.hint2") : t("recite.hint1")}：{reciteHint >= 2 ? (q.analysis ?? "").slice(0, 24) : (q.kp ?? q.analysis ?? "").slice(0, 24)}</button></div>
         {/if}
         <div class="lv-row" style="justify-content:center">
-          <button class="lv-btn lv-btn--primary" onclick={onreveal}><Icon name="eye" size={15} /> {t("recite.reveal")} <span style="font-size:11px;opacity:0.85;margin-left:4px">(空格 Space)</span></button>
+          <button class="lv-btn lv-btn--primary" onclick={onreveal}><Icon name="eye" size={15} /> {t("recite.reveal")}</button>
         </div>
       {:else}
         <div class="lv-recite-revealed">

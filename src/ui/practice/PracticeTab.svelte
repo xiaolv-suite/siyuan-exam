@@ -531,6 +531,16 @@ import { confirmDialogSync } from "@/libs/dialog";
       lastFocusView = v;
       if (v === "session" || v === "recite") return;
       void tick().then(() => {
+        if (railOpen || (menuBtn && document.activeElement === menuBtn)) return;
+        const active = document.activeElement as HTMLElement | null;
+        if (
+          active &&
+          active !== document.body &&
+          tabRoot?.contains(active) &&
+          !active.closest(".lv-rail, .lv-studio-nav, .lv-mobile-tasknav, .block__icons")
+        ) {
+          return;
+        }
         const head = tabRoot?.querySelector<HTMLElement>(".lv-screen-head .lv-h1, .lv-screen-head h1");
         if (!head) return;
         head.setAttribute("tabindex", "-1");
@@ -1315,7 +1325,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       editingId = q.id;
       editDraft = createQuestionEditDraft(q);
       loadSpecFields(q.answerSpec);
-      editSpecOpen = !!q.answerSpec;
+      editSpecOpen = q.answerSpec?.kind === "numeric";
     }
     function closeEditForm() {
       editingId = ""; editDraft = null; editError = "";
@@ -2127,6 +2137,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       filterStubborn: wbFilterStubborn,
       kpFilter: wbKpFilter,
       sortMode: wbSortMode,
+      highriskQids: cbmHighriskQids,
     }));
     /** 错题本队列渲染上限（ux §3 virtualize-lists）：错题行是重 DOM（每行 ~7 个操作按钮），
      *  错题数百题级时全量渲染拖慢滚动。与浏览页 200/+=200 同口径；计数徽标/打印/特训等操作仍按全量筛选口径。 */
@@ -2361,6 +2372,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       await safeStart(qs, "wrong", () => enterSessionView());
     }
 
+    async function startCbmDrill(kind: "highrisk" | "fragile") {
+      const targetList = kind === "highrisk" ? cbmHighrisk : cbmFragile;
+      if (!targetList.length) return;
+      const all = questions.length ? questions : await loadQuestions();
+      const qs = resolveFilteredWrongDrillQuestions(all, targetList);
+      if (!qs.length) return;
+      await safeStart(qs, "wrong", () => enterSessionView());
+    }
+
     let wrongBusyId = $state("");
     /** 错题手动处置（已掌握）：确认后写入；失败时保留队列项并允许重试 */
     async function masterWrong(qid: string) {
@@ -2406,6 +2426,8 @@ import { confirmDialogSync } from "@/libs/dialog";
         const nextFav = await toggleQuestionFavorite(app, q, showMessage, offline, t);
         questions = questions.map((item) => (item.id === q.id ? { ...item, fav: nextFav } : item));
         dataRev++;
+      } catch {
+        /* 错误已由 toggleQuestionFavorite 经 showMessage 提示，此处吸收避免未捕获 Promise 拒绝 */
       } finally { favBusy = false; }
     }
     const toggleFavCurrent = () => toggleFavQuestion(session?.current as (Question & { blockId?: string; fav?: boolean }) | undefined);
@@ -2786,7 +2808,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           explainHistory[q.id] = [...res.messages, { role: "assistant", content: res.env.data.text }];
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
           void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
-          helpShown.set(q.id, mode);
+          helpShown.set(q.id, mode === "dual-loop" || mode === "storm" ? "explain" : mode);
         } else {
           explainText = formatEnvStatusLine(res.env, t);
         }
@@ -3625,7 +3647,9 @@ import { confirmDialogSync } from "@/libs/dialog";
     function clearManualFormWithoutConfirm() {
       const b = createBlankManualFormState();
       mStem = b.stem; mOptions = b.options; mAnswer = b.answer; mAnalysis = b.analysis;
+      mSecondaryKps = "";
       mSpecOpen = b.specOpen; mSpecUnit = b.specUnit; mSpecAbsTol = b.specAbsTol; mSpecRelPct = b.specRelPct; mSpecAltUnits = b.specAltUnits;
+      mSpecOrderIndependent = false;
       mRubricOpen = b.rubricOpen; mRubricText = b.rubricText; mRubricRevision = b.rubricRevision;
       mStudyLang = b.studyLang; mStudyPhonetic = b.studyPhonetic;
       mStatus = b.status;
@@ -3737,7 +3761,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let aiBatchBusy = $state(false);
     let aiQueueOptions = $state<import("@/ai/gen").GenOptions | null>(null);
     function snapshotAiOptions(): import("@/ai/gen").GenOptions {
-      const cognitiveProfile = evaluateCognitiveProfile(attempts, questions, app.wrongItems());
+      const cognitiveProfile = evaluateCognitiveProfile(app?.attempts.all() ?? [], questions, app?.wrongItems() ?? []);
       const profilePrefix = buildCognitiveProfilePrefix(cognitiveProfile);
       return buildGenOptionsSnapshot({
         count: aiCount,
@@ -3827,9 +3851,13 @@ import { confirmDialogSync } from "@/libs/dialog";
           signal: aiCancel,
         });
         aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
-        aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
         aiQueue = r.pending; aiRejected = r.rejected; aiDuplicates = r.duplicates;
         gleanPendingDone = requestGleanClips;
+        try {
+          aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
+        } catch {
+          showMessage(t("ai.usageSaveFailed"), 4200, "error");
+        }
         if (aiCancel.aborted) {
           showMessage(t("ai.cancelled"), 4200, "info");
         }
@@ -3889,10 +3917,14 @@ import { confirmDialogSync } from "@/libs/dialog";
           signal: aiCancel,
         });
         aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
-        aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
         aiQueue = [...aiQueue, ...r.pending];
         aiRejected = r.rejected;
         aiDuplicates += r.duplicates;
+        try {
+          aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
+        } catch {
+          showMessage(t("ai.usageSaveFailed"), 4200, "error");
+        }
         void persistAiQueue();
         if (aiCancel.aborted) showMessage(t("ai.cancelled"), 4200, "info");
         else if (r.pending.length) showMessage(t("ai.repaired").replace("{n}", String(r.pending.length)), 2600, "info");
@@ -4746,7 +4778,8 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     /** 键盘流（docs/11 映射表）：会话 A-F/⏎/J；背诵 空格翻开、1-4 自评；composition（中文输入法）期间不响应 */
     function onKeydown(e: KeyboardEvent) {
-      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) { e.preventDefault(); paletteOpen = !paletteOpen; return; }
+      // Ctrl/⌘+K 由 Palette 组件自身统一监听并按活动页签隔离，此处直接放行避免双次翻转抵消
+      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) return;
       if (activePeekQuestion && handleModalDrawerKeydown(e, peekDrawerEl, closePeekDrawer)) return;
       if (shouldBlockGlobalHotkeys({
         tabRoot,
@@ -5215,7 +5248,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         {:else if hasBank}
           <span class="lv-chip sm">{bankName}</span>
         {/if}
-        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
       </div>
       <div class="lv-role-segmented lv-focus-context" role="radiogroup" aria-label="身份模式切换">
         <button
@@ -5641,6 +5674,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onmasterAllWrong={() => void masterAllWrong()}
       onbrowseWrongFilter={() => { filterWrong = true; view = "browse"; void loadQuestions(); }}
       onchangeWbSortMode={(val) => writeLocal("lv-exam/wrong-sort", val)}
+      onstartCbmDrill={(k) => void startCbmDrill(k)}
     />
   {:else if view === "manual"}
     <ManualStudioView
@@ -5803,6 +5837,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {needsRelocate}
       onback={() => view = "entry"}
       onchangeView={(v) => (view = v)}
+      bind:materialFileInput
       onpickFile={() => materialFileInput?.click()}
       onfileChange={onMaterialFile}
       onregisterLink={registerMaterialLink}
@@ -6131,7 +6166,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       onToggleClozeMode={(m) => toggleClozeMode(m)}
       onDoParseCloze={doParseCloze}
       onImportClozeQuestions={importClozeQuestions}
+      bind:importFileInput
       onPickExcel={() => importFileInput?.click()}
+      onExcelFile={onExcelFile}
       onDownloadTemplate={downloadTemplate}
       onPasteClipboard={pasteClipboardToImport}
       onDoParseText={doParseText}

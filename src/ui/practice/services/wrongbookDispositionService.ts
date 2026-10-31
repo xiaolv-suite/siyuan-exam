@@ -106,6 +106,7 @@ export interface WrongQueueFilterCriteria {
   filterStubborn: boolean;
   kpFilter: string;
   sortMode: string;
+  highriskQids?: ReadonlySet<string>;
 }
 
 /**
@@ -148,6 +149,9 @@ export function filterAndSortWrongQueue<T extends { qid: string; wrongCount?: nu
     list = [...list].sort((a, b) =>
       String(questionMap.get(a.qid)?.kp || "").localeCompare(String(questionMap.get(b.qid)?.kp || "")),
     );
+  } else if (criteria.highriskQids && criteria.highriskQids.size > 0) {
+    const hr = criteria.highriskQids;
+    list = [...list].sort((a, b) => (hr.has(b.qid) ? 1 : 0) - (hr.has(a.qid) ? 1 : 0));
   }
   return list;
 }

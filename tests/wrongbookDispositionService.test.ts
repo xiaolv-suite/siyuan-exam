@@ -108,5 +108,15 @@ describe("错题归档与延期处置服务 (wrongbookDispositionService)", () =
     expect(sorted[0].qid).toBe("q-3"); // wrongCount: 5
     expect(sorted[1].qid).toBe("q-1"); // wrongCount: 3
     expect(sorted[2].qid).toBe("q-2"); // wrongCount: 1
+
+    // 4. 默认排序下高危盲区 (highriskQids) 自动置顶
+    const pinned = filterAndSortWrongQueue(wrongQueue, qMap, () => "careless", {
+      reasonFilter: "all",
+      filterStubborn: false,
+      kpFilter: "",
+      sortMode: "default",
+      highriskQids: new Set(["q-2"]),
+    });
+    expect(pinned.map((x) => x.qid)).toEqual(["q-2", "q-1", "q-3"]);
   });
 });

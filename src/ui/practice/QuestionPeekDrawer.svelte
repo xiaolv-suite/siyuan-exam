@@ -216,15 +216,17 @@
 
   let writeBackBusy = $state<string>("");
   let writeBackSuccess = $state<Record<string, boolean>>({});
+  let writeBackError = $state<Record<string, string>>({});
 
   async function handleWriteBackNote(targetQ: QuestionWithBlock, text: string, rkey: string) {
     if (!targetQ.blockId || !app?.kernelOnline) return;
     writeBackBusy = rkey;
+    writeBackError = { ...writeBackError, [rkey]: "" };
     try {
       await app.appendQuestionNote(targetQ.id, targetQ.blockId, text, "ai-explain");
       writeBackSuccess = { ...writeBackSuccess, [rkey]: true };
-    } catch {
-      // 容错处理
+    } catch (e) {
+      writeBackError = { ...writeBackError, [rkey]: String(e instanceof Error ? e.message : e) };
     } finally {
       writeBackBusy = "";
     }
@@ -660,6 +662,9 @@
                             <span>{writeBackBusy === rkey ? "回写中…" : writeBackSuccess[rkey] ? "已回写思源文档 ✔" : "回写思源文档"}</span>
                           </button>
                         </div>
+                        {#if writeBackError[rkey]}
+                          <div class="lv-error" role="alert" style="margin-top:4px">{writeBackError[rkey]}</div>
+                        {/if}
                       {/if}
                     </div>
                   {/if}

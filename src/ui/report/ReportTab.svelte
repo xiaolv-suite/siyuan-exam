@@ -73,13 +73,17 @@
     let masteryTab = $state<"radar" | "list" | "roadmap">("radar");
     let clearancePlan = $state<import("@/core/knowledgeGraphPath").ClearancePlan | null>(null);
     let clearanceLoading = $state(false);
+    let clearanceError = $state("");
 
     async function loadClearancePlan() {
       if (!app || clearanceLoading) return;
       clearanceLoading = true;
+      clearanceError = "";
       try {
         clearancePlan = await app.planClearanceStudy(bankId || undefined);
-      } catch { /* 容错 */ } finally {
+      } catch (e) {
+        clearanceError = String(e instanceof Error ? e.message : e);
+      } finally {
         clearanceLoading = false;
       }
     }
@@ -281,6 +285,7 @@
       if (!rescueQs.length) return;
       plugin.pendingPractice = rescueQs;
       plugin.pendingPracticeBankId = bankId || undefined;
+      emitExamEvent("open-practice-questions", { qids: rescueQs.map((q) => q.id), bank: bankId });
       plugin.openPractice?.();
       showMessage(`已筛选出 ${rescueQs.length} 道临界遗忘考点题目，正在前往练习台抢救…`, 3500, "info");
     }
@@ -351,13 +356,17 @@
     let discriminationAudit = $state<import("@/core/itemDiscrimination").BankDiscriminationAudit | null>(null);
     let discriminationLoading = $state(false);
     let discriminationExportBusy = $state(false);
+    let discriminationError = $state("");
 
     async function loadDiscriminationAudit() {
       if (!app || discriminationLoading) return;
       discriminationLoading = true;
+      discriminationError = "";
       try {
         discriminationAudit = await app.auditBankDiscrimination(bankId || undefined);
-      } catch { /* 容错 */ } finally {
+      } catch (e) {
+        discriminationError = String(e instanceof Error ? e.message : e);
+      } finally {
         discriminationLoading = false;
       }
     }
@@ -999,13 +1008,6 @@
     }
 </script>
 
-<svelte:window onkeydown={(e) => {
-  if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    paletteOpen = !paletteOpen;
-  }
-}} />
-
 <div class="fn__flex-1 lv-exam-tab">
   <div class="block__icons">
     <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
@@ -1507,7 +1509,7 @@
         <b>{t("report.mastery")}</b>
         {#if mastery.length >= 3}
           <div class="lv-row" style="gap:var(--lv-space-2);align-items:center;flex-wrap:wrap">
-            <div class="lv-session-dock" role="tablist" aria-label="呈现形式" style="margin:0" onkeydown={handleTablistKeydown}>
+            <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="呈现形式" style="margin:0" onkeydown={handleTablistKeydown}>
               <button
                 type="button"
                 role="tab"
@@ -1690,6 +1692,8 @@
         <!-- 阶段通关学习路线与核心阻断图谱 -->
         {#if clearanceLoading}
           <div class="lv-pad" style="text-align:center"><p class="lv-muted">正在根据考点前后拓扑因果关系计算通关地图…</p></div>
+        {:else if clearanceError}
+          <div class="lv-error" role="alert" style="margin-top:8px">{clearanceError}</div>
         {:else if clearancePlan}
           <div class="stack-md" style="margin-top:10px">
             <!-- 核心阻断溯源关键链 -->
@@ -2097,6 +2101,8 @@
 
         {#if discriminationLoading}
           <div class="lv-pad" style="text-align:center"><p class="lv-muted">正在分析全库题目区分度与作答流水…</p></div>
+        {:else if discriminationError}
+          <div class="lv-error" role="alert" style="margin-top:8px">{discriminationError}</div>
         {:else if discriminationAudit}
           <!-- 4 核心统计卡片 -->
           <div class="lv-kpis" style="margin-bottom:16px">

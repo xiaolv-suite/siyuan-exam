@@ -108,6 +108,25 @@ describe("题目内联编辑与生命周期更新服务 (questionEditService)", 
       answer: "B",
       difficulty: 4,
     }));
+
+    // 4. 原有 numeric 规格被清空时传入 answerSpec: null 以清除旧规格
+    const numQ: any = {
+      id: "q-num",
+      type: "fill",
+      blockId: "b-num",
+      answerSpec: { v: 1, kind: "numeric", unit: "m/s", absTol: 0.5 },
+    };
+    await executeSaveQuestionEdit(
+      mockApp,
+      numQ,
+      { stem: "速度为多少", options: [], answer: "10", analysis: "", kp: "", difficulty: "", status: "published" },
+      { unit: "", absTol: "", relPct: "", altUnits: "" },
+      dummyT,
+    );
+    expect(mockApp.updateQuestionContent).toHaveBeenLastCalledWith(
+      numQ,
+      expect.objectContaining({ answerSpec: null }),
+    );
   });
 
   it("4. executeChangeQuestionLifecycle：流转生命周期", async () => {

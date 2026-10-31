@@ -40,6 +40,7 @@ export function ialOf(q: Question): string {
   if (q.sourceKind) attrs["exam-source-kind"] = q.sourceKind;
   if (q.year) attrs["exam-year"] = q.year;
   if (q.kp) attrs["exam-kp"] = q.kp;
+  if (q.secondaryKps?.length) attrs["exam-secondary-kps"] = q.secondaryKps.join(",");
   if (q.batch) attrs["exam-batch"] = q.batch;
   if (q.group) attrs["exam-group"] = q.group;
   if (q.review) attrs["exam-review"] = q.review;
@@ -51,6 +52,8 @@ export function ialOf(q: Question): string {
   if (q.answerSpec) attrs["exam-answer-spec"] = JSON.stringify(q.answerSpec);
   if (q.rubric) attrs["exam-rubric"] = JSON.stringify(q.rubric);
   if (q.studyMeta) attrs["exam-study-meta"] = JSON.stringify(q.studyMeta);
+  if (q.occlusion) attrs["exam-occlusion"] = JSON.stringify(q.occlusion);
+  if (q.family) attrs["exam-family"] = JSON.stringify(q.family);
   if (typeof q.confidence === "number") attrs["exam-confidence"] = q.confidence.toFixed(2);
   return Object.entries(attrs)
     .map(([k, v]) => `custom-${k}="${escapeAttr(v)}"`)
@@ -168,6 +171,9 @@ export function questionFromBlock(input: FromBlockInput): Question | null {
     sourceKind: attrs["exam-source-kind"] as Question["sourceKind"],
     year: attrs["exam-year"],
     kp: attrs["exam-kp"],
+    secondaryKps: attrs["exam-secondary-kps"]
+      ? attrs["exam-secondary-kps"].split(/[,，、;；]/).map((s) => s.trim()).filter(Boolean)
+      : undefined,
     group: attrs["exam-group"],
     origin: (attrs["exam-origin"] as Question["origin"]) ?? "imported",
     batch: attrs["exam-batch"],
@@ -183,19 +189,23 @@ export function questionFromBlock(input: FromBlockInput): Question | null {
     rubric: parseRubricRef(attrs["exam-rubric"]),
     /** 泛学习与多语言研学元数据（方言/发音注音/音频挂载） */
     studyMeta: parseStudyMetaAttr(attrs["exam-study-meta"]),
+    /** 非破坏性 SVG 图片遮挡题规格与题族变式关系 */
+    occlusion: parseOcclusionAttr(attrs["exam-occlusion"]),
+    family: parseFamilyAttr(attrs["exam-family"]),
     hash: questionHash(stem, denseOptions),
   };
 }
 
 /** 54-01/03：块属性 JSON → answerSpec（宽容解析：非对象/缺 v/kind/形状不符 → undefined）。
- *  numeric：{v,kind,unit?…}；multiBlank：blanks=非空数组（逐项含 answers 非空数组）。 */
+ *  numeric：{v,kind,unit?…}；multiBlank：blanks=非空数组（逐项含 answers 非空数组），保留 orderIndependent/caseSensitive。 */
 function parseAnswerSpecAttr(raw: string | undefined): Question["answerSpec"] {
   if (!raw) return undefined;
   try {
     const obj = JSON.parse(raw) as {
       v?: number;
       kind?: string;
-      blanks?: { answers?: unknown }[];
+      blanks?: { answers?: unknown; caseSensitive?: unknown }[];
+      orderIndependent?: unknown;
     };
     if (!obj || obj.v !== 1) return undefined;
     if (obj.kind === "numeric") return obj as unknown as Question["answerSpec"];
@@ -204,9 +214,69 @@ function parseAnswerSpecAttr(raw: string | undefined): Question["answerSpec"] {
         ? obj.blanks.filter((b) => b && Array.isArray(b.answers) && b.answers.length > 0)
         : [];
       if (!blanks.length) return undefined;
-      return { v: 1, kind: "multiBlank", blanks: blanks.map((b) => ({ answers: (b.answers as string[]).map(String) })) };
+      return {
+        v: 1,
+        kind: "multiBlank",
+        blanks: blanks.map((b) => ({
+          answers: (b.answers as string[]).map(String),
+          ...(b.caseSensitive === true ? { caseSensitive: true } : {}),
+        })),
+        ...(obj.orderIndependent === true ? { orderIndependent: true } : {}),
+      };
     }
     return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 块属性 JSON → ImageOcclusionSpec（宽容解析） */
+function parseOcclusionAttr(raw: string | undefined): Question["occlusion"] {
+  if (!raw) return undefined;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    if (!obj || obj.v !== 1 || obj.kind !== "imageOcclusion" || typeof obj.imageUrl !== "string" || !Array.isArray(obj.masks)) {
+      return undefined;
+    }
+    const masks = obj.masks.filter(
+      (m): m is NonNullable<Question["occlusion"]>["masks"][number] =>
+        Boolean(m) &&
+        typeof m === "object" &&
+        typeof (m as Record<string, unknown>).id === "string" &&
+        typeof (m as Record<string, unknown>).x === "number" &&
+        typeof (m as Record<string, unknown>).y === "number" &&
+        typeof (m as Record<string, unknown>).w === "number" &&
+        typeof (m as Record<string, unknown>).h === "number" &&
+        typeof (m as Record<string, unknown>).answer === "string",
+    );
+    if (!masks.length) return undefined;
+    return {
+      v: 1,
+      kind: "imageOcclusion",
+      imageUrl: obj.imageUrl,
+      ...(typeof obj.activeMaskId === "string" ? { activeMaskId: obj.activeMaskId } : {}),
+      masks,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** 块属性 JSON → QuestionFamilyRef（宽容解析） */
+function parseFamilyAttr(raw: string | undefined): Question["family"] {
+  if (!raw) return undefined;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    if (!obj || typeof obj !== "object") return undefined;
+    const parentId = typeof obj.parentId === "string" ? obj.parentId : undefined;
+    const variantKind = typeof obj.variantKind === "string" ? (obj.variantKind as NonNullable<Question["family"]>["variantKind"]) : undefined;
+    const verified = typeof obj.verified === "boolean" ? obj.verified : undefined;
+    if (!parentId && !variantKind && verified === undefined) return undefined;
+    return {
+      ...(parentId ? { parentId } : {}),
+      ...(variantKind ? { variantKind } : {}),
+      ...(verified !== undefined ? { verified } : {}),
+    };
   } catch {
     return undefined;
   }

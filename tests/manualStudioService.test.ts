@@ -157,6 +157,26 @@ B. y = x^2
     expect(failRes.success).toBe(false);
     expect(failRes.errorMsg).toBeDefined();
     expect(failRes.errorField).toBeDefined();
+
+    // 3. 保存多空无序判分与辅助考点不丢失
+    const fillRes = await processAndSaveManualQuestion(mockApp, "bank-1", {
+      type: "fill",
+      stem: "两座城市：____ 与 ____",
+      options: [],
+      answer: "北京;;上海",
+      analysis: "",
+      kp: "地理",
+      secondaryKps: ["常识/城市", "历史"],
+      orderIndependent: true,
+      source: "真题",
+      status: "published",
+    });
+    expect(fillRes.success).toBe(true);
+    expect(fillRes.question?.secondaryKps).toEqual(["常识/城市", "历史"]);
+    expect(fillRes.question?.answerSpec?.kind).toBe("multiBlank");
+    if (fillRes.question?.answerSpec?.kind === "multiBlank") {
+      expect(fillRes.question.answerSpec.orderIndependent).toBe(true);
+    }
   });
 
   it("7. normalizeDraftFormulas：清洗题干与选项 LaTeX 公式", () => {

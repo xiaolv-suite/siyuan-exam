@@ -17,6 +17,8 @@ export type ExplainTemplateId =
   | "practice.hint"
   | "practice.socratic"
   | "practice.explain"
+  | "practice.dual-loop"
+  | "practice.storm"
   | "practice.misdiagnosis"
   | "report.explain"
   | "plan.nextaction"
@@ -196,6 +198,8 @@ export function helpKindOf(templateId: ExplainTemplateId): HelpKind {
   // 事后证据/统计/计划类任务：与 explain 同走揭示闸门（未提交拒绝；strictMock 一律拒绝）
   if (
     templateId === "practice.explain" ||
+    templateId === "practice.dual-loop" ||
+    templateId === "practice.storm" ||
     templateId === "practice.misdiagnosis" ||
     templateId === "report.explain" ||
     templateId === "plan.nextaction" ||
@@ -209,6 +213,8 @@ export function helpKindOf(templateId: ExplainTemplateId): HelpKind {
 
 function templateLabel(templateId: ExplainTemplateId): string {
   if (templateId === "practice.explain") return "依据讲解";
+  if (templateId === "practice.dual-loop") return "双环推理讲解";
+  if (templateId === "practice.storm") return "STORM 多视角破题";
   if (templateId === "practice.hint") return "递进提示";
   if (templateId === "practice.misdiagnosis") return "错因假设";
   if (templateId === "report.explain") return "报告解读";

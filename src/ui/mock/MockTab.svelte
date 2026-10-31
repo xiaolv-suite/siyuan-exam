@@ -39,6 +39,7 @@
     import { getScratchpadText, updateScratchpadText, clearCurrentScratchpad, type ScratchpadStore, type ScratchpadMode } from "../../core/scratchpad";
     import { resolveCbtKeyAction, computeSectionNavigation } from "../../core/cbtKeyboard";
     import { ttsSpeak, ttsSupported } from "../../core/tts";
+    import { renderOcclusionSvg } from "../../core/imageOcclusion";
     
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
     let appOverride = $state<ExamApp | null>(null);
@@ -1109,16 +1110,20 @@
       submitError = "";
       try {
         if (timer) { clearInterval(timer); timer = null; }
-        session.submit(Date.now());
+        const submitNow = Date.now();
+        session.submit(submitNow);
         // 作答写流水（kind=mock；模考错题自动进错题本——replayer 收录）；examId=runId 与蓝图分离
         const effectiveRunId = runId || "mock-" + bp.id;
         if (!attemptsRecorded) {
           for (const a of session.answers.values()) {
             const q = session.byId.get(a.qid);
             const frozen = session.qVersions.get(a.qid);
+            const dwellMs = session.dwellOf(a.qid, submitNow) || a.timeMs;
             app.recordAttempt({
               qid: a.qid, kind: "mock", mode: "paper",
               verdict: a.verdict, myAnswer: a.answer,
+              timeMs: dwellMs > 0 ? dwellMs : undefined,
+              confidence: session.flags.has(a.qid) ? "guess" : undefined,
               sessionId: effectiveRunId, examId: effectiveRunId,
               queue: "normal", changes: a.changes,
               qVersion: q ? createQuestionVersionSnapshot(q) : (frozen ? { hash: frozen.hash, answer: frozen.answer } : undefined),
@@ -1502,15 +1507,14 @@
 
     /** 40-06：模考键盘作答与 CBT 盲打引擎接线（委托纯函数 resolveCbtKeyAction） */
     function onExamKey(e: KeyboardEvent) {
-      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) {
-        if (!tabRoot?.getClientRects().length) return;
-        const tgt = e.target as HTMLElement | null;
-        if (tgt && tgt !== document.body && !tabRoot.contains(tgt)) return;
+      // Ctrl/⌘+K 由 Palette 组件自身统一监听并按活动页签隔离，此处直接放行避免双次翻转抵消
+      if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) return;
+      if (view !== "exam" || !session || !currentQ || examLocked) return;
+      if (e.key === "Escape" && mockMiniSheetOpen) {
         e.preventDefault();
-        paletteOpen = !paletteOpen;
+        mockMiniSheetOpen = false;
         return;
       }
-      if (view !== "exam" || !session || !currentQ || examLocked) return;
       if (handInConfirming || submitting || mockMiniSheetOpen || paletteOpen || !!document.querySelector('[role="dialog"]')) return;
       if (!tabRoot?.getClientRects().length) return;
       const tgt = e.target as HTMLElement | null;
@@ -1534,12 +1538,6 @@
           isLockout: bp.lockout,
         },
       );
-
-      if (e.key === "Escape" && mockMiniSheetOpen) {
-        e.preventDefault();
-        mockMiniSheetOpen = false;
-        return;
-      }
 
       if (action.type === "ignore") return;
 
@@ -2079,6 +2077,11 @@
         <div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{@html stemHtml}</div>
       {:else}
         <div class="lv-stem" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{currentQ.stem}</div>
+      {/if}
+      {#if currentQ.occlusion}
+        <div class="lv-occlusion-wrap" style="margin:10px 0 14px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);max-width:520px">
+          {@html renderOcclusionSvg(currentQ.occlusion, { activeMaskId: currentQ.occlusion.activeMaskId, revealedMaskIds: [] })}
+        </div>
       {/if}
       {#if currentQ.studyMeta?.phonetic}
         <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">

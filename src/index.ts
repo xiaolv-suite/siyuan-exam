@@ -901,9 +901,38 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           }
           const cleanPath = src.startsWith("assets/") ? src : src.includes("/assets/") ? `assets/${src.split("/assets/").pop()}` : src;
           const q = await this.examApp.ocrAndParseQuestion(cleanPath);
-          this.pendingEditQid = q.id;
-          this.openPractice();
-          showMessage("已识别并提取试题内容，正在打开编辑表单…", 3000, "info");
+          q.status = "draft";
+          const bank = this.examApp.listBanks()[0];
+          if (bank) {
+            await this.examApp.writeManualQuestion(bank.id, q);
+            this.pendingEditQid = q.id;
+            this.pendingEditBank = bank.id;
+            emitExamEvent("edit-question", { qid: q.id, bank: bank.id });
+            this.openPractice();
+            showMessage("已识别试题并以草稿入库，正在打开编辑表单…", 3000, "info");
+          } else {
+            await this.examApp.saveAux("draft/manual", {
+              v: 1,
+              type: q.type === "material" ? "single" : q.type,
+              stem: q.stem,
+              options: q.options.length ? q.options : ["", "", "", ""],
+              answer: q.answer,
+              analysis: q.analysis ?? "",
+              kp: q.kp ?? "",
+              source: q.source ?? cleanPath,
+              group: q.group ?? "",
+              specOpen: false,
+              specUnit: "",
+              specAbsTol: "",
+              specRelPct: "",
+              specAltUnits: "",
+              rubricOpen: false,
+              rubricText: "",
+              at: Date.now(),
+            });
+            openPracticeView(this, "manual");
+            showMessage("已识别试题内容并填入录题草稿，请先创建题库后保存…", 3200, "info");
+          }
         } catch (e) {
           showMessage(`识题失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
         }

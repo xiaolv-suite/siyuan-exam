@@ -101,11 +101,20 @@ await step("notebook/getNotebookConf", async () => {
 });
 
 await step("filetree/createDocWithMd /首页", async () => {
-  const r = await api("/api/filetree/createDocWithMd", {
-    notebook: tempNotebook,
-    path: "/首页",
-    markdown: "# 预检首页\n",
-  });
+  let r;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    r = await api("/api/filetree/createDocWithMd", {
+      notebook: tempNotebook,
+      path: "/首页",
+      markdown: "# 预检首页\n",
+    });
+    if (r.code === 0) break;
+    if (/metadata is not ready|indexUnavailable/i.test(String(r.msg ?? ""))) {
+      await new Promise((res) => setTimeout(res, 450));
+      continue;
+    }
+    break;
+  }
   if (r.code !== 0) throw new Error("code=" + r.code + " " + r.msg);
   tempDocId = String(r.data ?? "");
   if (!tempDocId) throw new Error("未返回文档 id");

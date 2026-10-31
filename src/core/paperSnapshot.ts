@@ -31,6 +31,9 @@ export interface PaperQuestionItem {
   hash: string;
   rubric?: Question["rubric"];
   answerSpec?: Question["answerSpec"];
+  secondaryKps?: Question["secondaryKps"];
+  occlusion?: Question["occlusion"];
+  family?: Question["family"];
 }
 
 /** 55-07 固化试卷不可变快照模型 */
@@ -146,6 +149,9 @@ export function createPaperSnapshot(options: {
     if (q.group !== undefined) item.group = q.group;
     if (q.rubric !== undefined) item.rubric = JSON.parse(JSON.stringify(q.rubric)) as Question["rubric"];
     if (q.answerSpec !== undefined) item.answerSpec = JSON.parse(JSON.stringify(q.answerSpec)) as Question["answerSpec"];
+    if (q.secondaryKps?.length) item.secondaryKps = [...q.secondaryKps];
+    if (q.occlusion !== undefined) item.occlusion = JSON.parse(JSON.stringify(q.occlusion)) as Question["occlusion"];
+    if (q.family !== undefined) item.family = JSON.parse(JSON.stringify(q.family)) as Question["family"];
 
     return item;
   });

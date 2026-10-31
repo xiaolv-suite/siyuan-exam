@@ -13,7 +13,7 @@
   import type { SiblingItem, MaterialGroupContext } from "@/core/materialContext";
   import type { ScratchpadMode } from "@/core/scratchpad";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
-  import { startFocusNoise, stopFocusNoise, isFocusNoiseActive } from "@/libs/sound";
+  import { startFocusNoise, stopFocusNoise } from "@/libs/sound";
   import { FlowDwellTracker } from "@/core/flowTimer";
 
   interface Props {

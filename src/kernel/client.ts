@@ -466,8 +466,22 @@ export class KernelApiClient {
   }
 
   async createDocWithMd(notebook: string, hpath: string, markdown: string): Promise<string> {
-    const r = await this.writePost("/api/filetree/createDocWithMd", { notebook, path: hpath, markdown });
-    return String(r.data ?? "");
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const r = await this.writePost("/api/filetree/createDocWithMd", { notebook, path: hpath, markdown });
+        return String(r.data ?? "");
+      } catch (e) {
+        lastErr = e;
+        const msg = String(e instanceof Error ? e.message : e);
+        if (/metadata is not ready|indexUnavailable/i.test(msg) && attempt < 4) {
+          await new Promise((res) => setTimeout(res, 400 * (attempt + 1)));
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr;
   }
 
   /** 写入工作区文件（120-02 资料登记：/api/file/putFile，file=base64；目录不存在自动创建） */

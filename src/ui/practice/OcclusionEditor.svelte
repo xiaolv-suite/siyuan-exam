@@ -19,7 +19,7 @@
     source?: string;
   }
 
-  let { t, oncreate, kp = "", source = "" }: Props = $props();
+  let { t: _t, oncreate, kp = "", source = "" }: Props = $props();
 
   interface DraftMask {
     id: string;
@@ -38,7 +38,7 @@
   let masks = $state<DraftMask[]>([]);
   let draftRect = $state<null | { x: number; y: number; w: number; h: number }>(null);
   let dragStart = $state<null | { px: number; py: number }>(null);
-  let canvasEl: HTMLDivElement | null = null;
+  let canvasEl = $state<HTMLDivElement | null>(null);
   let fileInput: HTMLInputElement | null = null;
   let creating = $state(false);
   let localError = $state("");
@@ -205,6 +205,8 @@
 
   {#if ready}
     <!-- 绘制画布：pointer events 统一鼠标/触屏/笔；touch-action:none 防拖拽时页面滚动 -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       bind:this={canvasEl}
       class="lv-occl-canvas"
