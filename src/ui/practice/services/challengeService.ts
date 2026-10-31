@@ -83,5 +83,12 @@ export async function parseAndStartChallenge(
     }),
   );
 
-  return app.startSession(qs, "challenge", activeBankId);
+  const session = await app.startSession(qs, "challenge", activeBankId);
+  if (session?.state) {
+    session.state.inlineQuestions = qs;
+  }
+  if (typeof app.saveSession === "function") {
+    await app.saveSession();
+  }
+  return session;
 }

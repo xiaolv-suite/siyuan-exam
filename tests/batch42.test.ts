@@ -9,9 +9,6 @@ import {
   syncCheckin,
   type CheckinApiV5,
 } from "../src/core/checkinBridge";
-import { ExamApp } from "../src/app";
-import { MemoryStorage } from "../src/core/attemptLog";
-import type { KernelApiClient } from "../src/kernel/client";
 
 const CFG = { itemId: " 题库打卡 ", threshold: 10 };
 const NOW = new Date(2026, 9, 4, 21, 0, 0).getTime(); // 2026-10-04 21:00 本地
@@ -71,22 +68,6 @@ describe("考试→打卡桥纯函数（48-03 lite，四二批）", () => {
 
     const noCap = { protocol: "siyuan-checkin", hasCapability: () => false } as unknown as CheckinApiV5;
     expect((await syncCheckin(noCap, CFG, 12, NOW, 10)).status).toBe("no-capability");
-  });
-});
-
-describe("打卡桥待重试持久化（ExamApp，四二批）", () => {
-  it("pending 写读清空", async () => {
-    const app = new ExamApp({
-      client: { sql: async () => [] } as unknown as KernelApiClient,
-      storage: new MemoryStorage(),
-      now: () => 1_800_000_000_000,
-    });
-    expect(await app.getCheckinPending()).toBeNull();
-    const evt = buildCheckinEvent(CFG, 12, NOW);
-    await app.setCheckinPending(evt);
-    expect((await app.getCheckinPending())?.externalRef).toBe(evt.externalRef);
-    await app.setCheckinPending(null);
-    expect(await app.getCheckinPending()).toBeNull();
   });
 });
 

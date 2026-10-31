@@ -235,7 +235,7 @@ describe("题库治理与考纲服务 (bankGovernanceService)", () => {
     expect(emptyApply.note).toBe("[paper.none]");
   });
 
-  it("7. executeApplyErrata：勘误批量应用、撤销生成与反馈消息", async () => {
+  it("7. executeApplyErrata：勘误批量应用、撤销基线与 applyBatch(true) 单次求逆一致", async () => {
     const t = (k: string) => `[${k}]`;
     const mockApp = {
       applyBatchEdit: vi.fn().mockResolvedValue({ ok: 2, failed: 0 }),
@@ -251,8 +251,11 @@ describe("题库治理与考纲服务 (bankGovernanceService)", () => {
     expect(res.ok).toBe(2);
     expect(res.failed).toBe(0);
     expect(res.undo.bankId).toBe("bank-1");
-    expect(res.undo.changes[0].from).toBe("新题干");
-    expect(res.undo.changes[0].to).toBe("旧题干");
+    expect(res.undo.changes).toEqual(fakePlan.changes);
+    const { invertPlan } = await import("@/core/batchEdit");
+    const undoApplied = invertPlan(res.undo.changes);
+    expect(undoApplied[0].from).toBe("新题干");
+    expect(undoApplied[0].to).toBe("旧题干");
     expect(res.note).toBe("[errata.applied]");
     expect(mockApp.applyBatchEdit).toHaveBeenCalledWith(fakePlan.changes);
   });

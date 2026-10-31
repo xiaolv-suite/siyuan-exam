@@ -15,7 +15,10 @@
     "command.openMock": "打开模考场",
     "command.openReport": "打开报告中心",
     "blockMenu.addToPractice": "加入练习集",
+    "blockMenu.convertToQuestion": "转为小驴试题（录入题库）",
     "blockMenu.generateFromBlock": "用此内容生成题目",
+    "slash.convertToQuestion": "转为小驴试题（录入题库）",
+    "slash.convertToQuestionDone": "已从思源笔记段落提取并载入手工录题台 ✓",
     "blockMenu.blockSourceEmpty": "当前块没有可用于出题的内容",
     "blockMenu.blockSourceFailed": "读取当前块失败：{message}",
     "blockMenu.blockSourceTruncated": "当前块内容较长，已截取前 {n} 字作为出题材料",
@@ -1562,5 +1565,7 @@
     "report.mockRound": "场次",
     "report.mockDate": "日期",
     "wrongbook.loadMore": "加载更多错题",
-    "wrongbook.remaining": "还有"
+    "wrongbook.remaining": "还有",
+    "setting.speechEvalEnabled.title": "常驻显示口语跟读测评",
+    "setting.speechEvalEnabled.desc": "默认仅在含语种/注音元数据的题目上自动显示跟读按钮；开启后在所有题目上显示麦克风跟读测评"
 }

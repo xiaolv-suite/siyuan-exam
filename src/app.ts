@@ -18,7 +18,6 @@ import { ratingOutcome, classifyWriteError, type RatingOutcomeView, type Pending
 import {
   filterEffectiveActiveWrongs,
   isWrongArchived as checkWrongArchived,
-  isWrongSnoozed as checkWrongSnoozed,
   type WrongOverlayRecord,
 } from "./core/wrongState";
 import { SaveGate } from "./core/saveGate";
@@ -34,40 +33,13 @@ import type { BankCategory } from "./core/bankCategory";
 import { BATCH_FIELD_ATTR, type BatchField } from "./core/batchEdit";
 import { auditAttemptEvents, type DataAuditReport } from "./core/dataAudit";
 import { emitExamEvent } from "./core/bus";
-import type { CheckinEventInput } from "./core/checkinBridge";
 import type { MockRunSnapshot } from "./core/mock";
-import {
-  exportPaperMarkdown,
-  exportAnswerKeyMarkdown,
-  verifyPaperIntegrity,
-  type PaperSnapshot,
-} from "./core/paperSnapshot";
-import {
-  computeExamUrgency,
-  extractCramCandidates,
-  calculateCramBudget,
-  createCramSessionSpec,
-  type CramFilterOptions,
-  type CramSessionSpec,
-  type ExamUrgency,
-} from "./core/cramScheduler";
-import {
-  burySiblingsForPractice,
-  disperseSiblings,
-  type SiblingBuryOptions,
-  type SiblingBuryResult,
-} from "./core/siblingBury";
 import {
   createDiagnosisEntry,
   appendDiagnosisToDoc,
   removeDiagnosisFromDoc,
   getLatestDiagnosis as findLatestDiagnosis,
-  listDiagnosisHistory as findDiagnosisHistory,
-  exportDiagnosisMarkdown as formatDiagnosisMarkdown,
-  fromLegacyReflection,
   EMPTY_DIAGNOSIS_DOC,
-  type RootCauseKind,
-  type SelfDiagnosisEntry,
   type SelfDiagnosisHistoryDoc,
 } from "./core/selfDiagnosis";
 import {
@@ -137,7 +109,6 @@ import { sanitizeRichHtml } from "./libs/sanitize";
 import {
   canCopyIntoAssets,
   assetsPathFor,
-  attachLocation,
   kindFromFileName,
   parseRegistry,
   registerMaterial,
@@ -195,8 +166,6 @@ import {
 import {
   parseRelations,
   serializeRelations,
-  addRelation,
-  removeRelation,
   EMPTY_RELATIONS,
   type KpRelation,
   type KpRelationsDoc,
@@ -612,7 +581,7 @@ export class ExamApp {
     return info;
   }
 
-  /** 用户主动创建示例题库；支持通用通识、粤语/英语多语言、职业资格、K12全科与大学硕博高阶题库；并发点击共享任务。 */
+  /** 用户主动创建示例题库；支持通用基础与多场景示例题库（收纳于题库管理折叠区）；并发点击共享任务。 */
   createSampleBank(kind: "general" | "cantonese" | "english" | "qualification" | "k12" | "higher" = "general"): Promise<BankInfo> {
     if (this.sampleBankCreation) return this.sampleBankCreation;
     this.sampleBankCreation = this.writeSampleBank(kind).finally(() => { this.sampleBankCreation = null; });
@@ -700,6 +669,25 @@ export class ExamApp {
           const afterWrite = await this.deps.client.getBlockKramdown(docId);
           const persisted = new Set(Array.from((afterWrite ?? "").matchAll(/\bcustom-exam-id="([^"]+)"/g), ([, id]) => id));
           if (missing.some((q) => !persisted.has(q.id))) throw new Error("未收到全部示例题的写入回执");
+        }
+        if (typeof this.deps.client.setExamAttrs === "function") {
+          for (const { qid, blockId } of written) {
+            if (!blockId) continue;
+            const pq = missing.find((q) => q.id === qid);
+            if (!pq) continue;
+            const extraAttrs: Record<string, string> = {};
+            if (pq.answerSpec) extraAttrs["exam-answer-spec"] = JSON.stringify(pq.answerSpec);
+            if (pq.rubric) extraAttrs["exam-rubric"] = JSON.stringify(pq.rubric);
+            if (pq.studyMeta) extraAttrs["exam-study-meta"] = JSON.stringify(pq.studyMeta);
+            if (pq.secondaryKps?.length) extraAttrs["exam-secondary-kps"] = pq.secondaryKps.join(",");
+            if (pq.occlusion) extraAttrs["exam-occlusion"] = JSON.stringify(pq.occlusion);
+            if (pq.family) extraAttrs["exam-family"] = JSON.stringify(pq.family);
+            if (Object.keys(extraAttrs).length > 0) {
+              try {
+                await this.deps.client.setExamAttrs(blockId, extraAttrs);
+              } catch { /* 容错 */ }
+            }
+          }
         }
       }
       info.sampleState = "ready";
@@ -912,17 +900,21 @@ export class ExamApp {
         const pq = pending.find((q) => q.id === qid);
         const spec = pq?.answerSpec;
         const rubric = pq?.rubric;
+        const studyMeta = pq?.studyMeta;
         const secondaryKps = pq?.secondaryKps;
         const occlusion = pq?.occlusion;
         const family = pq?.family;
-        if (!spec && !rubric && !secondaryKps?.length && !occlusion && !family) continue;
+        const sourceBlockId = pq?.sourceBlockId;
+        if (!spec && !rubric && !studyMeta && !secondaryKps?.length && !occlusion && !family && !sourceBlockId) continue;
         try {
           await this.deps.client.setExamAttrs(blockId, {
             ...(spec ? { "exam-answer-spec": JSON.stringify(spec) } : {}),
             ...(rubric ? { "exam-rubric": JSON.stringify(rubric) } : {}),
+            ...(studyMeta ? { "exam-study-meta": JSON.stringify(studyMeta) } : {}),
             ...(secondaryKps?.length ? { "exam-secondary-kps": secondaryKps.join(",") } : {}),
             ...(occlusion ? { "exam-occlusion": JSON.stringify(occlusion) } : {}),
             ...(family ? { "exam-family": JSON.stringify(family) } : {}),
+            ...(sourceBlockId ? { "exam-source-block": sourceBlockId } : {}),
           });
         } catch { /* spec 写失败不影响题目入库；读回时该题按旧口径判分（如实降级） */ }
       }
@@ -1030,61 +1022,183 @@ export class ExamApp {
     await this.saveAux("import/checkpoint", null);
   }
 
+  private ensuredDocIds = new Map<string, string>();
+  private ensuringDocPromises = new Map<string, Promise<string>>();
+  private questionBlockMap = new Map<string, string>();
+  private reflectionNoteBlockIds = new Map<string, string>();
+  private dailyReportBlockIds = new Map<string, string>();
+
   private async ensureDoc(bankId: string, hpath: string, markdown?: string): Promise<string> {
+    const cacheKey = `${bankId}\0${hpath}`;
+    const cached = this.ensuredDocIds.get(cacheKey);
+    if (cached) return cached;
+    const inflight = this.ensuringDocPromises.get(cacheKey);
+    if (inflight) return inflight;
+
     // createDocWithMd 幂等：已存在返回 ""（思源行为）——先查再建；
     // 建后重查一次：与思源日记自动建档存在竞态时 createDocWithMd 可能返回 ""
     // 而真实文档由宿主创建（真机走查实测出现同 hpath 双文档块，写入静默落空）
-    const findExisting = async () => {
-      const existing = await this.deps.client.sql(
-        `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
-      );
-      return existing[0]?.id ? String(existing[0].id) : "";
-    };
+    const task = (async () => {
+      const findExisting = async () => {
+        const existing = await this.deps.client.sql(
+          `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
+        );
+        return existing[0]?.id ? String(existing[0].id) : "";
+      };
 
-    const initial = await findExisting();
-    if (initial) return initial;
+      const initial = await findExisting();
+      if (initial) {
+        this.ensuredDocIds.set(cacheKey, initial);
+        return initial;
+      }
 
-    let lastErr: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const created = await this.deps.client.createDocWithMd(bankId, hpath, markdown ?? `# ${hpath.split("/").pop()}\n\n`);
-        if (created) return created;
-        const again = await findExisting();
-        if (again) return again;
-      } catch (e) {
-        lastErr = e;
-        const msg = String(e instanceof Error ? e.message : e);
-        // 思源 3.8.9-beta.2：处理 metadata is not ready 等内核瞬态竞态自愈重试
-        if (/metadata is not ready|not ready|busy|locked/i.test(msg) && attempt < 2) {
-          await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
-          const checked = await findExisting().catch(() => "");
-          if (checked) return checked;
-          continue;
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const created = await this.deps.client.createDocWithMd(bankId, hpath, markdown ?? `# ${hpath.split("/").pop()}\n\n`);
+          if (created) {
+            this.ensuredDocIds.set(cacheKey, created);
+            return created;
+          }
+          const again = await findExisting();
+          if (again) {
+            this.ensuredDocIds.set(cacheKey, again);
+            return again;
+          }
+        } catch (e) {
+          lastErr = e;
+          const msg = String(e instanceof Error ? e.message : e);
+          // 思源 3.8.9-beta.2：处理 metadata is not ready 等内核瞬态竞态自愈重试
+          if (/metadata is not ready|not ready|busy|locked/i.test(msg) && attempt < 2) {
+            await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+            const checked = await findExisting().catch(() => "");
+            if (checked) {
+              this.ensuredDocIds.set(cacheKey, checked);
+              return checked;
+            }
+            continue;
+          }
+          throw e;
         }
-        throw e;
+      }
+      const finalDoc = await findExisting().catch(() => "");
+      if (finalDoc) {
+        this.ensuredDocIds.set(cacheKey, finalDoc);
+        return finalDoc;
+      }
+      if (lastErr) throw lastErr;
+      return "";
+    })();
+
+    this.ensuringDocPromises.set(cacheKey, task);
+    try {
+      return await task;
+    } finally {
+      this.ensuringDocPromises.delete(cacheKey);
+    }
+  }
+
+  /** 原位幂等建档/更新文档：若目标 hpath 已存在则通过 updateBlock 原位刷新内容，避免文档树无限堆积重复同名文档 */
+  private async upsertDocWithMd(bankId: string, hpath: string, markdown: string): Promise<string> {
+    const cacheKey = `${bankId}\0${hpath}`;
+    let existingId = this.ensuredDocIds.get(cacheKey) || "";
+    if (!existingId && typeof this.deps.client.sql === "function") {
+      try {
+        const rows = await this.deps.client.sql(
+          `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
+        );
+        if (rows[0]?.id) existingId = String(rows[0].id);
+      } catch {
+        /* 查询失败走创建分支 */
       }
     }
-    const finalDoc = await findExisting().catch(() => "");
-    if (finalDoc) return finalDoc;
-    if (lastErr) throw lastErr;
-    return "";
+    if (existingId) {
+      this.ensuredDocIds.set(cacheKey, existingId);
+      if (typeof this.deps.client.updateBlock === "function") {
+        try {
+          await this.deps.client.updateBlock(existingId, markdown);
+        } catch {
+          /* 宿主不支持直接 updateBlock 时保留原文档 */
+        }
+      }
+      return existingId;
+    }
+    const created = (await this.deps.client.createDocWithMd(bankId, hpath, markdown)) || (await this.ensureDoc(bankId, hpath, markdown));
+    if (created) this.ensuredDocIds.set(cacheKey, created);
+    return created;
   }
 
   async listQuestions(bankId: string): Promise<(Question & { blockId: string; rootId: string; hpath: string })[]> {
-    return this.deps.client.listQuestions(bankId);
+    const qs = await this.deps.client.listQuestions(bankId);
+    for (const q of qs) {
+      if (q.id && q.blockId) {
+        this.questionBlockMap.set(q.id, q.blockId);
+      }
+    }
+    return qs;
   }
 
-  /** 块菜单直通（2.2）：按 blockId 在各题库定位题目；离线返回 null（调用方降级提示） */
+  /** 将单题作答次数、错题状态、错因标签与个人复盘反思同步回写至思源源题块 IAL 属性（离线或无块 ID 时静默跳过） */
+  async syncQuestionStudyStateToBlock(qid: string, explicitBlockId?: string): Promise<void> {
+    if (!qid || !this.kernelOnline || typeof this.deps.client.setExamAttrs !== "function") return;
+    const blockId = explicitBlockId || this.questionBlockMap.get(qid);
+    if (!blockId) return;
+    const d = this.derived();
+    const stat = d.byQuestion.get(qid);
+    const wrong = d.wrongbook.get(qid);
+    const overlay = this.wrongOverlay.get(qid);
+    const reason = this.wrongReasons.get(qid) ?? "";
+    const reflection = this.wrongReflections[qid]?.text ?? "";
+    let wrongStatus = wrong?.status ?? "";
+    if (overlay?.status) {
+      wrongStatus = overlay.status;
+    }
+    const attrs: Record<string, string> = {
+      "exam-attempts": String(stat?.attempts ?? 0),
+      "exam-correct": String(stat?.correct ?? 0),
+      "exam-wrong-count": String(wrong?.wrongCount ?? 0),
+      "exam-wrong-status": wrongStatus,
+      "exam-wrong-reason": reason,
+      "exam-reflection": reflection,
+    };
+    try {
+      await this.deps.client.setExamAttrs(blockId, attrs);
+    } catch {
+      /* 块属性回写尽力而为，不阻断主流程 */
+    }
+  }
+
+  /** 块菜单直通（2.2）：按 blockId 在各题库定位题目（兼容衍生文档内带 custom-exam-id 的块）；离线返回 null（调用方降级提示） */
   async findQuestionByBlock(
     blockId: string,
   ): Promise<{ q: Question & { blockId: string; rootId: string; hpath: string }; bank: BankInfo } | null> {
     if (!blockId || !this.kernelOnline) return null;
+    let targetExamId = "";
     for (const bank of this.listBanks()) {
       try {
-        const q = (await this.listQuestions(bank.id)).find((x) => x.blockId === blockId);
-        if (q) return { q, bank };
+        const qs = await this.listQuestions(bank.id);
+        const direct = qs.find((x) => x.blockId === blockId);
+        if (direct) return { q: direct, bank };
       } catch {
         /* 该库读取失败 → 试下一个 */
+      }
+    }
+    if (typeof this.deps.client.getBlockAttrs === "function") {
+      try {
+        const attrs = await this.deps.client.getBlockAttrs(blockId);
+        targetExamId = attrs["custom-exam-id"] || attrs["exam-id"] || "";
+      } catch {
+        /* 忽略 */
+      }
+    }
+    if (targetExamId) {
+      for (const bank of this.listBanks()) {
+        try {
+          const q = (await this.listQuestions(bank.id)).find((x) => x.id === targetExamId);
+          if (q) return { q, bank };
+        } catch {
+          /* 继续 */
+        }
       }
     }
     return null;
@@ -1253,8 +1367,25 @@ export class ExamApp {
         if (specWasChanged && !changedFields.includes("spec")) {
           changedFields.push("spec");
         }
+        const nowTs = this.deps.now?.() ?? Date.now();
+        const existingRevisions = await this.questionRevisions(q.id);
+        if (existingRevisions.length === 0) {
+          await this.appendRevision(q.id, {
+            ts: Math.max(1, nowTs - 1),
+            answer: q.answer,
+            kp: (q.kp ?? "").trim(),
+            stem: q.stem.trim(),
+            options: [...q.options],
+            analysis: (q.analysis ?? "").trim(),
+            difficulty: q.difficulty ?? null,
+            answerSpec: q.answerSpec ? JSON.parse(JSON.stringify(q.answerSpec)) : null,
+            status: q.status,
+            changedFields: [],
+            summary: "初始基线版本",
+          });
+        }
         await this.appendRevision(q.id, {
-          ts: this.deps.now?.() ?? Date.now(),
+          ts: nowTs,
           answer,
           kp: draft.kp.trim(),
           specChanged: specWasChanged || undefined,
@@ -1319,7 +1450,9 @@ export class ExamApp {
   // ---------- 流水与派生 ----------
   recordAttempt(input: Parameters<AttemptLog["append"]>[0]): AttemptEvent {
     this.invalidate();
-    return this.attempts.append(input);
+    const ev = this.attempts.append(input);
+    void this.syncQuestionStudyStateToBlock(input.qid);
+    return ev;
   }
 
   /** 44-09 撤销会话最近一次提交的作答流水（支持按 sessionId 与 qid 校验） */
@@ -1405,13 +1538,6 @@ export class ExamApp {
     return checkWrongArchived(o, w);
   }
 
-  isWrongSnoozed(qid: string): boolean {
-    const o = this.wrongOverlay.get(qid);
-    const now = this.deps.now?.() ?? Date.now();
-    const w = this.derived().wrongbook.get(qid);
-    return checkWrongSnoozed(o, w, now);
-  }
-
   /** 顽固题封存归档（52-06）：彻底移出刷题与模考回流，但历史与统计完整保留 */
   async archiveWrong(qid: string): Promise<void> {
     this.assertStorageWritable();
@@ -1432,6 +1558,7 @@ export class ExamApp {
         throw e;
       }
     });
+    await this.syncQuestionStudyStateToBlock(qid);
     emitExamEvent("wrongbook-changed", { qid, status: "archived" });
   }
 
@@ -1469,6 +1596,7 @@ export class ExamApp {
         throw e;
       }
     });
+    await this.syncQuestionStudyStateToBlock(qid);
     emitExamEvent("wrongbook-changed", { qid, status }); // 48-02 lite：生态消费者按需重读
   }
 
@@ -1493,6 +1621,7 @@ export class ExamApp {
         throw e;
       }
     });
+    await this.syncQuestionStudyStateToBlock(qid);
     emitExamEvent("wrongbook-changed", { qid, status: "snoozed" });
   }
 
@@ -1508,68 +1637,15 @@ export class ExamApp {
     }
   }
 
-  /** 保存四要素自诊断复盘（支持历史版本化追加；官方解析与作答流水不受影响） */
-  async saveWrongDiagnosis(
-    qid: string,
-    input: {
-      thought?: string;
-      rootCause?: RootCauseKind;
-      rationale?: string;
-      checklist?: string;
-    },
-  ): Promise<SelfDiagnosisEntry> {
-    this.assertStorageWritable();
-    const entry = createDiagnosisEntry(qid, input, this.deps.now?.() ?? Date.now());
-    const key = "wrongbook/diagnosis";
-    await this.queueStorageWrite(key, async () => {
-      const current = (await this.loadAux<SelfDiagnosisHistoryDoc>(key)) ?? this.diagnosisDoc;
-      const updated = appendDiagnosisToDoc(current, entry);
-      await this.saves.runLatest(key, () => this.deps.storage.save(key, updated));
-      this.diagnosisDoc = updated;
-
-      // 同步兼容旧版 reflection 文本缓存
-      if (entry.thought) {
-        this.wrongReflections[qid] = { text: entry.thought, at: entry.at };
-      }
-    });
-    return entry;
-  }
-
-  /** 获取题目最新一次自诊断记录（52-04 验收：复习时回看上次检查点） */
-  async getLatestDiagnosis(qid: string): Promise<SelfDiagnosisEntry | null> {
-    const fromDoc = findLatestDiagnosis(this.diagnosisDoc, qid);
-    if (fromDoc) return fromDoc;
-    // 回退兼容旧版反思记录
-    const legacy = await this.loadWrongReflection(qid);
-    if (legacy) return fromLegacyReflection(qid, legacy);
-    return null;
-  }
-
-  /** 获取某题的完整诊断历史时间轴 */
-  async listDiagnosisHistory(qid: string): Promise<SelfDiagnosisEntry[]> {
-    const list = findDiagnosisHistory(this.diagnosisDoc, qid);
-    if (list.length) return list;
-    const legacy = await this.loadWrongReflection(qid);
-    if (legacy) return [fromLegacyReflection(qid, legacy)];
-    return [];
-  }
-
-  /** 导出题目最新自诊断 Markdown 卡片 */
-  async exportDiagnosisMarkdown(qid: string): Promise<string | null> {
-    const latest = await this.getLatestDiagnosis(qid);
-    if (!latest) return null;
-    return formatDiagnosisMarkdown(latest);
-  }
-
-  /** 保存自诊断复盘（兼容旧版纯文本接口，内部同步升级至四要素结构） */
+  /** 保存自诊断复盘（兼容旧版纯文本接口，内部同步升级至四要素结构，并同步回写思源源题块属性与子块） */
   async saveWrongReflection(qid: string, text: string): Promise<void> {
     this.assertStorageWritable();
     const key = "wrongbook/reflections";
+    const trimmed = text.trim();
     await this.queueStorageWrite(key, async () => {
       const v = await this.loadAux<Record<string, { text: string; at: number }>>(key);
       const previous = this.wrongReflections;
       const map = { ...(v ?? {}) };
-      const trimmed = text.trim();
       const at = this.deps.now?.() ?? Date.now();
       if (!trimmed) {
         delete map[qid];
@@ -1589,6 +1665,28 @@ export class ExamApp {
         throw e;
       }
     });
+    await this.syncQuestionStudyStateToBlock(qid);
+    const blockId = this.questionBlockMap.get(qid);
+    if (blockId && this.kernelOnline && trimmed) {
+      const quoted = trimmed
+        .split(/\r?\n/)
+        .map((line, i) => (i === 0 ? `> ✍️ 【我的复盘反思】${line}` : `> ${line}`))
+        .join("\n");
+      const noteMd = `{{{row\n${quoted}\n}}}\n{: custom-exam-note-id="${qid}-reflection" custom-exam-note-kind="note"}`;
+      const prevNoteBlockId = this.reflectionNoteBlockIds.get(qid);
+      try {
+        if (prevNoteBlockId && typeof this.deps.client.updateBlock === "function") {
+          await this.deps.client.updateBlock(prevNoteBlockId, noteMd);
+        } else if (typeof this.deps.client.appendBlock === "function") {
+          const added = await this.deps.client.appendBlock(blockId, noteMd);
+          if (Array.isArray(added) && added[0]) {
+            this.reflectionNoteBlockIds.set(qid, added[0]);
+          }
+        }
+      } catch {
+        /* 题块子笔记写回尽力而为 */
+      }
+    }
   }
 
   /** 读取自诊断复盘（兼容旧版纯文本反思读取） */
@@ -1634,6 +1732,7 @@ export class ExamApp {
         throw e;
       }
     });
+    await this.syncQuestionStudyStateToBlock(qid);
   }
 
   async loadWrongReason(qid: string): Promise<string | undefined> {
@@ -1765,7 +1864,9 @@ export class ExamApp {
         return null;
       }
       if (age > DRAFT_HIDE_MS) return null;
-      const found = await questionLoader(saved.qids);
+      const found = Array.isArray(saved.inlineQuestions) && saved.inlineQuestions.length > 0
+        ? saved.inlineQuestions
+        : await questionLoader(saved.qids);
       // 缺题如实剔除（删题/读不到），不用其他题顶替
       const foundIds = new Set(found.map((q) => q.id));
       this.lastResumeMissing = saved.qids.filter((id) => !foundIds.has(id));
@@ -1859,6 +1960,12 @@ export class ExamApp {
       if (q.family) {
         attrs["exam-family"] = JSON.stringify(q.family);
       }
+      if (q.studyMeta) {
+        attrs["exam-study-meta"] = JSON.stringify(q.studyMeta);
+      }
+      if (q.sourceBlockId) {
+        attrs["exam-source-block"] = q.sourceBlockId;
+      }
       try {
         await this.deps.client.setExamAttrs(blockId, attrs);
       } catch { /* 如实降级：读回按旧口径 */ }
@@ -1884,9 +1991,18 @@ export class ExamApp {
     text: string,
     kind: "mnemonic" | "note" | "ai-explain",
   ): Promise<void> {
-    if (!blockId) throw new Error("题目块不存在（先完成导入）");
-    const md = `{{{row\n${text}\n}}}\n{: custom-exam-note-id="${qid}-n-${Date.now().toString(36)}" custom-exam-note-kind="${kind}"}`;
-    await this.deps.client.appendBlock(blockId, md);
+    const resolvedBlockId = blockId || this.questionBlockMap.get(qid);
+    if (!resolvedBlockId) throw new Error("题目块不存在（先完成导入）");
+    const prefix = kind === "ai-explain" ? "🤖 【AI 破题讲解】" : kind === "mnemonic" ? "🧠 【记忆口诀】" : "📝 【题目笔记】";
+    const quoted = text
+      .split(/\r?\n/)
+      .map((line, idx) => {
+        const clean = line.replace(/^>\s?/, "");
+        return idx === 0 ? `> ${prefix}${clean}` : `> ${clean}`;
+      })
+      .join("\n");
+    const md = `{{{row\n${quoted}\n}}}\n{: custom-exam-note-id="${qid}-n-${Date.now().toString(36)}" custom-exam-note-kind="${kind}"}`;
+    await this.deps.client.appendBlock(resolvedBlockId, md);
   }
 
   /** 收藏切换（写块属性；本地缓存同步更新避免整表刷新） */
@@ -2102,22 +2218,6 @@ export class ExamApp {
       throw e;
     }
     return { material: result.material, deduped: result.deduped };
-  }
-
-  /** 为既有资料追加位置（同一文件第二份副本/镜像）；重复位置如实返回 deduped 不重复写 */
-  async attachMaterialLocation(materialId: string, loc: { kind: "assets" | "link"; path: string }): Promise<{ deduped: boolean }> {
-    if (this.materialsReadonly) throw new Error("注册表版本较新：只读（降级回滚场景），变更已拒绝");
-    const r = attachLocation(this.materialsRegistry, materialId, loc, this.deps.now?.() ?? Date.now());
-    if (!r.material) throw new Error("资料不存在");
-    const previous = this.materialsRegistry;
-    try {
-      this.materialsRegistry = r.registry;
-      await this.saveMaterialsRegistry();
-    } catch (e) {
-      this.materialsRegistry = previous;
-      throw e;
-    }
-    return { deduped: r.deduped };
   }
 
   /** 移除登记（purgeAssets=true 时尽力删除 assets 附件；失败不阻断——登记移除是主事实） */
@@ -2342,38 +2442,6 @@ export class ExamApp {
     }
   }
 
-  /** 新增考点先修依赖边（自动去重与保存） */
-  async addKpRelation(rel: KpRelation): Promise<void> {
-    this.assertStorageWritable();
-    if (this.kpRelationsTooNew) throw new Error("考点关系存储版本较新：只读，写入已拒绝");
-    const previous = this.kpRelations;
-    this.kpRelations = addRelation(this.kpRelations, rel);
-    try {
-      await this.saves.runLatest(KP_RELATIONS_KEY, () =>
-        this.deps.storage.save(KP_RELATIONS_KEY, serializeRelations(this.kpRelations)),
-      );
-    } catch (e) {
-      this.kpRelations = previous;
-      throw e;
-    }
-  }
-
-  /** 移除指定考点关系 */
-  async removeKpRelation(rel: Pick<KpRelation, "from" | "to" | "kind">): Promise<void> {
-    this.assertStorageWritable();
-    if (this.kpRelationsTooNew) throw new Error("考点关系存储版本较新：只读，写入已拒绝");
-    const previous = this.kpRelations;
-    this.kpRelations = removeRelation(this.kpRelations, rel);
-    try {
-      await this.saves.runLatest(KP_RELATIONS_KEY, () =>
-        this.deps.storage.save(KP_RELATIONS_KEY, serializeRelations(this.kpRelations)),
-      );
-    } catch (e) {
-      this.kpRelations = previous;
-      throw e;
-    }
-  }
-
   /** 一键植入/加载国家新课标学科图谱标准预设（大纲树 + 先修关系网） */
   async applyTaxonomyPreset(options: { overwriteSyllabus?: boolean; mergeRelations?: boolean } = {}): Promise<{
     roots: SyllabusNode[];
@@ -2478,27 +2546,17 @@ export class ExamApp {
     return { ok, failed, missing };
   }
 
-  // ---------- 打卡桥待重试（48-03：失败保留原 externalRef，不换新引用） ----------
-  async getCheckinPending(): Promise<CheckinEventInput | null> {
-    const v = await this.loadAux<CheckinEventInput | null>("checkin/bridge/pending");
-    return v ?? null;
-  }
-
-  async setCheckinPending(p: CheckinEventInput | null): Promise<void> {
-    this.assertStorageWritable();
-    await this.queueStorageWrite("checkin/bridge/pending", () =>
-      this.saves.runLatest("checkin/bridge/pending", () => this.deps.storage.save("checkin/bridge/pending", p)),
-    );
-  }
-
   // ---------- 每日战报（联动小驴复盘预留） ----------
   /** 把当日战报写入思源日记（首个开启"每日笔记"的笔记本），返回日记文档 id */
   async writeDailyReport(bankId: string, bankName: string): Promise<string> {
     const { dailyDocPath } = await import("./core/weekly");
+    const { formatSiyuanBlockRef } = await import("./core/siyuanSyncDoc");
     const now = this.deps.now?.() ?? Date.now();
     const today = new Date(now);
     const cutoff = reportWindowStart(1, now);
-    const ids = new Set((await this.listQuestions(bankId)).map((q) => q.id));
+    const bankQuestions = await this.listQuestions(bankId);
+    const qById = new Map(bankQuestions.map((q) => [q.id, q]));
+    const ids = new Set(qById.keys());
     const bankEvents = this.attempts.all().filter((e) => ids.has(e.qid));
     const d = replay(bankEvents.filter((e) => e.ts >= cutoff && e.ts <= now));
     let attempts = 0,
@@ -2509,30 +2567,82 @@ export class ExamApp {
     }
     const before = replay(bankEvents.filter((e) => e.ts < cutoff));
     const bankState = replay(bankEvents.filter((e) => e.ts <= now));
-    const eliminated = [...bankState.wrongbook.values()].filter((w) => w.status === "eliminated" && before.wrongbook.get(w.qid)?.status !== "eliminated").length;
+    const eliminatedItems = [...bankState.wrongbook.values()].filter(
+      (w) => w.status === "eliminated" && before.wrongbook.get(w.qid)?.status !== "eliminated",
+    );
+    const eliminated = eliminatedItems.length;
+    const todayWrongQs = [...d.wrongbook.values()]
+      .filter((w) => w.wrongCount > 0)
+      .map((w) => qById.get(w.qid))
+      .filter((q): q is NonNullable<typeof q> => Boolean(q));
+    const todayEliminatedQs = eliminatedItems
+      .map((w) => qById.get(w.qid))
+      .filter((q): q is NonNullable<typeof q> => Boolean(q));
     const ymd = reportDateKey(now);
-    const md = [
-      `# 📝 小驴学习（原小驴考试）研学战报 · ${ymd}`,
+    const mdLines = [
+      `# 📝 小驴考试 · 今日备考战报 · ${ymd}`,
       ``,
       `- 刷题：**${attempts}** 题 · 正确率 **${attempts ? Math.round((correct / attempts) * 100) : 0}%**`,
       `- 今日新消灭错题：**${eliminated}**`,
       `- 题库：${bankName}`,
       `- 统计范围：本题库 ${ymd} 的作答记录（含重复作答）`,
-      ``,
-    ].join("\n");
-    // 找第一个启用每日笔记的笔记本
-    for (const nb of this.listBanks()) {
+    ];
+    if (todayWrongQs.length > 0) {
+      mdLines.push(
+        `- 📌 **今日错题双链溯源（点击直达源题块）**：`,
+        ...todayWrongQs.slice(0, 10).map((q) => `  - ${formatSiyuanBlockRef(q.blockId, q.stem || q.id, 38)}${q.kp ? `（\`${q.kp}\`）` : ""}`),
+      );
+    }
+    if (todayEliminatedQs.length > 0) {
+      mdLines.push(
+        `- 🎯 **今日新攻克错题**：`,
+        ...todayEliminatedQs.slice(0, 10).map((q) => `  - ${formatSiyuanBlockRef(q.blockId, q.stem || q.id, 38)}`),
+      );
+    }
+    mdLines.push(``);
+    const md = mdLines.join("\n");
+
+    const writeOrUpdateReportBlock = async (docId: string) => {
+      const reportKey = `${docId}\0${ymd}`;
+      const existingBlockId = this.dailyReportBlockIds.get(reportKey);
+      if (existingBlockId && typeof this.deps.client.updateBlock === "function") {
+        await this.saves.run(`daily-report/${ymd}`, () => this.deps.client.updateBlock(existingBlockId, md));
+        return;
+      }
+      const res = await this.saves.run(`daily-report/${ymd}`, () => this.deps.client.appendBlock(docId, md));
+      const newBlockId = Array.isArray(res) ? res[0] : typeof res === "string" ? res : "";
+      if (newBlockId) {
+        this.dailyReportBlockIds.set(reportKey, newBlockId);
+      }
+    };
+
+    // 优先检查当前选中题库，其次检查其它开启每日笔记的题库
+    const orderedBanks = [...this.listBanks()].sort((a, b) => (a.id === bankId ? -1 : b.id === bankId ? 1 : 0));
+    for (const nb of orderedBanks) {
       const conf = await this.deps.client.getNotebookConf(nb.id);
       if (conf.dailyNoteSavePath) {
         const hpath = dailyDocPath(conf.dailyNoteSavePath, today);
+        const parts = hpath.split("/").filter(Boolean);
+        for (let i = 1; i < parts.length; i++) {
+          await this.ensureDoc(nb.id, "/" + parts.slice(0, i).join("/"));
+        }
         // 直接用 ensureDoc 的返回 id：紧跟其后的 SQL 重查会撞属性/块索引滞后，
         // 新建文档在索引可见前查不到 → 误抛「日记文档未找到」（真机走查实测）
         const docId = await this.ensureDoc(nb.id, hpath);
         if (!docId) throw new Error("日记文档未找到");
         // 45-02：每日写回过 SaveGate（对象级状态进报告中心顶栏 SaveStatus 矩阵，不再只有 toast 单点）
-        await this.saves.run(`daily-report/${ymd}`, () => this.deps.client.appendBlock(docId, md));
+        await writeOrUpdateReportBlock(docId);
         return docId;
       }
+    }
+    const fallbackBankId = bankId || orderedBanks[0]?.id;
+    if (fallbackBankId) {
+      await this.ensureDoc(fallbackBankId, "/每日战报");
+      const fallbackPath = `/每日战报/${ymd}`;
+      const docId = await this.ensureDoc(fallbackBankId, fallbackPath);
+      if (!docId) throw new Error("日记文档未找到");
+      await writeOrUpdateReportBlock(docId);
+      return docId;
     }
     throw new Error("未找到开启「每日笔记」的笔记本：请先在思源中为某笔记本开启每日笔记");
   }
@@ -2652,74 +2762,8 @@ export class ExamApp {
     const pad = (n: number) => String(n).padStart(2, "0");
     const ymd = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
     const hms = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    return this.deps.client.createDocWithMd(bankId, `/导出/模考成绩单 ${ymd}-${hms}`, md);
-  }
-
-  // ---------- 试卷固化与离线导出（55-07 / 68-01） ----------
-  /** 持久化试卷不可变快照，同时维护试卷索引 */
-  async savePaperSnapshot(snapshot: PaperSnapshot): Promise<void> {
-    this.assertStorageWritable();
-    const integrity = verifyPaperIntegrity(snapshot);
-    if (!integrity.valid) {
-      throw new Error(`[LvExam] 试卷快照校验失败，拒绝写入: ${integrity.errors.join("; ")}`);
-    }
-    const paperKey = `mock/papers/${snapshot.paperId}`;
-    await this.queueStorageWrite(paperKey, () =>
-      this.saves.runLatest(paperKey, () => this.deps.storage.save(paperKey, snapshot)),
-    );
-
-    await this.queueStorageWrite("mock/papers/index", async () => {
-      const index = (await this.loadAux<Array<{ paperId: string; title: string; createdAt: number; questionCount: number; totalScore: number }>>("mock/papers/index")) ?? [];
-      const entry = {
-        paperId: snapshot.paperId,
-        title: snapshot.title,
-        createdAt: snapshot.createdAt,
-        questionCount: snapshot.questionCount,
-        totalScore: snapshot.totalScore,
-      };
-      const filtered = index.filter((x) => x.paperId !== snapshot.paperId);
-      const next = [entry, ...filtered].slice(0, 50);
-      await this.saves.runLatest("mock/papers/index", () => this.deps.storage.save("mock/papers/index", next));
-    });
-  }
-
-  async loadPaperSnapshot(paperId: string): Promise<PaperSnapshot | null> {
-    try {
-      const v = await this.loadAux<PaperSnapshot | null>(`mock/papers/${paperId}`);
-      if (!v || !Array.isArray(v.items)) return null;
-      return v;
-    } catch (error) {
-      this.noteStorageReadError(`mock/papers/${paperId}`, error);
-      return null;
-    }
-  }
-
-  async listPaperSnapshots(): Promise<Array<{ paperId: string; title: string; createdAt: number; questionCount: number; totalScore: number }>> {
-    const list = await this.loadAux<Array<{ paperId: string; title: string; createdAt: number; questionCount: number; totalScore: number }>>("mock/papers/index");
-    return Array.isArray(list) ? list : [];
-  }
-
-  async deletePaperSnapshot(paperId: string): Promise<void> {
-    this.assertStorageWritable();
-    const paperKey = `mock/papers/${paperId}`;
-    await this.queueStorageWrite(paperKey, () =>
-      this.saves.runLatest(paperKey, () => this.deps.storage.save(paperKey, null)),
-    );
-    await this.queueStorageWrite("mock/papers/index", async () => {
-      const index = (await this.loadAux<Array<{ paperId: string; title: string; createdAt: number; questionCount: number; totalScore: number }>>("mock/papers/index")) ?? [];
-      const next = index.filter((x) => x.paperId !== paperId);
-      await this.saves.runLatest("mock/papers/index", () => this.deps.storage.save("mock/papers/index", next));
-    });
-  }
-
-  async exportPaper(paperId: string, options: { note?: string } = {}): Promise<{ paperMd: string; answerKeyMd: string }> {
-    const snap = await this.loadPaperSnapshot(paperId);
-    if (!snap) {
-      throw new Error(`[LvExam] 未找到试卷快照: ${paperId}`);
-    }
-    const paperMd = exportPaperMarkdown(snap, { note: options.note });
-    const answerKeyMd = exportAnswerKeyMarkdown(snap, { note: options.note });
-    return { paperMd, answerKeyMd };
+    const hpath = `/导出/模考成绩单 ${ymd}-${hms}`;
+    return (await this.deps.client.createDocWithMd(bankId, hpath, md)) || (await this.ensureDoc(bankId, hpath, md));
   }
 
   /** 错题册导出：生成 Markdown 并写入题库笔记本"导出"文档，返回文档 id
@@ -2762,23 +2806,64 @@ export class ExamApp {
     const tag = [opts.kpRoot, opts.reason, opts.sinceDays ? `${opts.sinceDays}d` : ""].filter(Boolean).join("-");
     const ymd = new Date().toISOString().slice(0, 10);
     const name = tag ? `/导出/错题册 ${ymd} ${tag}` : `/导出/错题册 ${ymd}`;
-    return this.deps.client.createDocWithMd(bankId, name, md);
+    return await this.upsertDocWithMd(bankId, name, md);
   }
 
   /** 全量同步当前题库到思源本地笔记文档（即使卸载插件，本地笔记亦完整保留且排版优雅） */
-  async syncBankToLocalDocs(bankId: string, bankName: string): Promise<{ wrongbookDocId?: string; flashcardCount?: number }> {
+  async syncBankToLocalDocs(
+    bankId: string,
+    bankName: string,
+  ): Promise<{
+    overviewDocId?: string;
+    bankDocId?: string;
+    wrongbookDocId?: string;
+    actionJournalDocId?: string;
+    flashcardCount?: number;
+  }> {
     if (!this.kernelOnline) throw new Error("思源内核离线，无法写入笔记文档");
+    let overviewDocId: string | undefined;
+    let bankDocId: string | undefined;
     let wrongbookDocId: string | undefined;
+    let actionJournalDocId: string | undefined;
     let flashcardCount: number | undefined;
+    let lastError: unknown;
 
-    // 1. 同步导出包含个人复盘心得的高清排版《错题复盘本》
+    // 0. 同步生成《00 题库总览与考纲导航》常驻活文档
+    try {
+      const overviewDoc = await this.syncBankOverviewDoc(bankId);
+      overviewDocId = overviewDoc.docId;
+    } catch (e) {
+      lastError = e;
+      console.warn("[LvExam] sync overview doc failed:", e);
+    }
+
+    // 1. 同步生成完整题册文档（/小驴考试/<题库名> · 完整题册）
+    try {
+      const bankDoc = await this.syncBankToSiyuanDoc(bankId);
+      bankDocId = bankDoc.docId;
+    } catch (e) {
+      lastError = e;
+      console.warn("[LvExam] sync full bank doc failed:", e);
+    }
+
+    // 2. 同步导出包含个人复盘心得与双链的高清排版《错题复盘本》
     try {
       wrongbookDocId = await this.exportWrongbook(bankId, bankName);
     } catch (e) {
+      lastError = e;
       console.warn("[LvExam] sync wrongbook doc failed:", e);
     }
 
-    // 2. 将在册错题与收藏题同步转换为标准正反面列表卡片
+    // 3. 同步生成《03 备考行动与复盘日志》常驻活文档
+    try {
+      const journalDoc = await this.syncActionJournalDoc(bankId);
+      actionJournalDocId = journalDoc.docId;
+    } catch (e) {
+      lastError = e;
+      console.warn("[LvExam] sync action journal doc failed:", e);
+    }
+
+    // 4. 将在册错题与收藏题同步转换为标准正反面列表卡片
     try {
       const qs = await this.listQuestions(bankId);
       const wrongIds = new Set(this.wrongItems().map((w) => w.qid));
@@ -2790,7 +2875,10 @@ export class ExamApp {
       console.warn("[LvExam] sync flashcards doc failed:", e);
     }
 
-    return { wrongbookDocId, flashcardCount };
+    if (!overviewDocId && !bankDocId && !wrongbookDocId && !actionJournalDocId && lastError) {
+      throw lastError;
+    }
+    return { overviewDocId, bankDocId, wrongbookDocId, actionJournalDocId, flashcardCount };
   }
 
   /** 模考成绩持久化（上限 200 条，FIFO） */
@@ -3118,64 +3206,6 @@ export class ExamApp {
     return cramQueue(questions, counts, minWrong, limit);
   }
 
-  /** 53-04 考前急救冲刺：结合考期紧急度、顽固题、错因加权与容量配额提取冲刺规格（ADR 0003 永不写回） */
-  emergencyCramDrill(
-    questions: Question[],
-    options: {
-      examDate?: string;
-      filter?: CramFilterOptions;
-      targetMinutes?: number;
-      avgSeconds?: number;
-    } = {},
-  ): CramSessionSpec {
-    const wrongItems = this.wrongItems();
-    const wrongReasons = this.wrongReasonMap();
-    const archivedQids = new Set(this.listArchivedWrongs().map((w) => w.qid));
-    const nowMs = this.deps.now?.() ?? Date.now();
-    const urgency = computeExamUrgency(options.examDate, nowMs);
-
-    const candidates = extractCramCandidates({
-      allQuestions: questions,
-      wrongItems,
-      wrongReasons,
-      archivedQids,
-      filter: options.filter,
-      daysLeft: urgency.daysLeft,
-    });
-
-    const budget = calculateCramBudget({
-      targetMinutes: options.targetMinutes,
-      avgSecondsPerQuestion: options.avgSeconds,
-      candidateCount: candidates.length,
-      urgencyLevel: urgency.level,
-      minFloor: 5,
-      maxCap: 50,
-    });
-
-    const slicedCandidates = candidates.slice(0, budget.recommendedCount);
-
-    return createCramSessionSpec({
-      examDate: options.examDate,
-      candidates: slicedCandidates,
-      budget,
-      nowMs,
-    });
-  }
-
-  getExamUrgency(examDate?: string): ExamUrgency {
-    return computeExamUrgency(examDate, this.deps.now?.() ?? Date.now());
-  }
-
-  /** 65-03 同源兄弟题防答案泄露暂缓：按题族与材料组暂缓后置兄弟题至后续练习（模考豁免，不改长期调度） */
-  burySiblings(questions: Question[], options?: SiblingBuryOptions): SiblingBuryResult {
-    return burySiblingsForPractice(questions, options);
-  }
-
-  /** 65-03 会话内兄弟题打散：重排队列拉大同族变式题距，同时保护材料组连续作答 */
-  disperseSiblings(questions: Question[], options?: SiblingBuryOptions): Question[] {
-    return disperseSiblings(questions, options);
-  }
-
   /** 每日一练：到期优先（FSRS 层 v0.2+ 当前传空）→ 高频错题 → 随机补足 */
   dailyDrill(questions: Question[], dueFirst: Question[], n: number): Question[] {
     const counts = new Map<string, number>();
@@ -3196,118 +3226,6 @@ export class ExamApp {
   wrongDrill(questions: Question[]): Question[] {
     const active = new Set(this.wrongItems().map((w) => w.qid));
     return questions.filter((q) => active.has(q.id));
-  }
-
-  /** 51-01 获取题库多级考点大纲树与多级穿透掌握度聚合（纯函数领域模型） */
-  async getKpTree(bankId?: string, options?: import("./core/kpTree").KpTreeOptions): Promise<import("./core/kpTree").KpTreeNode[]> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    if (!targetBank) return [];
-    const questions = await this.listQuestions(targetBank);
-    const events = this.attempts.all();
-    const { buildKpTree } = await import("./core/kpTree");
-    return buildKpTree(questions, events, options);
-  }
-
-  /** 43-08 全库试题实测难度与区分度自动校准（支持小样本保护与异常题预警） */
-  async auditBankDiscrimination(
-    bankId?: string,
-    options?: { minSample?: number; kelleyRatio?: number },
-  ): Promise<import("./core/itemDiscrimination").BankDiscriminationAudit> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    if (!targetBank) {
-      return {
-        totalQuestions: 0,
-        analyzedCount: 0,
-        confidentCount: 0,
-        averageP: 0,
-        averageD: 0,
-        gradeCounts: { excellent: 0, good: 0, marginal: 0, poor: 0, negative: 0 },
-        anomalies: [],
-        items: [],
-      };
-    }
-    const questions = await this.listQuestions(targetBank);
-    const allEvents = this.attempts.all();
-    const { auditBankDiscrimination } = await import("./core/itemDiscrimination");
-    return auditBankDiscrimination(questions, allEvents, options);
-  }
-
-  /** 43-08 获取单题实测难度与区分度报告 */
-  async getItemDiscrimination(
-    qid: string,
-    bankId?: string,
-  ): Promise<import("./core/itemDiscrimination").ItemDiscriminationResult | null> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    if (!targetBank) return null;
-    const questions = await this.listQuestions(targetBank);
-    const q = questions.find((x) => x.id === qid);
-    if (!q) return null;
-    const allEvents = this.attempts.all();
-    const qEvents = allEvents.filter((e) => e.qid === qid);
-    const { calculateItemDiscrimination } = await import("./core/itemDiscrimination");
-    return calculateItemDiscrimination(q, qEvents, allEvents);
-  }
-
-  /** 43-08 导出题库难度与区分度报告 CSV */
-  async exportBankDiscriminationCsv(bankId?: string): Promise<string> {
-    const audit = await this.auditBankDiscrimination(bankId);
-    const { exportDiscriminationCsv } = await import("./core/itemDiscrimination");
-    return exportDiscriminationCsv(audit);
-  }
-
-  // ---------- 54-06 主观题机考字数与答题纸网格 ----------
-  /** 测算主观题文本字数指标与达标状态 */
-  async measureSubjectiveAnswer(
-    text: string,
-    options?: import("./core/wordCount").WordLimitOptions,
-  ): Promise<{
-    metrics: import("./core/wordCount").WordCountMetrics;
-    limitStatus: import("./core/wordCount").WordLimitStatus;
-  }> {
-    const { countWordsAndCharacters, evaluateWordCountStatus } = await import("./core/wordCount");
-    const metrics = countWordsAndCharacters(text);
-    const limitStatus = evaluateWordCountStatus(metrics.examWords, options);
-    return { metrics, limitStatus };
-  }
-
-  /** 生成主观题 25×N 机考答题方格纸模型（带百字标尺与段落缩进） */
-  async generateSubjectivePaperGrid(
-    text: string,
-    options?: import("./core/wordCount").GridOptions,
-  ): Promise<import("./core/wordCount").PaperGridModel> {
-    const { generatePaperGrid } = await import("./core/wordCount");
-    return generatePaperGrid(text, options);
-  }
-
-  // ---------- 65-08 靶向弱项自适应攻坚专题 ----------
-  /** 组装靶向弱项自适应攻坚专题（基于考点层级树自动甄别薄弱点并混合变式抽题） */
-  async createAdaptiveTargetSession(
-    bankId?: string,
-    options?: import("./core/adaptiveTarget").AdaptiveTargetOptions,
-  ): Promise<import("./core/adaptiveTarget").AdaptiveTargetSession> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    if (!targetBank) {
-      return {
-        sessionId: "",
-        title: "自适应攻坚专题（无题库）",
-        targetKps: [],
-        questions: [],
-        composition: { wrongs: 0, variants: 0, unattempted: 0 },
-        receipt: "未指定有效题库。",
-      };
-    }
-    const questions = await this.listQuestions(targetBank);
-    const kpRoots = await this.getKpTree(targetBank);
-    const wrongItems = this.wrongItems();
-    const archivedQids = new Set(this.listArchivedWrongs().map((w) => w.qid));
-    const { assembleAdaptiveTargetSession } = await import("./core/adaptiveTarget");
-    return assembleAdaptiveTargetSession({
-      allQuestions: questions,
-      kpRoots,
-      wrongItems,
-      archivedQids,
-      options,
-    });
   }
 
   // ---------- 68-04 A4 双栏紧凑打印与作答卷脱敏 ----------
@@ -3344,187 +3262,15 @@ export class ExamApp {
     return buildTeacherLectureSheetPro(title, questions, options);
   }
 
-  // ---------- 65-04 可重建临时练习集声明与管理 ----------
-  async savePracticeSetSpec(spec: import("./core/rebuildableSet").PracticeSetSpec): Promise<void> {
-    this.assertStorageWritable();
-    const key = `practice/sets/${spec.id}`;
-    await this.queueStorageWrite(key, () => this.saves.runLatest(key, () => this.deps.storage.save(key, spec)));
-    await this.queueStorageWrite("practice/sets/index", async () => {
-      const idx = (await this.loadAux<Array<{ id: string; name: string; bankId: string; createdAt: number; count: number }>>("practice/sets/index")) ?? [];
-      const entry = { id: spec.id, name: spec.name, bankId: spec.bankId, createdAt: spec.createdAt, count: spec.snapshot.length };
-      const next = [entry, ...idx.filter((x) => x.id !== spec.id)].slice(0, 30);
-      await this.saves.runLatest("practice/sets/index", () => this.deps.storage.save("practice/sets/index", next));
-    });
-  }
-
-  async loadPracticeSetSpec(id: string): Promise<import("./core/rebuildableSet").PracticeSetSpec | null> {
-    try {
-      const v = await this.loadAux<import("./core/rebuildableSet").PracticeSetSpec | null>(`practice/sets/${id}`);
-      return v && v.v === 1 && Array.isArray(v.snapshot) ? v : null;
-    } catch (e) {
-      this.noteStorageReadError(`practice/sets/${id}`, e);
-      return null;
-    }
-  }
-
-  async listPracticeSetSpecs(): Promise<Array<{ id: string; name: string; bankId: string; createdAt: number; count: number }>> {
-    const list = await this.loadAux<Array<{ id: string; name: string; bankId: string; createdAt: number; count: number }>>("practice/sets/index");
-    return Array.isArray(list) ? list : [];
-  }
-
-  async deletePracticeSetSpec(id: string): Promise<void> {
-    this.assertStorageWritable();
-    const key = `practice/sets/${id}`;
-    await this.queueStorageWrite(key, () => this.saves.runLatest(key, () => this.deps.storage.save(key, null)));
-    await this.queueStorageWrite("practice/sets/index", async () => {
-      const idx = (await this.loadAux<Array<{ id: string; name: string; bankId: string; createdAt: number; count: number }>>("practice/sets/index")) ?? [];
-      const next = idx.filter((x) => x.id !== id);
-      await this.saves.runLatest("practice/sets/index", () => this.deps.storage.save("practice/sets/index", next));
-    });
-  }
-
-  async rebuildPracticeSet(id: string): Promise<import("./core/rebuildableSet").RebuildResult> {
-    const spec = await this.loadPracticeSetSpec(id);
-    if (!spec) throw new Error(`未找到练习集声明: ${id}`);
-    const liveQuestions = await this.listQuestions(spec.bankId);
-    const wrongQids = new Set(this.wrongItems().map((w) => w.qid));
-    const { rebuildPracticeSet } = await import("./core/rebuildableSet");
-    return rebuildPracticeSet({ spec, liveQuestions, wrongQids });
-  }
-
-  // ---------- 45-12 数据完整性审计与自检 ----------
-  async auditIntegrity(bankId?: string): Promise<import("./core/dataIntegrity").IntegrityReport> {
+  async buildStudentHomeworkSheet(
+    title: string,
+    bankId?: string,
+    options?: import("./core/printPro").PrintProOptions,
+  ): Promise<string> {
     const targetBank = bankId ?? this.listBanks()[0]?.id;
     const questions = targetBank ? await this.listQuestions(targetBank) : [];
-    const events = this.attempts.all();
-    const wrongItems = this.wrongItems();
-    const { auditDataIntegrity } = await import("./core/dataIntegrity");
-    return auditDataIntegrity({
-      events,
-      questions,
-      wrongItems,
-      nowMs: this.deps.now?.() ?? Date.now(),
-    });
-  }
-
-  async exportIntegrityCsv(bankId?: string): Promise<string> {
-    const report = await this.auditIntegrity(bankId);
-    const { exportIntegrityCsv } = await import("./core/dataIntegrity");
-    return exportIntegrityCsv(report);
-  }
-
-  // ---------- 51-07 考纲换版影响评估与差异迁移 ----------
-  async assessSyllabusChange(
-    newSyllabusDoc: import("./core/syllabus").SyllabusDoc | readonly import("./core/syllabus").SyllabusNode[],
-    bankId?: string,
-    options?: {
-      oldSyllabusDoc?: import("./core/syllabus").SyllabusDoc | readonly import("./core/syllabus").SyllabusNode[];
-    },
-  ): Promise<import("./core/syllabusDiff").SyllabusChangeImpact> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    const questions = targetBank ? await this.listQuestions(targetBank) : [];
-    const oldDoc = options?.oldSyllabusDoc ?? (await this.loadAux<import("./core/syllabus").SyllabusDoc>("syllabus/tree"));
-    const { diffSyllabusTrees, assessSyllabusImpact } = await import("./core/syllabusDiff");
-    const diff = diffSyllabusTrees(oldDoc ?? [], newSyllabusDoc);
-    const bp = await this.loadAux<import("./core/mock").Blueprint>("mock/blueprint");
-    return assessSyllabusImpact({
-      diff,
-      questions,
-      blueprints: bp ? [bp] : [],
-    });
-  }
-
-  async exportSyllabusDiffMarkdown(
-    newSyllabusDoc: import("./core/syllabus").SyllabusDoc | readonly import("./core/syllabus").SyllabusNode[],
-    bankId?: string,
-    options?: {
-      oldSyllabusDoc?: import("./core/syllabus").SyllabusDoc | readonly import("./core/syllabus").SyllabusNode[];
-    },
-  ): Promise<string> {
-    const impact = await this.assessSyllabusChange(newSyllabusDoc, bankId, options);
-    const { exportSyllabusDiffMarkdown } = await import("./core/syllabusDiff");
-    return exportSyllabusDiffMarkdown(impact);
-  }
-
-  // ---------- 52-05 选项干扰项误概念对照与认知诊断 ----------
-  async diagnoseQuestionMisconceptions(
-    qid: string,
-    misconceptions: readonly import("./core/misconception").OptionMisconception[],
-    bankId?: string,
-  ): Promise<import("./core/misconception").MisconceptionDiagnosisResult | null> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    if (!targetBank) return null;
-    const questions = await this.listQuestions(targetBank);
-    const q = questions.find((x) => x.id === qid);
-    if (!q) return null;
-    const allEvents = this.attempts.all();
-    const { diagnoseMisconceptions } = await import("./core/misconception");
-    return diagnoseMisconceptions({
-      question: q,
-      events: allEvents,
-      misconceptions,
-    });
-  }
-
-  async exportQuestionMisconceptionMarkdown(
-    qid: string,
-    misconceptions: readonly import("./core/misconception").OptionMisconception[],
-    bankId?: string,
-  ): Promise<string> {
-    const diag = await this.diagnoseQuestionMisconceptions(qid, misconceptions, bankId);
-    if (!diag) return "";
-    const { exportMisconceptionMarkdown } = await import("./core/misconception");
-    return exportMisconceptionMarkdown(diag);
-  }
-
-  // ---------- 120-04 原文切片与阅读笔记渐进式制卡出题 ----------
-  async extractCardsFromExcerpt(
-    source: import("./core/excerptCard").ExcerptSource,
-    options?: import("./core/excerptCard").ExcerptExtractOptions,
-  ): Promise<import("./core/excerptCard").CardExtractionResult> {
-    const { extractCardsFromExcerpt } = await import("./core/excerptCard");
-    return extractCardsFromExcerpt(source, options);
-  }
-
-  async extractCardsFromNotes(
-    materialId: string,
-    options?: import("./core/excerptCard").ExcerptExtractOptions,
-  ): Promise<import("./core/excerptCard").CardExtractionResult> {
-    let material = this.getMaterial(materialId);
-    if (!material) {
-      const notes = this.listMaterialNotes(materialId);
-      if (notes.length === 0) {
-        throw new Error(`未找到指定材料: ${materialId}`);
-      }
-      material = {
-        id: materialId,
-        title: "渐进式笔记制卡",
-        revision: 1,
-        created: Date.now(),
-        updated: Date.now(),
-      } as any;
-    }
-    const notes = this.listMaterialNotes(materialId);
-    const { extractCardsFromMaterialNotes } = await import("./core/excerptCard");
-    return extractCardsFromMaterialNotes(
-      notes,
-      { id: material.id, title: material.title, revision: material.revision },
-      options,
-    );
-  }
-
-  async exportCardsMarkdown(
-    result: import("./core/excerptCard").CardExtractionResult,
-  ): Promise<string> {
-    const { exportCardsMarkdown } = await import("./core/excerptCard");
-    return exportCardsMarkdown(result);
-  }
-
-  async exportCardsCsv(
-    result: import("./core/excerptCard").CardExtractionResult,
-  ): Promise<string> {
-    const { exportCardsCsv } = await import("./core/excerptCard");
-    return exportCardsCsv(result);
+    const { buildStudentHomeworkSheetPro } = await import("./core/printPro");
+    return buildStudentHomeworkSheetPro(title, questions, options);
   }
 
   /** 43-01 题目作者生命周期流转（draft ↔ review ↔ published ↔ deprecated） */
@@ -3565,11 +3311,6 @@ export class ExamApp {
     }
     this.invalidate();
     return q;
-  }
-
-  /** 43-01：过滤出已发布题库（默认日常刷题、背诵、模考池排除草稿与废弃题） */
-  publishedQuestions(questions: Question[]): Question[] {
-    return questions.filter((q) => getQuestionLifecycle(q) === "published");
   }
 
   /** 57-04：标记题目争议（多解/缺条件/答案存疑/资料过期） */
@@ -3700,15 +3441,6 @@ export class ExamApp {
     return exportReadinessReportMarkdown(report);
   }
 
-  async exportReadinessReportCsv(
-    bankId?: string,
-    options?: import("./core/readinessRadar").ReadinessRadarOptions,
-  ): Promise<string> {
-    const report = await this.generateReadinessReport(bankId, options);
-    const { exportReadinessReportCsv } = await import("./core/readinessRadar");
-    return exportReadinessReportCsv(report);
-  }
-
   // ---------- 考前冲刺自适应密卷装配与导出 ----------
   async assembleAdaptiveSprintPaper(
     bankId?: string,
@@ -3727,24 +3459,6 @@ export class ExamApp {
       events,
       options,
     );
-  }
-
-  async exportSprintPaperMarkdown(
-    bankId?: string,
-    options?: import("./core/adaptiveMockAssembler").AdaptiveSprintPaperOptions & { showAnswers?: boolean },
-  ): Promise<string> {
-    const paper = await this.assembleAdaptiveSprintPaper(bankId, options);
-    const { exportSprintPaperMarkdown } = await import("./core/adaptiveMockAssembler");
-    return exportSprintPaperMarkdown(paper, { showAnswers: options?.showAnswers });
-  }
-
-  async exportSprintPaperCsv(
-    bankId?: string,
-    options?: import("./core/adaptiveMockAssembler").AdaptiveSprintPaperOptions,
-  ): Promise<string> {
-    const paper = await this.assembleAdaptiveSprintPaper(bankId, options);
-    const { exportSprintPaperCsv } = await import("./core/adaptiveMockAssembler");
-    return exportSprintPaperCsv(paper);
   }
 
   // ---------- OCR 识别与试题智能解析提取 ----------
@@ -3781,17 +3495,6 @@ export class ExamApp {
     }
     const assetPath = await this.deps.client.uploadAsset(file, filename);
     return this.ocrAndParseQuestion(assetPath, options);
-  }
-
-  // ---------- 数学公式语法清洗与文本渲染 ----------
-  async normalizeFormula(text: string): Promise<string> {
-    const { normalizeLatexFormula } = await import("./core/math");
-    return normalizeLatexFormula(text);
-  }
-
-  async renderFormula(text: string): Promise<string> {
-    const { renderMathInText } = await import("./core/math");
-    return renderMathInText(text);
   }
 
   // ---------- 考点拓扑图谱与阶段通关导学案导出 ----------
@@ -3854,15 +3557,6 @@ export class ExamApp {
     const { generateItemQualityAuditReport, exportItemQualityAuditMarkdown } = await import("./core/itemAnalysis");
     const report = generateItemQualityAuditReport(questions, attempts);
     return exportItemQualityAuditMarkdown(report);
-  }
-
-  async exportItemQualityAuditCsv(bankId?: string): Promise<string> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    const questions = targetBank ? await this.listQuestions(targetBank) : [];
-    const attempts = this.attempts.all();
-    const { generateItemQualityAuditReport, exportItemQualityAuditCsv } = await import("./core/itemAnalysis");
-    const report = generateItemQualityAuditReport(questions, attempts);
-    return exportItemQualityAuditCsv(report);
   }
 
   async generateABExamPapers(
@@ -3969,23 +3663,6 @@ export class ExamApp {
     return convertWrongbookToMockBlueprint(wrongItems, questions, options);
   }
 
-  // ---------- 教师端：试卷预估难度与大纲分值契合度体检 ----------
-  async predictPaperDifficulty(bankId?: string): Promise<import("./core/paperAudit").PaperDifficultyPrediction> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    const questions = targetBank ? await this.listQuestions(targetBank) : [];
-    const attempts = this.attempts.all();
-    const { predictPaperDifficulty } = await import("./core/paperAudit");
-    return predictPaperDifficulty(questions, attempts);
-  }
-
-  async auditPaperSyllabusBalance(bankId?: string): Promise<import("./core/paperAudit").PaperBalanceReport> {
-    const targetBank = bankId ?? this.listBanks()[0]?.id;
-    const questions = targetBank ? await this.listQuestions(targetBank) : [];
-    const syllabusDoc = this.syllabusDoc();
-    const { auditPaperSyllabusBalance } = await import("./core/paperAudit");
-    return auditPaperSyllabusBalance(questions, syllabusDoc.roots);
-  }
-
   async exportPaperAuditMarkdown(bankId?: string): Promise<string> {
     const targetBank = bankId ?? this.listBanks()[0]?.id;
     const questions = targetBank ? await this.listQuestions(targetBank) : [];
@@ -4077,8 +3754,9 @@ export class ExamApp {
 
     const { buildSiyuanExamDocMarkdown } = await import("./core/siyuanSyncDoc");
     const markdown = buildSiyuanExamDocMarkdown(title, questions, { isMockPaper: false });
+    await this.ensureDoc(targetBank, "/小驴考试");
     const hpath = `/小驴考试/${title}`;
-    const docId = await this.deps.client.createDocWithMd(targetBank, hpath, markdown);
+    const docId = await this.upsertDocWithMd(targetBank, hpath, markdown);
     return { docId, title, hpath };
   }
 
@@ -4096,20 +3774,138 @@ export class ExamApp {
       durationMinutes: options.durationMinutes,
       passLine: options.passLine,
     });
+    await this.ensureDoc(targetBank, "/小驴考试");
+    await this.ensureDoc(targetBank, "/小驴考试/试卷与复盘");
     const hpath = `/小驴考试/试卷与复盘/${title}`;
-    const docId = await this.deps.client.createDocWithMd(targetBank, hpath, markdown);
+    const docId = await this.upsertDocWithMd(targetBank, hpath, markdown);
     return { docId, title, hpath };
   }
 
-  dailySet(questions: Question[], dueFirst: Question[], n: number): Question[] {
-    const seen = new Set<string>();
-    const out: Question[] = [];
-    for (const q of [...dueFirst, ...questions]) {
-      if (out.length >= n) break;
-      if (seen.has(q.id)) continue;
-      seen.add(q.id);
-      out.push(q);
-    }
-    return out;
+  /** 同步生成或原位刷新《00 题库总览与考纲导航》思源常驻文档 */
+  async syncBankOverviewDoc(bankId?: string): Promise<{ docId: string; title: string; hpath: string }> {
+    const targetBank = bankId ?? this.listBanks()[0]?.id;
+    if (!targetBank) throw new Error("请先选择或创建一个题库");
+    const questions = await this.listQuestions(targetBank);
+    const bankName = this.listBanks().find((b) => b.id === targetBank)?.name || "题库";
+    const qIds = new Set(questions.map((q) => q.id));
+    const bankEvents = this.attempts.all().filter((e) => qIds.has(e.qid) && e.verdict !== "not_attempted");
+    const totalAttempts = bankEvents.length;
+    const correctAttempts = bankEvents.filter((e) => e.verdict === "correct").length;
+    const d = this.derived();
+    const activeWrongCount = this.wrongItems().filter((w) => qIds.has(w.qid)).length;
+    const eliminatedWrongCount = [...d.wrongbook.values()].filter((w) => qIds.has(w.qid) && w.status === "eliminated").length;
+    const mocks = await this.listMockResults().catch(() => []);
+
+    const { buildSiyuanBankOverviewDocMarkdown } = await import("./core/siyuanSyncDoc");
+    const markdown = buildSiyuanBankOverviewDocMarkdown({
+      bankName,
+      bankId: targetBank,
+      questions,
+      totalAttempts,
+      correctAttempts,
+      activeWrongCount,
+      eliminatedWrongCount,
+      mockCount: mocks.length,
+    });
+    await this.ensureDoc(targetBank, "/小驴考试");
+    const title = "00 题库总览与考纲导航";
+    const hpath = `/小驴考试/${title}`;
+    const docId = await this.upsertDocWithMd(targetBank, hpath, markdown);
+    return { docId, title, hpath };
   }
+
+  /** 同步生成或原位刷新《03 备考行动与复盘日志》思源常驻文档 */
+  async syncActionJournalDoc(bankId?: string): Promise<{ docId: string; title: string; hpath: string }> {
+    const targetBank = bankId ?? this.listBanks()[0]?.id;
+    if (!targetBank) throw new Error("请先选择或创建一个题库");
+    const questions = await this.listQuestions(targetBank);
+    const bankName = this.listBanks().find((b) => b.id === targetBank)?.name || "题库";
+    const questionMap = new Map(questions.map((q) => [q.id, q]));
+    const actions = await this.loadActions().catch(() => []);
+    const reflectionsList = Object.entries(this.wrongReflections)
+      .filter(([, v]) => Boolean(v?.text?.trim()))
+      .map(([qid, v]) => ({
+        qid,
+        text: v.text,
+        at: v.at,
+        reason: this.wrongReasons.get(qid),
+      }))
+      .sort((a, b) => b.at - a.at);
+
+    const { buildSiyuanActionJournalDocMarkdown } = await import("./core/siyuanSyncDoc");
+    const markdown = buildSiyuanActionJournalDocMarkdown({
+      bankName,
+      actions,
+      reflections: reflectionsList,
+      questionMap,
+    });
+    await this.ensureDoc(targetBank, "/小驴考试");
+    const title = "03 备考行动与复盘日志";
+    const hpath = `/小驴考试/${title}`;
+    const docId = await this.upsertDocWithMd(targetBank, hpath, markdown);
+    return { docId, title, hpath };
+  }
+
+  /**
+   * 从思源《03 备考行动与复盘日志》原生文档反向同步任务块勾选状态回插件行动清单
+   * 当用户在思源笔记正文中勾选 [- [x]] 某个任务块时，将插件内对应 action 状态标记为 "done"
+   */
+  async syncActionsFromDoc(bankId?: string): Promise<{ syncedCount: number }> {
+    if (!this.kernelOnline || typeof this.deps.client.sql !== "function") {
+      return { syncedCount: 0 };
+    }
+    const targetBank = bankId || this.listBanks()[0]?.id;
+    if (!targetBank) return { syncedCount: 0 };
+
+    let docId = this.ensuredDocIds.get(`${targetBank}:/小驴考试/03 备考行动与复盘日志`);
+    if (!docId) {
+      try {
+        const rows = await this.deps.client.sql<{ id: string }>(
+          `SELECT id FROM blocks WHERE box='${targetBank}' AND hpath='/小驴考试/03 备考行动与复盘日志' AND type='d' LIMIT 1`,
+        );
+        if (Array.isArray(rows) && rows[0]?.id) {
+          docId = rows[0].id;
+          this.ensuredDocIds.set(`${targetBank}:/小驴考试/03 备考行动与复盘日志`, docId);
+        }
+      } catch {
+        return { syncedCount: 0 };
+      }
+    }
+    if (!docId) return { syncedCount: 0 };
+
+    let taskBlocks: Array<{ id: string; root_id: string; markdown?: string; content?: string; ial?: string; subtype?: string }>;
+    try {
+      taskBlocks = await this.deps.client.sql(
+        `SELECT id, root_id, markdown, content, ial, subtype FROM blocks WHERE root_id='${docId}' AND ial LIKE '%custom-exam-act-id=%'`,
+      );
+    } catch {
+      return { syncedCount: 0 };
+    }
+    if (!Array.isArray(taskBlocks) || !taskBlocks.length) return { syncedCount: 0 };
+
+    const actions = await this.loadActions().catch(() => []);
+    if (!actions.length) return { syncedCount: 0 };
+    const actionMap = new Map<string, import("./core/actions").ActionItem>();
+    actions.forEach((a) => actionMap.set(a.id, a));
+    let syncedCount = 0;
+
+    for (const blk of taskBlocks) {
+      const ial = String(blk.ial ?? "");
+      const match = ial.match(/custom-exam-act-id="([^"]+)"/);
+      if (!match?.[1]) continue;
+      const actId = match[1];
+      const act = actionMap.get(actId);
+      if (!act) continue;
+
+      const md = String(blk.markdown ?? "");
+      const isChecked = /-\s*\[[xX]\]/.test(md) || (blk.subtype === "t" && /\[x\]/i.test(String(blk.content ?? "")));
+      if (isChecked && act.status === "open") {
+        await this.completeAction(actId, "siyuan-doc-task-checked");
+        act.status = "done";
+        syncedCount++;
+      }
+    }
+    return { syncedCount };
+  }
+
 }

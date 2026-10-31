@@ -21,6 +21,25 @@
     onclose,
     onjump,
   }: Props = $props();
+
+  let dialogEl = $state<HTMLDivElement | null>(null);
+  let returnFocusEl: HTMLElement | null = null;
+  let wasOpen = false;
+
+  $effect(() => {
+    if (open && dialogEl) {
+      if (!wasOpen) {
+        wasOpen = true;
+        returnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        queueMicrotask(() => dialogEl?.focus());
+      }
+    } else if (!open && wasOpen) {
+      wasOpen = false;
+      const target = returnFocusEl;
+      returnFocusEl = null;
+      queueMicrotask(() => target?.focus?.());
+    }
+  });
 </script>
 
 <svelte:window onkeydown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); onclose(); } }} />
@@ -29,6 +48,7 @@
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={onclose}></button>
   <div class="lv-hotkeys-wrap">
     <div
+      bind:this={dialogEl}
       class="lv-card"
       role="dialog"
       aria-modal="true"

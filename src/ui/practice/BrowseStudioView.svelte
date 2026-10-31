@@ -170,7 +170,7 @@
     onprintQuestionSheet: () => void;
     onprintAnswerSheet: () => void;
     onprintAnswerCard: () => void;
-    onprintTeacherLectureSheet: () => void;
+    onprintFilteredByFormat?: (format: import("./services/printPaperService").PrintPaperFormat) => void;
     onexportItemQualityReport: () => void;
     onexportGiftFormat: () => void;
     onexportAnkiFormat: () => void;
@@ -192,9 +192,7 @@
     onselectAllCurrentPage: () => void;
     onclearSelection: () => void;
     onbatchConvertToCards: () => void;
-    onprintSelectedQuestions: () => void;
-    onprintSelectedTeacherPaper: () => void;
-    onprintSelectedHomeworkSheet: () => void;
+    onprintSelectedQuestions: (format?: import("./services/printPaperService").PrintPaperFormat) => void;
     onapplyBatch: (isUndo: boolean) => void;
     onpreviewBatch: () => void;
     ontoggleCluster: (idx: number) => void;
@@ -406,7 +404,7 @@
     onprintQuestionSheet,
     onprintAnswerSheet,
     onprintAnswerCard,
-    onprintTeacherLectureSheet,
+    onprintFilteredByFormat,
     onexportItemQualityReport,
     onexportGiftFormat,
     onexportAnkiFormat,
@@ -429,8 +427,6 @@
     onclearSelection,
     onbatchConvertToCards,
     onprintSelectedQuestions,
-    onprintSelectedTeacherPaper,
-    onprintSelectedHomeworkSheet,
     onapplyBatch,
     onpreviewBatch,
     ontoggleCluster,
@@ -583,7 +579,10 @@
           <button role="menuitem" title={t("print.qSheetTip")} onclick={() => { onprintQuestionSheet(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.qSheet")}</button>
           <button role="menuitem" title={t("print.aSheetTip")} onclick={() => { onprintAnswerSheet(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.aSheet")}</button>
           <button role="menuitem" title={t("print.cardTip")} onclick={() => { onprintAnswerCard(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.card")}</button>
-          <button role="menuitem" title="导出包含题目、答案、考点、难度、采分点与破题教学点拨的教师讲义卷" onclick={() => { onprintTeacherLectureSheet(); moreOpen = false; }}><Icon name="book" size={14} /> {t("mock.printTeacher")}</button>
+          {#if onprintFilteredByFormat}
+            <button role="menuitem" title="导出带参考答案、考点难度、采分点标准与解析的 A4 双栏授课讲义卷" onclick={() => { onprintFilteredByFormat("lecture"); moreOpen = false; }}><Icon name="book" size={14} /> 授课讲义卷</button>
+            <button role="menuitem" title="导出带姓名班级栏、作答留白与订正栏的 A4 双栏作业单" onclick={() => { onprintFilteredByFormat("homework"); moreOpen = false; }}><Icon name="file-text" size={14} /> 留白作业单</button>
+          {/if}
           <button role="menuitem" title="导出全库试题实测难度、区分度与死干扰项诊断报告" onclick={() => { onexportItemQualityReport(); moreOpen = false; }}><Icon name="chart" size={14} /> {t("health.itemQualityAudit")}</button>
           <div class="lv-more-sep" role="separator"></div>
           <button role="menuitem" title="导出为 Moodle/学习通标准试题格式" onclick={() => { onexportGiftFormat(); moreOpen = false; }}><Icon name="export" size={14} /> {t("format.exportGift")}</button>
@@ -680,8 +679,6 @@
     onclearSelection={onclearSelection}
     onbatchConvertToCards={onbatchConvertToCards}
     onprintSelectedQuestions={onprintSelectedQuestions}
-    onprintSelectedTeacherPaper={onprintSelectedTeacherPaper}
-    onprintSelectedHomeworkSheet={onprintSelectedHomeworkSheet}
     onapplyBatch={onapplyBatch}
     onpreviewBatch={onpreviewBatch}
     ontoggleCluster={ontoggleCluster}

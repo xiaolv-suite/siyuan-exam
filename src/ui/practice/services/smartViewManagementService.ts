@@ -145,14 +145,34 @@ export function cloneQuestionToManualDraft(q: Question): {
   answer: string;
   analysis: string;
   kp: string;
+  secondaryKps: string;
   source: string;
   status: QuestionLifecycleStatus;
+  specOpen: boolean;
+  specUnit: string;
+  specAbsTol: string;
+  specRelPct: string;
+  specAltUnits: string;
+  orderIndependent: boolean;
+  rubricOpen: boolean;
+  rubricText: string;
+  studyLang: string;
+  studyPhonetic: string;
+  family: NonNullable<Question["family"]>;
   toast: string;
 } {
   const mappedType: ManualDraftType =
     q.type === "fill" || q.type === "multiple" || q.type === "judge" || q.type === "short"
       ? q.type
       : "single";
+
+  const numSpec = q.answerSpec?.kind === "numeric" ? q.answerSpec : undefined;
+  const multiSpec = q.answerSpec?.kind === "multiBlank" ? q.answerSpec : undefined;
+  const rubricText = q.rubric?.criteria?.length
+    ? q.rubric.criteria
+        .map((c) => `${c.label} | ${Math.round(c.weight * 100)}${c.example ? ` | ${c.example}` : ""}`)
+        .join("\n")
+    : "";
 
   return {
     type: mappedType,
@@ -161,9 +181,25 @@ export function cloneQuestionToManualDraft(q: Question): {
     answer: q.answer || "",
     analysis: q.analysis ? `【母题解析】：${q.analysis}` : "",
     kp: q.kp || "",
+    secondaryKps: q.secondaryKps?.length ? q.secondaryKps.join(", ") : "",
     source: q.blockId ? `((${q.blockId} '${q.stem.replace(/'/g, "").slice(0, 20)}...'))` : (q.source || ""),
     status: "draft",
-    toast: "已将该题载入手工录题台，并自动建立母题溯源反链！",
+    specOpen: Boolean(numSpec || multiSpec?.orderIndependent),
+    specUnit: numSpec?.unit ?? "",
+    specAbsTol: numSpec?.absTol != null ? String(numSpec.absTol) : "",
+    specRelPct: numSpec?.relTolerance != null ? String(Math.round(numSpec.relTolerance * 10000) / 100) : "",
+    specAltUnits: numSpec?.altUnits?.length ? numSpec.altUnits.map((a) => a.unit).join(", ") : "",
+    orderIndependent: Boolean(multiSpec?.orderIndependent),
+    rubricOpen: Boolean(rubricText),
+    rubricText,
+    studyLang: q.studyMeta?.lang || "zh-CN",
+    studyPhonetic: q.studyMeta?.phonetic || "",
+    family: {
+      parentId: q.family?.parentId || q.id,
+      variantKind: "near_transfer",
+      verified: true,
+    },
+    toast: "已将该题载入手工录题台，并自动建立母题溯源反链与题族变式绑定！",
   };
 }
 

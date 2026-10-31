@@ -1,6 +1,5 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
-  import TeacherWorkspaceView from "./TeacherWorkspaceView.svelte";
   import type { Question } from "@/core/types";
   import type { PracticeSession } from "@/core/session";
   import type { BankCategory } from "@/core/bankCategory";
@@ -27,8 +26,6 @@
     bankName: string;
     sampleNotice: string;
     loading: boolean;
-    userRole: "student" | "teacher";
-    teacherPrintBusy: boolean;
     syncDocsBusy: boolean;
     banks: any[];
     plan: any;
@@ -78,9 +75,13 @@
     onimportBank: (e: Event) => void;
     onexportWrong: () => void;
     onloadMaterials: () => void;
-    onprintBankDoubleColumnPaper: () => void;
-    onexportBankTeacherPaper: () => void;
-    onprintBankHomeworkSheet: () => void;
+    lastSyncedDocs?: {
+      overviewDocId?: string;
+      bankDocId?: string;
+      wrongbookDocId?: string;
+      actionJournalDocId?: string;
+    } | null;
+    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
   }
 
   let {
@@ -103,8 +104,6 @@
     bankName,
     sampleNotice = $bindable(),
     loading,
-    userRole,
-    teacherPrintBusy,
     syncDocsBusy,
     banks,
     plan,
@@ -154,9 +153,8 @@
     onimportBank,
     onexportWrong,
     onloadMaterials,
-    onprintBankDoubleColumnPaper,
-    onexportBankTeacherPaper,
-    onprintBankHomeworkSheet,
+    lastSyncedDocs = null,
+    onopenInSiYuan,
   }: Props = $props();
 </script>
 
@@ -296,86 +294,19 @@
         </div>
       </div>
     {:else if questionsLoaded && !practiceQuestions.length}
-      <!-- 空库全学段研学导航中心 -->
-      <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:36px 28px;border-radius:var(--lv-r-card, 20px);background:var(--lv-surface);border:1px solid var(--lv-border-subtle);max-width:920px;margin:16px auto 36px">
-        <div style="text-align:center;margin-bottom:24px">
+      <!-- 空库起步卡片 -->
+      <div class="lv-card lv-empty lv-entry-empty" style="box-shadow:var(--lv-sh-pop);padding:32px 28px;border-radius:var(--lv-r-card, 20px);background:var(--lv-surface);border:1px solid var(--lv-border-subtle);max-width:720px;margin:16px auto 36px">
+        <div style="text-align:center;margin-bottom:20px">
           <div class="lv-empty-icon" style="width:54px;height:54px;border-radius:16px;background:var(--lv-brand-soft);color:var(--lv-brand);display:grid;place-items:center;margin:0 auto 12px;box-shadow:0 4px 14px color-mix(in srgb, var(--lv-brand) 18%, transparent)">
             <Icon name="book" size={26} />
           </div>
-          <h2 style="font-size:20px;font-weight:700;color:var(--lv-text);margin:0 0 6px">小驴学习 · 全场景自主研学启程</h2>
-          <p class="lv-muted" style="max-width:540px;margin:0 auto;line-height:1.6;font-size:13px">
-            考试是检验能力的手段，学习是终身成长的基石。当前题库暂无题目，请选择你的研学方向一键开练，或导入自己的笔记知识库。
+          <h2 style="font-size:20px;font-weight:700;color:var(--lv-text);margin:0 0 6px">{t("entry.emptyTitle", "当前题库暂无题目")}</h2>
+          <p class="lv-muted" style="max-width:520px;margin:0 auto;line-height:1.6;font-size:13px">
+            可以从思源笔记或文件导入试题、手工录题，或一键创建内置示例题库先走一遍练习闭环。
           </p>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));gap:12px;margin-bottom:20px">
-          <!-- 1. 职业与考证 -->
-          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
-            <div>
-              <b style="font-size:14px;color:var(--lv-brand);display:flex;align-items:center;gap:6px">
-                <Icon name="badge" size={15} /> 职业考证
-              </b>
-              <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                教师资格证(教资)、基金从业资格、中级会计职称等国家专业证书
-              </p>
-            </div>
-            <button class="lv-btn sm lv-btn--primary" style="width:100%" onclick={() => void oncreateSampleBank("qualification")} disabled={creating || offline} title="体验教资与基金从业资格真题">
-              体验考证题库
-            </button>
-          </div>
-
-          <!-- 2. 大学与硕博 -->
-          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
-            <div>
-              <b style="font-size:14px;color:var(--lv-accent);display:flex;align-items:center;gap:6px">
-                <Icon name="academic" size={15} /> 大学与硕博
-              </b>
-              <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                高等数学微积分、线性代数、考研政治专业课、四六级长难句
-              </p>
-            </div>
-            <button class="lv-btn sm" style="width:100%" onclick={() => void oncreateSampleBank("higher")} disabled={creating || offline} title="体验大学高数与考研真题">
-              体验高数题库
-            </button>
-          </div>
-
-          <!-- 3. 多语言研学 (英语+粤语) -->
-          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
-            <div>
-              <b style="font-size:14px;color:var(--lv-scene-lang, var(--lv-accent));display:flex;align-items:center;gap:6px">
-                <Icon name="volume" size={15} /> 多语言研学
-              </b>
-              <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                雅思核心学术词(IPA音标/en-US发音)与地道粤语日常口语
-              </p>
-            </div>
-            <div class="lv-row" style="margin:0;gap:4px">
-              <button class="lv-btn sm" style="flex:1" onclick={() => void oncreateSampleBank("english")} disabled={creating || offline}>
-                英语
-              </button>
-              <button class="lv-btn sm" style="flex:1" onclick={() => void oncreateSampleBank("cantonese")} disabled={creating || offline}>
-                粤语
-              </button>
-            </div>
-          </div>
-
-          <!-- 4. K12基础教育与通识 -->
-          <div class="lv-card lv-card--hover" style="padding:16px;background:var(--lv-surface);border-radius:var(--lv-r-3, 16px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);display:flex;flex-direction:column;justify-content:space-between">
-            <div>
-              <b style="font-size:14px;color:var(--lv-green);display:flex;align-items:center;gap:6px">
-                <Icon name="book" size={15} /> K12基础通识
-              </b>
-              <p class="lv-muted" style="font-size:12px;margin:6px 0 12px;line-height:1.5">
-                小学/初中/高中全科基础、中高考物理数学公式与古诗文
-              </p>
-            </div>
-            <button class="lv-btn sm" style="width:100%" onclick={() => void oncreateSampleBank("k12")} disabled={creating || offline} title="体验K12初高中全科题库">
-              体验基础题库
-            </button>
-          </div>
-        </div>
-
-        <div class="lv-row" style="justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 0;padding-top:16px;border-top:1px solid var(--lv-border-subtle)">
+        <div class="lv-row" style="justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 0">
           <button class="lv-btn lv-btn--primary" onclick={() => onnavView("import", "siyuan")}>
             <Icon name="file" size={15} /> 从思源笔记智能提取试题
           </button>
@@ -385,6 +316,9 @@
           <button class="lv-btn lv-btn--ghost" onclick={() => onnavView("manual")}>
             <Icon name="clipboard" size={15} /> 手工录题工坊
           </button>
+          <button class="lv-btn lv-btn--ghost" onclick={() => void oncreateSampleBank("general")} disabled={creating || offline}>
+            <Icon name="grid" size={15} /> 创建示例题库（{SAMPLE_QUESTION_COUNT} 题）
+          </button>
           {#if banks.length > 1}
             <button class="lv-btn lv-btn--ghost" onclick={onopenBankHub}>
               <Icon name="folder" size={15} /> 切换其他已有题库 ({banks.length})
@@ -392,31 +326,8 @@
           {/if}
         </div>
       </div>
-    {:else if userRole === "teacher"}
-      <TeacherWorkspaceView
-        practiceQuestionsCount={practiceQuestions.length}
-        {teacherPrintBusy}
-        {syncDocsBusy}
-        {offline}
-        {hasBank}
-        {t}
-        onprintPaper={onprintBankDoubleColumnPaper}
-        onexportTeacherPaper={onexportBankTeacherPaper}
-        onprintHomework={onprintBankHomeworkSheet}
-        onopenReport={onopenReport}
-        onopenMock={onopenMock}
-        onnavManual={() => onnavView("manual")}
-        onnavImport={() => onnavView("import")}
-        onnavAi={() => onnavView("ai")}
-        onnavMaterials={() => { onnavView("materials"); onloadMaterials(); }}
-        onnavBrowse={() => onnavView("browse")}
-        onsyncBankDocs={onsyncBankDocs}
-        oncopyChallengeCode={oncopyChallengeCode}
-        onimportChallengeCode={onimportChallengeCode}
-        onexportBank={onexportBank}
-      />
     {:else}
-      <!-- ===== 备考学员与自主研学空间 ===== -->
+      <!-- ===== 备考与刷题主空间 ===== -->
       {#if plan}
         {#if criticalForgettingKps.length > 0}
           <div class="lv-card lv-ebbinghaus-banner" role="alert">
@@ -646,6 +557,33 @@
           </div>
         </details>
       </div>
+      {#if lastSyncedDocs && onopenInSiYuan && (lastSyncedDocs.overviewDocId || lastSyncedDocs.bankDocId || lastSyncedDocs.wrongbookDocId || lastSyncedDocs.actionJournalDocId)}
+        <div class="lv-row" style="margin:8px 0 0;padding:8px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);gap:8px;align-items:center;flex-wrap:wrap" role="status">
+          <span style="font-size:var(--lv-font-size-sm);font-weight:600;display:inline-flex;align-items:center;gap:5px">
+            <Icon name="check" size={13} /> 已同步至思源笔记文档：
+          </span>
+          {#if lastSyncedDocs.overviewDocId}
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(lastSyncedDocs.overviewDocId!)}>
+              <Icon name="compass" size={12} /> 00 题库总览与考纲导航 ↗
+            </button>
+          {/if}
+          {#if lastSyncedDocs.bankDocId}
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(lastSyncedDocs.bankDocId!)}>
+              <Icon name="book" size={12} /> 完整题册 ↗
+            </button>
+          {/if}
+          {#if lastSyncedDocs.wrongbookDocId}
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(lastSyncedDocs.wrongbookDocId!)}>
+              <Icon name="target" size={12} /> 错题复盘本 ↗
+            </button>
+          {/if}
+          {#if lastSyncedDocs.actionJournalDocId}
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(lastSyncedDocs.actionJournalDocId!)}>
+              <Icon name="clipboard" size={12} /> 03 备考行动与复盘日志 ↗
+            </button>
+          {/if}
+        </div>
+      {/if}
     {/if}
   </div>
 {/if}

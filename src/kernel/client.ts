@@ -542,8 +542,11 @@ export class KernelApiClient {
       e.attrs[row.attrName] = row.attrValue ?? "";
       byBlock.set(row.blockId, e);
     }
-    const out: (Question & { blockId: string; rootId: string; hpath: string })[] = [];
+    const outById = new Map<string, Question & { blockId: string; rootId: string; hpath: string }>();
     for (const [blockId, e] of byBlock) {
+      if (e.hpath.startsWith("/小驴考试/") || e.hpath.startsWith("/导出/") || e.hpath.startsWith("/每日战报/")) {
+        continue;
+      }
       // content 是搜索摘要，会把超级块的题干、列表、解析压成一行。
       // 优先使用完整 markdown；旧索引缺失时读取 kramdown，不能把摘要当题面。
       let text = e.markdown || e.content;
@@ -554,9 +557,14 @@ export class KernelApiClient {
         if (!text) throw new KernelError("fatal", "block/getBlockKramdown", "未读取到完整题目内容，请重新读取题库。");
         q = questionFromBlock({ attrs: e.attrs, text });
       }
-      if (q) out.push({ ...q, blockId, rootId: e.rootId, hpath: e.hpath });
+      if (q) {
+        const prev = outById.get(q.id);
+        if (!prev || (!prev.answer && q.answer)) {
+          outById.set(q.id, { ...q, blockId, rootId: e.rootId, hpath: e.hpath });
+        }
+      }
     }
-    return out;
+    return [...outById.values()];
   }
 
   /** 章节树数据源（TODO 2.2）：notebook → 文档 → 标题层级；块 hpath 含标题祖先路径，供按章节过滤题目 */

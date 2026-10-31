@@ -1,6 +1,6 @@
 # 小驴考试交付说明
 
-> 当前审计：2026-10-18 · 源码版本 `0.10.4`。当前功能、隔离宿主与 GitHub 状态见 [STATUS-2026-10-18](STATUS-2026-10-18.md)，UI / 原型对照见 [UI-AUDIT-2026-10-18](UI-AUDIT-2026-10-18.md)。最新公开 Release 仍为 [v0.10.3](https://github.com/ai68298100/siyuan-exam/releases/tag/v0.10.3)；存在 v0.10.4 tag 不代表已有可下载发行包。本文第 8 节保留原日期的历史测量，不能用作当前版本重跑结果。
+> 当前审计：2026-10-18 · 源码版本 `0.10.4`。当前功能、隔离宿主与 GitHub 状态见 [STATUS](STATUS.md)（历史快照见 [STATUS-2026-10-18](archive/STATUS-2026-10-18.md)），UI / 原型对照见 [UI-AUDIT-2026-10-18](archive/UI-AUDIT-2026-10-18.md)。最新公开 Release 仍为 [v0.10.3](https://github.com/ai68298100/siyuan-exam/releases/tag/v0.10.3)；存在 v0.10.4 tag 不代表已有可下载发行包。本文第 8 节保留原日期的历史测量，不能用作当前版本重跑结果。
 >
 > `design/prototype-r54/` 是布局、视觉和已演示 UI 状态的设计基线；它使用合成数据，不是生产功能行为的证据。只有第 3 节明确列出的入口和状态映射经过核对，才可称为对应；未覆盖的生产能力与差异必须显式记录。实际功能以 `src/ui/`、`src/core/`、自动化测试和真实思源宿主验证为准，不得把原型演示数据当作真实题库或成绩。
 
@@ -10,7 +10,7 @@
 
 - Node.js `>=24.0.0`。
 - pnpm `12.9.1`（版本声明在 `package.json.packageManager`）。
-- 真实宿主验证需要安装并运行思源笔记 `>=3.8.0`。插件清单还声明支持 desktop、mobile、browser-desktop、browser-mobile 和 desktop-window；每个前端的文件选择、打印、剪贴板、TTS 和软键盘仍需按 [真机冒烟清单](17-真机冒烟清单.md) 单独核对。
+- 真实宿主验证需要安装并运行思源笔记 `>=3.8.0`。插件清单还声明支持 desktop、mobile、browser-desktop、browser-mobile 和 desktop-window；每个前端的文件选择、打印、剪贴板、TTS 和软键盘仍需按 [真机冒烟清单](archive/17-真机冒烟清单.md) 单独核对。
 - Windows 开发软链需要允许创建符号链接，或使用复制安装脚本。
 
 ### 安装、开发和本地构建

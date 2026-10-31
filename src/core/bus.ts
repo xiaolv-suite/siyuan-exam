@@ -31,7 +31,6 @@ export type BusEventType =
   | "wrongbook-changed" // {qid, status} 错题处置/暂缓/再错（生态消费者按需重读）
   | "open-view" // {view, requestId?} 稳定入口深链，requestId 用于挂载/广播去重
   | "bank-changed" // {bank} 题库创建或切换完成，其他已打开页签重新读取当前库
-  | "role-changed" // {role} 身份模式（student/teacher）切换同步
   | "stats" // {…} publicStats 快照（48-02 lite：信封双发；legacy 裸 detail 兼容保留）
   | "kernel-connection" // {online} 内核连接状态翻转（离线横幅/降级提示依据）
   | "apply-blueprint" // {blueprint, bankId?} 错题特训卷/外部蓝图注入模考场

@@ -5,8 +5,6 @@ import {
   generateAutoRubric,
   extractCardsFromExcerpt,
   extractCardsFromMaterialNotes,
-  exportCardsCsv,
-  exportCardsMarkdown,
   type ExcerptSource,
 } from "../src/core/excerptCard";
 import type { MaterialNote } from "../src/core/materialNotes";
@@ -263,78 +261,6 @@ describe("阅读笔记原文高亮与切片渐进式制卡出题引擎（excerpt
       expect(fillCard?.source).toContain("高等数学第七版 · P20");
       expect(fillCard?.answer).toBe("左极限等于右极限");
       expect(fillCard?.kp).toBe("极限与连续");
-    });
-  });
-
-  describe("ExamApp 集成：extractCardsFromNotes / 导出", () => {
-    it("extractCardsFromNotes：关联材料元数据并统一导出", async () => {
-      const { ExamApp } = await import("../src/app");
-      const { MemoryStorage } = await import("../src/core/attemptLog");
-      const client = {} as any;
-      const app = new ExamApp({ client, storage: new MemoryStorage(), now: () => 1_700_000_000_000 });
-
-      // 注册一个链接材料
-      const reg = await app.registerMaterialFromLink("https://example.com/linear-algebra.pdf", {
-        title: "线性代数",
-        subject: "数学",
-        chapter: "矩阵求逆",
-      });
-      const matId = reg.material.id;
-
-      // 添加两条笔记
-      await app.addMaterialNote({
-        materialId: matId,
-        revision: reg.material.revision,
-        locator: { page: 15 },
-        text: "问答：伴随矩阵的定义是什么？\n答：各元素代数余子式按转置排列构成的矩阵。",
-        tags: ["代数", "矩阵"],
-      });
-      await app.addMaterialNote({
-        materialId: matId,
-        revision: reg.material.revision,
-        locator: { page: 25 },
-        text: "挖空：初等行变换不改变矩阵的{{秩}}。",
-        tags: ["矩阵秩"],
-      });
-
-      // 执行提取
-      const result = await app.extractCardsFromNotes(matId, { defaultScore: 3 });
-      expect(result.questions.length).toBe(2);
-      expect(result.questions[0].score).toBe(3);
-      expect(result.questions[0].source).toContain("线性代数 · P15");
-      expect(result.questions[0].kp).toBe("代数");
-
-      expect(result.questions[1].score).toBe(3);
-      expect(result.questions[1].source).toContain("线性代数 · P25");
-      expect(result.questions[1].answer).toBe("秩");
-      expect(result.questions[1].kp).toBe("矩阵秩");
-
-      // 导出 Markdown
-      const md = await app.exportCardsMarkdown(result.questions);
-      expect(md).toContain("# 线性代数 摘抄闪卡集");
-      expect(md).toContain("## 1. [简答题] 【问答】伴随矩阵的定义是什么？");
-      expect(md).toContain("**答案**：各元素代数余子式按转置排列构成的矩阵。");
-      expect(md).toContain("## 2. [填空题] 初等行变换不改变矩阵的____。");
-      expect(md).toContain("**答案**：秩");
-
-      // 导出 CSV
-      const csv = await app.exportCardsCsv(result.questions);
-      expect(csv).toContain('"short","【问答】伴随矩阵的定义是什么？","各元素代数余子式按转置排列构成的矩阵。"');
-      expect(csv).toContain('"fill","初等行变换不改变矩阵的____。","秩"');
-
-      // 材料不存在时报错防呆
-      await expect(app.extractCardsFromNotes("non-existent-id")).rejects.toThrow(/未找到指定材料/);
-    }, 15000);
-
-    it("exportCardsCsv 与 exportCardsMarkdown 空值防御与非对象容错", () => {
-      expect(() => exportCardsCsv(undefined as unknown as Question[])).not.toThrow();
-      expect(() => exportCardsMarkdown(undefined as unknown as Question[])).not.toThrow();
-
-      const csv = exportCardsCsv(null as unknown as Question[]);
-      expect(csv).toContain('"题型","题干","答案"');
-
-      const md = exportCardsMarkdown([]);
-      expect(md).toContain("题目总数: 0");
     });
   });
 });

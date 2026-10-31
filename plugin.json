@@ -23,12 +23,12 @@
   ],
   "disabledInPublish": true,
   "displayName": {
-    "default": "Lv Study (Beta)",
-    "zh-CN": "小驴学习（原小驴考试）"
+    "default": "Lv Exam (Beta)",
+    "zh-CN": "小驴考试"
   },
   "description": {
-    "default": "Local-first learning, question bank, and exam workspace in SiYuan: language acquisition (Cantonese/English), flashcards, practice, mock exams, wrongbook, teacher worksheets, and reviewable AI assistance.",
-    "zh-CN": "本地研学与全真备考中枢：支持粤语与外语研学、读书制卡、刷题、全真模考、错题靶向攻坚、教师双栏试卷印刷与 FSRS 记忆复习——知识长在你的知识库里。"
+    "default": "Local-first question bank and exam prep workspace in SiYuan: import & manual authoring, independent active-recall practice, wrongbook remediation, timed mock exams, A4 paper printing, FSRS flashcards, and reviewable AI assistance.",
+    "zh-CN": "思源笔记本地题库与备考工作台：试题导入与录入、独立主动回忆刷题、错题靶向消灭、限时全真模考、A4 双栏印卷、FSRS 闪卡联动与可复核 AI 辅助——题目就是原生思源块。"
   },
   "readme": {
     "default": "README.md",
@@ -39,22 +39,16 @@
   "preview": "preview.png",
   "keywords": [
     "小驴",
-    "小驴学习",
     "小驴考试",
     "xiaolv",
     "lv",
-    "study",
     "exam",
-    "learning",
-    "cantonese",
-    "粤语",
     "quiz",
     "flashcard",
     "spaced-repetition",
     "wrongbook",
     "题库",
     "试卷",
-    "教研",
     "备考",
     "刷题",
     "背题",

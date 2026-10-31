@@ -14,6 +14,7 @@ export interface PracticeViewRequest {
   sourceTitle?: string;
   sourceKind?: "block" | "document";
   sourceTruncated?: boolean;
+  sourceBlockId?: string;
 }
 
 export type PracticeViewPlugin = {
@@ -68,7 +69,7 @@ export function observeTabOpen<T>(open: () => T | PromiseLike<T>, onSuccess: (va
 export function openPracticeView(
   plugin: PracticeViewPlugin | null | undefined,
   view: PracticeViewTarget,
-  options: Pick<PracticeViewRequest, "bankId" | "search" | "sourceText" | "sourceTitle" | "sourceKind" | "sourceTruncated"> = {},
+  options: Pick<PracticeViewRequest, "bankId" | "search" | "sourceText" | "sourceTitle" | "sourceKind" | "sourceTruncated" | "sourceBlockId"> = {},
 ): PracticeViewRequest | undefined {
   if (!plugin?.openPractice) return;
   practiceViewSeq = (practiceViewSeq + 1) % 1_000_000;

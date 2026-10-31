@@ -3,18 +3,43 @@ import type { ExamApp } from "@/app";
 import { ratingAttemptKey, type RatingOutcomeView, type RatingGuard } from "@/core/ratingOutcome";
 import type { MessageReporter } from "./printPaperService";
 
+export const RECITE_ACTIVE_KEY = "recite/active";
+
+export interface RecitePersistedSnapshot {
+  v: 1;
+  bankId: string;
+  qids: string[];
+  cursor: number;
+  revealed: boolean;
+  done: boolean;
+  hint: number;
+  ratings: number[];
+  sessionId: string;
+  updatedAt: number;
+}
+
 /**
- * 组装艾宾浩斯背题会话题目队列（优先错题，控制容量在 5–50）
+ * 组装艾宾浩斯背题会话题目队列（优先未毕业错题，排除争议题与已毕业题，控制容量在 5–50）
  */
 export function assembleReciteQueue(
   app: ExamApp,
   allQuestions: Question[],
   groupSize = 15,
 ): Question[] {
+  if (!allQuestions.length) return [];
+  const size = Math.max(5, Math.min(50, groupSize));
+  if (typeof app.recitePool === "function") {
+    const candidate = app.recitePool(allQuestions);
+    const primary = app.quickDrill(candidate.length > 0 ? candidate : allQuestions, size);
+    if (primary.length >= size || primary.length >= allQuestions.length) return primary;
+    const pickedIds = new Set(primary.map((q) => q.id));
+    const restPool = app.recitePool(allQuestions.filter((q) => !pickedIds.has(q.id)));
+    const supplement = app.quickDrill(restPool, size - primary.length);
+    return [...primary, ...supplement];
+  }
   const wrongQs = app.wrongDrill(allQuestions);
   const pool = wrongQs.length > 0 ? wrongQs : allQuestions;
   if (!pool.length) return [];
-  const size = Math.max(5, Math.min(50, groupSize));
   return app.quickDrill(pool, size);
 }
 
@@ -28,19 +53,72 @@ export async function executeReciteRating(options: {
   rating: 1 | 2 | 3 | 4;
   sessionId: string;
   guard: RatingGuard;
+  timeMs?: number;
 }): Promise<{ outcome: RatingOutcomeView; attemptKey: string } | null> {
-  const { app, bankName, q, rating, sessionId, guard } = options;
+  const { app, bankName, q, rating, sessionId, guard, timeMs } = options;
   const attemptKey = ratingAttemptKey(sessionId, q.id, rating);
   if (!guard.tryAcquire(attemptKey)) return null;
 
   try {
-    const outcome = await app.reciteAnswer(bankName, q, rating, sessionId, 0);
+    const elapsed = Math.max(0, Math.round(timeMs ?? 0));
+    const outcome = await app.reciteAnswer(bankName, q, rating, sessionId, elapsed);
     guard.settle(attemptKey, outcome.terminal);
     return { outcome, attemptKey };
   } catch (e) {
     guard.settle(attemptKey, false);
     throw e;
   }
+}
+
+export async function saveReciteSnapshot(
+  app: ExamApp | null,
+  bankId: string,
+  state: ReciteSessionState,
+): Promise<void> {
+  if (!app || !bankId || !state.queue.length || state.done) return;
+  const snap: RecitePersistedSnapshot = {
+    v: 1,
+    bankId,
+    qids: state.queue.map((q) => q.id),
+    cursor: state.cursor,
+    revealed: state.revealed,
+    done: state.done,
+    hint: state.hint,
+    ratings: [...state.ratings],
+    sessionId: state.sessionId,
+    updatedAt: Date.now(),
+  };
+  await app.saveAux(RECITE_ACTIVE_KEY, snap);
+}
+
+export async function clearReciteSnapshot(app: ExamApp | null): Promise<void> {
+  if (!app) return;
+  await app.saveAux(RECITE_ACTIVE_KEY, null);
+}
+
+export async function loadReciteSnapshot(
+  app: ExamApp | null,
+  bankId: string,
+  allQuestions: Question[],
+): Promise<ReciteSessionState | null> {
+  if (!app || !bankId || !allQuestions.length) return null;
+  const snap = await app.loadAux<RecitePersistedSnapshot | null>(RECITE_ACTIVE_KEY);
+  if (!snap || snap.bankId !== bankId || snap.done || !Array.isArray(snap.qids) || !snap.qids.length) {
+    return null;
+  }
+  const byId = new Map(allQuestions.map((q) => [q.id, q]));
+  const queue = snap.qids.map((id) => byId.get(id)).filter((q): q is Question => Boolean(q));
+  if (!queue.length) return null;
+  const cursor = Math.min(Math.max(0, snap.cursor ?? 0), queue.length - 1);
+  return {
+    queue,
+    cursor,
+    revealed: Boolean(snap.revealed),
+    done: false,
+    hint: snap.hint ?? 0,
+    ratings: Array.isArray(snap.ratings) ? snap.ratings.slice(0, cursor) : [],
+    sessionId: snap.sessionId || `s-recite-${Date.now().toString(36)}`,
+  };
 }
 
 /**

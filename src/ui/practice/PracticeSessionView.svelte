@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import PracticeDoneCard from "./PracticeDoneCard.svelte";
   import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
@@ -13,8 +12,6 @@
   import type { SiblingItem, MaterialGroupContext } from "@/core/materialContext";
   import type { ScratchpadMode } from "@/core/scratchpad";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
-  import { startFocusNoise, stopFocusNoise } from "@/libs/sound";
-  import { FlowDwellTracker } from "@/core/flowTimer";
 
   interface Props {
     session: PracticeSession;
@@ -74,8 +71,9 @@
     scratchpadMode: ScratchpadMode;
     currentScratchpadText: string;
     groupBatchModal: any;
-    speechEvalResult: SpeechEvalResult | null;
-    speechRecording: boolean;
+    speechEvalEnabled?: boolean;
+    speechEvalResult?: SpeechEvalResult | null;
+    speechRecording?: boolean;
     reciteToggle: boolean;
     speedDrillEnabled: boolean;
     pureListen: boolean;
@@ -128,7 +126,7 @@
     onttsSpeak: (text: string, opt?: any) => void;
     ontoggleTtsSlow: () => void;
     oncycleStudyFontSize: () => void;
-    onstartSpeech: (target: string, lang: string) => void;
+    onstartSpeech?: (target: string, lang: string) => void;
     ontoggleRecite: () => void;
     ontogglePureListen: () => void;
     ontoggleFavCurrent: () => void;
@@ -142,7 +140,7 @@
     ongroupBatchContinue: () => void;
     ontoggleMaterialExpand: () => void;
     onjumpSibling: (siblingQ: SiblingItem) => void;
-    ondismissSpeechEval: () => void;
+    ondismissSpeechEval?: () => void;
     ontoggleHideOptions: () => void;
     onrecallDraftInput: (val: string) => void;
     onrevealOptions: () => void;
@@ -162,10 +160,12 @@
     onconfidenceSelect: (c: "sure" | "fuzzy" | "guess") => void;
     onsubmitAnswer: () => void;
     onrequestHint: () => void;
+    onrevealStageHint?: () => void;
     onnextQuestion: () => void;
     ondrillVariant: () => void;
     ontraceMother: () => void;
     ontoCard: () => void;
+    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
     onexplainCurrent: (mode: "explain" | "socratic" | "dual-loop" | "storm") => void;
     onviewLeakedHint: () => void;
     ondismissLeakedHint: () => void;
@@ -225,8 +225,9 @@
     scratchpadMode = $bindable(),
     currentScratchpadText,
     groupBatchModal = $bindable(),
-    speechEvalResult = $bindable(),
-    speechRecording,
+    speechEvalEnabled = false,
+    speechEvalResult = null,
+    speechRecording = false,
     reciteToggle,
     speedDrillEnabled = $bindable(),
     pureListen,
@@ -312,10 +313,12 @@
     onconfidenceSelect,
     onsubmitAnswer,
     onrequestHint,
+    onrevealStageHint,
     onnextQuestion,
     ondrillVariant,
     ontraceMother,
     ontoCard,
+    onopenInSiYuan,
     onexplainCurrent,
     onviewLeakedHint,
     ondismissLeakedHint,
@@ -327,37 +330,20 @@
     ontouchEnd,
   }: Props = $props();
 
-  let focusNoiseActive = $state(false);
-  const dwellTracker = new FlowDwellTracker(60_000);
-
   // —— benchmark-fusion：解析 3 阶渐进折叠（Moodle Adaptive Hints + TextFold 标杆）——
   // 阶1 考点提示：作答中可展开（不暴露答案；默认折叠不弱化独立回忆）
   // 阶2 核心推导：提交后解锁（默认展开保留既有可读性，可折叠降噪）
   // 阶3 思源原块溯源：提交后解锁（默认折叠；siyuan:// 深链直达原块）
   // 切题即重置，防上一题的展开态串扰到下一题。
+  let explainDepth = $state<"explain" | "dual-loop" | "storm">("explain");
   let stageHintOpen = $state(false);
   let stageAnalysisOpen = $state(true);
   let stageSourceOpen = $state(false);
   $effect(() => {
-    void curQ?.id;
-    stageHintOpen = false;
+    const qid = curQ?.id;
+    stageHintOpen = Boolean(qid && session?.getExposures?.(qid).includes("hint"));
     stageAnalysisOpen = true;
     stageSourceOpen = false;
-  });
-
-  function ontoggleFocusNoise() {
-    if (focusNoiseActive) {
-      stopFocusNoise();
-      focusNoiseActive = false;
-    } else {
-      startFocusNoise("rain", 0.05);
-      focusNoiseActive = true;
-    }
-  }
-
-  onDestroy(() => {
-    stopFocusNoise();
-    dwellTracker.reset();
   });
 </script>
 
@@ -395,6 +381,7 @@
     {oneditReflection}
     {onrunMisdiagnosis}
     {onadoptMisdiagnosis}
+    {onopenInSiYuan}
     onexitSession={onexitSession}
   />
 {:else}
@@ -426,10 +413,15 @@
           <button type="button" class="lv-chip num sm" onclick={oncycleStudyFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）" aria-label="切换题干字号大小">
             A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
           </button>
-          <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => onstartSpeech(q.answer || q.stem, q.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评" aria-label="开启麦克风发音跟读录音与匹配度测评" aria-pressed={speechRecording}>
-            <Icon name="mic" size={13} /> {speechRecording ? "跟读中…" : "跟读测评"}
-          </button>
+          {#if (q.studyMeta?.lang || q.studyMeta?.phonetic || speechEvalEnabled) && onstartSpeech}
+            <button type="button" class="lv-chip" class:acc={speechRecording} onclick={() => onstartSpeech(q.answer || q.stem, q.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读测评" aria-label="开启麦克风发音跟读测评" aria-pressed={speechRecording}>
+              <Icon name="mic" size={13} /> {speechRecording ? "跟读中…" : "跟读测评"}
+            </button>
+          {/if}
           <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-label={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={ontoggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
+          {#if q.blockId && onopenInSiYuan}
+            <button type="button" class="lv-chip" title="在思源笔记中定位并高亮原题块" aria-label={t("session.stageSourceOpen", "打开思源原块")} onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> {t("recite.jumpSource", "定位原题")}</button>
+          {/if}
           <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={ontoggleFavCurrent}><Icon name="star" size={13} /></button>
         </div>
         <div class="lv-session-dock" role="group" aria-label="辅助工具坞">
@@ -437,7 +429,6 @@
           <button class="lv-chip" class:acc={speedDrillEnabled} title={t("session.speedDrillTip")} aria-label={t("session.speedDrillTip")} aria-pressed={speedDrillEnabled} onclick={() => { speedDrillEnabled = !speedDrillEnabled; }}><Icon name="zap" size={13} /></button>
           <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={ontogglePureListen}><Icon name="eyeoff" size={13} /></button>
           <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-label={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-pressed={soundEnabled} onclick={() => { soundEnabled = !soundEnabled; }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
-          <button class="lv-chip" class:acc={focusNoiseActive} title={focusNoiseActive ? "关闭专注白噪音" : "开启专注心流白噪音 (自然细雨声)"} aria-label={focusNoiseActive ? "关闭专注白噪音" : "开启专注心流白噪音"} aria-pressed={focusNoiseActive} onclick={ontoggleFocusNoise}><Icon name="headphones" size={13} /></button>
           <button class="lv-chip" class:acc={hotkeysHelpOpen} title={t("hotkeys.tip")} aria-label={t("hotkeys.tip")} aria-pressed={hotkeysHelpOpen} onclick={() => (hotkeysHelpOpen = !hotkeysHelpOpen)}><Icon name="activity" size={13} /></button>
         </div>
         <span class="lv-chip" style="gap:2px;padding:2px 4px" role="group" aria-label="试题速记标记">
@@ -485,7 +476,9 @@
               {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: feedback ? [q.occlusion.activeMaskId || ""] : [] })}
             </div>
           {/if}
-          <SpeechEvalCapsule result={speechEvalResult} ondismiss={ondismissSpeechEval} />
+          {#if speechEvalResult && ondismissSpeechEval}
+            <SpeechEvalCapsule result={speechEvalResult} ondismiss={ondismissSpeechEval} />
+          {/if}
           {#if q.studyMeta?.phonetic}
             <div class="lv-phonetic-badge" style="margin:4px 0 10px;display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--lv-brand)">
               <Icon name="volume" size={12} />
@@ -618,7 +611,11 @@
             <div class="lv-analysis" style="padding:10px 14px">
               <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
                 aria-expanded={stageHintOpen} aria-controls="lv-stage-hint"
-                onclick={() => (stageHintOpen = !stageHintOpen)}>
+                onclick={() => {
+                  const next = !stageHintOpen;
+                  stageHintOpen = next;
+                  if (next && !feedback) onrevealStageHint?.();
+                }}>
                 <Icon name="bulb" size={12} /> {t("session.stageHint", "考点提示（卡壳再看）")}
               </button>
               {#if stageHintOpen}
@@ -714,7 +711,7 @@
                 {/if}
               </div>
             {/if}
-            {#if feedback && (q.source || q.blockId)}
+            {#if feedback && (q.source || q.blockId || q.sourceBlockId)}
               <!-- benchmark-fusion 阶3：思源原块溯源（提交后解锁；默认折叠；siyuan:// 深链直达原块） -->
               <div class="lv-analysis" style="padding:10px 14px">
                 <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
@@ -725,7 +722,20 @@
                 {#if stageSourceOpen}
                   <div id="lv-stage-source" style="margin:8px 0 0;font-size:var(--lv-font-size-sm);color:var(--lv-text-2);display:flex;flex-wrap:wrap;gap:6px;align-items:center">
                     {#if q.source}<span class="lv-chip num">{q.source}</span>{/if}
-                    {#if q.blockId}<a class="lv-chip" href={`siyuan://blocks/${q.blockId}`}>{t("session.stageSourceOpen", "打开思源原块")} ↗</a>{/if}
+                    {#if q.blockId}
+                      {#if onopenInSiYuan}
+                        <button type="button" class="lv-chip" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}>{t("session.stageSourceOpen", "打开思源原块")} ↗</button>
+                      {:else}
+                        <a class="lv-chip" href={`siyuan://blocks/${q.blockId}`}>{t("session.stageSourceOpen", "打开思源原块")} ↗</a>
+                      {/if}
+                    {/if}
+                    {#if q.sourceBlockId && q.sourceBlockId !== q.blockId}
+                      {#if onopenInSiYuan}
+                        <button type="button" class="lv-chip" onclick={() => onopenInSiYuan("", q.sourceBlockId)}>📖 跳转至来源笔记段落 ↗</button>
+                      {:else}
+                        <a class="lv-chip" href={`siyuan://blocks/${q.sourceBlockId}`}>📖 跳转至来源笔记段落 ↗</a>
+                      {/if}
+                    {/if}
                   </div>
                 {/if}
               </div>
@@ -788,11 +798,14 @@
                 <button class="lv-btn" onclick={ontraceMother} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
                 <button class="lv-btn" onclick={ontoCard} disabled={cardResult === "…"}><Icon name="layers" size={16} /> {cardResult === "…" ? "制卡中…" : t("memory.toCard")}</button>
                 {#if cardResult}<span class="lv-muted">{cardResult}</span>{/if}
-                <button class="lv-btn" onclick={() => onexplainCurrent("explain")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
-                <button class="lv-btn" onclick={() => onexplainCurrent("dual-loop")} disabled={explainBusy} aria-busy={explainBusy} title="双环解题证据链推导 (DeepTutor 规范)"><Icon name="compass" size={15} /> 双环推导</button>
-                {#if q.type === "short"}
-                  <button class="lv-btn" onclick={() => onexplainCurrent("storm")} disabled={explainBusy} aria-busy={explainBusy} title="STORM 实践/理论/反思多视角辩证剖析 (Stanford STORM 规范)"><Icon name="activity" size={15} /> STORM 破题</button>
-                {/if}
+                <div class="lv-explain-group" style="display:inline-flex;align-items:center;gap:6px">
+                  <select class="lv-select" bind:value={explainDepth} disabled={explainBusy} aria-label="选择 AI 讲解模式">
+                    <option value="explain">标准核验</option>
+                    <option value="dual-loop">分步推导</option>
+                    <option value="storm">多视角破题</option>
+                  </select>
+                  <button class="lv-btn" onclick={() => onexplainCurrent(explainDepth)} disabled={explainBusy} aria-busy={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
+                </div>
                 <button class="lv-btn" onclick={onrequestHint} disabled={explainBusy} aria-busy={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
                 <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               {/if}
@@ -842,7 +855,7 @@
         <div class="lv-card lv-side-card">
           <b class="lv-side-title">{t("session.side.q")}</b>
           <div class="lv-side-rows">
-            {#if q.kp}<span class="lv-chip"><Icon name="layers" size={11} /> {q.kp}</span>{/if}
+            {#if q.kp && (feedback || stageHintOpen)}<span class="lv-chip"><Icon name="layers" size={11} /> {q.kp}</span>{/if}
             {#if q.source}<span class="lv-chip num" title={t("manual.source")}>{q.source}</span>{/if}
             {#if q.difficulty}<span class="lv-chip num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="star" size={11} /> {q.difficulty}</span>{/if}
             {#if q.score}<span class="lv-chip num">{t("manual.score")} {q.score}</span>{/if}
@@ -916,8 +929,6 @@
   .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, #fff); }
   .lv-feedback { margin: 16px 0 12px; padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--lv-red) 26%, var(--lv-border)); border-left: 3.5px solid var(--lv-red); border-radius: var(--lv-r-2); font-weight: var(--lv-font-weight-semibold); font-size: var(--lv-font-size-md); background: color-mix(in srgb, var(--lv-red-soft) 85%, var(--lv-surface)); color: var(--lv-red); box-shadow: var(--lv-sh-1); animation: lv-appear var(--lv-dur-view) var(--lv-ease-out); max-width: var(--lv-max-reading-width, 820px); }
   .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: var(--lv-sh-1); }
-  .lv-chip--amb { color: var(--lv-amber); background: var(--lv-amber-soft); border-color: color-mix(in srgb, var(--lv-amber) 25%, transparent); }
-  .lv-chip--red { color: var(--lv-red); background: var(--lv-red-soft); border-color: color-mix(in srgb, var(--lv-red) 25%, transparent); }
   /* —— 作答动作区（吸收小驴闪卡 Floating Dock 浮岛悬浮底座质感：圆角聚拢 + 毛玻璃 + 微微弹性） —— */
   .lv-answer-actions {
     margin-top: 18px;
@@ -933,12 +944,20 @@
     gap: 10px;
     transition: box-shadow var(--lv-dur-view, 0.2s) ease;
   }
-  .lv-answer-actions > .lv-btn {
+  .lv-answer-actions > .lv-btn,
+  .lv-answer-actions .lv-explain-group > .lv-btn,
+  .lv-answer-actions .lv-explain-group > .lv-select {
     min-height: 38px;
+    height: 38px;
     border-radius: 9999px;
     font-weight: var(--lv-font-weight-semibold, 600);
     padding: 0 18px;
     transition: transform var(--lv-dur-micro, 0.15s) ease, background-color var(--lv-dur-micro) ease;
+  }
+  .lv-answer-actions .lv-explain-group > .lv-select {
+    padding: 0 14px;
+    width: auto;
+    font-size: var(--lv-font-size-sm);
   }
   .lv-answer-actions > .lv-btn:active {
     transform: scale(0.97);

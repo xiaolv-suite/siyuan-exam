@@ -551,7 +551,7 @@
     outline: 2px solid var(--lv-accent);
     outline-offset: 1px;
   }
-  @container lv-exam (min-width: 760px) and (max-width: 1080px) {
+  @container lv-exam (min-width: 760px) and (max-width: 1119px) {
     .lv-rail-scroll {
       padding: 18px 4px;
       gap: 12px;

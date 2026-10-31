@@ -45,7 +45,6 @@ import { confirmDialogSync } from "@/libs/dialog";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
     import { onExamEvent, emitExamEvent } from "@/core/bus";
-    import { evaluateCognitiveProfile, buildCognitiveProfilePrefix } from "@/core/cognitiveProfile";
     import PracticeSessionView from "./PracticeSessionView.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
@@ -58,13 +57,9 @@ import { confirmDialogSync } from "@/libs/dialog";
     import EntryStudioView from "./EntryStudioView.svelte";
     import MaterialsView from "./MaterialsView.svelte";
     import {
-      printBankDoubleColumnPaper as servicePrintBankDoubleColumnPaper,
-      exportBankTeacherPaper as serviceExportBankTeacherPaper,
-      printBankHomeworkSheet as servicePrintBankHomeworkSheet,
-      printSelectedQuestionsPaper,
-      printSelectedTeacherPaper as servicePrintSelectedTeacherPaper,
-      printSelectedHomeworkSheet as servicePrintSelectedHomeworkSheet,
+      printQuestionsByFormat,
       filterSelectedQuestions,
+      type PrintPaperFormat,
     } from "./services/printPaperService";
     import {
       exportSyllabusGapsCsv,
@@ -262,6 +257,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       advanceReciteState,
       getReciteTtsPayload,
       prepareRetryForgotState,
+      saveReciteSnapshot,
+      loadReciteSnapshot,
+      clearReciteSnapshot,
     } from "./services/reciteStudioService";
     import {
       exportWrongbookToDoc,
@@ -293,13 +291,11 @@ import { confirmDialogSync } from "@/libs/dialog";
       executeUndoLastAttempt,
       extractSessionWrongQuestions,
       resolveQuestionRestorationState,
-      getExposureHelpMode,
       toggleQuestionUserTag,
       executeSessionExit,
       computeSessionKpBreakdown,
       executeSessionResume,
       executeSessionFinish,
-      recordExposureFact,
       executeNegotiateSessionStart,
     } from "./services/sessionLifecycleService";
     import {
@@ -462,7 +458,6 @@ import { confirmDialogSync } from "@/libs/dialog";
       ttsSpeak(text, finalOpt);
     }
     let speedDrillEnabled = $state(readLocal("lv-exam/speed-drill") === "1");
-    let userRole = $state<"student" | "teacher">(readLocal("lv-exam/role") === "teacher" ? "teacher" : "student");
     let hotkeysHelpOpen = $state(false);
     let paperGridModalOpen = $state(false);
     let shortLinedPaper = $state(readLocal("lv-exam/lined-paper") === "1");
@@ -570,6 +565,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       reciteQueue = qs;
       reciteCursor = 0; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
       reciteSessionId = `s-recite-rescue-${Date.now().toString(36)}`;
+      reciteCardStart = Date.now();
+      persistReciteSnapshot();
       view = "recite";
       if (reciteAutoTts && reciteQueue[0]) {
         ttsSpeak(reciteQueue[0].stem, { lang: reciteQueue[0].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
@@ -592,10 +589,19 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     }
 
+    let lastSavedWrongbookDoc = $state<{ docId: string; title: string } | null>(null);
+    let lastSyncedDocs = $state<{
+      overviewDocId?: string;
+      bankDocId?: string;
+      wrongbookDocId?: string;
+      actionJournalDocId?: string;
+    } | null>(null);
+
     async function syncBankToDoc(bId: string) {
       if (!app) return;
       try {
         const res = await executeSyncBankToDoc(app, bId);
+        lastSyncedDocs = { ...lastSyncedDocs, bankDocId: res.docId };
         showMessage(`已同步为思源笔记文档：《${res.title}》✓`, 3500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
@@ -611,7 +617,10 @@ import { confirmDialogSync } from "@/libs/dialog";
           questions,
           wrongQids: filteredWrongQueue.map((w) => w.qid),
         });
-        if (res) showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
+        if (res) {
+          lastSavedWrongbookDoc = { docId: res.docId, title: res.title };
+          showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
+        }
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
       }
@@ -647,8 +656,12 @@ import { confirmDialogSync } from "@/libs/dialog";
     let reciteSaving = $state(false);
     let reciteError = $state("");
     let reciteRatings = $state<number[]>([]);
+    let reciteCardStart = $state(0);
     let reciteAutoTts = $state(readLocal("lv-exam/recite-auto-tts") === "1");
     let ttsSlowRate = $state(readLocal("lv-exam/tts-slow") === "1");
+    const speechEvalEnabled = $derived(
+      plugin?.settingUtils?.get?.("speechEvalEnabled") === true || plugin?.settingUtils?.get?.("speechEvalEnabled") === "true",
+    );
     let speechRecording = $state(false);
     let speechEvalResult = $state<SpeechEvalResult | null>(null);
     let speechRecognitionInstance: any = null;
@@ -1070,53 +1083,16 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     }
 
-    let teacherPrintBusy = $state(false);
-    async function printBankDoubleColumnPaper() {
-      if (teacherPrintBusy || !practiceQuestions.length) return;
-      teacherPrintBusy = true;
-      try {
-        await servicePrintBankDoubleColumnPaper(bankName, practiceQuestions, showMessage);
-      } finally {
-        teacherPrintBusy = false;
-      }
-    }
-
-    async function exportBankTeacherPaper() {
-      if (teacherPrintBusy || !practiceQuestions.length) return;
-      teacherPrintBusy = true;
-      try {
-        await serviceExportBankTeacherPaper(bankName, practiceQuestions, showMessage);
-      } finally {
-        teacherPrintBusy = false;
-      }
-    }
-
-    async function printBankHomeworkSheet() {
-      if (teacherPrintBusy || !practiceQuestions.length) return;
-      teacherPrintBusy = true;
-      try {
-        await servicePrintBankHomeworkSheet(bankName, practiceQuestions, showMessage);
-      } finally {
-        teacherPrintBusy = false;
-      }
-    }
-
-    async function printSelectedQuestions() {
+    async function printSelectedQuestions(format: PrintPaperFormat = "exam") {
       if (!selectedCount) return;
       const targetQuestions = filterSelectedQuestions(questions, selectedIds);
-      await printSelectedQuestionsPaper(bankName, targetQuestions, showMessage);
+      await printQuestionsByFormat(format, `${bankName || "题库"} · 勾选题卷`, targetQuestions, showMessage);
     }
 
-    async function printSelectedTeacherPaper() {
-      if (!selectedCount) return;
-      const targetQuestions = filterSelectedQuestions(questions, selectedIds);
-      await servicePrintSelectedTeacherPaper(bankName, targetQuestions, showMessage);
-    }
-
-    async function printSelectedHomeworkSheet() {
-      if (!selectedCount) return;
-      const targetQuestions = filterSelectedQuestions(questions, selectedIds);
-      await servicePrintSelectedHomeworkSheet(bankName, targetQuestions, showMessage);
+    async function printFilteredByFormat(format: PrintPaperFormat) {
+      const targetQuestions = filteredQuestions.filter((q) => q.type !== "material");
+      if (!targetQuestions.length) return;
+      await printQuestionsByFormat(format, bankName || "题库", targetQuestions, showMessage);
     }
 
     function previewBatch() {
@@ -1265,6 +1241,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         const res = executeApplyPaperRecall(app, pv.items, t);
         paperNote = res.note;
         if (res.count > 0) {
+          await app.flush();
           dataRev++;
           paperText = "";
         }
@@ -1481,9 +1458,12 @@ import { confirmDialogSync } from "@/libs/dialog";
               mType = (d.type as typeof mType) ?? "single";
               mStem = d.stem; mOptions = d.options?.length ? d.options : ["", ""];
               mAnswer = d.answer ?? ""; mAnalysis = d.analysis ?? "";
-              mKp = d.kp ?? ""; mSource = d.source ?? ""; mGroup = d.group ?? "";
+              mKp = d.kp ?? ""; mSecondaryKps = d.secondaryKps ?? ""; mSource = d.source ?? ""; mGroup = d.group ?? "";
               mSpecOpen = d.specOpen ?? false; mSpecUnit = d.specUnit ?? ""; mSpecAbsTol = d.specAbsTol ?? ""; mSpecRelPct = d.specRelPct ?? ""; mSpecAltUnits = d.specAltUnits ?? "";
+              mSpecOrderIndependent = d.orderIndependent ?? false;
               mRubricOpen = d.rubricOpen ?? false; mRubricText = d.rubricText ?? "";
+              mStudyLang = d.studyLang ?? "zh-CN"; mStudyPhonetic = d.studyPhonetic ?? "";
+              mStatus = d.status ?? "published"; mFamily = d.family;
               draftRestored = true;
             }
           } catch { /* 草稿读取失败静默 */ }
@@ -1506,14 +1486,42 @@ import { confirmDialogSync } from "@/libs/dialog";
         app.resumeSession(async (qids) => {
           const all = await loadQuestions();
           return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
-        }, activeBankId).then((s) => {
+        }, activeBankId).then(async (s) => {
+          const rawRecite = activeBankId && !externalStartBusy
+            ? await app.loadAux<any>("recite/active").catch(() => null)
+            : null;
+          const reciteIsNewer = Boolean(
+            rawRecite &&
+            rawRecite.bankId === activeBankId &&
+            !rawRecite.done &&
+            (!s || (rawRecite.updatedAt ?? 0) > (s.state.updatedAt ?? 0)),
+          );
           if (s) {
             s.advancePastAnswered();                       // 37-05：恢复跳过已答位置防双计
             if (s.allAnswered()) sessionDone = s.finish();
-            session = s; view = "session";
-            sessionRev++;
-            restoreQuestionControls();
+            session = s;
+            syncSessionScratchpad(s);
+            if (!reciteIsNewer) {
+              view = "session";
+              sessionRev++;
+              restoreQuestionControls();
+            }
             if (app.lastResumeMissing.length) showMessage(t("resume.missing").replace("{n}", String(app.lastResumeMissing.length)), 4200, "info");
+          }
+          if (reciteIsNewer && !externalStartBusy) {
+            const all = questions.length ? questions : await loadQuestions();
+            const rs = await loadReciteSnapshot(app, activeBankId, all.filter((q) => q.type !== "material"));
+            if (rs && !externalStartBusy) {
+              reciteQueue = rs.queue;
+              reciteCursor = rs.cursor;
+              reciteRevealed = rs.revealed;
+              reciteDone = rs.done;
+              reciteHint = rs.hint;
+              reciteRatings = rs.ratings;
+              reciteSessionId = rs.sessionId;
+              reciteCardStart = Date.now();
+              view = "recite";
+            }
           }
           rebuildPlan();
           loading = false;
@@ -1568,13 +1576,26 @@ import { confirmDialogSync } from "@/libs/dialog";
       };
       // 稳定入口深链（window.siyuanExam.wrongbook → 错题本视图；新开与已开 Tab 同路径）
       function applyMaterialRequest(request: import("@/core/pluginTab").PracticeViewRequest | undefined) {
-        if (!request?.sourceText || request.view !== "ai") return;
-        aiSource = request.sourceText;
-        const sourceLabel = request.sourceKind === "document" ? t("ai.sourceFromDocument") : t("ai.sourceFromBlock");
-        aiSourceOrigin = request.sourceTitle
-          ? `${sourceLabel.replace("{title}", request.sourceTitle)}${request.sourceTruncated ? ` · ${t("ai.sourceTruncated").replace("{n}", String(request.sourceText.length))}` : ""}`
-          : "";
-        if (!aiKp.trim() && request.sourceTitle) aiKp = request.sourceTitle;
+        if (!request?.sourceText) return;
+        if (request.view === "ai") {
+          aiSource = request.sourceText;
+          aiSourceBlockId = request.sourceBlockId ?? "";
+          const sourceLabel = request.sourceKind === "document" ? t("ai.sourceFromDocument") : t("ai.sourceFromBlock");
+          aiSourceOrigin = request.sourceTitle
+            ? `${sourceLabel.replace("{title}", request.sourceTitle)}${request.sourceTruncated ? ` · ${t("ai.sourceTruncated").replace("{n}", String(request.sourceText.length))}` : ""}`
+            : "";
+          if (!aiKp.trim() && request.sourceTitle) aiKp = request.sourceTitle;
+        } else if (request.view === "entry" || request.view === "manual") {
+          mStem = request.sourceText.trim();
+          if (request.sourceBlockId) {
+            mSourceBlockId = request.sourceBlockId;
+            mSource = `(( ${request.sourceBlockId} '${request.sourceTitle || "来源笔记段落"}' ))`;
+          }
+          if (request.sourceTitle && !mKp.trim()) {
+            mKp = request.sourceTitle;
+          }
+          showMessage(t("slash.convertToQuestionDone"), 2800, "info");
+        }
       }
       const onOpenView = (env: import("@/core/bus").BusEvent<{ view: string; requestId?: string }>) => {
         if (!tabRoot?.isConnected) return;
@@ -1651,12 +1672,27 @@ import { confirmDialogSync } from "@/libs/dialog";
         onExamEvent("open-view", onOpenView),
         onExamEvent("session-ended", onDataChanged),
         onExamEvent("wrongbook-changed", onDataChanged),
-        onExamEvent<{ role: "student" | "teacher" }>("role-changed", (env) => {
-          if (env.payload.role && env.payload.role !== userRole) {
-            userRole = env.payload.role;
-          }
-        }),
       ];
+
+      // 思源编辑器原位改题热回流：当用户在思源文档中修改了题面/答案再切回插件页签时，自动刷新题库
+      let lastHotRefreshAt = 0;
+      const onHostFocusOrVisible = () => {
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+        if (!app || !activeBankId || loading || importBusy || mSaving || creating || syncDocsBusy) return;
+        if (!["entry", "browse", "wrongbook"].includes(view)) return;
+        const now = Date.now();
+        if (now - lastHotRefreshAt < 2500) return;
+        lastHotRefreshAt = now;
+        void loadQuestions();
+      };
+      if (typeof window !== "undefined") {
+        window.addEventListener("focus", onHostFocusOrVisible);
+        document.addEventListener("visibilitychange", onHostFocusOrVisible);
+        offs.push(() => {
+          window.removeEventListener("focus", onHostFocusOrVisible);
+          document.removeEventListener("visibilitychange", onHostFocusOrVisible);
+        });
+      }
 
       // 移动端虚拟键盘避让：监听 visualViewport 动态抬升底边距，防遮挡按钮
       if (typeof window !== "undefined" && window.visualViewport) {
@@ -2230,6 +2266,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       });
       if (res.session) {
         session = res.session;
+        syncSessionScratchpad(res.session);
         trails.clear();
         answerStart = Date.now();
         return true;
@@ -2279,6 +2316,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         const existingIds = existing?.phase === "running" ? new Set(existing.state.qids) : null;
         if (existing && existing.phase === "running" && existing.state.bankId === bankId && existingIds && existingIds.size === pickedIds.size && [...pickedIds].every((id) => existingIds.has(id))) {
           session = existing;
+          syncSessionScratchpad(existing);
           answerStart = Date.now();
         } else if (!(await negotiateStart(groupAdjacent(picked), "query", bankId))) return;
         activeBankId = bankId;
@@ -2310,6 +2348,14 @@ import { confirmDialogSync } from "@/libs/dialog";
         showMessage(t("entry.loadError"), 2800, "error");
         return;
       }
+      let dueFirst: Question[] = [];
+      if (mode === "daily") {
+        try {
+          dueFirst = await app.dueQuestions(bankName, qs.filter((q) => q.type !== "material"));
+        } catch {
+          dueFirst = [];
+        }
+      }
       const res = pickDrillQuestions({
         app,
         questions: qs,
@@ -2317,6 +2363,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         sessionSeed,
         dailyGoal: Number(plugin.settingUtils?.get?.("dailyGoal") ?? 10),
         quickAvoidDays: Number(plugin.settingUtils?.get?.("quickAvoidDays") ?? 3),
+        dueFirst,
       });
       if (res.info) { showMessage(t(res.info, res.info), 2800, "info"); return; }
       if (res.error) { errorMsg = t(res.error, res.error); return; }
@@ -2507,6 +2554,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       planTime = res.planTime;
       examProfileList = res.examProfileList;
 
+      if (dueFirst === undefined && app.kernelOnline && bankName && practiceQuestions.length > 0) {
+        void app
+          .dueQuestions(bankName, practiceQuestions)
+          .then((due) => {
+            if (due?.length) rebuildPlan(due);
+          })
+          .catch(() => undefined);
+      }
+
       void updateDailyPlanTrace(app, plan.queue.length)
         .then((trace) => { planTrace = trace; })
         .catch((e: unknown) => { showMessage(String(e instanceof Error ? e.message : e), 3600, "error"); });
@@ -2533,6 +2589,18 @@ import { confirmDialogSync } from "@/libs/dialog";
       const q = reciteQueue[reciteCursor] as Question & { blockId?: string; rootId?: string };
       if (q?.rootId) openSiYuanTarget(plugin, q.rootId, q.blockId, showMessage, t);
     }
+    function persistReciteSnapshot(): Promise<void> {
+      return saveReciteSnapshot(app, activeBankId, {
+        queue: reciteQueue,
+        cursor: reciteCursor,
+        revealed: reciteRevealed,
+        done: reciteDone,
+        hint: reciteHint,
+        ratings: reciteRatings,
+        sessionId: reciteSessionId,
+      }).catch(() => undefined);
+    }
+
     async function startRecite() { void 0;
       const all = (questions.length ? questions : await loadQuestions()).filter((q) => q.type !== "material");
       if (questionsError) {
@@ -2545,6 +2613,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!s) { errorMsg = t("state.emptyBank"); return; }
       reciteQueue = s.queue; reciteCursor = s.cursor; reciteRevealed = s.revealed;
       reciteDone = s.done; reciteHint = s.hint; reciteRatings = s.ratings; reciteSessionId = s.sessionId;
+      reciteCardStart = Date.now();
+      await persistReciteSnapshot();
       view = "recite";
       if (reciteAutoTts) {
         const payload = getReciteTtsPayload(reciteQueue[0], "stem", ttsSlowRate);
@@ -2554,6 +2624,7 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     function revealRecite() {
       reciteRevealed = true;
+      persistReciteSnapshot();
       if (reciteAutoTts) {
         const payload = getReciteTtsPayload(reciteQueue[reciteCursor], "answer", ttsSlowRate);
         if (payload) ttsSpeak(payload.text, payload.options);
@@ -2567,6 +2638,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       reciteSaving = true;
       reciteError = "";
       try {
+        const elapsedMs = reciteCardStart > 0 ? Math.max(0, Date.now() - reciteCardStart) : 0;
         const res = await executeReciteRating({
           app,
           bankName,
@@ -2574,6 +2646,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           rating,
           sessionId: reciteSessionId,
           guard: reciteGuard,
+          timeMs: elapsedMs,
         });
         if (!res) return;
         reciteOutcome = res.outcome;
@@ -2584,9 +2657,26 @@ import { confirmDialogSync } from "@/libs/dialog";
         reciteRevealed = adv.revealed;
         reciteDone = adv.done;
         speechEvalResult = null; speechRecording = false;
-        if (!adv.done && reciteAutoTts && adv.nextQuestion) {
-          const payload = getReciteTtsPayload(adv.nextQuestion, "stem", ttsSlowRate);
-          if (payload) ttsSpeak(payload.text, payload.options);
+        reciteCardStart = Date.now();
+        if (adv.done) {
+          await clearReciteSnapshot(app).catch(() => undefined);
+          await app.flush().catch(() => undefined);
+          dataRev++;
+          rebuildPlan();
+          emitExamEvent("session-ended", {
+            sessionId: reciteSessionId,
+            mode: "recite",
+            total: adv.ratings.length,
+            correct: adv.ratings.filter((x) => x >= 3).length,
+            wrong: adv.ratings.filter((x) => x < 3).length,
+          });
+          void runCheckinBridge().catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
+        } else {
+          await persistReciteSnapshot();
+          if (reciteAutoTts && adv.nextQuestion) {
+            const payload = getReciteTtsPayload(adv.nextQuestion, "stem", ttsSlowRate);
+            if (payload) ttsSpeak(payload.text, payload.options);
+          }
         }
       } catch (e) {
         reciteError = String(e instanceof Error ? e.message : e);
@@ -2596,8 +2686,19 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     }
 
-    function exitRecite() {
+    async function exitRecite() {
+      if (!reciteDone && reciteRatings.length > 0) {
+        const { confirmDialogSync } = await import("../../libs/dialog");
+        const ok = await confirmDialogSync({
+          title: t("recite.exit"),
+          content: t("session.exitConfirm"),
+        });
+        if (!ok) return;
+      }
+      await clearReciteSnapshot(app).catch(() => undefined);
+      await app?.flush().catch(() => undefined);
       view = "entry"; reciteQueue = []; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
+      reciteCardStart = 0;
       reciteGuard.clear(); reciteOutcome = null;
     }
 
@@ -2611,12 +2712,22 @@ import { confirmDialogSync } from "@/libs/dialog";
     const copyChallengeCode = () => serviceCopyChallengeCode(questions, bankName, showMessage, t);
 
     async function importChallengeCode() {
-      const { inputDialogSync } = await import("../../libs/dialog");
+      const { inputDialogSync, confirmDialogSync } = await import("../../libs/dialog");
       const code = await inputDialogSync({ title: t("challenge.importTitle"), placeholder: t("challenge.importPlaceholder") });
       if (!code?.trim()) return;
       try {
+        if (app.currentSession()?.phase === "running") {
+          const ok = await confirmDialogSync({
+            title: t("session.conflictTitle"),
+            content: t("session.conflictBody"),
+          });
+          if (!ok) return;
+          await app.discardSession();
+        }
         session = await parseAndStartChallenge(app, code, activeBankId, t);
+        syncSessionScratchpad(session);
         enterSessionView();
+        restoreQuestionControls();
       } catch (e) {
         errorMsg = String(e instanceof Error ? e.message : e);
         showMessage(`导入挑战码失败：${errorMsg}`, 4000, "error");
@@ -2636,6 +2747,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       reciteDone = s.done;
       reciteHint = s.hint;
       reciteRatings = s.ratings;
+      reciteSessionId = s.sessionId;
+      reciteCardStart = Date.now();
+      persistReciteSnapshot();
       if (reciteAutoTts) {
         const payload = getReciteTtsPayload(reciteQueue[0], "stem", ttsSlowRate);
         if (payload) ttsSpeak(payload.text, payload.options);
@@ -2676,7 +2790,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!activeBankId || syncDocsBusy) return;
       syncDocsBusy = true;
       try {
-        await syncBankQuestionsToDoc(app, activeBankId, bankName, showMessage, t);
+        const res = await syncBankQuestionsToDoc(app, activeBankId, bankName, showMessage, t);
+        if (res) lastSyncedDocs = res;
       } finally {
         syncDocsBusy = false;
       }
@@ -2818,27 +2933,29 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     function hintButtonLabel(q: { id: string; options: string[] }): string {
-      return getHintButtonLabel(hintLevels.get(q.id) ?? 0, q.options.length, t);
+      void sessionRev;
+      return getHintButtonLabel(session?.getHintState(q.id).level ?? 0, q.options.length, t);
     }
 
     /** 114-01 一次一层提示：提交前后均可逐层申请；≤2 选项题型 L2 后转正式揭示；泄露守卫拦截疑似泄题层 */
     async function requestHint() {
       const q = session?.current;
-      if (!q || explainBusy) return;
+      if (!q || !session || explainBusy) return;
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
       explainQid = q.id; leakPending = null;
       if (!app.kernelOnline) { explainText = t("state.offlineHint"); return; }
       explainBusy = true; explainText = "";
       const submitted = !!feedback;
-      const shown = hintLevels.get(q.id) ?? 0;
-      const shownTexts = hintTexts.get(q.id) ?? [];
+      const hintState = session.getHintState(q.id);
+      const shown = hintState.level;
+      const shownTexts = hintState.texts;
 
       try {
         const res = await executeAiHint({
           q,
-          learnerAnswer: feedback?.myAnswer ?? session?.getDraft(q.id) ?? null,
+          learnerAnswer: feedback?.myAnswer ?? session.getDraft(q.id) ?? null,
           submitted,
-          sessionId: session?.id ?? "",
+          sessionId: session.id,
           shownLevel: shown,
           shownTexts,
           client: app.deps.client,
@@ -2857,9 +2974,9 @@ import { confirmDialogSync } from "@/libs/dialog";
             leakPending = { level: res.step.level, text: res.env.data.text, reasons: res.leakReasons };
             return;
           }
-          hintLevels.set(q.id, res.step.level);
-          hintTexts.set(q.id, [...shownTexts, res.env.data.text]);
-          explainText = formatHintLayersDisplay(hintTexts.get(q.id)!, t);
+          const updatedTexts = [...shownTexts, res.env.data.text];
+          session.setHintState(q.id, res.step.level, updatedTexts);
+          explainText = formatHintLayersDisplay(updatedTexts, t);
           helpShown.set(q.id, "hint");
           void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
         } else {
@@ -2873,8 +2990,11 @@ import { confirmDialogSync } from "@/libs/dialog";
     /** 泄露守卫：用户明确选择查看 → 记为受助-揭示（help=reveal），层级照常推进 */
     function viewLeakedHint() {
       const q = session?.current;
-      if (!q || !leakPending) return;
+      if (!q || !session || !leakPending) return;
+      const hintLevels = new Map<string, 0 | 1 | 2 | 3>([[q.id, session.getHintState(q.id).level]]);
+      const hintTexts = new Map<string, string[]>([[q.id, session.getHintState(q.id).texts]]);
       const res = applyLeakedHintToState(q.id, leakPending, hintLevels, hintTexts, t);
+      session.setHintState(q.id, hintLevels.get(q.id) ?? leakPending.level, hintTexts.get(q.id) ?? []);
       explainText = res.explainText;
       helpShown.set(q.id, res.helpMode);
       leakPending = null;
@@ -3044,6 +3164,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         const res = await executeSessionResume(app, loadQuestions, activeBankId);
         if (res.session) {
           session = res.session;
+          syncSessionScratchpad(res.session);
           if (res.sessionDone) sessionDone = res.sessionDone;
           enterSessionView();
           sessionRev++;
@@ -3083,9 +3204,6 @@ import { confirmDialogSync } from "@/libs/dialog";
     /** 52-02 lite：先回忆模式（按题开关，切题重置）；recallDraft 与作答草稿分离、不入正式答案 */
     let hideOptions = $state(false);
     let recallDraft = $state("");
-    /** 52-02 收口：先回忆使用集（qid → 揭示可追溯；随 attempt 落 recall 字段） */
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 函数内累加 Set（非组件遍历状态）
-    const recallUsed = new Set<string>();
     /** 52-04 lite：自诊断复盘缓存（qid → {text, at}；结算页回看与编辑） */
     let reflections = $state<Record<string, { text: string; at: number }>>({});
 
@@ -3095,6 +3213,25 @@ import { confirmDialogSync } from "@/libs/dialog";
       reflections = updateReflectionMapState(reflections, qid, res);
       showMessage(t("reflection.saved"), 2400, "info");
     }
+
+    $effect(() => {
+      if (view !== "wrongbook" || !app) return;
+      const wList = wrongList;
+      if (!wList.length) return;
+      void (async () => {
+        const next: Record<string, { text: string; at: number }> = { ...reflections };
+        let changed = false;
+        for (const w of wList) {
+          if (w.qid in next) continue;
+          const r = await app.loadWrongReflection(w.qid).catch(() => null);
+          if (r?.text) {
+            next[w.qid] = r;
+            changed = true;
+          }
+        }
+        if (changed) reflections = next;
+      })();
+    });
 
     /** 打开回看时批量载入上次检查点（52-04：复习能回看） */
     async function loadReflections() {
@@ -3150,20 +3287,17 @@ import { confirmDialogSync } from "@/libs/dialog";
       const res = await mergeAdoptedMisdiagnosis(app, qid, hypothesis, t, showMessage);
       reflections = { ...reflections, [qid]: res };
     }
-    /** 114-01：本会话受助标记（qid → 讲解模式；reveal=查看被拦泄露提示）；同题再答时随 attempt 落 help 字段 */
-    // 63-02：暴露集合（同题多暴露保全；help 字段由 helpFromExposure 派生，向后兼容）
-    const exposures = new SvelteMap<string, SvelteSet<string>>();
-    const addExposure = (qid: string, node: string) => recordExposureFact(exposures as any, qid, node);
-    /** 114-01 兼容读法：本题是否有受助暴露（提示/讲解/揭示任一） */
+    /** 114-01 / 63-02：本会话受助与暴露事实统一收纳进 SessionState，重载后完整保留 */
+    function addExposure(qid: string, node: string, persist = true) {
+      if (!session || !qid || !node) return;
+      session.addExposure(qid, node);
+      sessionRev++;
+      if (persist) void app?.saveSession().catch(() => undefined);
+    }
     const helpShown = {
       set(qid: string, mode: "explain" | "hint" | "socratic" | "reveal") { addExposure(qid, mode); },
-      get(qid: string) { return getExposureHelpMode(exposures as any, qid); },
+      get(qid: string) { void sessionRev; return session?.helpModeOf(qid); },
     };
-    /** 114-01：一次一层提示——qid → 已展示层级（0=未申请）；已展示层文本供后续层去重 */
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 函数内累加 Map（非组件遍历状态）
-    const hintLevels = new Map<string, 0 | 1 | 2 | 3>();
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- 函数内累加 Map（非组件遍历状态）
-    const hintTexts = new Map<string, string[]>();
     /** 114-01 泄露守卫拦截的待决提示（提交前）：用户明确揭示才展示（G6） */
     let leakPending = $state<{ level: 1 | 2 | 3; text: string; reasons: string } | null>(null);
     let speedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -3227,14 +3361,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       const timeMs = Date.now() - answerStart;
       // 选择题/判断用 selected；填空/简答用 draft
       const ans = isChoiceQuestion(q) ? selected : session.getDraft(q.id);
-      if (hideOptions) recallUsed.add(q.id); // 未揭示就提交也算先回忆作答（52-02 可追溯）
+      if (hideOptions) session.markRecalled(q.id); // 未揭示就提交也算先回忆作答（52-02 可追溯）
       const r = session.submit(ans || null, timeMs);
       if (!r) {
         nextQuestion();
         return;
       }
       const g = r.grade;
-      if (q.analysis) addExposure(q.id, "analysis"); // 63-02：反馈态必然展示解析（布尔事实）
+      if (q.analysis) addExposure(q.id, "analysis", false); // 63-02：反馈态必然展示解析（布尔事实）
+      const qExposures = session.getExposures(q.id);
       recordSessionAttempt({
         app,
         session,
@@ -3242,9 +3377,9 @@ import { confirmDialogSync } from "@/libs/dialog";
         submitResult: r,
         timeMs,
         confidenceSel,
-        helpMode: helpShown.get(q.id),
-        isRecalled: recallUsed.has(q.id),
-        exposures: (() => { const set = exposures.get(q.id); return set && set.size ? [...set] : undefined; })(),
+        helpMode: session.helpModeOf(q.id),
+        isRecalled: session.isRecalled(q.id),
+        exposures: qExposures.length ? qExposures : undefined,
         trail: trails.get(q.id),
       });
       void app.saveSession().catch(() => undefined);
@@ -3361,7 +3496,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       exitBusy = true;
       try {
         const { confirmDialogSync } = await import("../../libs/dialog");
-        const ok = await executeSessionExit(app, session, exposures, !!sessionDone, confirmDialogSync, t);
+        const ok = await executeSessionExit(app, session, session.exposureMap(), !!sessionDone, confirmDialogSync, t);
         if (!ok) return;
         session = null;
         resetSessionViewState();
@@ -3384,6 +3519,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let mKp = $state("");
     let mSecondaryKps = $state("");
     let mSource = $state("");
+    let mSourceBlockId = $state("");
     let mGroup = $state("");
     /** 图片遮挡填图可视化编辑器开关（遮挡题创作唯一入口；引擎/渲染/打印已在 core 就绪） */
     let occlusionOpen = $state(false);
@@ -3403,6 +3539,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let mStatus = $state<QuestionLifecycleStatus>("published");
     let mStudyLang = $state<string>("zh-CN");
     let mStudyPhonetic = $state("");
+    let mFamily = $state<Question["family"]>(undefined);
     let mSaving = $state(false);
     let mSaved = $state("");
     let manualErrorMsg = $state("");
@@ -3482,11 +3619,6 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     let printWrongBusy = $state(false);
-
-    async function printTeacherLectureSheet() {
-      await serviceExportBankTeacherPaper(bankName, questions, showMessage);
-    }
-
     let cheatSheetBusy = $state(false);
 
     async function launchWrongbookMockExam() {
@@ -3587,9 +3719,11 @@ import { confirmDialogSync } from "@/libs/dialog";
       // 读取全部草稿字段建立依赖；防抖 800ms 落盘（切视图/崩溃后可恢复）
       const snap = createManualDraftSnapshot({
         type: mType, stem: mStem, options: mOptions, answer: mAnswer,
-        analysis: mAnalysis, kp: mKp, source: mSource, group: mGroup,
+        analysis: mAnalysis, kp: mKp, secondaryKps: mSecondaryKps, source: mSource, group: mGroup,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
+        orderIndependent: mSpecOrderIndependent,
         rubricOpen: mRubricOpen, rubricText: mRubricText,
+        studyLang: mStudyLang, studyPhonetic: mStudyPhonetic, status: mStatus, family: mFamily,
       });
       if (draftTimer) clearTimeout(draftTimer);
       if (!snap.stem.trim() && !snap.answer.trim() && !snap.analysis.trim()) return; // 空草稿不写
@@ -3605,13 +3739,18 @@ import { confirmDialogSync } from "@/libs/dialog";
     );
 
     function currentManualFormData(statusToSave?: QuestionLifecycleStatus) {
-      return assembleManualFormData({
+      const form = assembleManualFormData({
         type: mType, stem: mStem, options: mOptions, answer: mAnswer,
         analysis: mAnalysis, kp: mKp, secondaryKps: mSecondaryKps, source: mSource, group: mGroup, status: mStatus,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
         orderIndependent: mSpecOrderIndependent,
         rubricOpen: mRubricOpen, rubricText: mRubricText, studyLang: mStudyLang, studyPhonetic: mStudyPhonetic,
+        family: mFamily,
       }, statusToSave);
+      if (mSourceBlockId) {
+        form.sourceBlockId = mSourceBlockId;
+      }
+      return form;
     }
 
     async function saveManual(targetStatus?: QuestionLifecycleStatus) {
@@ -3653,6 +3792,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       mRubricOpen = b.rubricOpen; mRubricText = b.rubricText; mRubricRevision = b.rubricRevision;
       mStudyLang = b.studyLang; mStudyPhonetic = b.studyPhonetic;
       mStatus = b.status;
+      mFamily = undefined;
+      mSourceBlockId = "";
       draftRestored = false;
       clearManualValidation();
       void clearManualDraftAux(app);
@@ -3701,6 +3842,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     // ---------- AI 出题（v0.4：双通道 + 待审核队列，Inbox 式永不直接入库） ----------
     let aiSource = $state("");
     let aiSourceOrigin = $state("");
+    let aiSourceBlockId = $state("");
     /** 60-01 lite：拾遗桥可用性（apiVersion===1 才显示入口） */
     const gleanAvailable = $derived(!!probeGlean(window));
     let gleanBusy = $state(false);
@@ -3761,8 +3903,6 @@ import { confirmDialogSync } from "@/libs/dialog";
     let aiBatchBusy = $state(false);
     let aiQueueOptions = $state<import("@/ai/gen").GenOptions | null>(null);
     function snapshotAiOptions(): import("@/ai/gen").GenOptions {
-      const cognitiveProfile = evaluateCognitiveProfile(app?.attempts.all() ?? [], questions, app?.wrongItems() ?? []);
-      const profilePrefix = buildCognitiveProfilePrefix(cognitiveProfile);
       return buildGenOptionsSnapshot({
         count: aiCount,
         difficulty: aiDifficulty,
@@ -3773,7 +3913,6 @@ import { confirmDialogSync } from "@/libs/dialog";
         pluginCustomHint: String(plugin.settingUtils?.get?.("aiCustomHint") ?? ""),
         userCustomHint: aiCustomHint,
         locator: aiQuote.trim() ? { quote: aiQuote.trim() } : undefined,
-        profilePrefix,
       });
     }
     let aiPreset = $state<keyof typeof import("@/ai/gen").PROMPT_PRESETS>("default");
@@ -3851,7 +3990,10 @@ import { confirmDialogSync } from "@/libs/dialog";
           signal: aiCancel,
         });
         aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
-        aiQueue = r.pending; aiRejected = r.rejected; aiDuplicates = r.duplicates;
+        aiQueue = aiSourceBlockId
+          ? r.pending.map((q) => ({ ...q, sourceBlockId: q.sourceBlockId || aiSourceBlockId }))
+          : r.pending;
+        aiRejected = r.rejected; aiDuplicates = r.duplicates;
         gleanPendingDone = requestGleanClips;
         try {
           aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
@@ -4674,7 +4816,12 @@ import { confirmDialogSync } from "@/libs/dialog";
     function cloneToManualStudio(q: Question) {
       const d = cloneQuestionToManualDraft(q);
       mType = d.type; mStem = d.stem; mOptions = d.options; mAnswer = d.answer;
-      mAnalysis = d.analysis; mKp = d.kp; mSource = d.source; mStatus = d.status;
+      mAnalysis = d.analysis; mKp = d.kp; mSecondaryKps = d.secondaryKps; mSource = d.source; mStatus = d.status;
+      mSpecOpen = d.specOpen; mSpecUnit = d.specUnit; mSpecAbsTol = d.specAbsTol; mSpecRelPct = d.specRelPct; mSpecAltUnits = d.specAltUnits;
+      mSpecOrderIndependent = d.orderIndependent;
+      mRubricOpen = d.rubricOpen; mRubricText = d.rubricText;
+      mStudyLang = d.studyLang; mStudyPhonetic = d.studyPhonetic;
+      mFamily = d.family;
       closePeekDrawer();
       view = "manual";
       showMessage(d.toast, 3500, "info");
@@ -4821,7 +4968,8 @@ import { confirmDialogSync } from "@/libs/dialog";
           hotkeysHelpOpen = !hotkeysHelpOpen;
           break;
         case "exit_session":
-          exitSession();
+          if (view === "recite") void exitRecite();
+          else void exitSession();
           break;
         case "undo_submit":
           void undoRecentSubmit();
@@ -4926,6 +5074,19 @@ import { confirmDialogSync } from "@/libs/dialog";
     let scratchpadShared = $state("");
     let scratchpadMode = $state<ScratchpadMode>("per_question");
 
+    function syncSessionScratchpad(s: PracticeSession | null) {
+      const sp = s?.getScratchpad() ?? { store: {}, sharedText: "", mode: "per_question" as const };
+      scratchpadStore = sp.store;
+      scratchpadShared = sp.sharedText;
+      scratchpadMode = sp.mode;
+    }
+
+    function persistSessionScratchpad() {
+      if (!session) return;
+      session.setScratchpad({ store: scratchpadStore, sharedText: scratchpadShared, mode: scratchpadMode });
+      void app?.saveSession().catch(() => undefined);
+    }
+
     const currentScratchpadText = $derived.by(() => {
       void sessionRev;
       return getQuestionScratchpadContent(scratchpadStore, session?.current?.id, scratchpadMode, scratchpadShared);
@@ -4933,12 +5094,20 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     function onScratchpadInput(text: string) {
       const res = applyScratchpadInput(scratchpadStore, session?.current?.id, text, scratchpadMode, scratchpadShared);
-      if (res) { scratchpadStore = res.store; scratchpadShared = res.sharedText; }
+      if (res) {
+        scratchpadStore = res.store;
+        scratchpadShared = res.sharedText;
+        persistSessionScratchpad();
+      }
     }
 
     function clearScratchpad() {
       const res = applyClearScratchpad(scratchpadStore, session?.current?.id, scratchpadMode, scratchpadShared);
-      if (res) { scratchpadStore = res.store; scratchpadShared = res.sharedText; }
+      if (res) {
+        scratchpadStore = res.store;
+        scratchpadShared = res.sharedText;
+        persistSessionScratchpad();
+      }
     }
 
     const copyScratchpad = () => copyScratchpadText(currentScratchpadText, showMessage, t);
@@ -5242,7 +5411,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       <div class="lv-row lv-focus-context lv-bank-picker-group" style="margin:0;gap:6px;align-items:center">
         {#if banks.length > 1}
           <!-- 多库切换：紧凑圆角下拉框 -->
-          <select class="lv-select" style="max-width:160px;height:28px;font-size:12px;padding:2px 8px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")} aria-label={t("bank.label", "切换当前题库")}>
+          <select class="lv-select sm" style="max-width:160px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")} aria-label={t("bank.label", "切换当前题库")}>
             {#each banks as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
           </select>
         {:else if hasBank}
@@ -5250,48 +5419,8 @@ import { confirmDialogSync } from "@/libs/dialog";
         {/if}
         <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
       </div>
-      <div class="lv-role-segmented lv-focus-context" role="radiogroup" aria-label="身份模式切换">
-        <button
-          type="button"
-          class="lv-role-pill"
-          class:active={userRole === "student"}
-          class:active-student={userRole === "student"}
-          role="radio"
-          aria-checked={userRole === "student"}
-          onclick={() => {
-            if (userRole !== "student") {
-              userRole = "student";
-              writeLocal("lv-exam/role", "student");
-              emitExamEvent("role-changed", { role: "student" });
-              showMessage("已切换至【备考学员模式】：专注于每日计划、极速刷题与错题攻坚", 2500, "info");
-            }
-          }}
-          title={t("role.student")}
-        >
-          <Icon name="academic" size={13} /> <b>{t("role.student")}</b>
-        </button>
-        <button
-          type="button"
-          class="lv-role-pill"
-          class:active={userRole === "teacher"}
-          class:active-teacher={userRole === "teacher"}
-          role="radio"
-          aria-checked={userRole === "teacher"}
-          onclick={() => {
-            if (userRole !== "teacher") {
-              userRole = "teacher";
-              writeLocal("lv-exam/role", "teacher");
-              emitExamEvent("role-changed", { role: "teacher" });
-              showMessage("已切换至【教师教研模式】：出题工作台、质量审校与排版工具已就绪", 2500, "info");
-            }
-          }}
-          title={t("role.teacher")}
-        >
-          <Icon name="teacher" size={13} /> <b>{t("role.teacher")}</b>
-        </button>
-      </div>
   </div>
-  <div class="lv-shell" data-exam-role={userRole} class:lv-shell-focus={view === "session" && !sessionDone} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
+  <div class="lv-shell" class:lv-shell-focus={view === "session" && !sessionDone} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
     <Rail active="practice" taskactive={view === "browse" || view === "wrongbook" ? "bank" : view === "manual" || view === "import" || view === "ai" || view === "materials" ? "create" : "today"} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
       project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => (view = "entry")}
       onquickcreate={() => { view = "manual"; }} />
@@ -5354,8 +5483,6 @@ import { confirmDialogSync } from "@/libs/dialog";
       {bankName}
       bind:sampleNotice
       {loading}
-      {userRole}
-      {teacherPrintBusy}
       {syncDocsBusy}
       {banks}
       {plan}
@@ -5387,7 +5514,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onResume={() => void resume()}
       ondiscardSession={async () => {
         if (session && app) {
-          flushAbandonedSessionExposures(app, session, exposures);
+          flushAbandonedSessionExposures(app, session, session.exposureMap());
         }
         await app?.discardSession();
         session = null;
@@ -5416,9 +5543,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       onimportBank={(e) => void importBank(e)}
       onexportWrong={exportWrong}
       onloadMaterials={() => void loadMaterials()}
-      onprintBankDoubleColumnPaper={printBankDoubleColumnPaper}
-      onexportBankTeacherPaper={exportBankTeacherPaper}
-      onprintBankHomeworkSheet={printBankHomeworkSheet}
+      {lastSyncedDocs}
+      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
     />
   {:else if view === "session" && session}
     <PracticeSessionView
@@ -5469,7 +5595,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:scratchpadMode
       {currentScratchpadText}
       bind:groupBatchModal
-      bind:speechEvalResult
+      {speechEvalEnabled}
+      {speechEvalResult}
       {speechRecording}
       {reciteToggle}
       bind:speedDrillEnabled
@@ -5528,7 +5655,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       ontoggleFavCurrent={() => void toggleFavCurrent()}
       ontoggleUserTag={(tag) => void toggleUserTag(tag)}
       ontoggleScratchpad={() => (scratchpadOpen = !scratchpadOpen)}
-      onscratchpadModeChange={(m) => (scratchpadMode = m)}
+      onscratchpadModeChange={(m) => { scratchpadMode = m; persistSessionScratchpad(); }}
       onscratchpadInput={onScratchpadInput}
       onclearScratchpad={clearScratchpad}
       oncopyScratchpad={copyScratchpad}
@@ -5539,7 +5666,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       ondismissSpeechEval={() => (speechEvalResult = null)}
       ontoggleHideOptions={() => { hideOptions = !hideOptions; if (hideOptions) recallDraft = ""; }}
       onrecallDraftInput={(val) => { recallDraft = val; }}
-      onrevealOptions={() => { if (curQ) recallUsed.add(curQ.id); hideOptions = false; }}
+      onrevealOptions={() => { if (curQ && session) { session.markRecalled(curQ.id); void app?.saveSession().catch(() => undefined); } hideOptions = false; }}
       onpickChoice={pickPracticeChoice}
       ondraftInput={(val) => { draftLive = val; if (curQ) session.setDraft(curQ.id, draftLive); }}
       ondraftChange={(val) => { if (curQ) trailInput(curQ.id, val); }}
@@ -5566,10 +5693,12 @@ import { confirmDialogSync } from "@/libs/dialog";
       onconfidenceSelect={(c) => { confidenceSel = c; }}
       onsubmitAnswer={submitAnswer}
       onrequestHint={requestHint}
+      onrevealStageHint={() => { if (curQ && !feedback) addExposure(curQ.id, "hint"); }}
       onnextQuestion={nextQuestion}
       ondrillVariant={() => { if (curQ) void drillVariantFor(curQ); }}
       ontraceMother={() => { if (curQ) void traceMotherQuestion(curQ); }}
       ontoCard={toCard}
+      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
       onexplainCurrent={(m) => explainCurrent(m)}
       onviewLeakedHint={viewLeakedHint}
       ondismissLeakedHint={() => (leakPending = null)}
@@ -5590,6 +5719,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {reciteAutoTts}
       {ttsSlowRate}
       {studyFontSize}
+      {speechEvalEnabled}
       {speechRecording}
       {speechEvalResult}
       {reciteMaterial}
@@ -5613,7 +5743,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onstartNextRecite={() => startRecite()}
       onreveal={revealRecite}
       onrateSelf={(r) => void rateSelf(r)}
-      ondismissSpeechEval={() => speechEvalResult = null}
+      ondismissSpeechEval={() => { speechEvalResult = null; }}
       ontoggleAutoTts={() => { reciteAutoTts = !reciteAutoTts; writeLocal("lv-exam/recite-auto-tts", reciteAutoTts ? "1" : "0"); }}
       ontoggleTtsSlow={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }}
       ontoggleHint={() => { reciteHint = reciteHint === 0 ? (reciteQueue[reciteCursor]?.kp ? 1 : 2) : reciteHint === 1 && reciteQueue[reciteCursor]?.analysis ? 2 : 1; }}
@@ -5675,6 +5805,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       onbrowseWrongFilter={() => { filterWrong = true; view = "browse"; void loadQuestions(); }}
       onchangeWbSortMode={(val) => writeLocal("lv-exam/wrong-sort", val)}
       onstartCbmDrill={(k) => void startCbmDrill(k)}
+      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+      oneditReflection={(qid) => void editReflection(qid)}
+      {reflections}
+      {lastSavedWrongbookDoc}
     />
   {:else if view === "manual"}
     <ManualStudioView
@@ -6017,7 +6151,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onprintQuestionSheet={printQuestionSheet}
       onprintAnswerSheet={printAnswerSheet}
       onprintAnswerCard={printAnswerCard}
-      onprintTeacherLectureSheet={() => void printTeacherLectureSheet()}
+      onprintFilteredByFormat={(f) => void printFilteredByFormat(f)}
       onexportItemQualityReport={() => void executeBankExportAction("quality_report", app, activeBankId, bankName, showMessage)}
       onexportGiftFormat={() => void executeBankExportAction("gift", app, activeBankId, bankName, showMessage)}
       onexportAnkiFormat={() => void executeBankExportAction("anki", app, activeBankId, bankName, showMessage)}
@@ -6050,9 +6184,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onselectAllCurrentPage={selectAllCurrentPage}
       onclearSelection={clearSelection}
       onbatchConvertToCards={() => void batchConvertToCards()}
-      onprintSelectedQuestions={printSelectedQuestions}
-      onprintSelectedTeacherPaper={printSelectedTeacherPaper}
-      onprintSelectedHomeworkSheet={printSelectedHomeworkSheet}
+      onprintSelectedQuestions={(f) => void printSelectedQuestions(f)}
       onapplyBatch={(isUndo) => applyBatch(isUndo)}
       onpreviewBatch={previewBatch}
       ontoggleCluster={(idx) => toggleCluster(idx)}
@@ -6213,9 +6345,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         kernelOnline={!!app?.kernelOnline}
         onclearSelection={clearSelection}
         onstartFocusDrill={startFilteredFocusDrill}
-        onprintSelectedQuestions={printSelectedQuestions}
-        onprintTeacherPaper={printSelectedTeacherPaper}
-        onprintHomeworkSheet={printSelectedHomeworkSheet}
+        onprintSelectedQuestions={(f) => void printSelectedQuestions(f)}
         onbatchConvertToCards={() => void batchConvertToCards()}
       />
     {/if}

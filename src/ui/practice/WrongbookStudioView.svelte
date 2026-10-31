@@ -62,6 +62,10 @@
     onbrowseWrongFilter: () => void;
     onchangeWbSortMode: (val: string) => void;
     onstartCbmDrill?: (kind: "highrisk" | "fragile") => void;
+    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
+    oneditReflection?: (qid: string) => void;
+    reflections?: Record<string, { text: string; at: number }>;
+    lastSavedWrongbookDoc?: { docId: string; title: string } | null;
   }
 
   let {
@@ -120,6 +124,10 @@
     onbrowseWrongFilter,
     onchangeWbSortMode,
     onstartCbmDrill,
+    onopenInSiYuan,
+    oneditReflection,
+    reflections = {},
+    lastSavedWrongbookDoc = null,
   }: Props = $props();
 
   const qOf = (qid: string) => questionMap.get(qid);
@@ -270,6 +278,16 @@
               <button class="lv-btn sm lv-btn--primary" onclick={onlaunchWrongbookMockExam} disabled={!filteredWrongQueue.length} title="将当前筛选的错题组建为全真限时模拟考卷，拉起答题卡进行考场高压攻坚"><Icon name="clock" size={13} /> {t("wrongbook.launchExam")}</button>
             </div>
           </div>
+          {#if lastSavedWrongbookDoc?.docId && onopenInSiYuan}
+            <div class="lv-row" style="margin:0 0 10px;padding:6px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px" role="status">
+              <span style="font-size:var(--lv-font-size-sm);display:inline-flex;align-items:center;gap:6px">
+                <Icon name="check" size={13} /> 已同步至思源文档：<b>《{lastSavedWrongbookDoc.title}》</b>
+              </span>
+              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(lastSavedWrongbookDoc.docId)}>
+                <Icon name="link" size={12} /> 在思源中打开 ↗
+              </button>
+            </div>
+          {/if}
           {#if wbTab === "active"}
             <div class="lv-row" role="group" aria-label="错因过滤" style="gap:var(--lv-space-compact);margin:8px 0 12px;flex-wrap:wrap;align-items:center">
               <button class="lv-chip" class:acc={wbReasonFilter === "all"} aria-pressed={wbReasonFilter === "all"} onclick={() => wbReasonFilter = "all"}>
@@ -288,7 +306,7 @@
                 <Icon name="flame" size={12} /> {t("wrongbook.filterStubborn")}
               </button>
               {#if wbKpOptions.length > 0}
-                <select class="lv-select" style="max-width:140px;height:28px" bind:value={wbKpFilter} aria-label="筛选考点章节">
+                <select class="lv-select sm" style="max-width:140px" bind:value={wbKpFilter} aria-label="筛选考点章节">
                   <option value="">全部考点章节</option>
                   {#each wbKpOptions as kp (kp)}
                     <option value={kp}>{kp}</option>
@@ -298,8 +316,8 @@
               <div class="lv-row" style="margin:0 0 0 auto;gap:6px;align-items:center">
                 <span class="lv-muted" style="font-size:11px">排序:</span>
                 <select
-                  class="lv-select"
-                  style="max-width:130px;height:28px;font-size:12px;padding:2px 8px"
+                  class="lv-select sm"
+                  style="max-width:130px"
                   bind:value={wbSortMode}
                   onchange={(e) => onchangeWbSortMode((e.target as HTMLSelectElement).value)}
                   title="切换错题排序方式"
@@ -351,8 +369,19 @@
                       </button>
                     {/if}
                   </div>
+                  {#if reflections[w.qid]?.text}
+                    <div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:3px">
+                      <Icon name="pencil" size={11} /> 复盘反思：{reflections[w.qid].text}
+                    </div>
+                  {/if}
                 </div>
                 <button class="lv-btn sm" onclick={() => onstartWrongFor(w.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                {#if q?.blockId && onopenInSiYuan}
+                  <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                {/if}
+                {#if oneditReflection}
+                  <button class="lv-btn sm lv-btn--ghost" title="记录或修改本题复盘反思（同步写回思源题块）" onclick={() => oneditReflection(w.qid)}><Icon name="pencil" size={12} /> {reflections[w.qid]?.text ? t("reflection.edit", "改反思") : t("reflection.add", "写反思")}</button>
+                {/if}
                 {#if w.wrongCount >= 2}
                   <button
                     class="lv-btn sm lv-btn--ghost"
@@ -411,6 +440,9 @@
                     </div>
                   </div>
                   <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                  {#if q?.blockId && onopenInSiYuan}
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                  {/if}
                   <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
                 </div>
               {:else}
@@ -444,6 +476,9 @@
                     </div>
                   </div>
                   <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                  {#if q?.blockId && onopenInSiYuan}
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                  {/if}
                   <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
                 </div>
               {:else}
@@ -465,6 +500,9 @@
                       {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
                     </div>
                   </div>
+                  {#if q?.blockId && onopenInSiYuan}
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                  {/if}
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => onstartWrongFor(w.qid)}>
                     <Icon name="play" size={13} /> {t("wrongbook.retry")}
                   </button>
@@ -490,6 +528,9 @@
                       {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
                     </div>
                   </div>
+                  {#if q?.blockId && onopenInSiYuan}
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                  {/if}
                   <button class="lv-btn sm lv-btn--primary" onclick={() => onunarchiveWrong(w.qid)}>
                     <Icon name="rotate" size={12} /> {t("wrongbook.unarchive")}
                   </button>

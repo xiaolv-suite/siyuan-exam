@@ -2,7 +2,7 @@ import type { Question } from "@/core/types";
 import type { ExamApp } from "@/app";
 import { gapsToCsv, type SyllabusNode, type SyllabusMeta } from "@/core/syllabus";
 import { errataTemplateCsv, parseErrataCsv, planErrata, type ErrataPlan } from "@/core/errata";
-import { invertPlan, type BatchPlan, type BatchChange } from "@/core/batchEdit";
+import type { BatchPlan, BatchChange } from "@/core/batchEdit";
 import { planKpMerge, planEmptyKpFill } from "@/core/kpGovernance";
 import { buildQuestionSheet, buildAnswerSheet, buildAnswerCardSheet } from "@/core/printSheet";
 import { parsePaperAnswers, gradePaper, type PaperGradeItem } from "@/core/paperRecall";
@@ -314,7 +314,7 @@ export async function executeApplyErrata(
   t: (k: string) => string,
 ): Promise<ApplyErrataResult> {
   const r = await app.applyBatchEdit(plan.changes);
-  const undo = { changes: invertPlan(plan.changes), bankId: activeBankId, at: Date.now() };
+  const undo = { changes: plan.changes, bankId: activeBankId, at: Date.now() };
   const note = t("errata.applied").replace("{ok}", String(r.ok)).replace("{f}", String(r.failed));
   return { ok: r.ok, failed: r.failed, undo, note };
 }

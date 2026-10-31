@@ -52,7 +52,9 @@ describe("编辑修订 JSON 持久化与完整恢复", () => {
     const cleared = await app.updateQuestionContent(initial, {
       stem: initial.stem, options: [], answer: initial.answer, analysis: "", kp: "", answerSpec: null,
     });
-    const snapshot = JSON.parse(JSON.stringify((await app.questionRevisions(initial.id))[0])) as QuestionRevision;
+    const revs = JSON.parse(JSON.stringify(await app.questionRevisions(initial.id))) as QuestionRevision[];
+    expect(revs[0]).toMatchObject({ analysis: "原解析", kp: "原考点", difficulty: 2 });
+    const snapshot = revs[1];
     expect(snapshot).toMatchObject({ analysis: "", kp: "", difficulty: null, answerSpec: null });
     const later = await app.updateQuestionContent({ ...cleared, blockId: initial.blockId }, {
       stem: initial.stem, options: [], answer: initial.answer, analysis: "后来解析", kp: "后来考点", difficulty: 5,
@@ -66,19 +68,19 @@ describe("编辑修订 JSON 持久化与完整恢复", () => {
     expect(attrs.at(-1)?.["exam-answer-spec"]).toBe("");
   });
 
-  it("连续只修改数值容差会记录两版，恢复后判分与历史规格一致", async () => {
+  it("连续只修改数值容差会记录初始基线与两版编辑，恢复后判分与历史规格一致", async () => {
     const { app, attrs } = setup();
     const initial = { ...makeQuestion({ type: "fill", stem: "圆周率？", options: [], answer: "3.14" }), blockId: "b-numeric" };
     const draft = { stem: initial.stem, options: [], answer: initial.answer, analysis: "", kp: "" };
     const strict = await app.updateQuestionContent(initial, { ...draft, answerSpec: { v: 1, kind: "numeric", absTol: 0.01 } });
     const wide = await app.updateQuestionContent({ ...strict, blockId: initial.blockId }, { ...draft, answerSpec: { v: 1, kind: "numeric", absTol: 0.05 } });
     const history = JSON.parse(JSON.stringify(await app.questionRevisions(initial.id))) as QuestionRevision[];
-    expect(history).toHaveLength(2);
+    expect(history).toHaveLength(3);
     expect(grade(wide, "3.17").verdict).toBe("correct");
-    const restored = await app.updateQuestionContent({ ...wide, blockId: initial.blockId }, questionDraftFromRevision(wide, history[0]));
+    const restored = await app.updateQuestionContent({ ...wide, blockId: initial.blockId }, questionDraftFromRevision(wide, history[1]));
     expect(restored.answerSpec).toEqual({ v: 1, kind: "numeric", absTol: 0.01 });
     expect(grade(restored, "3.17").verdict).toBe("wrong");
-    expect(attrs.at(-1)?.["exam-answer-spec"]).toBe(JSON.stringify(history[0].answerSpec));
+    expect(attrs.at(-1)?.["exam-answer-spec"]).toBe(JSON.stringify(history[1].answerSpec));
   });
 
   it("多空嵌套别名和大小写规则完整冻结与恢复", async () => {
@@ -90,10 +92,10 @@ describe("编辑修订 JSON 持久化与完整恢复", () => {
     });
     spec.blanks[0].answers.push("不应污染历史");
     const history = JSON.parse(JSON.stringify(await app.questionRevisions(initial.id))) as QuestionRevision[];
-    expect(history[0].answerSpec).not.toEqual(spec);
+    expect(history[1].answerSpec).not.toEqual(spec);
     const later = { ...first, answerSpec: undefined };
-    const restored = await app.updateQuestionContent({ ...later, blockId: initial.blockId }, questionDraftFromRevision(later, history[0]));
-    expect(restored.answerSpec).toEqual(history[0].answerSpec);
+    const restored = await app.updateQuestionContent({ ...later, blockId: initial.blockId }, questionDraftFromRevision(later, history[1]));
+    expect(restored.answerSpec).toEqual(history[1].answerSpec);
     expect(grade(restored, "ly;;au").verdict).toBe("correct");
     expect(grade(restored, "LY;;au").verdict).toBe("wrong");
   });

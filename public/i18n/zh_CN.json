@@ -1560,5 +1560,7 @@
     "report.mockRound": "场次",
     "report.mockDate": "日期",
     "wrongbook.loadMore": "加载更多错题",
-    "wrongbook.remaining": "还有"
+    "wrongbook.remaining": "还有",
+    "setting.speechEvalEnabled.title": "常驻显示口语跟读测评",
+    "setting.speechEvalEnabled.desc": "默认仅在含语种/注音元数据的题目上自动显示跟读按钮；开启后在所有题目上显示麦克风跟读测评"
 }

@@ -49,7 +49,7 @@ describe("43-04 覆盖概览（三五批）", () => {
 });
 
 describe("114-01 受助标记流水往返（三五批）", () => {
-  it("AttemptEvent.help 落盘/读回保留；replayer 不受未知扩展字段影响", async () => {
+  it("AttemptEvent.help 落盘/读回保留；受助答对保持在册，独立连对才消灭", async () => {
     let t = 1_700_000_000_000;
     const clock = () => (t += 1_000);
     const log = new AttemptLog(new MemoryStorage(), "k", clock);
@@ -60,8 +60,10 @@ describe("114-01 受助标记流水往返（三五批）", () => {
     expect((e1 as AttemptEvent).help).toBeUndefined();
     expect((e2 as AttemptEvent).help).toBe("explain");
     expect((e3 as AttemptEvent).help).toBe("explain");
-    const r = replay(log.all());
-    expect(r.wrongbook.get("q1")!.status).toBe("eliminated"); // 错→对→对 消灭语义不受影响
+    expect(replay(log.all()).wrongbook.get("q1")!.status).toBe("active");
+    log.append({ qid: "q1", kind: "practice", mode: "wrong", verdict: "correct", myAnswer: "B", sessionId: "s2", queue: "wrong" });
+    log.append({ qid: "q1", kind: "practice", mode: "wrong", verdict: "correct", myAnswer: "B", sessionId: "s3", queue: "wrong" });
+    expect(replay(log.all()).wrongbook.get("q1")!.status).toBe("eliminated");
   });
 });
 

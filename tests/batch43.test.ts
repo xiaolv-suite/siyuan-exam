@@ -160,20 +160,6 @@ describe("43-01 题目作者生命周期与发布守卫（四三批）", () => {
     });
   });
 
-  describe("publishedQuestions 过滤规则", () => {
-    it("仅保留 published 状态题目，过滤草稿与已废弃题", () => {
-      const { app } = createMockApp();
-      const q1 = makeQuestion({ type: "judge", stem: "题1", answer: "对", status: "published" });
-      const q2 = makeQuestion({ type: "judge", stem: "题2", answer: "错", status: "draft" });
-      const q3 = makeQuestion({ type: "judge", stem: "题3", answer: "对", status: "review" });
-      const q4 = makeQuestion({ type: "judge", stem: "题4", answer: "错", status: "deprecated" });
-      const q5 = { ...makeQuestion({ type: "judge", stem: "题5", answer: "对" }), status: undefined }; // 旧数据缺省
-
-      const published = app.publishedQuestions([q1, q2, q3, q4, q5]);
-      expect(published.map((q) => q.stem)).toEqual(["题1", "题5"]);
-    });
-  });
-
   describe("题版不可变绑定与修订漂移检出（43-01 / 55-07）", () => {
     it("createQuestionVersionSnapshot 提取不可变快照对象", () => {
       const q = makeQuestion({

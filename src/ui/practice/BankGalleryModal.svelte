@@ -42,6 +42,24 @@
   let bankFilterKeyword = $state("");
   let renamingBankId = $state("");
   let renameInputName = $state("");
+  let dialogEl = $state<HTMLDivElement | null>(null);
+  let returnFocusEl: HTMLElement | null = null;
+  let wasOpen = false;
+
+  $effect(() => {
+    if (open && dialogEl) {
+      if (!wasOpen) {
+        wasOpen = true;
+        returnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        queueMicrotask(() => dialogEl?.focus());
+      }
+    } else if (!open && wasOpen) {
+      wasOpen = false;
+      const target = returnFocusEl;
+      returnFocusEl = null;
+      queueMicrotask(() => target?.focus?.());
+    }
+  });
 
   const filteredBanks = $derived(
     banks.filter((b) => {
@@ -72,7 +90,7 @@
 {#if open}
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={onclose}></button>
   <div class="lv-hotkeys-wrap">
-    <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:24px;border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border-subtle)">
+    <div bind:this={dialogEl} class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:24px;border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border-subtle)">
       <div class="lv-row" style="justify-content:space-between;margin:0 0 12px">
         <div class="lv-dialog-title-wrap">
           <span class="lv-dialog-title-icon"><Icon name="folder" size={13} /></span>
@@ -112,23 +130,8 @@
           {/if}
         </div>
         <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("qualification"); }} disabled={creating || offline} aria-busy={creating} title="一键体验教师资格证与基金从业资格真题题库">
-            <Icon name="award" size={12} /> 考证
-          </button>
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("higher"); }} disabled={creating || offline} aria-busy={creating} title="体验大学高数与考研学术题库">
-            <Icon name="academic" size={12} /> 高数
-          </button>
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("k12"); }} disabled={creating || offline} aria-busy={creating} title="体验K12初高中全科基础题库">
-            <Icon name="book" size={12} /> K12
-          </button>
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("english"); }} disabled={creating || offline} aria-busy={creating} title="体验大学英语雅思词汇与发音研学题库">
-            <Icon name="volume" size={12} /> 英语
-          </button>
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("cantonese"); }} disabled={creating || offline} aria-busy={creating} title="体验粤语日常实用口语与粤拼听读研学题库">
-            <Icon name="mic" size={12} /> 粤语
-          </button>
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("general"); }} disabled={creating || offline} aria-busy={creating} title="体验综合基础演示题库">
-            <Icon name="grid" size={12} /> 通识
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("general"); }} disabled={creating || offline} aria-busy={creating} title="一键创建内置示例题库">
+            <Icon name="grid" size={12} /> 创建示例题库
           </button>
         </div>
       </div>
@@ -172,6 +175,28 @@
           </div>
         {/each}
       </div>
+      <details style="margin-top:12px;padding-top:10px;border-top:1px solid var(--lv-border-subtle)">
+        <summary class="lv-muted" style="cursor:pointer;font-size:var(--lv-font-size-sm);user-select:none;display:inline-flex;align-items:center;gap:6px">
+          <Icon name="chev" size={12} /> 更多场景示例题库（考证 / 高数 / K12 / 英语 / 粤语）
+        </summary>
+        <div class="lv-row" style="margin:10px 0 0;gap:6px;flex-wrap:wrap">
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("qualification"); }} disabled={creating || offline} aria-busy={creating} title="创建教师资格证与基金从业资格示例题库">
+            <Icon name="award" size={12} /> 职业考证
+          </button>
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("higher"); }} disabled={creating || offline} aria-busy={creating} title="创建大学高数与考研示例题库">
+            <Icon name="academic" size={12} /> 大学高数
+          </button>
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("k12"); }} disabled={creating || offline} aria-busy={creating} title="创建初高中基础全科示例题库">
+            <Icon name="book" size={12} /> K12 基础
+          </button>
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("english"); }} disabled={creating || offline} aria-busy={creating} title="创建英语词汇与音标示例题库">
+            <Icon name="volume" size={12} /> 英语词汇
+          </button>
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => { onclose(); oncreateSampleBank("cantonese"); }} disabled={creating || offline} aria-busy={creating} title="创建粤语口语与粤拼示例题库">
+            <Icon name="mic" size={12} /> 粤语口语
+          </button>
+        </div>
+      </details>
     </div>
   </div>
 {/if}

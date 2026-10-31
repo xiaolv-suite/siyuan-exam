@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
+  import type { PrintPaperFormat } from "./services/printPaperService";
 
   interface Props {
     selectedCount: number;
@@ -7,9 +8,7 @@
     kernelOnline: boolean;
     onclearSelection: () => void;
     onstartFocusDrill: () => void;
-    onprintSelectedQuestions: () => void;
-    onprintTeacherPaper: () => void;
-    onprintHomeworkSheet: () => void;
+    onprintSelectedQuestions: (format?: PrintPaperFormat) => void;
     onbatchConvertToCards: () => void;
   }
 
@@ -20,13 +19,13 @@
     onclearSelection,
     onstartFocusDrill,
     onprintSelectedQuestions,
-    onprintTeacherPaper,
-    onprintHomeworkSheet,
     onbatchConvertToCards,
   }: Props = $props();
+
+  let printFormat = $state<PrintPaperFormat>("exam");
 </script>
 
-<div role="toolbar" aria-label="批量操作快捷栏" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:95;width:min(680px, calc(100vw - 32px));animation:lv-appear 0.2s var(--lv-ease-out)">
+<div role="toolbar" aria-label="批量操作快捷栏" class="lv-batch-action-bar">
   <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 20px);border:1px solid var(--lv-border-subtle, var(--lv-border));background:color-mix(in srgb, var(--lv-surface) 92%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
     <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div class="lv-row" style="margin:0;gap:6px">
@@ -37,14 +36,14 @@
         <button class="lv-btn sm lv-btn--primary" onclick={onstartFocusDrill} title="将勾选的这批题目发起专属特训">
           <Icon name="play" size={13} /> 开始特训
         </button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onprintSelectedQuestions} title="导出为 A4 双栏试卷">
+        <select class="lv-select sm" bind:value={printFormat} aria-label="选择打印试卷版式">
+          <option value="exam">标准测试卷</option>
+          <option value="answer">独立答案册</option>
+          <option value="lecture">授课讲义卷</option>
+          <option value="homework">留白作业单</option>
+        </select>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintSelectedQuestions(printFormat)} title="按所选版式导出 A4 双栏打印卷">
           <Icon name="file" size={13} /> 打印试卷
-        </button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onprintTeacherPaper} title="导出勾选题教师教案讲义">
-          <Icon name="book" size={13} /> 教师教案
-        </button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onprintHomeworkSheet} title="导出勾选题课后作业单">
-          <Icon name="file-text" size={13} /> 作业单
         </button>
         <button class="lv-btn sm lv-btn--ghost" onclick={onbatchConvertToCards} disabled={batchCardBusy || !kernelOnline} aria-busy={batchCardBusy} title="批量制成闪卡">
           <Icon name="layers" size={13} /> 推送闪卡
@@ -53,3 +52,25 @@
     </div>
   </div>
 </div>
+
+<style>
+  .lv-batch-action-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 95;
+    width: min(680px, calc(100vw - 32px));
+    animation: lv-appear 0.2s var(--lv-ease-out);
+  }
+  @container lv-exam (max-width: 759px) {
+    .lv-batch-action-bar {
+      bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+  @media (max-width: 759px) {
+    .lv-batch-action-bar {
+      bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+</style>

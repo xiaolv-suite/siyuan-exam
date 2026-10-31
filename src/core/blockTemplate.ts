@@ -54,14 +54,15 @@ export function ialOf(q: Question): string {
   if (q.studyMeta) attrs["exam-study-meta"] = JSON.stringify(q.studyMeta);
   if (q.occlusion) attrs["exam-occlusion"] = JSON.stringify(q.occlusion);
   if (q.family) attrs["exam-family"] = JSON.stringify(q.family);
+  if (q.sourceBlockId) attrs["exam-source-block"] = q.sourceBlockId;
   if (typeof q.confidence === "number") attrs["exam-confidence"] = q.confidence.toFixed(2);
   return Object.entries(attrs)
     .map(([k, v]) => `custom-${k}="${escapeAttr(v)}"`)
     .join(" ");
 }
 
-// IAL 必须保持在一行；多行解析转为 `\n`，读回时再还原，避免续行被当成题干。
-const escapeAttr = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r?\n/g, "\\n");
+// IAL 必须保持在一行；多行解析转为 `\n`，双引号转为 `&quot;`（思源 Lute IAL 解析器按裸 `"` 切分属性，不支持 `\"`），读回时兼容还原。
+const escapeAttr = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, "&quot;").replace(/\r?\n/g, "\\n");
 const unescapeAttr = (s: string) => {
   let out = "";
   let escaped = false;
@@ -76,7 +77,7 @@ const unescapeAttr = (s: string) => {
     else out += `\\${ch}`;
     escaped = false;
   }
-  return escaped ? `${out}\\` : out;
+  return (escaped ? `${out}\\` : out).replace(/&quot;/g, '"');
 };
 
 /** 解析 IAL 串 → Record（容错：引号缺失/中文/转义） */
@@ -192,16 +193,22 @@ export function questionFromBlock(input: FromBlockInput): Question | null {
     /** 非破坏性 SVG 图片遮挡题规格与题族变式关系 */
     occlusion: parseOcclusionAttr(attrs["exam-occlusion"]),
     family: parseFamilyAttr(attrs["exam-family"]),
+    ...(attrs["exam-source-block"] ? { sourceBlockId: attrs["exam-source-block"] } : {}),
     hash: questionHash(stem, denseOptions),
   };
 }
 
 /** 54-01/03：块属性 JSON → answerSpec（宽容解析：非对象/缺 v/kind/形状不符 → undefined）。
  *  numeric：{v,kind,unit?…}；multiBlank：blanks=非空数组（逐项含 answers 非空数组），保留 orderIndependent/caseSensitive。 */
+function normalizeJsonAttr(raw: string | undefined): string | undefined {
+  return raw ? raw.replace(/&quot;/g, '"') : undefined;
+}
+
 function parseAnswerSpecAttr(raw: string | undefined): Question["answerSpec"] {
-  if (!raw) return undefined;
+  const norm = normalizeJsonAttr(raw);
+  if (!norm) return undefined;
   try {
-    const obj = JSON.parse(raw) as {
+    const obj = JSON.parse(norm) as {
       v?: number;
       kind?: string;
       blanks?: { answers?: unknown; caseSensitive?: unknown }[];
@@ -232,9 +239,10 @@ function parseAnswerSpecAttr(raw: string | undefined): Question["answerSpec"] {
 
 /** 块属性 JSON → ImageOcclusionSpec（宽容解析） */
 function parseOcclusionAttr(raw: string | undefined): Question["occlusion"] {
-  if (!raw) return undefined;
+  const norm = normalizeJsonAttr(raw);
+  if (!norm) return undefined;
   try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const obj = JSON.parse(norm) as Record<string, unknown>;
     if (!obj || obj.v !== 1 || obj.kind !== "imageOcclusion" || typeof obj.imageUrl !== "string" || !Array.isArray(obj.masks)) {
       return undefined;
     }
@@ -264,9 +272,10 @@ function parseOcclusionAttr(raw: string | undefined): Question["occlusion"] {
 
 /** 块属性 JSON → QuestionFamilyRef（宽容解析） */
 function parseFamilyAttr(raw: string | undefined): Question["family"] {
-  if (!raw) return undefined;
+  const norm = normalizeJsonAttr(raw);
+  if (!norm) return undefined;
   try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const obj = JSON.parse(norm) as Record<string, unknown>;
     if (!obj || typeof obj !== "object") return undefined;
     const parentId = typeof obj.parentId === "string" ? obj.parentId : undefined;
     const variantKind = typeof obj.variantKind === "string" ? (obj.variantKind as NonNullable<Question["family"]>["variantKind"]) : undefined;
@@ -284,13 +293,14 @@ function parseFamilyAttr(raw: string | undefined): Question["family"] {
 
 /** 55-05：块属性 JSON → rubric 规格（宽容解析；复用 rubric 模块的归一与过滤规则）。 */
 function parseRubricRef(raw: string | undefined): Question["rubric"] {
-  return parseRubricAttr(raw) as Question["rubric"];
+  return parseRubricAttr(normalizeJsonAttr(raw)) as Question["rubric"];
 }
 
 function parseStudyMetaAttr(raw: string | undefined): Question["studyMeta"] {
-  if (!raw) return undefined;
+  const norm = normalizeJsonAttr(raw);
+  if (!norm) return undefined;
   try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const obj = JSON.parse(norm) as Record<string, unknown>;
     if (!obj || typeof obj !== "object") return undefined;
     return {
       lang: typeof obj.lang === "string" ? obj.lang : undefined,
@@ -304,9 +314,10 @@ function parseStudyMetaAttr(raw: string | undefined): Question["studyMeta"] {
 
 /** 57-04：块属性 JSON → dispute（宽容解析） */
 function parseDisputeAttr(raw: string | undefined): Question["dispute"] {
-  if (!raw) return undefined;
+  const norm = normalizeJsonAttr(raw);
+  if (!norm) return undefined;
   try {
-    const obj = JSON.parse(raw);
+    const obj = JSON.parse(norm);
     if (obj && obj.v === 1 && typeof obj.reason === "string") return obj as Question["dispute"];
     return undefined;
   } catch {

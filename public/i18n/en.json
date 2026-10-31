@@ -15,7 +15,10 @@
     "command.openMock": "Open Mock Exam",
     "command.openReport": "Open Reports",
     "blockMenu.addToPractice": "Add to practice set",
+    "blockMenu.convertToQuestion": "Convert to Exam Question",
     "blockMenu.generateFromBlock": "Generate questions from this block",
+    "slash.convertToQuestion": "Convert to Exam Question",
+    "slash.convertToQuestionDone": "Imported block content into Manual Entry studio ✓",
     "blockMenu.blockSourceEmpty": "This block has no content that can be used for generation",
     "blockMenu.blockSourceFailed": "Could not read this block: {message}",
     "blockMenu.blockSourceTruncated": "This block is long; the first {n} characters were used as material",
@@ -1562,5 +1565,7 @@
     "report.mockRound": "Round",
     "report.mockDate": "Date",
     "wrongbook.loadMore": "Load more wrong items",
-    "wrongbook.remaining": "remaining"
+    "wrongbook.remaining": "remaining",
+    "setting.speechEvalEnabled.title": "Always show speech pronunciation evaluation",
+    "setting.speechEvalEnabled.desc": "By default the microphone follow-reading button appears automatically on questions with language or phonetic metadata; enable to show it on all questions"
 }

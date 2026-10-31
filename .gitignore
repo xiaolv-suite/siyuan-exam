@@ -19,3 +19,4 @@ output/
 .mimosa/
 .jeikcode/codegraph/
 .zcode/
+.isolated-rig.json

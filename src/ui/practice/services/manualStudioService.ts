@@ -94,6 +94,7 @@ export interface ManualQuestionFormData {
   kp: string;
   secondaryKps?: string[];
   source: string;
+  sourceBlockId?: string;
   group?: string;
   status: QuestionLifecycleStatus;
   numericSpec?: NumericSpecParams;
@@ -101,6 +102,18 @@ export interface ManualQuestionFormData {
   rubricText?: string;
   studyLang?: string;
   studyPhonetic?: string;
+  family?: Question["family"];
+}
+
+function resolveSourceBlockId(sourceBlockId?: string, sourceText?: string): string | undefined {
+  if (sourceBlockId && /^[\w-]+$/.test(sourceBlockId.trim())) {
+    return sourceBlockId.trim();
+  }
+  const match = String(sourceText ?? "").match(/\(\(\s*([\w-]+)/);
+  if (match?.[1]) {
+    return match[1].trim();
+  }
+  return undefined;
 }
 
 /**
@@ -123,6 +136,7 @@ export async function saveManualQuestion(
     rubric = res.rubric;
   }
 
+  const resolvedSourceBlock = resolveSourceBlockId(data.sourceBlockId, data.source);
   const q = makeQuestion({
     type: data.type,
     stem: data.stem,
@@ -131,6 +145,7 @@ export async function saveManualQuestion(
     analysis: data.analysis,
     kp: data.kp,
     source: data.source,
+    ...(resolvedSourceBlock ? { sourceBlockId: resolvedSourceBlock } : {}),
     group: data.group?.trim() || undefined,
     status: data.status,
     ...(answerSpec ? { answerSpec } : {}),
@@ -142,6 +157,9 @@ export async function saveManualQuestion(
 
   if (data.secondaryKps && data.secondaryKps.length > 0) {
     q.secondaryKps = data.secondaryKps;
+  }
+  if (data.family) {
+    q.family = data.family;
   }
   if (data.type === "fill" && data.orderIndependent && q.answerSpec?.kind === "multiBlank") {
     q.answerSpec.orderIndependent = true;
@@ -181,6 +199,7 @@ export async function processAndSaveManualQuestion(
     answerSpec = buildNumericAnswerSpec(data.numericSpec);
   }
 
+  const resolvedSourceBlock = resolveSourceBlockId(data.sourceBlockId, data.source);
   const q = makeQuestion({
     type: data.type,
     stem: data.stem,
@@ -189,6 +208,7 @@ export async function processAndSaveManualQuestion(
     analysis: data.analysis,
     kp: data.kp,
     source: data.source,
+    ...(resolvedSourceBlock ? { sourceBlockId: resolvedSourceBlock } : {}),
     group: data.group?.trim() || undefined,
     status: data.status,
     ...(answerSpec ? { answerSpec } : {}),
@@ -200,6 +220,9 @@ export async function processAndSaveManualQuestion(
 
   if (data.secondaryKps && data.secondaryKps.length > 0) {
     q.secondaryKps = data.secondaryKps;
+  }
+  if (data.family) {
+    q.family = data.family;
   }
   if (data.type === "fill" && data.orderIndependent && q.answerSpec?.kind === "multiBlank") {
     q.answerSpec.orderIndependent = true;
@@ -332,6 +355,7 @@ export interface BlankManualFormState {
   answer: string;
   analysis: string;
   kp: string;
+  secondaryKps?: string;
   source: string;
   group: string;
   specOpen: boolean;
@@ -339,12 +363,14 @@ export interface BlankManualFormState {
   specAbsTol: string;
   specRelPct: string;
   specAltUnits: string;
+  orderIndependent?: boolean;
   rubricOpen: boolean;
   rubricText: string;
   rubricRevision: number;
   studyLang: string;
   studyPhonetic: string;
   status: QuestionLifecycleStatus;
+  family?: Question["family"];
 }
 
 /**
@@ -358,6 +384,7 @@ export function createBlankManualFormState(): BlankManualFormState {
     answer: "",
     analysis: "",
     kp: "",
+    secondaryKps: "",
     source: "",
     group: "",
     specOpen: false,
@@ -365,12 +392,14 @@ export function createBlankManualFormState(): BlankManualFormState {
     specAbsTol: "",
     specRelPct: "",
     specAltUnits: "",
+    orderIndependent: false,
     rubricOpen: false,
     rubricText: "",
     rubricRevision: 1,
     studyLang: "zh-CN",
     studyPhonetic: "",
     status: "published",
+    family: undefined,
   };
 }
 
@@ -385,6 +414,7 @@ export function createManualDraftSnapshot(state: Partial<BlankManualFormState>):
     answer: state.answer ?? "",
     analysis: state.analysis ?? "",
     kp: state.kp ?? "",
+    secondaryKps: state.secondaryKps ?? "",
     source: state.source ?? "",
     group: state.group ?? "",
     savedAt: Date.now(),
@@ -393,8 +423,13 @@ export function createManualDraftSnapshot(state: Partial<BlankManualFormState>):
     specAbsTol: state.specAbsTol ?? "",
     specRelPct: state.specRelPct ?? "",
     specAltUnits: state.specAltUnits ?? "",
+    orderIndependent: state.orderIndependent ?? false,
     rubricOpen: state.rubricOpen ?? false,
     rubricText: state.rubricText ?? "",
+    studyLang: state.studyLang ?? "zh-CN",
+    studyPhonetic: state.studyPhonetic ?? "",
+    status: state.status ?? "published",
+    ...(state.family ? { family: state.family } : {}),
   };
 }
 
@@ -423,6 +458,7 @@ export function assembleManualFormData(
     rubricText: string;
     studyLang: string;
     studyPhonetic: string;
+    family?: Question["family"];
   },
   overrideStatus?: QuestionLifecycleStatus,
 ): ManualQuestionFormData {
@@ -441,6 +477,7 @@ export function assembleManualFormData(
     source: state.source,
     group: state.group?.trim() || undefined,
     status: overrideStatus ?? state.status,
+    ...(state.family ? { family: state.family } : {}),
     numericSpec:
       state.type === "fill" && state.specOpen
         ? { unit: state.specUnit, absTol: state.specAbsTol, relPct: state.specRelPct, altUnits: state.specAltUnits }

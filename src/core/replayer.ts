@@ -114,7 +114,8 @@ export function replay(
         w.myAnswer = e.myAnswer;
       }
     } else if (e.verdict === "correct" && entersWrongbook) {
-      if (w && w.status === "active") {
+      // 受助答对（看过提示/讲解/揭示）保持在册，不计入独立连续答对消灭进度
+      if (w && w.status === "active" && !e.help) {
         w.streakCorrect++;
         if (w.streakCorrect >= eliminateThreshold) w.status = "eliminated";
       }

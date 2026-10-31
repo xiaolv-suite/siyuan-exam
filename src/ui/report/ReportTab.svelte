@@ -18,13 +18,13 @@
     import { extractRadarDimensions, buildRadarChartModel, exportRadarDimensionsCsv } from "@/core/radar";
     import { trendToCsv, heatmapToCsv, hourlyToCsv } from "@/core/exportMd";
     import { handleTablistKeydown } from "../practice/services/practiceKeyboardService";
+    import { openSiYuanTarget } from "../practice/services/backlinkNavigationService";
     import type { ActionItem } from "@/core/actions";
     import SaveStatus from "../shared/SaveStatus.svelte";
     import { emitExamEvent, onExamEvent } from "@/core/bus";
     import { openPracticeView, type ExamPluginLike } from "@/core/pluginTab";
     import type { AttemptEvent, Question } from "@/core/types";
     import { reportWindowStart, reportDateKey } from "@/core/reportWindow";
-    import { evaluateCognitiveProfile, type LearnerCognitiveProfile } from "@/core/cognitiveProfile";
 
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
     let appOverride = $state<ExamApp | null>(null);
@@ -143,36 +143,6 @@
       }
     }
     let badgeWallBusy = $state(false);
-    function readLocalRole(): "student" | "teacher" {
-      try {
-        return typeof localStorage !== "undefined" && localStorage.getItem("lv-exam/role") === "teacher"
-          ? "teacher"
-          : "student";
-      } catch {
-        return "student";
-      }
-    }
-    let userRole = $state<"student" | "teacher">(readLocalRole());
-
-    function switchRole(role: "student" | "teacher") {
-      userRole = role;
-      try {
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem("lv-exam/role", role);
-        }
-      } catch { /* 容错 */ }
-      emitExamEvent("role-changed", { role });
-      if (role === "teacher") {
-        void loadDiscriminationAudit();
-      }
-      showMessage(
-        role === "teacher"
-          ? "已切换至【教师教研模式】：全库质量诊断、试题区分度与大纲缺口审计已就绪"
-          : "已切换至【备考学员模式】：备考完备度体检、考点雷达与成长手账已就绪",
-        2500,
-        "info",
-      );
-    }
     async function exportBadgeWall() {
       if (badgeWallBusy || !app) return;
       badgeWallBusy = true;
@@ -260,11 +230,6 @@
       return auditForgettingRisks(questions, reportEvents);
     });
 
-    const cognitiveProfile = $derived.by<LearnerCognitiveProfile | null>(() => {
-      if (!questions.length || !reportEvents.length || !app) return null;
-      return evaluateCognitiveProfile(reportEvents, questions, app.wrongItems());
-    });
-
     async function exportForgettingReport() {
       if (!forgettingReport) return;
       const md = exportForgettingRiskMarkdown(forgettingReport);
@@ -310,6 +275,12 @@
     let reportRefreshQueued = false;
     const BANK_PREF_KEY = "lv-exam/activeBank";
 
+    let lastDailyDocId = $state("");
+    let lastOverviewDocId = $state("");
+    let lastJournalDocId = $state("");
+    let syncReportDocsBusy = $state(false);
+    const openInSiYuan = (rootId: string, blockId?: string) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
+
     /** 每日战报写入思源日记（联动小驴复盘预留通道） */
     async function writeDaily() {
       if (!app || reportBusy) return;
@@ -318,11 +289,53 @@
         const banks = app.listBanks();
         if (!banks.length) throw new Error(t("guard.needBankFirst"));
         const bank = banks.find((b) => b.id === bankId) ?? banks[0];
-        await app.writeDailyReport(bank.id, bank.name);
+        const docId = await app.writeDailyReport(bank.id, bank.name);
+        if (docId) lastDailyDocId = docId;
         showMessage(t("report.dailyDone"), 3600, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4800, "error");
       } finally { reportBusy = false; }
+    }
+
+    /** 将《00 题库总览与考纲导航》与《03 备考行动与复盘日志》同步写入思源笔记文档 */
+    async function syncReportDocsToSiYuan() {
+      if (!app || syncReportDocsBusy) return;
+      syncReportDocsBusy = true;
+      try {
+        const banks = app.listBanks();
+        if (!banks.length) throw new Error(t("guard.needBankFirst"));
+        const bank = banks.find((b) => b.id === bankId) ?? banks[0];
+        const [ov, jr] = await Promise.all([
+          app.syncBankOverviewDoc(bank.id),
+          app.syncActionJournalDoc(bank.id),
+        ]);
+        if (ov?.docId) lastOverviewDocId = ov.docId;
+        if (jr?.docId) lastJournalDocId = jr.docId;
+        showMessage("已将《00 题库总览》与《03 备考行动与复盘日志》同步至思源文档 ✓", 3600, "info");
+      } catch (e) {
+        showMessage(String(e instanceof Error ? e.message : e), 4800, "error");
+      } finally {
+        syncReportDocsBusy = false;
+      }
+    }
+
+    /** 从思源《03 备考行动与复盘日志》拉取任务块勾选状态回插件 */
+    async function pullDocActions() {
+      if (!app || syncReportDocsBusy) return;
+      syncReportDocsBusy = true;
+      try {
+        const res = await app.syncActionsFromDoc(bankId);
+        openActionList = await app.listOpenActions();
+        if (res.syncedCount > 0) {
+          showMessage(`已从思源文档成功同步 ${res.syncedCount} 项已完成行动 ✓`, 3200, "info");
+        } else {
+          showMessage("思源文档任务状态已是最新，无新增完成项", 2800, "info");
+        }
+      } catch (e) {
+        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+      } finally {
+        syncReportDocsBusy = false;
+      }
     }
 
     /** 周报通知 lite：周一首次打开且有上周数据时轻提示（localStorage 防重） */
@@ -350,46 +363,8 @@
     /** 39-06 lite：统计日期范围（0=全部）。口径：作答量/正确率/时段/校准按范围过滤；
      *  消灭错题与连续天数为状态类指标保持全局；掌握度按题库范围（reloadBankScope） */
     let rangeDays = $state(0);
-    // R54：报告按「概览 / 考点与错题 / 记录与证据 / 试题质量」分段，降低长页滚动成本。
-    let reportSection = $state<"overview" | "knowledge" | "evidence" | "quality">("overview");
-
-    let discriminationAudit = $state<import("@/core/itemDiscrimination").BankDiscriminationAudit | null>(null);
-    let discriminationLoading = $state(false);
-    let discriminationExportBusy = $state(false);
-    let discriminationError = $state("");
-
-    async function loadDiscriminationAudit() {
-      if (!app || discriminationLoading) return;
-      discriminationLoading = true;
-      discriminationError = "";
-      try {
-        discriminationAudit = await app.auditBankDiscrimination(bankId || undefined);
-      } catch (e) {
-        discriminationError = String(e instanceof Error ? e.message : e);
-      } finally {
-        discriminationLoading = false;
-      }
-    }
-
-    async function exportDiscriminationReport() {
-      if (!app || discriminationExportBusy) return;
-      discriminationExportBusy = true;
-      try {
-        const csv = await app.exportBankDiscriminationCsv(bankId || undefined);
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${railBankName}-试题难度与区分度诊断-${new Date().toISOString().slice(0, 10)}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showMessage("全库区分度诊断已导出为 CSV 文件 ✓", 3000, "info");
-      } catch (e) {
-        showMessage(`导出区分度诊断失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-      } finally {
-        discriminationExportBusy = false;
-      }
-    }
+    // R54：报告按「概览 / 考点与错题 / 记录与证据」分段，降低长页滚动成本。
+    let reportSection = $state<"overview" | "knowledge" | "evidence">("overview");
     /** 69-03：聚合结果 memo——追加式流水 → (rangeDays, 条数, 末位 eid) 命中即免重算。
      *  报告页每次挂载/切日期范围都调 computeReport；重开面板不再付全量聚合成本。 */
     const reportMemo = new SvelteMap<string, { kpi: typeof kpi; hours: number[]; calib: CalibrationReport | null; quad: QuadrantReport | null; quadSignals: string[]; trend30: { date: string; attempts: number }[] }>();
@@ -630,6 +605,13 @@
         reportMemo.clear();
         computeReport();
         heat = heatmap(d.days);
+        if (app.kernelOnline) {
+          try {
+            await app.syncActionsFromDoc(bankId);
+          } catch {
+            /* 静默容错 */
+          }
+        }
         openActionList = await app.listOpenActions();
         mockHistory = await app.listMockResults();
         typeByQid.clear();
@@ -642,9 +624,6 @@
         }
         await reloadBankScope(d);
         computeReport();
-        if (userRole === "teacher" || reportSection === "quality") {
-          void loadDiscriminationAudit();
-        }
         if (masteryTab === "roadmap") {
           void loadClearancePlan();
         }
@@ -682,12 +661,6 @@
           bankId = event.payload.bank;
           refreshAfterChange();
         }),
-        onExamEvent<{ role: "student" | "teacher" }>("role-changed", (event) => {
-          if (event?.payload?.role && event.payload.role !== userRole) {
-            userRole = event.payload.role;
-            if (userRole === "teacher") void loadDiscriminationAudit();
-          }
-        }),
       ];
       return () => offs.forEach((off) => off());
     });
@@ -721,9 +694,6 @@
       resetAiResults();
       writeLocal(BANK_PREF_KEY, bankId || null);
       await reloadBankScope();
-      if (userRole === "teacher" || reportSection === "quality") {
-        void loadDiscriminationAudit();
-      }
       if (masteryTab === "roadmap") {
         void loadClearancePlan();
       }
@@ -1034,52 +1004,16 @@
       </select>
       <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("report.scopeHint")}</span>
     {/if}
-    <div class="lv-role-segmented lv-focus-context" role="radiogroup" aria-label="身份模式切换">
-      <button
-        type="button"
-        class="lv-role-pill"
-        class:active={userRole === "student"}
-        class:active-student={userRole === "student"}
-        role="radio"
-        aria-checked={userRole === "student"}
-        onclick={() => switchRole("student")}
-        title={t("role.student")}
-      >
-        <Icon name="academic" size={13} /> <b>{t("role.student")}</b>
-      </button>
-      <button
-        type="button"
-        class="lv-role-pill"
-        class:active={userRole === "teacher"}
-        class:active-teacher={userRole === "teacher"}
-        role="radio"
-        aria-checked={userRole === "teacher"}
-        onclick={() => switchRole("teacher")}
-        title={t("role.teacher")}
-      >
-        <Icon name="teacher" size={13} /> <b>{t("role.teacher")}</b>
-      </button>
-    </div>
     <span class="fn__flex-1"></span>
     <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
-    <!-- 角色专属快捷导出与体检工具 -->
-    {#if userRole === "teacher"}
-      <button class="lv-btn sm" onclick={exportDiscriminationReport} disabled={discriminationExportBusy} aria-busy={discriminationExportBusy} title="导出全库试题区分度与难度系数 CSV 清单">
-        <Icon name="export" size={13} /> {discriminationExportBusy ? "…" : "区分度CSV"}
-      </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportClearanceGuide} disabled={graphGuideBusy} aria-busy={graphGuideBusy} title="导出章节考点通关导学案 Markdown">
-        <Icon name="file" size={13} /> {t("report.graphGuide")}
-      </button>
-    {:else}
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
-        <Icon name="star" size={13} /> 勋章墙
-      </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title="导出备考完备度体检报告">
-        <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
-      </button>
-    {/if}
+    <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
+      <Icon name="star" size={13} /> 勋章墙
+    </button>
+    <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title="导出备考完备度体检报告">
+      <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
+    </button>
     <!-- 117-01 T11 / 117-02：AI 解读与 AI 下一行动（按当前统计范围；只解释/建议，不重算不虚构） -->
     <button class="lv-btn sm" onclick={() => void runReportExplain()} disabled={!app || loading || reportRefreshing || scopeLoading || explainBusy} aria-busy={explainBusy}>
       <Icon name="sparkles" size={13} /> {explainBusy ? "…" : t("reportExplain.ask")}
@@ -1092,7 +1026,7 @@
     </button>
     <span class="lv-chip">{t("report.dataFromLog")}</span>
   </div>
-<div class="fn__flex-1 lv-shell" data-exam-role={userRole}>
+<div class="fn__flex-1 lv-shell">
   <Rail active="report" taskactive="report" ontasknavigate={onTaskNav} {plugin} open={railOpen} onclose={closeRail}
     project={{ name: railBankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => plugin.openPractice?.()} />
   <div class="lv-main">
@@ -1178,11 +1112,6 @@
       <button class="lv-report-tab" class:active={reportSection === "evidence"} aria-pressed={reportSection === "evidence"} onclick={() => reportSection = "evidence"}>
         <span class="lv-tab-inner"><Icon name="file-text" size={13} /> {t("report.sectionEvidence", "记录与证据")}</span>
       </button>
-      {#if userRole === "teacher"}
-        <button class="lv-report-tab" class:active={reportSection === "quality"} aria-pressed={reportSection === "quality"} onclick={() => { reportSection = "quality"; void loadDiscriminationAudit(); }}>
-          <span class="lv-tab-inner"><Icon name="layers" size={13} /> {t("report.sectionQuality", "试题区分度与质量")}</span>
-        </button>
-      {/if}
     </div>
     {#if reportSection === "evidence" && reportEvents.length === 0}
       <div class="lv-empty" style="padding:20px 18px;margin-bottom:12px" role="status">
@@ -1223,54 +1152,6 @@
             </span>
           {/each}
         </div>
-      </div>
-    {/if}
-    {#if reportSection === "overview" && cognitiveProfile && cognitiveProfile.isTrusted}
-      <div class="lv-card" style="margin:10px 0;padding:12px 16px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-accent)">
-        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap">
-          <div class="lv-row" style="margin:0;gap:6px;align-items:center">
-            <Icon name="activity" size={14} />
-            <b style="font-size:var(--lv-font-size-body-compact)">三层认知能力与高频思维误区画像</b>
-            <span class="lv-chip sm lv-chip--data num">基于 {cognitiveProfile.evidenceCount} 次样本</span>
-          </div>
-          <span class="lv-muted" style="font-size:var(--lv-font-size-caption);display:inline-flex;align-items:center;gap:3px"><Icon name="check" size={11} /> 已达可信门槛</span>
-        </div>
-        <div class="lv-row num" style="gap:12px;margin:8px 0;flex-wrap:wrap">
-          <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
-            <div class="lv-muted" style="font-size:11px" id="lv-cog-concept-label">概念层清晰度 (术语/定义)</div>
-            <div style="font-size:16px;font-weight:700;color:var(--lv-brand);margin:2px 0">{cognitiveProfile.layeredAbility.conceptScore} 分</div>
-            <div role="progressbar" aria-labelledby="lv-cog-concept-label" aria-valuemin={0} aria-valuemax={100} aria-valuenow={cognitiveProfile.layeredAbility.conceptScore} style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
-              <div style="height:100%;width:{cognitiveProfile.layeredAbility.conceptScore}%;background:var(--lv-brand)"></div>
-            </div>
-          </div>
-          <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
-            <div class="lv-muted" style="font-size:11px" id="lv-cog-judgment-label">判断层合理性 (条件/临界)</div>
-            <div style="font-size:16px;font-weight:700;color:var(--lv-data-accent);margin:2px 0">{cognitiveProfile.layeredAbility.judgmentScore} 分</div>
-            <div role="progressbar" aria-labelledby="lv-cog-judgment-label" aria-valuemin={0} aria-valuemax={100} aria-valuenow={cognitiveProfile.layeredAbility.judgmentScore} style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
-              <div style="height:100%;width:{cognitiveProfile.layeredAbility.judgmentScore}%;background:var(--lv-data-accent)"></div>
-            </div>
-          </div>
-          <div style="flex:1;min-width:140px;padding:8px 10px;background:var(--lv-surface);border-radius:var(--lv-r-1, 6px);border:1px solid var(--lv-border-subtle)">
-            <div class="lv-muted" style="font-size:11px" id="lv-cog-reasoning-label">推理层有效性 (推导/因果)</div>
-            <div style="font-size:16px;font-weight:700;color:var(--lv-green);margin:2px 0">{cognitiveProfile.layeredAbility.reasoningScore} 分</div>
-            <div role="progressbar" aria-labelledby="lv-cog-reasoning-label" aria-valuemin={0} aria-valuemax={100} aria-valuenow={cognitiveProfile.layeredAbility.reasoningScore} style="height:4px;background:var(--lv-surface-2);border-radius:99px;overflow:hidden">
-              <div style="height:100%;width:{cognitiveProfile.layeredAbility.reasoningScore}%;background:var(--lv-green)"></div>
-            </div>
-          </div>
-        </div>
-        {#if cognitiveProfile.mistakePatterns.length}
-          <div class="lv-row" style="margin:6px 0 2px;gap:6px;align-items:center;flex-wrap:wrap">
-            <span class="lv-muted" style="font-size:11px">高频思维陷阱：</span>
-            {#each cognitiveProfile.mistakePatterns.slice(0, 3) as p (p.pattern)}
-              <span class="lv-chip sm lv-chip--amb" title={`最近出现于 ${new Date(p.lastOccurredAt).toLocaleDateString()}`}>
-                {p.pattern} · <span class="num">{p.count} 次</span>
-              </span>
-            {/each}
-          </div>
-        {/if}
-        <p class="lv-muted" style="font-size:var(--lv-font-size-caption);margin:6px 0 0;display:flex;align-items:baseline;gap:4px">
-          <Icon name="bulb" size={12} /> <span><strong>导学建议</strong>：{cognitiveProfile.advice}</span>
-        </p>
       </div>
     {/if}
     {#if reportSection === "overview" && (weak.length || weekCmp)}
@@ -1880,12 +1761,33 @@
 
     {#if openActionList.length}
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "evidence"}>
-        <b>{t("action.title")}（{openActionList.length}）</b>
+        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px;flex-wrap:wrap;gap:6px">
+          <b style="margin:0">{t("action.title")}（{openActionList.length}）</b>
+          <div class="lv-row" style="margin:0;gap:6px">
+            <button type="button" class="lv-btn sm lv-btn--ghost" disabled={syncReportDocsBusy} onclick={pullDocActions} title="从思源《03 备考行动与复盘日志》拉取任务块勾选完成状态">
+              <Icon name="check" size={12} /> 从思源拉取勾选
+            </button>
+            <button type="button" class="lv-btn sm lv-btn--ghost" disabled={syncReportDocsBusy} onclick={syncReportDocsToSiYuan} title="将待办行动清单与错题反思同步至《03 备考行动与复盘日志》思源文档">
+              <Icon name="save" size={12} /> {syncReportDocsBusy ? "…" : "同步至思源日志"}
+            </button>
+            {#if lastJournalDocId}
+              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastJournalDocId)}>
+                <Icon name="link" size={12} /> 打开复盘日志 ↗
+              </button>
+            {/if}
+          </div>
+        </div>
         <p class="lv-muted" style="margin:0 0 8px">{t("action.hint")}</p>
         {#each openActionList.slice(0, 10) as a, _i (_i)}
+          {@const aq = a.qid ? questionMap.get(a.qid) : undefined}
           <div class="lv-row" style="margin:4px 0">
             <span class="lv-chip num">{t("action.kind." + a.kind)}</span>
             <span style="flex:1;min-width:140px">{a.detail}</span>
+            {#if aq?.blockId}
+              <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => openInSiYuan(aq.rootId || "", aq.blockId)}>
+                <Icon name="pin" size={12} /> 原题 ↗
+              </button>
+            {/if}
             {#if a.qid}<button class="lv-btn sm" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} onclick={() => redoAction(a)}><Icon name="rotate" size={13} /> {actionBusyId === a.id ? t("action.working", "处理中…") : t("action.kind.redo")}</button>{/if}
             <button class="lv-btn sm" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} onclick={() => finishAction(a.id)} style="display:inline-flex;align-items:center;gap:4px">{#if actionBusyId === a.id}…{:else}<Icon name="check" size={13} />{/if} <span>{t("action.doneBtn")}</span></button>
             <button class="lv-btn sm lv-btn--ghost" disabled={!!actionBusyId} aria-busy={actionBusyId === a.id} aria-label={t("action.dismiss")} title={t("action.dismiss")} onclick={() => dropAction(a.id)}>{#if actionBusyId === a.id}…{:else}<Icon name="close" size={13} />{/if}</button>
@@ -1986,9 +1888,29 @@
           {:else}<span class="lv-muted" role="status">{t("report.noData")}</span>{/if}
         </div>
       {/if}
-      <button class="lv-btn sm" style="margin-top:8px" disabled={reportBusy || reportRefreshing} onclick={writeDaily} title={t("report.dailyScope", "写入当前题库今日作答的战报，与上方日期筛选无关。") }>
-        <Icon name="table" size={14} /> {reportBusy ? "…" : t("report.writeDaily")}
-      </button>
+      <div class="lv-row" style="margin-top:8px;gap:6px;flex-wrap:wrap;align-items:center">
+        <button class="lv-btn sm" disabled={reportBusy || reportRefreshing} onclick={writeDaily} title={t("report.dailyScope", "写入当前题库今日作答的战报，与上方日期筛选无关。")}>
+          <Icon name="table" size={14} /> {reportBusy ? "…" : t("report.writeDaily")}
+        </button>
+        <button class="lv-btn sm lv-btn--ghost" disabled={syncReportDocsBusy || reportRefreshing} onclick={syncReportDocsToSiYuan} title="将《00 题库总览与考纲导航》与《03 备考行动与复盘日志》同步写入思源笔记文档">
+          <Icon name="book" size={14} /> {syncReportDocsBusy ? "…" : "同步总览与复盘日志到思源"}
+        </button>
+        {#if lastDailyDocId}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastDailyDocId)}>
+            <Icon name="link" size={12} /> 打开今日战报 ↗
+          </button>
+        {/if}
+        {#if lastOverviewDocId}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastOverviewDocId)}>
+            <Icon name="compass" size={12} /> 打开题库总览 ↗
+          </button>
+        {/if}
+        {#if lastJournalDocId}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastJournalDocId)}>
+            <Icon name="clipboard" size={12} /> 打开复盘日志 ↗
+          </button>
+        {/if}
+      </div>
       <p class="lv-muted lv-daily-report-scope">{t("report.dailyScope", "写入当前题库今日作答的战报，与上方日期筛选无关。")}</p>
       <button class="lv-btn sm lv-btn--ghost" style="margin-top:8px" disabled={diagnosticsBusy} aria-busy={diagnosticsBusy} onclick={exportDiagnostics}>
         <Icon name="activity" size={13} /> {diagnosticsBusy ? t("diag.exporting", "正在生成诊断信息…") : t("diag.export")}
@@ -2061,7 +1983,7 @@
       <button class="lv-btn sm lv-btn--ghost" style="margin-top:8px" disabled={exportBusy} onclick={() => void exportAllData()}>
         <Icon name="export" size={14} /> {t("data.export")}
       </button>
-      <button class="lv-btn sm" style="margin-top:8px" disabled={purgeBusy} onclick={() => void purgeAllData()}>
+      <button class="lv-btn sm" style="margin-top:8px;color:var(--lv-red);border-color:color-mix(in srgb, var(--lv-red) 35%, var(--lv-border))" disabled={purgeBusy} onclick={() => void purgeAllData()}>
         {purgeBusy ? "…" : t("data.purge")}
       </button>
       {#if purgeReceipts.length}
@@ -2078,136 +2000,6 @@
       {/if}
     </div>
 
-    {#if reportSection === "quality"}
-      <!-- 教师教研专属：试题质量与区分度控制台 -->
-      <div class="lv-card lv-section" style="margin-bottom:12px;padding:18px">
-        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 12px;flex-wrap:wrap;gap:8px">
-          <div>
-            <span class="lv-eyebrow">测验测量学理论 (CTT)</span>
-            <h2 style="font-size:16px;margin:2px 0 4px;color:var(--lv-text)">试题区分度与难度系数全库诊断</h2>
-            <p class="lv-muted" style="margin:0;font-size:12px">
-              基于极端组法（Kelley 27% 规则）计算区分度 D 与难度 P（通过率），自动检出负区分度警报与低效干扰项。
-            </p>
-          </div>
-          <div class="lv-row" style="margin:0;gap:8px">
-            <button class="lv-btn sm lv-btn--primary" onclick={exportDiscriminationReport} disabled={discriminationExportBusy}>
-              <Icon name="export" size={13} /> {discriminationExportBusy ? "…" : "导出区分度诊断 CSV"}
-            </button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => void loadDiscriminationAudit()} disabled={discriminationLoading}>
-              <Icon name="rotate" size={13} /> 刷新诊断
-            </button>
-          </div>
-        </div>
-
-        {#if discriminationLoading}
-          <div class="lv-pad" style="text-align:center"><p class="lv-muted">正在分析全库题目区分度与作答流水…</p></div>
-        {:else if discriminationError}
-          <div class="lv-error" role="alert" style="margin-top:8px">{discriminationError}</div>
-        {:else if discriminationAudit}
-          <!-- 4 核心统计卡片 -->
-          <div class="lv-kpis" style="margin-bottom:16px">
-            <div class="lv-card lv-kpi">
-              <div class="l"><span>平均区分度 D</span><Icon name="target" size={15} /></div>
-              <div class="v num" style="color:{discriminationAudit.averageD >= 0.3 ? 'var(--lv-green)' : discriminationAudit.averageD >= 0.2 ? 'var(--lv-amber)' : 'var(--lv-red)'}">
-                {discriminationAudit.averageD >= 0 ? `+${discriminationAudit.averageD.toFixed(2)}` : discriminationAudit.averageD.toFixed(2)}
-              </div>
-            </div>
-            <div class="lv-card lv-kpi">
-              <div class="l"><span>平均通过率 P</span><Icon name="check" size={15} /></div>
-              <div class="v num">{Math.round(discriminationAudit.averageP * 100)}%</div>
-            </div>
-            <div class="lv-card lv-kpi">
-              <div class="l"><span>高置信度题目</span><Icon name="activity" size={15} /></div>
-              <div class="v num">{discriminationAudit.confidentCount} / {discriminationAudit.totalQuestions}</div>
-            </div>
-            <div class="lv-card lv-kpi">
-              <div class="l"><span>异常题目预警</span><Icon name="alert-triangle" size={15} /></div>
-              <div class="v num" style="color:{discriminationAudit.anomalies.length ? 'var(--lv-red)' : 'var(--lv-green)'}">
-                {discriminationAudit.anomalies.length}
-              </div>
-            </div>
-          </div>
-
-          <!-- Ebel 等级胶囊分布 -->
-          <div class="lv-row" style="gap:8px;margin:0 0 16px;flex-wrap:wrap">
-            <span class="lv-chip lv-chip--grn num">优良 (D≥0.40): {discriminationAudit.gradeCounts.excellent}</span>
-            <span class="lv-chip lv-chip--grn num">良好 (0.30≤D&lt;0.40): {discriminationAudit.gradeCounts.good}</span>
-            <span class="lv-chip num">临界 (0.20≤D&lt;0.30): {discriminationAudit.gradeCounts.marginal}</span>
-            <span class="lv-chip lv-chip--amb num">偏低 (0≤D&lt;0.20): {discriminationAudit.gradeCounts.poor}</span>
-            <span class="lv-chip lv-chip--red num">负区分度异常: {discriminationAudit.gradeCounts.negative}</span>
-          </div>
-
-          <!-- 异常题目清单 -->
-          {#if discriminationAudit.anomalies.length > 0}
-            <div class="lv-card" style="border:1px solid color-mix(in srgb, var(--lv-red) 32%, var(--lv-border-subtle));padding:14px;background:var(--lv-surface-2);border-left:3.5px solid var(--lv-red);border-radius:var(--lv-r-3, 14px);margin-bottom:14px">
-              <b style="color:var(--lv-red);font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:8px">
-                <Icon name="alert-triangle" size={14} /> 发现 {discriminationAudit.anomalies.length} 道质量异常题目（高分组正确率反常或题目无效）
-              </b>
-              <div class="stack-sm">
-                {#each discriminationAudit.anomalies.slice(0, 10) as an (an.qid)}
-                  <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 10px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2, 10px);font-size:12px;gap:8px">
-                    <div style="flex:1;min-width:0">
-                      <b style="color:var(--lv-text)">{an.stemSnippet}</b>
-                      <div class="lv-muted" style="font-size:11px">{an.diagnosisNote}</div>
-                    </div>
-                    <div class="lv-row" style="margin:0;gap:6px">
-                      <span class="lv-chip num sm" class:lv-chip--red={an.discriminationD < 0}>D: {an.discriminationD.toFixed(2)}</span>
-                      <span class="lv-chip num sm">P: {Math.round(an.difficultyP * 100)}%</span>
-                      <button class="lv-btn sm lv-btn--ghost" onclick={() => openPracticeView(plugin, "browse", { bankId, search: an.stemSnippet.slice(0, 8) })} style="display:inline-flex;align-items:center;gap:4px">
-                        <Icon name="search" size={12} />
-                        <span>排查题目</span>
-                      </button>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-
-          <!-- 全量题目明细表格 -->
-          <div style="max-height:420px;overflow-y:auto;border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-3, 14px);box-shadow:var(--lv-sh-1)">
-            <table class="lv-table" style="width:100%;font-size:12px;text-align:left;border-collapse:collapse">
-              <thead>
-                <tr style="background:var(--lv-surface-2);border-bottom:1px solid var(--lv-border-subtle)">
-                  <th style="padding:8px 10px">题干摘要</th>
-                  <th style="padding:8px">题型</th>
-                  <th style="padding:8px">有效作答</th>
-                  <th style="padding:8px">通过率 P</th>
-                  <th style="padding:8px">区分度 D</th>
-                  <th style="padding:8px">质量评级</th>
-                  <th style="padding:8px">高分组通过率</th>
-                  <th style="padding:8px">低分组通过率</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each discriminationAudit.items as it (it.qid)}
-                  <tr style="border-bottom:1px solid var(--lv-border-subtle)">
-                    <td style="padding:8px 10px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={it.stemSnippet}>
-                      {it.stemSnippet}
-                    </td>
-                    <td style="padding:8px"><span class="lv-chip sm">{it.type}</span></td>
-                    <td style="padding:8px" class="num">{it.validAttempts}</td>
-                    <td style="padding:8px" class="num">{Math.round(it.difficultyP * 100)}%</td>
-                    <td style="padding:8px;color:{it.discriminationD < 0 ? 'var(--lv-red)' : it.discriminationD >= 0.3 ? 'var(--lv-green)' : 'inherit'}" class="num">
-                      {it.discriminationD >= 0 ? `+${it.discriminationD.toFixed(2)}` : it.discriminationD.toFixed(2)}
-                    </td>
-                    <td style="padding:8px">
-                      <span class="lv-chip sm num" class:lv-chip--grn={it.grade === "excellent" || it.grade === "good"} class:lv-chip--red={it.grade === "negative"} class:lv-chip--amb={it.grade === "poor"}>
-                        {it.grade}
-                      </span>
-                    </td>
-                    <td style="padding:8px" class="num">{Math.round(it.highGroup.passRate * 100)}%</td>
-                    <td style="padding:8px" class="num">{Math.round(it.lowGroup.passRate * 100)}%</td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {:else}
-          <div class="lv-muted" style="padding:20px;text-align:center">当前题库暂无题目或未生成区分度诊断数据。</div>
-        {/if}
-      </div>
-    {/if}
   {/if}
 </div>
   </div>
@@ -2218,7 +2010,7 @@
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
   .lv-report-tabs { display: flex; gap: 3px; margin: 10px 0 14px; padding: 3px 4px; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; box-shadow: var(--lv-inset-subtle, inset 0 1px 0 transparent); }
-  .lv-report-tab { min-height: 32px; padding: 4px 14px; border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-body-compact); font-weight: 600; white-space: nowrap; cursor: pointer; transition: all var(--lv-duration-micro) var(--lv-ease-out); }
+  .lv-report-tab { min-height: 36px; padding: 4px 14px; border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-body-compact); font-weight: 600; white-space: nowrap; cursor: pointer; transition: all var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-report-tab .lv-tab-inner { display: inline-flex; align-items: center; gap: 6px; }
   .lv-report-tab:hover { color: var(--lv-text); background: var(--lv-surface); }
   .lv-report-tab.active { color: var(--lv-accent); background: var(--lv-surface); box-shadow: var(--lv-sh-1); }
@@ -2237,15 +2029,8 @@
   .lv-card-title { display: inline-flex; align-items: center; gap: var(--lv-space-compact); }
   .lv-inline-icon { display: inline-flex; margin-right: 5px; }
   .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) 22px; box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-card); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); margin-bottom: var(--lv-space-3); }
-  .lv-kpi { display: flex; flex-direction: column; justify-content: space-between; gap: var(--lv-space-2); border-radius: var(--lv-r-card, 20px); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
-  .lv-kpi:hover { transform: translateY(-1px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-2); }
-  .lv-kpi .v { font-size: 36px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--lv-data-accent); }
-  .lv-kpi .l { display: flex; align-items: center; justify-content: space-between; color: var(--lv-text-3); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
   .lv-row.low-sample { opacity: .55; }
   .lv-section b { display: block; font-size: var(--lv-font-size-h3); font-weight: var(--lv-font-weight-semibold); letter-spacing: -.2px; margin-bottom: 12px; }
-  .lv-chip { display: inline-flex; align-items: center; gap: var(--lv-space-1); padding: 3px var(--lv-space-3); border-radius: var(--lv-r-1); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-medium); color: var(--lv-text-2); background: var(--lv-surface-2); border: 1px solid transparent; }
-  .lv-chip.acc { color: var(--lv-accent); background: var(--lv-accent-soft); }
-  .lv-chip.lv-chip--red { color: var(--lv-red); background: var(--lv-red-soft); }
   /* —— 63-01 四象限（现代微质感指标卡） —— */
   .lv-quad-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--lv-space-3); }
   .lv-quad { border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-card, 20px); padding: 18px 20px; background: var(--lv-surface); box-shadow: var(--lv-sh-card), var(--lv-inset-card); display: flex; flex-direction: column; gap: var(--lv-space-2); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); }

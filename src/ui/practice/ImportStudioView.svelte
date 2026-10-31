@@ -311,8 +311,8 @@
                       else { delete selectedDocIds[doc.id]; selectedDocIds = { ...selectedDocIds }; }
                     }} />
                     <div style="flex:1;min-width:0">
-                      <b style="font-size:var(--lv-font-size-sm);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.title}</b>
-                      <div class="lv-muted" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.hpath}</div>
+                      <b title={doc.title} style="font-size:var(--lv-font-size-sm);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.title}</b>
+                      <div class="lv-muted" title={doc.hpath} style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{doc.hpath}</div>
                     </div>
                   </div>
                   <button class="lv-btn sm lv-btn--primary" disabled={siyuanDocBusy} aria-busy={siyuanDocBusy} onclick={() => onPickAndImportSiyuanDoc(doc.id, doc.title)}>

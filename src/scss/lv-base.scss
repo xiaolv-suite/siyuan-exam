@@ -140,57 +140,6 @@
   }
 }
 
-/* —— 双角色分段切换控件（Segmented Control）与双角色主题色体系 —— */
-.lv-role-segmented {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px;
-  background: var(--lv-surface-2);
-  border: 1px solid var(--lv-border);
-  border-radius: var(--lv-r-2);
-  gap: 2px;
-  user-select: none;
-}
-
-.lv-role-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: var(--lv-r-1);
-  font-size: var(--lv-font-size-sm);
-  font-weight: var(--lv-font-weight-medium);
-  color: var(--lv-text-3);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all var(--lv-dur-micro) var(--lv-ease-out);
-  opacity: 0.6;
-
-  &:hover {
-    opacity: 0.85;
-    background: color-mix(in srgb, var(--lv-text) 5%, transparent);
-  }
-
-  &.active {
-    opacity: 1;
-    font-weight: var(--lv-font-weight-semibold);
-    background: var(--lv-surface);
-    box-shadow: var(--lv-sh-1);
-  }
-
-  &.active-student {
-    color: var(--lv-accent);
-    border-color: color-mix(in srgb, var(--lv-accent) 28%, transparent);
-  }
-
-  &.active-teacher {
-    color: var(--lv-teacher-primary);
-    border-color: var(--lv-teacher-border);
-    background: var(--lv-teacher-soft);
-  }
-}
-
 /* —— 弹窗标题栏标准容器（24×24 蓝底白标 + 标题 + 版本/状态胶囊） —— */
 .lv-dialog-title-wrap {
   display: inline-flex;
@@ -297,17 +246,6 @@
     font-weight: var(--lv-font-weight-semibold);
     box-shadow: var(--lv-sh-1);
     border-color: var(--lv-border-subtle);
-  }
-}
-
-[data-exam-role="teacher"] {
-  --b3-theme-primary: var(--lv-teacher-primary);
-  --lv-accent: var(--lv-teacher-primary);
-  --lv-accent-soft: var(--lv-teacher-soft);
-
-  .lv-studio-tab.active {
-    color: var(--lv-teacher-primary);
-    border-bottom-color: var(--lv-teacher-primary);
   }
 }
 

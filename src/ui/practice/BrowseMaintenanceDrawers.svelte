@@ -86,9 +86,7 @@
     onselectAllCurrentPage: () => void;
     onclearSelection: () => void;
     onbatchConvertToCards: () => void;
-    onprintSelectedQuestions: () => void;
-    onprintSelectedTeacherPaper: () => void;
-    onprintSelectedHomeworkSheet: () => void;
+    onprintSelectedQuestions: (format?: import("./services/printPaperService").PrintPaperFormat) => void;
     onapplyBatch: (isUndo: boolean) => void;
     onpreviewBatch: () => void;
     ontoggleCluster: (idx: number) => void;
@@ -179,8 +177,6 @@
     onclearSelection,
     onbatchConvertToCards,
     onprintSelectedQuestions,
-    onprintSelectedTeacherPaper,
-    onprintSelectedHomeworkSheet,
     onapplyBatch,
     onpreviewBatch,
     ontoggleCluster,
@@ -193,6 +189,8 @@
     onclosePaper,
     oncloseErrata,
   }: Props = $props();
+
+  let batchPrintFormat = $state<import("./services/printPaperService").PrintPaperFormat>("exam");
 
   let errataFileInput: HTMLInputElement | null = $state(null);
 </script>
@@ -447,14 +445,14 @@
         <button class="lv-btn sm lv-btn--ghost" onclick={onbatchConvertToCards} disabled={batchCardBusy || !app?.kernelOnline} title="将勾选的题目批量制成闪卡送入卡包">
           <Icon name="layers" size={13} /> {batchCardBusy ? "…" : t("batch.toCards")}
         </button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onprintSelectedQuestions} title="将勾选的题目生成 A4 双栏试卷">
+        <select class="lv-select sm" bind:value={batchPrintFormat} aria-label="选择打印试卷版式">
+          <option value="exam">标准测试卷</option>
+          <option value="answer">独立答案册</option>
+          <option value="lecture">授课讲义卷</option>
+          <option value="homework">留白作业单</option>
+        </select>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintSelectedQuestions(batchPrintFormat)} title="按所选版式将勾选题目生成 A4 双栏卷">
           <Icon name="file" size={13} /> {t("batch.printSelected")}
-        </button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onprintSelectedTeacherPaper} title="导出勾选题目的教师讲义教案（含答案与采分细则）">
-          <Icon name="book" size={13} /> 教师教案
-        </button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onprintSelectedHomeworkSheet} title="导出勾选题目的课后分层作业单（带姓名与反思框）">
-          <Icon name="file-text" size={13} /> 分层作业单
         </button>
       {/if}
       {#if batchUndoHere && !appliedChanges.length}

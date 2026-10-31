@@ -3,8 +3,20 @@
 // ============================================================
 import type { MockScore } from "./mock";
 import type { Blueprint } from "./mock";
+import type { Question } from "./types";
+import { formatSiyuanBlockRef } from "./siyuanSyncDoc";
 
-export function scoreToMarkdown(bp: Blueprint, score: MockScore, startedAt: number): string {
+export interface ScoreMarkdownDetails {
+  wrongItems?: { q: Question; myAnswer: string | null; flagged?: boolean }[];
+  flaggedItems?: { q: Question; myAnswer: string | null }[];
+}
+
+export function scoreToMarkdown(
+  bp: Blueprint,
+  score: MockScore,
+  startedAt: number,
+  details?: ScoreMarkdownDetails,
+): string {
   const d = new Date(startedAt);
   const when = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const lines = [
@@ -31,5 +43,33 @@ export function scoreToMarkdown(bp: Blueprint, score: MockScore, startedAt: numb
     `- 标旗 ${score.flagsUsed} · 改答 ${score.changes} · 切屏 ${score.screenSwitches}`,
     `- 最后 20 分钟：做 ${score.last20min.attempted} 对 ${score.last20min.correct}`,
   );
+  if (details?.wrongItems?.length) {
+    lines.push(
+      ``,
+      `## 本场失分题目订正清单（点击双链直达源题块）`,
+      ``,
+    );
+    details.wrongItems.forEach((item, idx) => {
+      const qRef = formatSiyuanBlockRef(item.q.blockId, item.q.stem, 38);
+      const kpPart = item.q.kp ? ` · 考点：\`${item.q.kp}\`` : "";
+      const flagPart = item.flagged ? ` · 🚩 考场存疑标旗` : "";
+      lines.push(
+        `- [ ] **#${idx + 1}** ${qRef} — 考生作答：\`${item.myAnswer || "未作答"}\` | 标准答案：\`${item.q.answer}\`${kpPart}${flagPart}`,
+      );
+    });
+  }
+  if (details?.flaggedItems?.length) {
+    lines.push(
+      ``,
+      `## 考场标旗存疑但蒙对题目（警惕伪掌握）`,
+      ``,
+    );
+    details.flaggedItems.forEach((item, idx) => {
+      const qRef = formatSiyuanBlockRef(item.q.blockId, item.q.stem, 38);
+      lines.push(
+        `- [ ] **#${idx + 1}** ${qRef} — 作答：\`${item.myAnswer || "—"}\`（建议复核推导过程）`,
+      );
+    });
+  }
   return lines.join("\n");
 }

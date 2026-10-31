@@ -4,6 +4,7 @@
 // ============================================================
 import type { Question, SessionState } from "./types";
 import { grade, type GradeResult } from "./answer";
+import { helpFromExposure } from "./exposure";
 import { newSessionId } from "./ids";
 
 export type SessionPhase = "running" | "finished";
@@ -86,6 +87,73 @@ export class PracticeSession {
 
   getDraft(qid: string): string {
     return this.state.drafts[qid] ?? "";
+  }
+
+  /** 记录题目暴露布尔事实（随 SessionState 持久化，重载后仍计受助） */
+  addExposure(qid: string, node: string): void {
+    if (!qid || !node) return;
+    const map = (this.state.exposures ??= {});
+    const cur = map[qid] ?? [];
+    if (!cur.includes(node)) {
+      map[qid] = [...cur, node];
+      this.touch();
+    }
+  }
+
+  getExposures(qid: string): string[] {
+    return this.state.exposures?.[qid] ?? [];
+  }
+
+  exposureMap(): Map<string, Set<string>> {
+    const out = new Map<string, Set<string>>();
+    for (const [qid, nodes] of Object.entries(this.state.exposures ?? {})) {
+      if (nodes?.length) out.set(qid, new Set(nodes));
+    }
+    return out;
+  }
+
+  helpModeOf(qid: string): "explain" | "socratic" | "hint" | "reveal" | undefined {
+    return helpFromExposure(this.getExposures(qid));
+  }
+
+  getHintState(qid: string): { level: 0 | 1 | 2 | 3; texts: string[] } {
+    const h = this.state.hints?.[qid];
+    return h ? { level: h.level, texts: [...h.texts] } : { level: 0, texts: [] };
+  }
+
+  setHintState(qid: string, level: 0 | 1 | 2 | 3, texts: string[]): void {
+    (this.state.hints ??= {})[qid] = { level, texts: [...texts] };
+    this.touch();
+  }
+
+  markRecalled(qid: string): void {
+    if (!qid) return;
+    const list = (this.state.recalled ??= []);
+    if (!list.includes(qid)) {
+      list.push(qid);
+      this.touch();
+    }
+  }
+
+  isRecalled(qid: string): boolean {
+    return Boolean(this.state.recalled?.includes(qid));
+  }
+
+  getScratchpad(): { store: Record<string, string>; sharedText: string; mode: "per_question" | "shared" } {
+    const sp = this.state.scratchpad;
+    return sp
+      ? { store: { ...sp.store }, sharedText: sp.sharedText ?? "", mode: sp.mode ?? "per_question" }
+      : { store: {}, sharedText: "", mode: "per_question" };
+  }
+
+  setScratchpad(next: { store: Record<string, string>; sharedText: string; mode: "per_question" | "shared" }): void {
+    const hasData = Object.keys(next.store).length > 0 || Boolean(next.sharedText) || next.mode !== "per_question";
+    if (hasData) {
+      this.state.scratchpad = { store: { ...next.store }, sharedText: next.sharedText, mode: next.mode };
+    } else {
+      delete this.state.scratchpad;
+    }
+    this.touch();
   }
 
   /** 提交当前题：判分 + 记录待写流水事件；返回判分结果（UI 渲染反馈态）。

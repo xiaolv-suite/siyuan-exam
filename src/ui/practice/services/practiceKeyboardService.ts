@@ -196,6 +196,9 @@ export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAct
 
   // 3. 背诵模式（Recite）视图下的交互
   if (view === "recite" && recite && !recite.isDone && recite.hasQueue) {
+    if (e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      return { type: "exit_session" };
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return null;
 
     if (e.key.toLowerCase() === "v" && recite.hasCurrentQuestion) {

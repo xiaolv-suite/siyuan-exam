@@ -10,6 +10,7 @@ export interface DrillPickOptions {
   sessionSeed: string;
   dailyGoal?: number;
   quickAvoidDays?: number;
+  dueFirst?: Question[];
 }
 
 /**
@@ -20,7 +21,7 @@ export function pickDrillQuestions(options: DrillPickOptions): {
   error?: string;
   info?: string;
 } {
-  const { app, questions, mode, sessionSeed, dailyGoal, quickAvoidDays } = options;
+  const { app, questions, mode, sessionSeed, dailyGoal, quickAvoidDays, dueFirst } = options;
   const qs = questions.filter((q) => q.type !== "material");
   if (!qs.length) return { picked: [], info: "state.emptyBank" };
 
@@ -51,11 +52,12 @@ export function pickDrillQuestions(options: DrillPickOptions): {
 
   if (mode === "daily") {
     const goal = Number.isFinite(dailyGoal) && dailyGoal! > 0 ? dailyGoal! : 10;
-    // 优先采用基于 DSR 记忆模型的轮盘赌加权自适应抽样
+    const dueList = Array.isArray(dueFirst) ? dueFirst : [];
+    // 若有到期闪卡优先入列；无到期卡且已有作答历史时采用 DSR 记忆模型加权抽样
     const attempts = app.attempts.all();
-    const picked = attempts.length > 0 && typeof (app as any).dsrDailyDrill === "function"
+    const picked = !dueList.length && attempts.length > 0 && typeof (app as any).dsrDailyDrill === "function"
       ? (app as any).dsrDailyDrill(qs, goal)
-      : app.dailyDrill(qs, [], goal);
+      : app.dailyDrill(qs, dueList, goal);
     if (!picked.length) return { picked: [], error: "state.emptyBank" };
     return { picked };
   }

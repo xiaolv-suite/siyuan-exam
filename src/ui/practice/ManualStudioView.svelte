@@ -161,10 +161,10 @@
       </label>
       <div class="lv-row" style="margin-top:8px">
         <button class="lv-btn lv-btn--primary sm" onclick={onapplyOcrFill} disabled={!ocrInputText.trim()}>{t("manual.ocrFastFill")}</button>
-        <label class="lv-btn sm lv-btn--ghost" style="cursor:pointer">
+        <button type="button" class="lv-btn sm lv-btn--ghost" disabled={ocrUploadBusy} onclick={(e) => ((e.currentTarget as HTMLElement).nextElementSibling as HTMLInputElement | null)?.click()}>
           <Icon name="file" size={13} /> {ocrUploadBusy ? t("manual.ocrUploading") : t("manual.ocrUploadImage")}
-          <input type="file" accept="image/*" style="display:none" onchange={onfileInputChange} disabled={ocrUploadBusy} />
-        </label>
+        </button>
+        <input type="file" accept="image/*" style="display:none" onchange={onfileInputChange} disabled={ocrUploadBusy} />
         <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("manual.ocrPasteTip")}</span>
         <button class="lv-btn lv-btn--ghost sm" style="margin-left:auto" onclick={() => (ocrModalOpen = false)}>取消</button>
       </div>
@@ -362,7 +362,7 @@
       </div>
       <div class="lv-row" style="margin:4px 0 0;flex-wrap:wrap">
         <span class="lv-chip"><Icon name="volume" size={12} /> 朗读语言</span>
-        <select class="lv-select" bind:value={mStudyLang} aria-label="朗读语言" style="max-width:140px;height:28px">
+        <select class="lv-select sm" bind:value={mStudyLang} aria-label="朗读语言" style="max-width:140px">
           <option value="zh-CN">普通话 (zh-CN)</option>
           <option value="zh-HK">粤语 (zh-HK)</option>
           <option value="en-US">英语 (en-US)</option>

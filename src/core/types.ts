@@ -93,6 +93,8 @@ export interface Question {
   rootId?: string;
   /** 思源文档 hpath 人类可读路径 */
   hpath?: string;
+  /** 来源思源读书笔记块 ID（从笔记块提取或 AI 出题时记录，支持一键跳回原笔记段落） */
+  sourceBlockId?: string;
 }
 
 /** 题族与变式关联契约（52-07 / 65-03） */
@@ -207,6 +209,20 @@ export interface SessionState {
   }[];
   /** 已重排题（答错排队尾再来一次，每题至多一次；恢复后不重复重排） */
   requeued?: string[];
+  /** 63-02 / 114-01 会话内逐题暴露布尔事实集合（qid → ExposureNode[]），随会话落盘，重载后完整恢复 */
+  exposures?: Record<string, string[]>;
+  /** 114-01 逐层提示状态（qid → { level, texts }），重载后不从 L1 重置 */
+  hints?: Record<string, { level: 0 | 1 | 2 | 3; texts: string[] }>;
+  /** 52-02 先回忆模式已使用题目列表 */
+  recalled?: string[];
+  /** 52-08 会话演算草稿纸（随会话持久化，重载不丢） */
+  scratchpad?: {
+    store: Record<string, string>;
+    sharedText: string;
+    mode: "per_question" | "shared";
+  };
+  /** 挑战码（友谊赛）内联题目快照：不入正式题库，但支持会话中途重载恢复 */
+  inlineQuestions?: Question[];
 }
 
 export interface DayStats {

@@ -410,6 +410,7 @@ export async function parseQuestionsFromSiyuanDoc(
       ...q,
       source: q.source && q.source !== "Markdown文档导入" ? q.source : docMeta.title,
       sourceKind: "real" as const,
+      ...(docMeta.docId ? { sourceBlockId: docMeta.docId } : {}),
       // 若原题无明确考点，默认将文档路径父级或标题作为建议考点
       kp: q.kp || (docMeta.hpath ? docMeta.hpath.replace(/^\/|\/$/g, "").replace(/\/[^/]+$/, "") : docMeta.title),
     };

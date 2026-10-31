@@ -718,6 +718,12 @@ export interface MockRunSnapshot {
   qVersions?: Record<string, { hash: string; answer: string }>;
   /** 55-06 lite：累计延时秒（单次条件覆盖；成绩单明示「延时 N 分钟」，旧快照缺省） */
   extraTimeS?: number;
+  /** 52-08 模考草稿纸快照（重载恢复同一场考试时不丢失草稿） */
+  scratchpad?: {
+    store: Record<string, string>;
+    sharedText: string;
+    mode: "per_question" | "shared";
+  };
 }
 
 /** 恢复报告：missingQids = 卷面有但题库已读不到的题（改题/删题后如实降级，不静默补题） */

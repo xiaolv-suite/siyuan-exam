@@ -20,10 +20,15 @@ export function wrongbookToMarkdown(
   ];
   if (!items.length) return head.join("\n") + "\n（错题本为空，继续保持！）\n";
   const body = items.map(({ wrong, q, reflection }, idx) => {
+    const blockRefPart = q.blockId && /^[\w-]+$/.test(q.blockId) ? ` · ((${q.blockId} "🔗 定位源题块"))` : "";
+    const sourceRefPart =
+      q.sourceBlockId && q.sourceBlockId !== q.blockId && /^[\w-]+$/.test(q.sourceBlockId)
+        ? ` · ((${q.sourceBlockId} "📖 来源笔记"))`
+        : "";
     const lines = [
       `### ${idx + 1}. 【${typeLabel(q.type)}】${esc(q.stem.split("\n")[0]).slice(0, 80)}`,
       ``,
-      `**${typeLabel(q.type)}**${q.kp ? ` · ${esc(q.kp)}` : ""}${q.source ? ` · ${esc(q.source)}` : ""} · 错 ${wrong.wrongCount} 次`,
+      `**${typeLabel(q.type)}**${q.kp ? ` · ${esc(q.kp)}` : ""}${q.source ? ` · ${esc(q.source)}` : ""} · 错 ${wrong.wrongCount} 次${blockRefPart}${sourceRefPart}`,
       ``,
       q.stem,
       ``,

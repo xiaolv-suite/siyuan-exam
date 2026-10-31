@@ -160,6 +160,11 @@ describe("smartViewManagementService", () => {
       expect(draft.kp).toBe("集合与常用逻辑");
       expect(draft.source).toContain("20261028120000-block12");
       expect(draft.status).toBe("draft");
+      expect(draft.family).toEqual({
+        parentId: "q-12345678",
+        variantKind: "near_transfer",
+        verified: true,
+      });
       expect(draft.toast).toContain("母题溯源反链");
     });
 

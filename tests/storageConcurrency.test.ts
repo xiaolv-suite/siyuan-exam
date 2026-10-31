@@ -84,14 +84,6 @@ describe("ExamApp 持久化并发保护", () => {
     expect(r1[0].percent).toBe(80);
   });
 
-  it("check-in pending 采用最后一次写入，旧写入不会覆盖新状态", async () => {
-    const { app } = appWith();
-    const first = { externalRef: "old", date: "2026-10-14", kind: "study" } as any;
-    const latest = { externalRef: "new", date: "2026-10-14", kind: "study" } as any;
-    await Promise.all([app.setCheckinPending(first), app.setCheckinPending(latest)]);
-    expect((await app.getCheckinPending())?.externalRef).toBe("new");
-  });
-
   it("存储失败被调用方捕获后不会产生未处理拒绝，后续写入仍可重试", async () => {
     const storage = new FailOnceStorage();
     const { app } = appWith(storage);

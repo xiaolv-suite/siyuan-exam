@@ -39,12 +39,20 @@ export async function syncBankQuestionsToDoc(
   bankName: string,
   showMessage: MessageReporter,
   t: (k: string) => string,
-): Promise<void> {
+): Promise<{
+  overviewDocId?: string;
+  bankDocId?: string;
+  wrongbookDocId?: string;
+  actionJournalDocId?: string;
+  flashcardCount?: number;
+} | null> {
   try {
-    await app.syncBankToLocalDocs(bankId, bankName);
+    const res = await app.syncBankToLocalDocs(bankId, bankName);
     showMessage(t("sync.docsDone"), 3600, "info");
+    return res ?? null;
   } catch (e) {
     showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+    return null;
   }
 }
 

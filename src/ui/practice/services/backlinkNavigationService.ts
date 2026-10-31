@@ -36,7 +36,7 @@ export async function fetchBlockBacklinks(
   }
 }
 
-/** 在思源中受控打开块或文档 */
+/** 在思源中受控打开块或文档（优先使用思源原生 openTab 在工作区内打开，无宿主 app 时回退 siyuan:// 深链） */
 export function openSiYuanTarget(
   plugin: any,
   rootId: string,
@@ -44,36 +44,57 @@ export function openSiYuanTarget(
   showMessage?: (msg: string, time?: number, type?: string) => void,
   t?: (k: string) => string,
 ): void {
-  if (!rootId && !blockId) {
+  const targetId = blockId || rootId;
+  if (!targetId) {
     if (showMessage && t) {
       showMessage(t("browse.docUnavailable"), 2600, "error");
     }
     return;
   }
 
-  if (blockId) {
+  const hostApp = plugin?.app;
+  if (!hostApp && blockId && typeof window !== "undefined") {
     try {
-      if (typeof window !== "undefined") {
-        window.open(`siyuan://blocks/${blockId}`);
-        return;
-      }
+      window.open(`siyuan://blocks/${blockId}`);
+      return;
     } catch {
-      // 容错回退到 openTab
+      // 回退到 openTab
     }
   }
 
   void import("siyuan")
     .then(({ openTab }) => {
       openTab({
-        app: (plugin?.app ?? plugin) as import("siyuan").App,
-        doc: { id: rootId },
+        app: (hostApp ?? plugin) as import("siyuan").App,
+        doc: {
+          id: targetId,
+          ...(blockId ? { action: ["cb-get-hl", "cb-get-focus", "cb-get-all"] } : {}),
+        },
       });
     })
     .catch((e) => {
+      if (targetId && typeof window !== "undefined") {
+        try {
+          window.open(`siyuan://blocks/${targetId}`);
+          return;
+        } catch {
+          // ignore
+        }
+      }
       if (showMessage) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
       }
     });
+}
+
+/** 在思源工作区中直接打开指定文档（如已生成的题册、错题本、成绩单、每日战报） */
+export function openSiYuanDoc(
+  plugin: any,
+  docId: string,
+  showMessage?: (msg: string, time?: number, type?: string) => void,
+  t?: (k: string) => string,
+): void {
+  openSiYuanTarget(plugin, docId, undefined, showMessage, t);
 }
 
 /**

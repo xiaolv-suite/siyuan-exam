@@ -44,6 +44,74 @@ describe("错题册导出 Markdown", () => {
     const md = wrongbookToMarkdown([], { bankName: "X", exportedAt: new Date() });
     expect(md).toContain("错题本为空");
   });
+  it("含思源源题块引用 ((blockId)) 与来源笔记块引用 ((sourceBlockId))", () => {
+    const qWithBlocks = {
+      ...q,
+      blockId: "20261031100000-qblock1",
+      sourceBlockId: "20261031090000-noteblk",
+    };
+    const md = wrongbookToMarkdown([{ wrong, q: qWithBlocks, reflection: "审题时漏看了条件" }], {
+      bankName: "公考题库",
+      exportedAt: new Date(2026, 9, 2),
+    });
+    expect(md).toContain('((20261031100000-qblock1 "🔗 定位源题块"))');
+    expect(md).toContain('((20261031090000-noteblk "📖 来源笔记"))');
+    expect(md).toContain("审题时漏看了条件");
+  });
+});
+
+import {
+  formatSiyuanBlockRef,
+  buildSiyuanBankOverviewDocMarkdown,
+  buildSiyuanActionJournalDocMarkdown,
+} from "../src/core/siyuanSyncDoc";
+
+describe("思源常驻文档生成引擎（题库总览与行动复盘日志）", () => {
+  it("生成《00 题库总览与考纲导航》与《03 备考行动与复盘日志》含原生块引用与任务块", () => {
+    const qLinked = { ...q, blockId: "20261031100000-qblock1", kp: "算术/四则运算" };
+    expect(formatSiyuanBlockRef(qLinked.blockId, "1+1等于几？")).toBe('((20261031100000-qblock1 "1+1等于几？"))');
+
+    const overviewMd = buildSiyuanBankOverviewDocMarkdown({
+      bankName: "公考题库",
+      bankId: "nb-1",
+      questions: [qLinked],
+      totalAttempts: 10,
+      correctAttempts: 8,
+      activeWrongCount: 1,
+      eliminatedWrongCount: 2,
+      mockCount: 1,
+    });
+    expect(overviewMd).toContain("# 🧭 公考题库 · 题库总览与考纲导航");
+    expect(overviewMd).toContain('((20261031100000-qblock1 "1+1等于几？"))');
+    expect(overviewMd).toContain('custom-exam-wrong-status="active"');
+
+    const journalMd = buildSiyuanActionJournalDocMarkdown({
+      bankName: "公考题库",
+      actions: [
+        {
+          id: "act-1",
+          kind: "redo",
+          qid: qLinked.id,
+          detail: "重练：算术/四则运算",
+          status: "open",
+          createdAt: Date.now(),
+        },
+      ],
+      reflections: [
+        {
+          qid: qLinked.id,
+          text: "注意进位规则",
+          at: Date.now(),
+          reason: "careless",
+        },
+      ],
+      questionMap: new Map([[qLinked.id, qLinked]]),
+    });
+    expect(journalMd).toContain("# 📋 公考题库 · 备考行动与复盘日志");
+    expect(journalMd).toContain('- [ ] 重练：算术/四则运算 · ((20261031100000-qblock1 "1+1等于几？"))');
+    expect(journalMd).toContain('custom-exam-act-id="act-1"');
+    expect(journalMd).toContain("注意进位规则");
+  });
 });
 
 describe("模考成绩持久化", () => {

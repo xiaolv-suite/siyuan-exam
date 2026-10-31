@@ -40,6 +40,7 @@
     import { resolveCbtKeyAction, computeSectionNavigation } from "../../core/cbtKeyboard";
     import { ttsSpeak, ttsSupported } from "../../core/tts";
     import { renderOcclusionSvg } from "../../core/imageOcclusion";
+    import { openSiYuanTarget } from "../practice/services/backlinkNavigationService";
     
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
     let appOverride = $state<ExamApp | null>(null);
@@ -98,6 +99,7 @@
       const res = updateScratchpadText(scratchpadStore, qid, text, scratchpadMode, scratchpadShared);
       scratchpadStore = res.store;
       scratchpadShared = res.sharedText;
+      persistRun();
     }
 
     function clearScratchpad() {
@@ -106,6 +108,7 @@
       const res = clearCurrentScratchpad(scratchpadStore, qid, scratchpadMode, scratchpadShared);
       scratchpadStore = res.store;
       scratchpadShared = res.sharedText;
+      persistRun();
     }
 
     async function copyScratchpad() {
@@ -265,6 +268,14 @@
     });
 
     /** 快照节流保存（3s）：关页/休眠后按 wall clock 恢复同一 run */
+    function buildRunSnapshot(now: number) {
+      const snap = session!.toSnapshot(runId, now);
+      if (Object.keys(scratchpadStore).length > 0 || scratchpadShared || scratchpadMode !== "per_question") {
+        snap.scratchpad = { store: { ...scratchpadStore }, sharedText: scratchpadShared, mode: scratchpadMode };
+      }
+      return snap;
+    }
+
     function persistRun(force = false) {
       if (!session || session.submitted || !runId) return;
       const now = Date.now();
@@ -290,7 +301,7 @@
       // lets a newer snapshot queue behind an older one while preserving the
       // latest-answer-wins ordering even when storage is slow or a retry is
       // triggered during an earlier write.
-      void app.saveMockRun(session.toSnapshot(runId, now)).then(() => {
+      void app.saveMockRun(buildRunSnapshot(now)).then(() => {
         if (revision === runSaveRevision) runSaveConfirmed = true;
       }).catch((e) => {
         if (revision === runSaveRevision) {
@@ -313,7 +324,7 @@
       const previousExtraTime = session.state.extraTimeS ?? 0;
       try {
         session.extendTime(300);
-        await app.saveMockRun(session.toSnapshot(runId, Date.now()));
+        await app.saveMockRun(buildRunSnapshot(Date.now()));
         lastSnapAt = Date.now();
         showMessage(t("mock.extraAdded"), 3000, "info");
       } catch (e) {
@@ -441,11 +452,6 @@
           pendingBankId = event.payload.bank;
           // 考试与成绩页都保留本次卷面、题库和蓝图，回到配置页后再读取。
           refreshPendingBankData();
-        }),
-        onExamEvent<{ role: "student" | "teacher" }>("role-changed", (event) => {
-          if (event?.payload?.role && event.payload.role !== userRole) {
-            userRole = event.payload.role;
-          }
         }),
       ];
       // 移动端虚拟键盘避让：监听 visualViewport 动态抬升底边距，防遮挡操作
@@ -646,33 +652,6 @@
         if (html && stemHtmlFor === q.id) stemHtml = html;
       });
     });
-    function readLocalRole(): "student" | "teacher" {
-      try {
-        return typeof localStorage !== "undefined" && localStorage.getItem("lv-exam/role") === "teacher"
-          ? "teacher"
-          : "student";
-      } catch {
-        return "student";
-      }
-    }
-    let userRole = $state<"student" | "teacher">(readLocalRole());
-
-    function switchRole(role: "student" | "teacher") {
-      userRole = role;
-      try {
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem("lv-exam/role", role);
-        }
-      } catch { /* 容错 */ }
-      emitExamEvent("role-changed", { role });
-      showMessage(
-        role === "teacher"
-          ? "已切换至【教师教研模式】：考卷管理、A/B 卷分化与讲义排版工具已就绪"
-          : "已切换至【备考学员模式】：全真限时模考、自适应冲刺密卷与自评已就绪",
-        2500,
-        "info",
-      );
-    }
 
     import {
       calculateExamPacingStrategy,
@@ -711,6 +690,9 @@
       }
     }
 
+    let lastSavedMockDoc = $state<{ docId: string; title: string } | null>(null);
+    const openInSiYuan = (rootId: string, blockId?: string) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
+
     async function saveMockExamAsDoc() {
       if (!activeBankId || !app || !questions.length) return;
       try {
@@ -721,6 +703,7 @@
           durationMinutes: Math.round(bp.durationS / 60),
           passLine: bp.passLine,
         });
+        if (res.docId) lastSavedMockDoc = { docId: res.docId, title: res.title };
         showMessage(`全套考卷已存为思源笔记文档：《${res.title}》✓`, 3500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
@@ -791,33 +774,29 @@
       }
     }
 
-    async function printCompactPaper() {
-      if (printBusy || !activeBankId || !questions.length) return;
-      printBusy = true;
-      try {
-        const html = await app.buildCompactQuestionSheet(bp.name || "全真模拟试卷", activeBankId);
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          downloadBlob(blob, `${bp.name || "试卷"}-双栏排版.html`);
-          showMessage("已生成双栏排版试卷文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`打印试卷生成失败：${String(e instanceof Error ? e.message : e)}`, 4200, "error");
-      } finally {
-        printBusy = false;
-      }
-    }
+    let mockPrintFormat = $state<"exam" | "answer" | "lecture" | "homework">("exam");
+    let reportPrintFormat = $state<"answer" | "lecture" | "exam" | "homework">("answer");
 
-    async function printCompactAnswerSheet() {
+    async function printMockByFormat(format: "exam" | "answer" | "lecture" | "homework") {
       if (printBusy || !activeBankId || !questions.length) return;
       printBusy = true;
+      const title = bp.name || "全真模拟试卷";
       try {
-        const html = await app.buildCompactAnswerSheet(bp.name || "全真模拟试卷", activeBankId);
+        let html: string;
+        let suffix: string;
+        if (format === "answer") {
+          html = await app.buildCompactAnswerSheet(title, activeBankId);
+          suffix = "独立答案册";
+        } else if (format === "lecture") {
+          html = await app.buildTeacherLectureSheet(title, activeBankId);
+          suffix = "授课讲义卷";
+        } else if (format === "homework") {
+          html = await app.buildStudentHomeworkSheet(title, activeBankId);
+          suffix = "留白作业单";
+        } else {
+          html = await app.buildCompactQuestionSheet(title, activeBankId);
+          suffix = "标准测试卷";
+        }
         const win = window.open("", "_blank");
         if (win) {
           win.document.write(html);
@@ -825,33 +804,11 @@
           win.focus();
         } else {
           const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          downloadBlob(blob, `${bp.name || "试卷"}-双栏答案册.html`);
-          showMessage("已生成双栏排版答案册文件", 3000, "info");
+          downloadBlob(blob, `${bp.name || "试卷"}-${suffix}.html`);
+          showMessage(`已生成${suffix}文件`, 3000, "info");
         }
       } catch (e) {
-        showMessage(`打印答案册生成失败：${String(e instanceof Error ? e.message : e)}`, 4200, "error");
-      } finally {
-        printBusy = false;
-      }
-    }
-
-    async function printTeacherLecturePaper() {
-      if (printBusy || !activeBankId || !questions.length) return;
-      printBusy = true;
-      try {
-        const html = await app.buildTeacherLectureSheet(bp.name || "全真模拟试卷", activeBankId);
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-        } else {
-          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-          downloadBlob(blob, `${bp.name || "试卷"}-教师讲义教案卷.html`);
-          showMessage("已生成教师讲义教案卷文件", 3000, "info");
-        }
-      } catch (e) {
-        showMessage(`教师讲义生成失败：${String(e instanceof Error ? e.message : e)}`, 4200, "error");
+        showMessage(`生成打印卷失败：${String(e instanceof Error ? e.message : e)}`, 4200, "error");
       } finally {
         printBusy = false;
       }
@@ -897,6 +854,7 @@
           bankId: activeBankId,
           isMock: false,
         });
+        if (res.docId) lastSavedMockDoc = { docId: res.docId, title: res.title };
         showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
@@ -945,6 +903,7 @@
         bp = workingBp; // 本次考试使用去重/剔除后的蓝图（保存蓝图仍由用户显式操作）
         session = new MockSession(bp, r.paper, { sectionOf: r.sectionOf, scoreOf: r.scoreOf }, startedAt);
         cursor = 0; selected = ""; answeredMap = {}; score = null; attemptsRecorded = false;
+        scratchpadOpen = false; scratchpadStore = {}; scratchpadShared = ""; scratchpadMode = "per_question";
         session.enterSection(bp.sections[0]?.name ?? "", startedAt);
         lastSnapAt = 0;
         persistRun();
@@ -999,6 +958,9 @@
         const am: Record<string, string> = {};
         for (const a of session.answers.values()) if (a.answer != null) am[a.qid] = a.answer;
         answeredMap = am;
+        scratchpadStore = snap.scratchpad?.store ? { ...snap.scratchpad.store } : {};
+        scratchpadShared = snap.scratchpad?.sharedText ?? "";
+        scratchpadMode = snap.scratchpad?.mode ?? "per_question";
         restoreNote = r.missingQids.length ? t("mock.restoreMissing").replace("{n}", String(r.missingQids.length)) : "";
         resumable = null;
         if (r.alreadySubmitted) {
@@ -1189,6 +1151,23 @@
       } finally { submitting = false; }
     }
 
+    function buildScoreDetailsSnapshot(): import("@/core/exportScore").ScoreMarkdownDetails {
+      if (!session) return {};
+      const wrongItems: NonNullable<import("@/core/exportScore").ScoreMarkdownDetails["wrongItems"]> = [];
+      const flaggedItems: NonNullable<import("@/core/exportScore").ScoreMarkdownDetails["flaggedItems"]> = [];
+      for (const a of session.answers.values()) {
+        const q = questionMap.get(a.qid);
+        if (!q) continue;
+        const flagged = session.flags.has(a.qid);
+        if (a.verdict === "wrong") {
+          wrongItems.push({ q, myAnswer: a.answer, flagged });
+        } else if (flagged && a.verdict === "correct") {
+          flaggedItems.push({ q, myAnswer: a.answer });
+        }
+      }
+      return { wrongItems, flaggedItems };
+    }
+
     /** 成绩单导出 Markdown（本地下载） */
     let scoreExportBusy = $state(false);
     let scoreWriteBusy = $state(false);
@@ -1198,7 +1177,7 @@
       scoreExportBusy = true;
       try {
         const m = await import("@/core/exportScore");
-        const md = m.scoreToMarkdown(bp, score!, startedAt);
+        const md = m.scoreToMarkdown(bp, score!, startedAt, buildScoreDetailsSnapshot());
         const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
         downloadBlob(blob, `模考成绩单 ${bp.name}.md`);
         showMessage(t("mock.exportReady", "已开始下载文件。"), 3000, "info");
@@ -1216,9 +1195,11 @@
       const result = score;
       const blueprint = JSON.parse(JSON.stringify(bp)) as Blueprint;
       const resultStartedAt = startedAt;
+      const details = buildScoreDetailsSnapshot();
       try {
         const { scoreToMarkdown } = await import("@/core/exportScore");
-        await app.writeScoreDoc(targetBankId, scoreToMarkdown(blueprint, result, resultStartedAt));
+        const docId = await app.writeScoreDoc(targetBankId, scoreToMarkdown(blueprint, result, resultStartedAt, details));
+        if (docId) lastSavedMockDoc = { docId, title: `模考成绩单 · ${blueprint.name}` };
         showMessage(t("mock.scoreWritten", "成绩单已写入本题库的「导出」文档。"), 3200, "info");
       } catch (e) {
         scoreWriteError = t("mock.scoreWriteFailed", "成绩单写入失败，成绩仍保留，可重试或下载：{message}").replace("{message}", String(e instanceof Error ? e.message : e));
@@ -1630,37 +1611,11 @@
       <span class="lv-crumb-current">{t("tab.mock")}</span>
     </div>
     {#if app}<SaveStatus gate={app.saves} {t} />{/if}
-    <div class="lv-role-segmented lv-focus-context" role="radiogroup" aria-label="身份模式切换">
-      <button
-        type="button"
-        class="lv-role-pill"
-        class:active={userRole === "student"}
-        class:active-student={userRole === "student"}
-        role="radio"
-        aria-checked={userRole === "student"}
-        onclick={() => switchRole("student")}
-        title={t("role.student")}
-      >
-        <Icon name="academic" size={13} /> <b>{t("role.student")}</b>
-      </button>
-      <button
-        type="button"
-        class="lv-role-pill"
-        class:active={userRole === "teacher"}
-        class:active-teacher={userRole === "teacher"}
-        role="radio"
-        aria-checked={userRole === "teacher"}
-        onclick={() => switchRole("teacher")}
-        title={t("role.teacher")}
-      >
-        <Icon name="teacher" size={13} /> <b>{t("role.teacher")}</b>
-      </button>
-    </div>
     <div class="lv-row lv-focus-context lv-bank-picker-group" style="margin:0;gap:6px;align-items:center">
       {#if banksList.length > 1}
         <select
           class="lv-select sm"
-          style="max-width:160px;height:28px;font-size:12px;padding:2px 8px"
+          style="max-width:160px"
           bind:value={activeBankId}
           onchange={(e) => {
             const id = (e.target as HTMLSelectElement).value;
@@ -1699,7 +1654,7 @@
       </button>
     {/if}
   </div>
-<div class="fn__flex-1 lv-shell" data-exam-role={userRole} class:lv-shell-focus={view === "exam" || view === "report"}>
+<div class="fn__flex-1 lv-shell" class:lv-shell-focus={view === "exam" || view === "report"}>
   <Rail active="mock" taskactive="mock" tasknavhidden={view === "exam" || view === "report"} ontasknavigate={onTaskNav} {plugin} open={railOpen} onclose={closeRail}
     project={{ name: railBankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => plugin.openPractice?.()} />
   <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: ${viewportBottomPad + 16}px;` : undefined}>
@@ -1760,6 +1715,65 @@
         <span class="lv-chip lv-chip--red num" title={t("mock.quotaShortTip")}><Icon name="alert-triangle" size={11} /> {qs.name} {t("mock.quotaShort").replace("{have}", String(qs.have)).replace("{need}", String(qs.need))}</span>
       {/each}
     </div>
+    <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:8px 0 10px">
+      <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
+        <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} aria-busy={starting} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
+        <select class="lv-select" style="max-width:180px" aria-label={t("mock.pickPreset")} onchange={(e) => { const el = e.target as HTMLSelectElement; void onPresetSelected(el.value, el); }}>
+          <option value="">{t("mock.pickPreset")}</option>
+          <optgroup label="职业考证">
+            {#each presetOptions.filter((p) => p.category === "qualification") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="大学与考研硕博">
+            {#each presetOptions.filter((p) => p.category === "academic" || p.category === "postgraduate") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="K12 基础教育">
+            {#each presetOptions.filter((p) => p.category === "k12") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="公务员与法律职业">
+            {#each presetOptions.filter((p) => p.category === "civil_service" || p.category === "law") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+          <optgroup label="多语言与微测验">
+            {#each presetOptions.filter((p) => p.category === "language" || p.category === "micro") as opt (opt.id)}
+              <option value={opt.id}>{opt.title}</option>
+            {/each}
+          </optgroup>
+        </select>
+        <button class="lv-btn sm" onclick={generateAdaptiveSprint} disabled={sprintBusy || !questions.length || starting} aria-busy={sprintBusy} title="基于考点盲区与高频错题自适应装配全真密卷"><Icon name="sparkles" size={14} /> {sprintBusy ? "…" : t("mock.sprintPaper")}</button>
+      </div>
+      <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
+        <select class="lv-select sm" bind:value={mockPrintFormat} disabled={printBusy || !questions.length} aria-label="选择模考打印卷面版式">
+          <option value="exam">标准测试卷</option>
+          <option value="answer">独立答案册</option>
+          <option value="lecture">授课讲义卷</option>
+          <option value="homework">留白作业单</option>
+        </select>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => void printMockByFormat(mockPrintFormat)} disabled={printBusy || !questions.length} aria-busy={printBusy} title="按所选版式导出 A4 双栏试卷 / 答案册 / 授课讲义 / 作业单"><Icon name="file" size={13} /> {printBusy ? "…" : t("mock.printCompact")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={saveMockExamAsDoc} disabled={!questions.length} title="将当前模考试卷整套排版存为思源笔记原生文档，折叠答案与解析，即使卸载插件考卷与作答永久保留"><Icon name="folder" size={13} /> {t("mock.saveAsSiyuanDoc")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={generateABMockPapers} disabled={abBusy || !questions.length} aria-busy={abBusy} title="一键生成同考点但单选/多选选项智能洗牌防作弊的 A 卷与 B 卷"><Icon name="shuffle" size={13} /> {abBusy ? "…" : t("mock.generateAB")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={exportPaperAuditReport} disabled={!questions.length} title="基于全题库实测P值预测整卷难度系数，检出大纲空白考点与偏科考点"><Icon name="chart" size={13} /> {t("mock.paperAudit")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={saveBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="保存当前组卷蓝图"><Icon name="save" size={13} /> {blueprintBusy ? "…" : t("mock.bpSave")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={restoreBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="恢复默认组卷蓝图"><Icon name="rotate" size={13} /> {blueprintBusy ? "…" : t("mock.bpRestore")}</button>
+      </div>
+    </div>
+    {#if lastSavedMockDoc?.docId}
+      <div class="lv-row" style="margin:0 0 10px;padding:6px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px" role="status">
+        <span style="font-size:var(--lv-font-size-sm);display:inline-flex;align-items:center;gap:6px">
+          <Icon name="check" size={13} /> 已存为思源笔记文档：<b>《{lastSavedMockDoc.title}》</b>
+        </span>
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastSavedMockDoc!.docId)}>
+          <Icon name="link" size={12} /> 在思源中打开 ↗
+        </button>
+      </div>
+    {/if}
+    {#if !canStartExam && startDisabledReason}<p class="lv-muted" role="status" style="margin:4px 0">{startDisabledReason}</p>{/if}
     <div class="lv-bp-table">
       <div class="lv-bp-row head"><span>{t("mock.sec")}</span><span>{t("mock.count")}</span><span>{t("mock.each")}</span><span>{t("mock.source")}</span><span>{t("mock.secKp")}</span><span>难度梯度 (MathCyclus)</span><span></span></div>
       {#each bp.sections as s, i (i)}
@@ -1870,50 +1884,6 @@
         <b>{t("mock.needSec")}</b>
       </div>
     {/if}
-    <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0 8px">
-      <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
-        <button class="lv-btn lv-btn--primary" onclick={startExam} disabled={!canStartExam} aria-busy={starting} title={!canStartExam ? startDisabledReason : ""}><Icon name="play" size={16} /> {starting ? "…" : t("mock.start")}</button>
-        <select class="lv-select" style="max-width:180px" aria-label={t("mock.pickPreset")} onchange={(e) => { const el = e.target as HTMLSelectElement; void onPresetSelected(el.value, el); }}>
-          <option value="">{t("mock.pickPreset")}</option>
-          <optgroup label="职业考证">
-            {#each presetOptions.filter((p) => p.category === "qualification") as opt (opt.id)}
-              <option value={opt.id}>{opt.title}</option>
-            {/each}
-          </optgroup>
-          <optgroup label="大学与考研硕博">
-            {#each presetOptions.filter((p) => p.category === "academic" || p.category === "postgraduate") as opt (opt.id)}
-              <option value={opt.id}>{opt.title}</option>
-            {/each}
-          </optgroup>
-          <optgroup label="K12 基础教育">
-            {#each presetOptions.filter((p) => p.category === "k12") as opt (opt.id)}
-              <option value={opt.id}>{opt.title}</option>
-            {/each}
-          </optgroup>
-          <optgroup label="公务员与法律职业">
-            {#each presetOptions.filter((p) => p.category === "civil_service" || p.category === "law") as opt (opt.id)}
-              <option value={opt.id}>{opt.title}</option>
-            {/each}
-          </optgroup>
-          <optgroup label="多语言与微测验">
-            {#each presetOptions.filter((p) => p.category === "language" || p.category === "micro") as opt (opt.id)}
-              <option value={opt.id}>{opt.title}</option>
-            {/each}
-          </optgroup>
-        </select>
-        <button class="lv-btn sm" onclick={generateAdaptiveSprint} disabled={sprintBusy || !questions.length || starting} aria-busy={sprintBusy} title="基于考点盲区与高频错题自适应装配全真密卷"><Icon name="sparkles" size={14} /> {sprintBusy ? "…" : t("mock.sprintPaper")}</button>
-      </div>
-      <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
-        <button class="lv-btn sm lv-btn--ghost" onclick={printCompactPaper} disabled={printBusy || !questions.length} aria-busy={printBusy} title="导出标准 A4/A3 双栏试卷与答题卡"><Icon name="file" size={13} /> {printBusy ? "…" : t("mock.printCompact")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={printTeacherLecturePaper} disabled={printBusy || !questions.length} aria-busy={printBusy} title="导出包含题目、答案、考点、难度、采分点与破题教学点拨的教师讲义卷"><Icon name="book" size={13} /> {printBusy ? "…" : t("mock.printTeacher")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={saveMockExamAsDoc} disabled={!questions.length} title="将当前模考试卷整套排版存为思源笔记原生文档，折叠答案与解析，即使卸载插件考卷与作答永久保留"><Icon name="folder" size={13} /> {t("mock.saveAsSiyuanDoc")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={generateABMockPapers} disabled={abBusy || !questions.length} aria-busy={abBusy} title="一键生成同考点但单选/多选选项智能洗牌防作弊的 A 卷与 B 卷"><Icon name="shuffle" size={13} /> {abBusy ? "…" : t("mock.generateAB")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={exportPaperAuditReport} disabled={!questions.length} title="基于全题库实测P值预测整卷难度系数，检出大纲空白考点与偏科考点"><Icon name="chart" size={13} /> {t("mock.paperAudit")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={saveBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="保存当前组卷蓝图"><Icon name="save" size={13} /> {blueprintBusy ? "…" : t("mock.bpSave")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={restoreBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="恢复默认组卷蓝图"><Icon name="rotate" size={13} /> {blueprintBusy ? "…" : t("mock.bpRestore")}</button>
-      </div>
-    </div>
-    {#if !canStartExam && startDisabledReason}<p class="lv-muted" role="status" style="margin:4px 0">{startDisabledReason}</p>{/if}
     <!-- 考后估分 -->
     <details class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4)">
       <summary style="cursor:pointer;font-weight:var(--lv-font-weight-semibold);display:flex;align-items:center;justify-content:space-between;gap:var(--lv-space-3);flex-wrap:wrap">
@@ -2043,10 +2013,10 @@
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
             <div class="lv-row" style="margin:0;gap:6px">
               <b><Icon name="pencil" size={13} /> {t("scratchpad.title")}</b>
-              <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "per_question"} onclick={() => scratchpadMode = "per_question"}>
+              <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "per_question"} onclick={() => { scratchpadMode = "per_question"; persistRun(); }}>
                 {t("scratchpad.modePerQ")}
               </button>
-              <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "shared"} onclick={() => scratchpadMode = "shared"}>
+              <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "shared"} onclick={() => { scratchpadMode = "shared"; persistRun(); }}>
                 {t("scratchpad.modeShared")}
               </button>
             </div>
@@ -2644,10 +2614,15 @@
               {@const q = questionMap.get(w.qid)}
               <div class="lv-error-row" style="white-space:normal;padding:8px 12px;border-radius:var(--lv-r-1);background:var(--lv-surface-2)">
                 <div style="font-weight:600"><span class="num">#{wi + 1}</span> {q?.stem ?? w.stem}</div>
-                <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-2)">
+                <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-2);align-items:center;flex-wrap:wrap">
                   <span class="lv-chip lv-chip--acc num">标准答案: {q?.answer ?? "—"}</span>
                   {#if answeredMap[w.qid]}<span class="lv-chip lv-chip--red num">考生作答: {answeredMap[w.qid]}</span>{/if}
                   {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                  {#if q?.blockId}
+                    <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => openInSiYuan(q.rootId || "", q.blockId)}>
+                      <Icon name="pin" size={12} /> 原题 ↗
+                    </button>
+                  {/if}
                 </div>
                 {#if q?.analysis}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px"><span class="lv-badge" style="margin-right:4px">解析</span>{q.analysis}</div>{/if}
               </div>
@@ -2670,14 +2645,29 @@
         <button class="lv-btn sm lv-btn--ghost" onclick={saveMockWrongsAsDoc} title="将本次模考错题存为思源原生笔记文档"><Icon name="book" size={13} /> {t("mock.saveWrongsToDoc", "存为错题集笔记")}</button>
       {/if}
       <button class="lv-btn lv-btn--ghost sm" onclick={exportScoreMd} disabled={scoreExportBusy}><Icon name="table" size={13} /> {scoreExportBusy ? "…" : t("mock.exportScore")}</button>
-      <button class="lv-btn lv-btn--ghost sm" onclick={printCompactAnswerSheet} disabled={printBusy} title="生成带答案与详细解析的双栏出版级打印册"><Icon name="file" size={13} /> {t("mock.printAnswerSheet")}</button>
-      <button class="lv-btn lv-btn--ghost sm" onclick={printTeacherLecturePaper} disabled={printBusy} title="生成包含题目、答案、考点难度、采分点细则与破题教学点拨的教师讲义教案卷"><Icon name="book" size={13} /> {t("mock.printTeacher")}</button>
+      <select class="lv-select sm" bind:value={reportPrintFormat} disabled={printBusy} aria-label="选择考后打印版式">
+        <option value="answer">独立答案册</option>
+        <option value="lecture">授课讲义卷</option>
+        <option value="exam">标准测试卷</option>
+        <option value="homework">留白作业单</option>
+      </select>
+      <button class="lv-btn lv-btn--ghost sm" onclick={() => void printMockByFormat(reportPrintFormat)} disabled={printBusy} title="按所选版式打印答案册、授课讲义或测试卷"><Icon name="file" size={13} /> {t("mock.printAnswerSheet")}</button>
       {#if activeBankId}
         <button class="lv-btn lv-btn--ghost sm" onclick={writeScoreDoc} disabled={scoreWriteBusy} aria-busy={scoreWriteBusy}><Icon name="book" size={14} /> {scoreWriteBusy ? t("mock.scoreWriting", "正在写入成绩单…") : scoreWriteError ? t("mock.scoreWriteRetry", "重试写入成绩单") : t("mock.exportToDoc")}</button>
       {/if}
       {#if wrongList.length}<button class="lv-btn lv-btn--primary" disabled={rewrongBusy} onclick={rewrongDrill}><Icon name="xcircle" size={15} /> {rewrongBusy ? "…" : t("mock.rewrong")}</button>{/if}
       <button class="lv-btn" onclick={showConfig} disabled={scoreWriteBusy || scoreExportBusy || rewrongBusy}><Icon name="rotate" size={15} /> {t("mock.again")}</button>
     </div>
+    {#if lastSavedMockDoc?.docId}
+      <div class="lv-row" style="margin:8px 0 0;padding:6px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px" role="status">
+        <span style="font-size:var(--lv-font-size-sm);display:inline-flex;align-items:center;gap:6px">
+          <Icon name="check" size={13} /> 已存为思源笔记文档：<b>《{lastSavedMockDoc.title}》</b>
+        </span>
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastSavedMockDoc!.docId)}>
+          <Icon name="link" size={12} /> 在思源中打开 ↗
+        </button>
+      </div>
+    {/if}
     {#if scoreWriteError}<div class="lv-error" role="alert">{scoreWriteError}</div>{/if}
   {/if}
 </div>
@@ -2696,11 +2686,6 @@
   /* .lv-btn/.lv-select 外观基线上收 lv-base.scss */
   .lv-flag-btn { min-width: 34px; padding: 5px 8px; }
   .lv-flag-btn--on { border-color: var(--lv-amber); color: var(--lv-amber); background: var(--lv-amber-soft); }
-  .lv-chip { display: inline-flex; align-items: center; gap: var(--lv-space-1); padding: 3px var(--lv-space-3); border-radius: var(--lv-r-1); font-size: var(--lv-font-size-sm); font-weight: var(--lv-font-weight-medium); color: var(--lv-text-2); background: var(--lv-surface-2); border: 1px solid transparent; }
-  .lv-chip.grn { color: var(--lv-green); background: var(--lv-green-soft); }
-  .lv-chip.red { color: var(--lv-red); background: var(--lv-red-soft); }
-  .lv-chip--amb { color: var(--lv-amber); background: var(--lv-amber-soft); border-color: color-mix(in srgb, var(--lv-amber) 25%, transparent); }
-  .lv-chip--red { color: var(--lv-red); background: var(--lv-red-soft); border-color: color-mix(in srgb, var(--lv-red) 25%, transparent); }
   .lv-card { background: var(--lv-surface); border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-3); padding: var(--lv-space-5) var(--lv-space-6); box-shadow: var(--lv-sh-card, var(--lv-sh-1)), var(--lv-inset-highlight, inset 0 1px 0 transparent); transition: box-shadow var(--lv-dur-view) var(--lv-ease-out), transform var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -.2px; margin-bottom: 16px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; }
   .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }

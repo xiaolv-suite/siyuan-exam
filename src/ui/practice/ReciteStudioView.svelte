@@ -14,8 +14,9 @@
     reciteAutoTts: boolean;
     ttsSlowRate: boolean;
     studyFontSize: string;
-    speechRecording: boolean;
-    speechEvalResult: SpeechEvalResult | null;
+    speechEvalEnabled?: boolean;
+    speechRecording?: boolean;
+    speechEvalResult?: SpeechEvalResult | null;
     reciteMaterial: string;
     stemHtml: string;
     reciteHint: number;
@@ -27,7 +28,7 @@
     ttsSupported: () => boolean;
     onexit: () => void;
     oncycleStudyFontSize: () => void;
-    onstartSpeech: (target: string, lang: string) => void;
+    onstartSpeech?: (target: string, lang: string) => void;
     onjumpSource: () => void;
     onttsSpeak: (text: string, opt?: any) => void;
     onretryForgot: () => void;
@@ -37,7 +38,7 @@
     onstartNextRecite: () => void;
     onreveal: () => void;
     onrateSelf: (r: 1 | 2 | 3 | 4) => void;
-    ondismissSpeechEval: () => void;
+    ondismissSpeechEval?: () => void;
     ontoggleAutoTts: () => void;
     ontoggleTtsSlow: () => void;
     ontoggleHint: () => void;
@@ -52,8 +53,9 @@
     reciteAutoTts,
     ttsSlowRate,
     studyFontSize,
-    speechRecording,
-    speechEvalResult,
+    speechEvalEnabled = false,
+    speechRecording = false,
+    speechEvalResult = null,
     reciteMaterial,
     stemHtml,
     reciteHint,
@@ -101,9 +103,11 @@
       <button type="button" class="lv-chip num sm" onclick={oncycleStudyFontSize} aria-label="切换题干字号大小" title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）">
         A{studyFontSize === "normal" ? "" : studyFontSize === "large" ? "⁺" : "²⁺"}
       </button>
-      <button type="button" class="lv-chip" class:acc={speechRecording} aria-pressed={speechRecording} aria-label="开启麦克风发音跟读录音" onclick={() => onstartSpeech(reciteQueue[reciteCursor]?.answer || reciteQueue[reciteCursor]?.stem, reciteQueue[reciteCursor]?.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
-        <Icon name="mic" size={12} /> {speechRecording ? "跟读中…" : "跟读"}
-      </button>
+      {#if (reciteQueue[reciteCursor]?.studyMeta?.lang || reciteQueue[reciteCursor]?.studyMeta?.phonetic || speechEvalEnabled) && onstartSpeech}
+        <button type="button" class="lv-chip" class:acc={speechRecording} aria-pressed={speechRecording} aria-label="开启麦克风发音跟读录音" onclick={() => onstartSpeech(reciteQueue[reciteCursor]?.answer || reciteQueue[reciteCursor]?.stem, reciteQueue[reciteCursor]?.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
+          <Icon name="mic" size={12} /> {speechRecording ? "跟读中…" : "跟读"}
+        </button>
+      {/if}
       {#if reciteQueue[reciteCursor]?.group}
         <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
       {/if}
@@ -171,7 +175,9 @@
           {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: reciteRevealed ? [q.occlusion.activeMaskId || ""] : [] })}
         </div>
       {/if}
-      <SpeechEvalCapsule result={speechEvalResult} ondismiss={ondismissSpeechEval} />
+      {#if speechEvalResult && ondismissSpeechEval}
+        <SpeechEvalCapsule result={speechEvalResult} ondismiss={ondismissSpeechEval} />
+      {/if}
       {#if !reciteRevealed}
         {#if q.kp || q.analysis}
           <div class="lv-row"><button class="lv-chip" onclick={ontoggleHint} title={q.analysis ? t("recite.hint2Key") : ""}><Icon name="bulb" size={12} /> {reciteHint >= 2 ? t("recite.hint2") : t("recite.hint1")}：{reciteHint >= 2 ? (q.analysis ?? "").slice(0, 24) : (q.kp ?? q.analysis ?? "").slice(0, 24)}</button></div>

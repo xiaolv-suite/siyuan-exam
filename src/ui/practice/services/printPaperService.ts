@@ -3,6 +3,72 @@ import type { PrintProOptions } from "@/core/printPro";
 
 export type MessageReporter = (msg: string, timeoutMs?: number, type?: "info" | "error") => void;
 
+export type PrintPaperFormat = "exam" | "answer" | "lecture" | "homework";
+
+/**
+ * 按选定卷面版式（标准测试卷 / 独立答案册 / 授课讲义卷 / 留白作业单）生成打印 HTML 并打开或回退下载
+ */
+export async function printQuestionsByFormat(
+  format: PrintPaperFormat,
+  bankName: string,
+  targetQuestions: Question[],
+  showMessage: MessageReporter,
+  customOptions: Partial<PrintProOptions> = {},
+): Promise<void> {
+  if (!targetQuestions.length) return;
+  const label = bankName || "题库";
+  try {
+    const {
+      buildCompactQuestionSheetPro,
+      buildCompactAnswerSheetPro,
+      buildTeacherLectureSheetPro,
+      buildStudentHomeworkSheetPro,
+    } = await import("@/core/printPro");
+
+    if (format === "answer") {
+      const html = buildCompactAnswerSheetPro(`${label} · 独立答案册`, targetQuestions, {
+        paperSize: "A4",
+        columns: "double",
+        ...customOptions,
+      });
+      openOrDownloadHtml(html, `${label}-独立答案册.html`, "已生成独立答案册文件", showMessage);
+      return;
+    }
+    if (format === "lecture") {
+      const html = buildTeacherLectureSheetPro(label, targetQuestions, {
+        paperSize: "A4",
+        columns: "double",
+        groupByKp: true,
+        ...customOptions,
+      });
+      openOrDownloadHtml(html, `${label}-授课讲义卷.html`, "已生成授课讲义卷文件", showMessage);
+      return;
+    }
+    if (format === "homework") {
+      const html = buildStudentHomeworkSheetPro(label, targetQuestions, {
+        paperSize: "A4",
+        columns: "double",
+        groupByKp: true,
+        ...customOptions,
+      });
+      openOrDownloadHtml(html, `${label}-留白作业单.html`, "已生成留白作业单文件", showMessage);
+      return;
+    }
+    const html = buildCompactQuestionSheetPro(`${label} · 标准测试卷`, targetQuestions, {
+      headerTitle: `${label} · 标准试卷`,
+      paperSize: "A4",
+      columns: "double",
+      groupByKp: true,
+      showSealLine: customOptions.showSealLine ?? true,
+      showExamNotice: customOptions.showExamNotice ?? true,
+      ...customOptions,
+    });
+    openOrDownloadHtml(html, `${label}-标准测试卷.html`, "已生成标准测试卷文件", showMessage);
+  } catch (e) {
+    showMessage(`生成打印版式失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+  }
+}
+
 /**
  * 试卷打印/导出辅助：优先尝试新窗口唤起打印，遇拦截则优雅回退为 HTML 文件直接下载
  */
@@ -29,80 +95,6 @@ export function openOrDownloadHtml(
 }
 
 /**
- * 生成题库标准双栏试卷 (exam-zh 规范：默认带密封线与考生须知)
- */
-export async function printBankDoubleColumnPaper(
-  bankName: string,
-  questions: Question[],
-  showMessage: MessageReporter,
-  customOptions: Partial<PrintProOptions> = {},
-): Promise<void> {
-  if (!questions.length) return;
-  try {
-    const { buildCompactQuestionSheetPro } = await import("@/core/printPro");
-    const html = buildCompactQuestionSheetPro(`${bankName || "题库"} · 教学测试卷`, questions, {
-      headerTitle: `${bankName || "题库"} · 标准试卷`,
-      paperSize: "A4",
-      columns: "double",
-      showSealLine: customOptions.showSealLine ?? true,
-      showExamNotice: customOptions.showExamNotice ?? true,
-      ...customOptions,
-    });
-    openOrDownloadHtml(html, `${bankName || "题库"}-标准双栏试卷.html`, "已生成标准双栏试卷文件", showMessage);
-  } catch (e) {
-    showMessage(`打印双栏试卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-  }
-}
-
-/**
- * 生成题库教师讲义教案卷
- */
-export async function exportBankTeacherPaper(
-  bankName: string,
-  questions: Question[],
-  showMessage: MessageReporter,
-  customOptions: Partial<PrintProOptions> = {},
-): Promise<void> {
-  if (!questions.length) return;
-  try {
-    const { buildTeacherLectureSheetPro } = await import("@/core/printPro");
-    const html = buildTeacherLectureSheetPro(`${bankName || "题库"}`, questions, {
-      paperSize: "A4",
-      columns: "double",
-      groupByKp: true,
-      ...customOptions,
-    });
-    openOrDownloadHtml(html, `${bankName || "题库"}-教师讲义教案卷.html`, "已生成教师讲义教案卷文件", showMessage);
-  } catch (e) {
-    showMessage(`导出教师讲义失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-  }
-}
-
-/**
- * 生成题库学生课后作业导学单
- */
-export async function printBankHomeworkSheet(
-  bankName: string,
-  questions: Question[],
-  showMessage: MessageReporter,
-  customOptions: Partial<PrintProOptions> = {},
-): Promise<void> {
-  if (!questions.length) return;
-  try {
-    const { buildStudentHomeworkSheetPro } = await import("@/core/printPro");
-    const html = buildStudentHomeworkSheetPro(`${bankName || "题库"}`, questions, {
-      paperSize: "A4",
-      columns: "double",
-      groupByKp: true,
-      ...customOptions,
-    });
-    openOrDownloadHtml(html, `${bankName || "题库"}-课后作业导学单.html`, "已生成课后作业导学单文件", showMessage);
-  } catch (e) {
-    showMessage(`打印作业导学单失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-  }
-}
-
-/**
  * 打印勾选精选题卷 (exam-zh 规范)
  */
 export async function printSelectedQuestionsPaper(
@@ -125,50 +117,6 @@ export async function printSelectedQuestionsPaper(
     openOrDownloadHtml(html, `${bankName || "题库"}-精选题卷.html`, "已生成勾选题排版试卷文件", showMessage);
   } catch (e) {
     showMessage(`打印勾选题失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-  }
-}
-
-/**
- * 打印勾选题备课讲义
- */
-export async function printSelectedTeacherPaper(
-  bankName: string,
-  targetQuestions: Question[],
-  showMessage: MessageReporter,
-): Promise<void> {
-  if (!targetQuestions.length) return;
-  try {
-    const { buildTeacherLectureSheetPro } = await import("@/core/printPro");
-    const html = buildTeacherLectureSheetPro(`${bankName || "题库"} · 勾选题备课讲义`, targetQuestions, {
-      paperSize: "A4",
-      columns: "double",
-      groupByKp: true,
-    });
-    openOrDownloadHtml(html, `${bankName || "题库"}-勾选题备课讲义.html`, "已生成勾选题教师讲义教案文件", showMessage);
-  } catch (e) {
-    showMessage(`导出勾选题讲义失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
-  }
-}
-
-/**
- * 打印勾选题分层作业单
- */
-export async function printSelectedHomeworkSheet(
-  bankName: string,
-  targetQuestions: Question[],
-  showMessage: MessageReporter,
-): Promise<void> {
-  if (!targetQuestions.length) return;
-  try {
-    const { buildStudentHomeworkSheetPro } = await import("@/core/printPro");
-    const html = buildStudentHomeworkSheetPro(`${bankName || "题库"} · 勾选题分层作业单`, targetQuestions, {
-      paperSize: "A4",
-      columns: "double",
-      groupByKp: true,
-    });
-    openOrDownloadHtml(html, `${bankName || "题库"}-课后作业单.html`, "已生成勾选题课后分层作业单", showMessage);
-  } catch (e) {
-    showMessage(`导出作业单失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
   }
 }
 

@@ -269,12 +269,21 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       value: true,
       direction: "row",
     });
+    this.settingUtils.addItem({
+      title: `[语音音效] ${this.i18n["setting.speechEvalEnabled.title"]}`,
+      description: this.i18n["setting.speechEvalEnabled.desc"],
+      type: "checkbox",
+      key: "speechEvalEnabled",
+      value: false,
+      direction: "row",
+    });
 
     this.registerTabs();
     if (!this.isMobile) {
       this.registerTopBar();
     }
     this.registerCommands();
+    this.registerProtyleSlash();
     // 47-05 lite：注册完成后的值即默认值（load() 在 onLayoutReady 才覆盖）——快照供「恢复默认」
     this.settingDefaults = new Map([...this.settingUtils.settings].map(([k, item]) => [k, item.value]));
 
@@ -606,6 +615,45 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     });
   }
 
+  private registerProtyleSlash() {
+    this.protyleSlash.push({
+      filter: ["转为试题", "录入试题", "提取试题", "zhuanwei", "exam", "tiqu", "shiti"],
+      html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconExam"></use></svg><span class="b3-list-item__text">${this.i18n["slash.convertToQuestion"] ?? "转为小驴试题（录入题库）"}</span></div>`,
+      id: "lv-exam-convert-to-question",
+      callback: async (_protyle: unknown, nodeElement: HTMLElement) => {
+        const blockId = nodeElement?.getAttribute?.("data-node-id") || nodeElement?.dataset?.nodeId || "";
+        if (!blockId || !this.examApp) {
+          showMessage(this.i18n["state.offlineHint"] ?? "请稍候，应用初始化中…", 3000, "info");
+          return;
+        }
+        const bank = this.examApp.listBanks()[0];
+        if (!bank) {
+          showMessage(this.i18n["guard.needBankFirst"] ?? "请先创建一个题库", 3600, "error");
+          return;
+        }
+        try {
+          const kramdown = await this.examApp.deps.client.getBlockKramdown(blockId);
+          const source = combineBlockSources([kramdown]);
+          const blockTitle = (nodeElement?.getAttribute?.("aria-label") || nodeElement?.getAttribute?.("data-type") || "笔记段落").trim();
+          openPracticeView(this, "entry", {
+            bankId: bank.id,
+            sourceText: source.text || nodeElement.textContent?.trim() || "",
+            sourceTitle: blockTitle,
+            sourceKind: "block",
+            sourceBlockId: blockId,
+          });
+        } catch {
+          openPracticeView(this, "entry", {
+            bankId: bank.id,
+            sourceText: nodeElement.textContent?.trim() || "",
+            sourceKind: "block",
+            sourceBlockId: blockId,
+          });
+        }
+      },
+    });
+  }
+
   private openTabByType(type: string, icon: string, title: string): boolean {
     // 早于应用就绪的点击延后执行，避免把 null app 固定传入永久报错的页签。
     if (this.appInitializing) {
@@ -715,6 +763,40 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       // cross the tab request or be persisted by the host.
       detail.menu.addItem({
         iconHTML: "<svg><use xlink:href='#iconExam'></use></svg>",
+        label: this.i18n["blockMenu.convertToQuestion"] ?? "转为小驴试题（录入题库）",
+        click: async () => {
+          if (!exam.kernelOnline) {
+            showMessage(this.i18n["state.offlineHint"], 3600, "error");
+            return;
+          }
+          const bank = exam.listBanks()[0];
+          if (!bank) {
+            showMessage(this.i18n["guard.needBankFirst"], 3600, "error");
+            return;
+          }
+          try {
+            const kramdown = await exam.deps.client.getBlockKramdown(blockId);
+            const source = combineBlockSources([kramdown]);
+            openPracticeView(this, "entry", {
+              bankId: bank.id,
+              sourceText: source.text || el.textContent?.trim() || "",
+              sourceTitle: blockTitle,
+              sourceKind: "block",
+              sourceBlockId: blockId,
+            });
+          } catch {
+            openPracticeView(this, "entry", {
+              bankId: bank.id,
+              sourceText: el.textContent?.trim() || "",
+              sourceTitle: blockTitle,
+              sourceKind: "block",
+              sourceBlockId: blockId,
+            });
+          }
+        },
+      });
+      detail.menu.addItem({
+        iconHTML: "<svg><use xlink:href='#iconExam'></use></svg>",
         label: this.i18n["blockMenu.generateFromBlock"],
         click: async () => {
           if (!exam.kernelOnline) {
@@ -739,6 +821,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
               sourceTitle: blockTitle,
               sourceKind: "block",
               sourceTruncated: source.truncated,
+              sourceBlockId: blockId,
             });
             if (source.truncated) {
               showMessage(this.i18n["blockMenu.blockSourceTruncated"].replace("{n}", String(source.text.length)), 4200, "info");

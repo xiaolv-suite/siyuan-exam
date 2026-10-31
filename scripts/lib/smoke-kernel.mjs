@@ -16,6 +16,7 @@
 /** 历来所有冒烟临时笔记本前缀（新脚本一律用 lv-exam-smoke-；旧前缀保留供清扫） */
 export const SCRATCH_PREFIXES = [
   "lv-exam-smoke-",
+  "题库/lv-exam-smoke-",
   "lv-exam-preflight-",
   "小驴考试-数据冒烟-",
   "小驴考试-性能基准-",

@@ -39,43 +39,6 @@ describe("考点先修图谱与国家新课标大纲预设持久化 (kpRelations
     expect(app2.kpRelationsDoc().relations[0].to).toBe("数与代数/有理数");
   });
 
-  it("2. addKpRelation 与 removeKpRelation 单项维护操作", async () => {
-    const storage = new MemoryStorage();
-    const app = new ExamApp({ client: stubClient(), storage });
-    await app.init("device-1");
-
-    await app.addKpRelation({
-      from: "图形与几何/勾股定理",
-      to: "图形与几何/全等三角形",
-      kind: "prereq",
-      source: "manual",
-      confirmed: true,
-      createdAt: 2000,
-    });
-
-    expect(app.kpRelationsDoc().relations).toHaveLength(1);
-
-    // 重复添加同端点同类型，自动覆盖不重复
-    await app.addKpRelation({
-      from: "图形与几何/勾股定理",
-      to: "图形与几何/全等三角形",
-      kind: "prereq",
-      source: "manual",
-      confirmed: false,
-      createdAt: 3000,
-    });
-    expect(app.kpRelationsDoc().relations).toHaveLength(1);
-    expect(app.kpRelationsDoc().relations[0].confirmed).toBe(false);
-
-    // 移除关系
-    await app.removeKpRelation({
-      from: "图形与几何/勾股定理",
-      to: "图形与几何/全等三角形",
-      kind: "prereq",
-    });
-    expect(app.kpRelationsDoc().relations).toHaveLength(0);
-  });
-
   it("3. applyTaxonomyPreset 一键载入国家新课标图谱大纲与先修依赖", async () => {
     const storage = new MemoryStorage();
     const app = new ExamApp({ client: stubClient(), storage });

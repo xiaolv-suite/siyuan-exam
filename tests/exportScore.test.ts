@@ -39,6 +39,37 @@ describe("成绩单导出 Markdown", () => {
     expect(md).toContain("标旗 1");
     expect(md).toContain("最后 20 分钟");
   });
+
+  it("含失分与标旗存疑题目的思源原生块引用 ((blockId)) 复盘清单", () => {
+    const q1 = { ...makeQ("A"), stem: "微分方程通解计算", kp: "高数/微分方程", blockId: "20261031120000-abcdef1" };
+    const q2 = { ...makeQ("B"), stem: "矩阵特征值性质判定", kp: "线代/特征值", blockId: "20261031120000-abcdef2" };
+    const r = {
+      paper: [q1, q2],
+      sectionOf: new Map([
+        [q1.id, "言语"],
+        [q2.id, "言语"],
+      ]),
+      scoreOf: new Map([
+        [q1.id, 1],
+        [q2.id, 1],
+      ]),
+      shortages: [],
+    };
+    const s = new MockSession(bp, [q1, q2], r, 1_700_000_000_000);
+    s.setAnswer(q1.id, "B", 1_700_001_000);
+    s.setAnswer(q2.id, "B", 1_700_002_000);
+    s.toggleFlag(q2.id);
+    s.submit(1_700_003_600_000);
+    const score = s.score();
+    const md = scoreToMarkdown(bp, score, 1_700_000_000_000, {
+      wrongItems: [{ q: q1, myAnswer: "B", flagged: false }],
+      flaggedItems: [{ q: q2, myAnswer: "B" }],
+    });
+    expect(md).toContain("## 本场失分题目订正清单");
+    expect(md).toContain('((20261031120000-abcdef1 "微分方程通解计算"))');
+    expect(md).toContain("## 考场标旗存疑但蒙对题目");
+    expect(md).toContain('((20261031120000-abcdef2 "矩阵特征值性质判定"))');
+  });
 });
 
 import { makeQuestion } from "../src/core/blockTemplate";

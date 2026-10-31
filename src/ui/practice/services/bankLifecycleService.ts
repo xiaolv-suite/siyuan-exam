@@ -129,7 +129,7 @@ export async function executeCycleBankCategory(
 export async function executeSyncBankToDoc(
   app: ExamApp,
   bId: string,
-): Promise<{ title: string }> {
+): Promise<{ docId: string; title: string; hpath: string }> {
   return await app.syncBankToSiyuanDoc(bId);
 }
 
@@ -144,7 +144,7 @@ export async function executeSaveWrongbookToDoc(
     questions: Question[];
     wrongQids: string[];
   },
-): Promise<{ title: string; count: number } | null> {
+): Promise<{ docId: string; title: string; count: number } | null> {
   const { bankName, activeBankId, questions, wrongQids } = options;
   const wrongSet = new Set(wrongQids);
   const qs = questions.filter((q) => wrongSet.has(q.id));
@@ -154,7 +154,7 @@ export async function executeSaveWrongbookToDoc(
     bankId: activeBankId,
     isMock: false,
   });
-  return { title: res.title, count: qs.length };
+  return { docId: res.docId, title: res.title, count: qs.length };
 }
 
 /**

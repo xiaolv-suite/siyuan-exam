@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { Question } from "../src/core/types";
+import { ExamApp } from "../src/app";
+import { MemoryStorage } from "../src/core/attemptLog";
+import { KernelApiClient, type KernelTransport } from "../src/kernel/client";
 import {
   cleanSiyuanDocMarkdown,
   parseQuestionsFromSiyuanDoc,
@@ -399,6 +402,62 @@ abundant :: 丰富的，充裕的
       expect(report.errors.length).toBeGreaterThan(0);
       expect(report.errors[0].reason).toContain("未检测到题目内容");
       expect(report.errors[0].reason).not.toContain("缺少 ANSWER 行");
+    });
+  });
+
+  describe("3. 思源文档任务块状态反向同步回插件行动清单 (syncActionsFromDoc)", () => {
+    it("思源文档任务块被勾选 - [x] 时反向同步将插件行动标记为 done", async () => {
+      const sqlRows: Array<Record<string, unknown>> = [
+        {
+          id: "task-blk-1",
+          root_id: "doc-journal-1",
+          markdown: '- [x] 重练：算术/四则运算 · ((20261031100000-qblock1 "1+1等于几？"))',
+          content: "重练：算术/四则运算",
+          ial: '{: custom-exam-act-id="act-test-1"}',
+          subtype: "t",
+        },
+      ];
+
+      const transport: KernelTransport = {
+        async post(endpoint, payload) {
+          if (endpoint === "/api/query/sql") {
+            const stmt = String((payload as any)?.stmt ?? "");
+            if (stmt.includes("hpath='/小驴考试/03 备考行动与复盘日志'")) {
+              return { code: 0, data: [{ id: "doc-journal-1" }] };
+            }
+            if (stmt.includes("custom-exam-act-id=")) {
+              return { code: 0, data: sqlRows };
+            }
+          }
+          return { code: 0, data: [] };
+        },
+      };
+
+      const storage = new MemoryStorage();
+      const app = new ExamApp({ client: new KernelApiClient(transport), storage });
+      await app.init("d-t");
+
+      // 预置行动项
+      await app.addActions([
+        { kind: "redo", qid: "q-1", detail: "重练：算术/四则运算" } as any,
+      ]);
+      const openBefore = await app.listOpenActions();
+      expect(openBefore.length).toBe(1);
+      const actId = openBefore[0].id;
+
+      // 更新 mock 中的 action id
+      sqlRows[0].ial = `{: custom-exam-act-id="${actId}"}`;
+
+      // 执行反向同步
+      const syncResult = await app.syncActionsFromDoc("nb-1");
+      expect(syncResult.syncedCount).toBe(1);
+
+      const openAfter = await app.listOpenActions();
+      expect(openAfter.length).toBe(0);
+
+      // 再次同步，幂等 0 项
+      const syncAgain = await app.syncActionsFromDoc("nb-1");
+      expect(syncAgain.syncedCount).toBe(0);
     });
   });
 });

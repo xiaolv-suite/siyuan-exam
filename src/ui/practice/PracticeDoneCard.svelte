@@ -48,6 +48,7 @@
     oneditReflection: (qid: string) => void;
     onrunMisdiagnosis: (a: any) => void;
     onadoptMisdiagnosis: (qid: string) => void;
+    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
     onexitSession: () => void;
   }
 
@@ -84,6 +85,7 @@
     oneditReflection,
     onrunMisdiagnosis,
     onadoptMisdiagnosis,
+    onopenInSiYuan,
     onexitSession,
   }: Props = $props();
 
@@ -262,7 +264,7 @@
                 <!-- 52-04：上次检查点回显 -->
                 <div class="lv-muted" style="font-size:var(--lv-font-size-caption)"><Icon name="pencil" size={12} /> {t("reflection.last").replace("{d}", new Date(reflections[a.qid].at).toLocaleDateString())}：{reflections[a.qid].text}</div>
               {/if}
-              <div class="lv-row" style="margin:4px 0 0;gap:var(--lv-space-1)">
+              <div class="lv-row" style="margin:4px 0 0;gap:var(--lv-space-1);flex-wrap:wrap">
                 <button class="lv-btn sm lv-btn--ghost" onclick={() => oneditReflection(a.qid)}>
                   <Icon name="pencil" size={13} /> {reflections[a.qid] ? t("reflection.edit") : t("reflection.add")}
                 </button>
@@ -271,6 +273,11 @@
                   onclick={() => onrunMisdiagnosis(a)}>
                   <Icon name="flask" size={13} /> {misdiagnosisBusy === a.qid ? "…" : t("misdiagnosis.ask")}
                 </button>
+                {#if aq?.blockId && onopenInSiYuan}
+                  <button class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(aq.rootId || "", aq.blockId)} title="在思源笔记中打开并高亮原题块">
+                    <Icon name="link" size={13} /> {t("session.stageSourceOpen", "打开思源原块")} ↗
+                  </button>
+                {/if}
               </div>
               {#if misdiagnosisText[a.qid]}
                 <div class="lv-detail" style="margin:4px 0 0;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">{misdiagnosisText[a.qid]}</div>
