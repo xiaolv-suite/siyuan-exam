@@ -292,6 +292,40 @@ D. 运行维护
       expect(report.ok[1].options).toHaveLength(4);
       expect(report.ok[1].options[3]).toBe("运行维护");
     });
+
+    it("支持单篇思源笔记中多格式混合穷尽识别（选择题+自然判断+标题问答+列表定义+高亮挖空）", async () => {
+      const docMarkdown = `
+# 操作系统考点大集锦
+
+## 一、客观选择题
+1. 下列选项中属于进程通信方式的是（ A ）
+A. 管道  B. 寄存器  C. 栈  D. 堆
+
+## 二、基础判断题
+1. 线程拥有自己独立的地址空间。( × )
+
+## 三、核心概念速查
+在 Linux 中，==fork()== 系统调用用于创建新进程。
+
+### 什么是死锁？
+死锁是指两个或两个以上的进程因争夺资源而无限等待。
+
+- 临界区：进程中访问临界资源的那段代码。
+- 信号量：用于进程同步与互斥的计数器变量。
+      `.trim();
+
+      const report = await parseQuestionsFromSiyuanDoc(docMarkdown, {
+        docId: "doc-mixed",
+        title: "操作系统全能笔记",
+      });
+
+      expect(report.ok.length).toBeGreaterThanOrEqual(6);
+      const types = report.ok.map((q) => q.type);
+      expect(types).toContain("single");
+      expect(types).toContain("judge");
+      expect(types).toContain("fill");
+      expect(types).toContain("short");
+    });
   });
 
   describe("2. 题库与试卷同步为思源笔记原生文档 (siyuanSyncDoc)", () => {

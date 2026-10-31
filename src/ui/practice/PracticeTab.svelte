@@ -313,6 +313,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       isNoteFormDirty,
       extractNoteEditValues,
       filterMaterialsList,
+      extractDocxTextFromBytes,
     } from "./services/materialManagementService";
     import {
       loadSmartViewsAux,
@@ -4287,10 +4288,25 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
 
-      // 2. 如果用户误选了 Word 文档 (.docx / .doc)：友好提示分流
-      if (/\.(docx|doc)$/i.test(fileName)) {
+      // 2. 如果用户选择了 Word 文档 (.docx)：直接零依赖解压提取正文并自动解析出题
+      if (/\.docx$/i.test(fileName)) {
         input.value = "";
-        showMessage(`《${file.name}》为 Word 文档。请在上方切换到「研学资料库」上传，或复制文档正文直接粘贴到下方文本框中导入！`, 5200, "info");
+        importParsing = true;
+        try {
+          const buf = await file.arrayBuffer();
+          const docxText = await extractDocxTextFromBytes(new Uint8Array(buf));
+          if (!docxText.trim()) {
+            importError = `Word 文档《${file.name}》中未提取到有效段落正文`;
+          } else {
+            importText = docxText;
+            showMessage(`已成功提取 Word 文档《${file.name}》正文文本，正在自动解析试题…`, 3200, "info");
+            doParseText();
+          }
+        } catch (err) {
+          importError = `Word 文档提取失败：${String(err instanceof Error ? err.message : err)}`;
+        } finally {
+          importParsing = false;
+        }
         return;
       }
 

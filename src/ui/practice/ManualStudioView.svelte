@@ -127,7 +127,7 @@
   <div class="lv-row">
     <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
     <span class="lv-chip">{t("manual.title")}</span>
-    <button class="lv-btn sm" onclick={onopenOcrModal} title="粘贴试题识别文本一键智能提取填入表单"><Icon name="camera" size={13} /> {t("manual.ocrFastFill")}</button>
+    <button class="lv-btn sm lv-btn--primary" onclick={onopenOcrModal} title="粘贴整段试题文本或试卷图片，一键智能拆分填入所有字段"><Icon name="sparkles" size={13} /> ⚡ 智能粘贴拆单</button>
     <button class="lv-btn sm" onclick={onnormalizeFormulas} title="清洗题干与选项中公式的空格与语法"><Icon name="sparkles" size={13} /> {t("manual.formulaNormalize")}</button>
     <select class="lv-select" style="max-width:135px" aria-label="插入数学图表" onchange={(e) => {
       const val = (e.target as HTMLSelectElement).value;
@@ -164,20 +164,67 @@
   {#if ocrModalOpen}
     <div class="lv-card" style="margin:10px 0;background:var(--lv-surface-2);border:1px solid var(--lv-accent-soft);border-radius:var(--lv-r-3, 16px);box-shadow:var(--lv-sh-1)">
       <label class="lv-field">
-        <span style="font-weight:var(--lv-font-weight-semibold)">{t("manual.ocrPrompt")}</span>
-        <textarea class="lv-input lv-textarea" style="min-height:90px;margin-top:6px" bind:value={ocrInputText} aria-label="OCR 识别文本" placeholder="粘贴整段试题识别文本（支持题干、A. B. C. D. 选项、答案、解析），点击解析填单即可自动分类填入下方表单"></textarea>
+        <span style="font-weight:var(--lv-font-weight-semibold);display:flex;align-items:center;gap:6px">
+          <Icon name="sparkles" size={14} /> ⚡ 智能试题文本拆单与识别填入
+        </span>
+        <textarea class="lv-input lv-textarea" style="min-height:100px;margin-top:6px" bind:value={ocrInputText} aria-label="智能拆单文本" placeholder="直接粘贴整段试题文本（支持任意排版：单选、多选、判断、填空、问答，自动拆分题干、A/B/C/D 选项、答案、解析与考点）"></textarea>
       </label>
       <div class="lv-row" style="margin-top:8px">
-        <button class="lv-btn lv-btn--primary sm" onclick={onapplyOcrFill} disabled={!ocrInputText.trim()}>{t("manual.ocrFastFill")}</button>
+        <button class="lv-btn lv-btn--primary sm" onclick={onapplyOcrFill} disabled={!ocrInputText.trim()}>
+          <Icon name="sparkles" size={13} /> 一键智能拆分填入
+        </button>
         <button type="button" class="lv-btn sm lv-btn--ghost" disabled={ocrUploadBusy} onclick={(e) => ((e.currentTarget as HTMLElement).nextElementSibling as HTMLInputElement | null)?.click()}>
-          <Icon name="file" size={13} /> {ocrUploadBusy ? t("manual.ocrUploading") : t("manual.ocrUploadImage")}
+          <Icon name="camera" size={13} /> {ocrUploadBusy ? t("manual.ocrUploading") : "选择试卷图片识别"}
         </button>
         <input type="file" accept="image/*" style="display:none" onchange={onfileInputChange} disabled={ocrUploadBusy} />
-        <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("manual.ocrPasteTip")}</span>
+        <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">支持快捷键 Ctrl+V 直接粘贴试卷图片或文本</span>
         <button class="lv-btn lv-btn--ghost sm" style="margin-left:auto" onclick={() => (ocrModalOpen = false)}>取消</button>
       </div>
     </div>
   {/if}
+  <div class="lv-row" style="margin:6px 0 10px;gap:6px;align-items:center;flex-wrap:wrap">
+    <span class="lv-muted" style="font-size:11px">⚡ 快速填充题型模板：</span>
+    <button type="button" class="lv-chip sm" onclick={() => {
+      mType = "single";
+      mStem = "计算机网络中负责端到端可靠数据传输的协议是？";
+      mOptions = ["TCP", "UDP", "IP", "ICMP"];
+      mAnswer = "A";
+      mAnalysis = "TCP（传输控制协议）提供面向连接的、可靠的字节流传输服务。";
+      mKp = "计算机网络/传输层";
+    }}>单选题</button>
+    <button type="button" class="lv-chip sm" onclick={() => {
+      mType = "multiple";
+      mStem = "下列各项中，属于操作系统基本特征的有？";
+      mOptions = ["并发", "共享", "虚拟", "异步"];
+      mAnswer = "ABCD";
+      mAnalysis = "操作系统的四大基本特征为并发性、共享性、虚拟性和异步性。";
+      mKp = "操作系统/基础概念";
+    }}>多选题</button>
+    <button type="button" class="lv-chip sm" onclick={() => {
+      mType = "judge";
+      mStem = "死锁是指两个或两个以上的进程因争夺系统资源而产生的一种互相等待的现象。";
+      mOptions = [];
+      mAnswer = "对";
+      mAnalysis = "死锁产生的四个必要条件：互斥、请求与保持、不剥夺、循环等待。";
+      mKp = "操作系统/死锁处理";
+    }}>判断题</button>
+    <button type="button" class="lv-chip sm" onclick={() => {
+      mType = "fill";
+      mStem = "在 TCP/IP 参考模型中，网络层主要通过 ____ 协议实现不同网络之间的寻址与路由转发。";
+      mOptions = [];
+      mAnswer = "IP";
+      mAnalysis = "IP 协议（网际协议）是 TCP/IP 体系中网络层的核心协议。";
+      mKp = "计算机网络/网络层";
+    }}>填空题</button>
+    <button type="button" class="lv-chip sm" onclick={() => {
+      mType = "short";
+      mStem = "简述进程与线程的区别与联系。";
+      mOptions = [];
+      mAnswer = "1. 进程是系统资源分配的基本单位；\n2. 线程是 CPU 调度和执行的基本单位；\n3. 一个进程可以包含多个线程，同一进程下的线程共享该进程的地址空间和资源。";
+      mAnalysis = "经典核心考点，重点区分资源拥有权与调度单位。";
+      mKp = "操作系统/进程与线程";
+    }}>简答题</button>
+  </div>
   <div class="lv-studio-grid lv-studio-grid--manual">
     <div class="lv-card lv-pad-card lv-studio-form" data-manual-form>
       {#if manualErrorMsg}

@@ -383,10 +383,28 @@
         </div>
         <div class="lv-row">
           <button type="button" class="lv-btn" disabled={importBusy} onclick={() => { if (importFileInput) importFileInput.click(); else onPickExcel(); }}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
-          <input type="file" bind:this={importFileInput} accept=".xlsx,.xls,.csv,.tsv,.txt,.gift" hidden onchange={onExcelFile} disabled={importBusy} />
+          <input type="file" bind:this={importFileInput} accept=".xlsx,.xls,.csv,.tsv,.txt,.gift,.docx,.md" hidden onchange={onExcelFile} disabled={importBusy} />
           <button class="lv-btn sm" onclick={onDownloadTemplate}><Icon name="import" size={15} /> {t("import.template")}</button>
           <button class="lv-btn sm lv-btn--ghost" onclick={onPasteClipboard} disabled={importBusy} title={t("import.pasteClipboardTip")}><Icon name="copy" size={14} /> {t("import.pasteClipboard")}</button>
           <span class="lv-muted">{t("import.orPaste")}</span>
+        </div>
+        <div class="lv-row" style="margin:4px 0 6px;gap:6px;align-items:center;flex-wrap:wrap">
+          <span class="lv-muted" style="font-size:11px">⚡ 快速插入格式示例：</span>
+          <button type="button" class="lv-chip sm" onclick={() => {
+            importText = (importText ? importText.trimEnd() + "\n\n" : "") + "1. 计算机网络中 HTTP 默认使用的端口号是？\nA. 80\nB. 443\nC. 22\nD. 21\n答案：A\n解析：HTTP 协议默认运行在 TCP 80 端口上。\n考点：计算机网络/应用层";
+          }}>单选题</button>
+          <button type="button" class="lv-chip sm" onclick={() => {
+            importText = (importText ? importText.trimEnd() + "\n\n" : "") + "1. 下列协议中属于传输层协议的有？\nA. TCP\nB. UDP\nC. IP\nD. ARP\n答案：AB\n解析：TCP 与 UDP 是典型的传输层端到端协议，IP 与 ARP 属于网络层协议。\n考点：网络体系/传输层";
+          }}>多选题</button>
+          <button type="button" class="lv-chip sm" onclick={() => {
+            importText = (importText ? importText.trimEnd() + "\n\n" : "") + "1. 所有的偶数都是合数。( × )\n【解析】2 是偶数但也是质数，所以该说法错误。";
+          }}>判断题</button>
+          <button type="button" class="lv-chip sm" onclick={() => {
+            importText = (importText ? importText.trimEnd() + "\n\n" : "") + "在冯·诺依曼计算机架构中，CPU 主要由 ==运算器== 和 ==控制器== 组成。";
+          }}>高亮挖空</button>
+          <button type="button" class="lv-chip sm" onclick={() => {
+            importText = (importText ? importText.trimEnd() + "\n\n" : "") + "进程 :: 拥有系统资源分配与保护的独立基本单位\n线程 :: CPU 调度与执行的独立基本单位";
+          }}>闪卡双冒号</button>
         </div>
         <textarea class="lv-input lv-textarea" rows="8" placeholder={t("import.placeholder")} aria-label={t("import.placeholder")} bind:value={importText} disabled={importBusy}></textarea>
         <div class="lv-row">
@@ -452,6 +470,25 @@
           {/if}
         {/if}
         {#if importError}<div class="lv-error" role="alert">{importError}</div>{/if}
+        {#if importReport && !importReport.ok.length && importReport.errors.length}
+          <div class="lv-card" style="margin:12px 0;padding:14px 18px;border-left:4px solid var(--lv-accent);background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-radius:var(--lv-r-2);box-shadow:var(--lv-sh-1)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <Icon name="sparkles" size={16} />
+              <b style="font-size:13.5px;color:var(--lv-text)">未在所选文档中检测到显式考题格式</b>
+            </div>
+            <p class="lv-muted" style="margin:0 0 10px;font-size:12.5px;line-height:1.6">
+              {importReport.errors[0]?.reason || "文档中暂无明显的选择题、判断题或问答定义。建议交由 AI 自动阅读整篇正文并提炼出题！"}
+            </p>
+            <div class="lv-row" style="margin:0;gap:8px">
+              <button class="lv-btn sm lv-btn--primary" onclick={() => { importSubTab = "siyuan"; onDoSearchDocs(""); }}>
+                <Icon name="rotate" size={13} /> 返回思源文档列表
+              </button>
+              <button class="lv-btn sm" onclick={() => onchangeView("ai")}>
+                <Icon name="sparkles" size={13} /> 前往 AI 出题工作台
+              </button>
+            </div>
+          </div>
+        {/if}
         {#if importReport}
           <p class="lv-muted">{t("import.target").replace("{name}", banks.find((b) => b.id === importPreviewBankId)?.name ?? importPreviewBankId)}</p>
           <div class="lv-row">

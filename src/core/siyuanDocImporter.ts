@@ -12,6 +12,7 @@ import { parseText } from "../importer/pipeline";
 import { newBatchId } from "./ids";
 import type { Question, QuestionType } from "./types";
 import { makeQuestion } from "./blockTemplate";
+import { questionHash } from "./answer";
 
 export interface SiyuanDocMeta {
   docId: string;
@@ -34,6 +35,9 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
 
   let s = raw;
 
+  // 0. 剥离思源导出的 YAML Frontmatter 元数据头（--- title: xxx ---）
+  s = s.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/m, "");
+
   // 1. 移除思源 IAL 块属性行（例如 {: id="2026..." updated="2026..."}）
   s = s.replace(/\{:[^}]*\}\s*$/gm, "");
 
@@ -41,10 +45,13 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   s = s.replace(/^\{\{\{(?:row|col)?\s*$/gm, "");
   s = s.replace(/^\}\}\}\s*$/gm, "");
 
-  // 1.2 剥离标题行前缀（如 ### 1. 题目 -> 1. 题目，避免题目被当成标题忽略）
+  // 1.2 剥离行首引用块标记（支持整道题写在引用块 > 里的场景，先于选项列表剥离）
+  s = s.replace(/^>\s?/gm, "");
+
+  // 1.3 剥离标题行前缀（如 ### 1. 题目 -> 1. 题目，避免题目被当成标题忽略）
   s = s.replace(/^#{1,6}\s*(?=\d+[.、])/gm, "");
 
-  // 1.3 规范化复选框任务列表中的正确答案标记
+  // 1.4 规范化复选框任务列表中的正确答案标记
   // 若包含 - [x] A. 选项 或 - [X] B. 选项，且原文本未带显式答案行，则提取为标准答案
   const checkedMatches = [...s.matchAll(/^[-*]\s*\[[xX]\]\s*([A-Fa-f])[.、]/gm)];
   if (checkedMatches.length > 0 && !/(?:ANSWER|【答案】|答案\s*[:：])/i.test(s)) {
@@ -53,11 +60,8 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   }
   s = s.replace(/^[-*]\s*\[[ xX]\]\s*/gm, "");
 
-  // 1.4 剥离无序列表选项前缀：如 "- A. 选项" 规范化为 "A. 选项"
+  // 1.5 剥离无序列表选项前缀：如 "- A. 选项" 规范化为 "A. 选项"
   s = s.replace(/^[-*+]\s+([A-Fa-f][.、\s])/gm, "$1");
-
-  // 2. 剥离行首引用块标记（支持整道题写在引用块 > 里的场景）
-  s = s.replace(/^>\s?/gm, "");
 
   // 3. 将思源常用折叠块答案转为标准提示词
   // 如 ::: details 答案与解析 ... ::: 转换为 【答案】与【解析】
@@ -340,18 +344,18 @@ export function parseInlineJudgeQuestions(rawText: string, docMeta: SiyuanDocMet
  */
 export function parseHeadingQaQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
   const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
-  const sections = normalized.split(/\n+(?=#{2,5}\s+)/);
+  const sections = normalized.split(/\n+(?=#{2,6}\s+)/);
   const questions: Question[] = [];
   for (const sec of sections) {
     const trimmed = sec.trim();
-    const m = trimmed.match(/^#{2,5}\s+([^\n\r]+)\r?\n([\s\S]+)$/);
+    const m = trimmed.match(/^#{2,6}\s+([^\n\r]+)\r?\n+([\s\S]+)$/);
     if (!m) continue;
     const heading = m[1].trim().replace(/^\d+[.、]\s*/, "");
     const body = m[2].trim();
-    if (/目录|前言|总结|大纲|参考资料|附录/i.test(heading)) continue;
+    if (/目录|前言|总结|大纲|参考资料|附录|试卷|考卷|题册|辨析/i.test(heading)) continue;
     if (heading.length >= 3 && body.length >= 4 && body.length <= 1500 && !body.startsWith("#")) {
-      const isQuestion = /[？?]|什么是|简述|解释|为什么|如何|概念|定义/.test(heading);
-      if (isQuestion || body.length < 400) {
+      const isQuestion = /[？?]|^(?:什么是|简述|简答|解释|为什么|如何|请谈谈|请阐述)/.test(heading);
+      if (isQuestion) {
         const q = makeQuestion({
           type: body.length > 50 ? "short" : "fill",
           stem: heading.endsWith("？") || heading.endsWith("?") ? heading : `${heading}？`,
@@ -364,6 +368,70 @@ export function parseHeadingQaQuestions(rawText: string, docMeta: SiyuanDocMeta)
         questions.push(q);
       }
     }
+  }
+  return questions;
+}
+
+/**
+ * 13. 解析思源笔记中的列表项与标号概念定义卡（如 - 临界区：访问临界资源的代码段）
+ */
+export function parseBulletDefinitions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
+  const lines = (rawText ?? "").split(/\r?\n/);
+  const questions: Question[] = [];
+  const bulletDefRegex = /^\s*[-*+]\s+(?:【|\*\*|「|“|")?([^\s:：—\-*【「"”]{2,25})(?:】|\*\*|」|”|")?\s*(?:[:：]|——)\s*([^\n\r]{6,400})$/;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("```") || trimmed.includes("::")) continue;
+    if (/[A-Fa-f][.、:：]\s+/.test(trimmed) || /答案|解析|ANSWER|KEY/i.test(trimmed)) continue;
+
+    const m = trimmed.match(bulletDefRegex);
+    if (!m) continue;
+
+    const term = m[1].trim();
+    const def = m[2].trim();
+
+    if (/^(注意|提示|总结|比如|例如|时间|地点|人物|作者|日期|来源|备注|参考|链接)$/i.test(term)) continue;
+    if (term.length >= 2 && def.length >= 6) {
+      const q = makeQuestion({
+        type: def.length > 50 ? "short" : "fill",
+        stem: `简述【${term}】的概念与核心定义。`,
+        options: [],
+        answer: def,
+        analysis: `知识点出处：《${docMeta.title}》列表概念摘录。`,
+        kp: docMeta.title,
+        source: docMeta.title,
+      });
+      q.sourceKind = "real";
+      questions.push(q);
+    }
+  }
+  return questions;
+}
+
+/**
+ * 14. 解析思源笔记正文中粗体概念定义句（如 **虚拟内存**是指利用外存空间扩展物理内存的技术）
+ */
+export function parseBoldSentenceDefinitions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
+  const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
+  const regex = /\*\*([^*\n\r]{2,30})\*\*\s*(?:是指|是|指|即为|定义为)\s*([^。\n\r]{6,300}[。！]?)/g;
+  const questions: Question[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(normalized)) !== null) {
+    const term = m[1].trim();
+    const def = m[2].trim();
+    if (/注意|提示|总结|例如|比如/.test(term)) continue;
+    const q = makeQuestion({
+      type: "short",
+      stem: `请阐述【${term}】的定义与内涵。`,
+      options: [],
+      answer: `${term}是指${def}`,
+      analysis: `出自《${docMeta.title}》重点概念辨析。`,
+      kp: docMeta.title,
+      source: docMeta.title,
+    });
+    q.sourceKind = "real";
+    questions.push(q);
   }
   return questions;
 }
@@ -424,12 +492,12 @@ export function extractNaturalPaperQuestions(rawText: string, docMeta: SiyuanDoc
     }
 
     if (optPositions.length >= 2 && optPositions[0].letter === "A" && optPositions[1].letter === "B") {
-      const stem = body.slice(0, optPositions[0].index).trim();
+      const stem = body.slice(0, optPositions[0].index).trim().replace(/[-*+•\s]+$/, "").trim();
       const options: string[] = [];
       for (let i = 0; i < optPositions.length; i++) {
         const start = optPositions[i].index + optPositions[i].fullLen;
         const end = i < optPositions.length - 1 ? optPositions[i + 1].index : body.length;
-        options.push(body.slice(start, end).trim());
+        options.push(body.slice(start, end).trim().replace(/[-*+•\s]+$/, "").trim());
       }
 
       if (stem && options.length >= 2) {
@@ -509,123 +577,60 @@ export async function parseQuestionsFromSiyuanDoc(
     };
   }
 
-  // 统一通过导入分流引擎解析（支持 MarkdownExam / Aiken / TSV / GIFT / 挖空）
-  let report = await parseText(cleanedText, options);
+  const allCandidates: Question[] = [];
 
-  // 兜底 0：极速单行与多行制卡语法（支持 :: 单向卡、::: 双向互逆卡与 ? 问答卡）
-  if (!report.ok.length && !report.duplicates && (docMarkdown.includes("::") || /^\s*\?{1,2}\s*$/m.test(docMarkdown))) {
-    const flashcards = parseInlineFlashcards(docMarkdown, docMeta);
-    if (flashcards.length > 0) {
-      report = {
-        batch: report.batch || newBatchId(),
-        ok: flashcards,
-        errors: [],
-        duplicates: 0,
-      };
-    }
+  // 1. 标准导入分流引擎解析（支持 MarkdownExam / Aiken / TSV / GIFT / 挖空）
+  const standardReport = await parseText(cleanedText, options);
+  if (standardReport.ok?.length) {
+    allCandidates.push(...standardReport.ok);
   }
 
-  // 兜底 1：Markdown 表格试题识别（用户用表格制作的生词表、概念表、问答表、选项表）
-  if (!report.ok.length && !report.duplicates && docMarkdown.includes("|")) {
-    const tableQuestions = parseMarkdownTableToQuestions(docMarkdown, docMeta);
-    if (tableQuestions.length > 0) {
-      report = {
-        batch: report.batch || newBatchId(),
-        ok: tableQuestions,
-        errors: [],
-        duplicates: 0,
-      };
-    }
+  // 2. 极速单行与多行制卡语法（支持 :: 单向卡、::: 双向互逆卡与 ? 问答卡）
+  if (cleanedText.includes("::") || /^\s*\?{1,2}\s*$/m.test(cleanedText)) {
+    allCandidates.push(...parseInlineFlashcards(cleanedText, docMeta));
   }
 
-  // 兜底与增强 1.5：思源自然试卷与自由排版试题容错识别（单行题号 1. / 1、 / (1) / 【例题1】、一行多选项 A. xxx B. yyy、题干括号答案等）
-  const paperQuestions = extractNaturalPaperQuestions(cleanedText, docMeta);
-  if (paperQuestions.length > 0) {
-    if (!report.ok.length && !report.duplicates) {
-      report = {
-        batch: report.batch || newBatchId(),
-        ok: paperQuestions,
-        errors: [],
-        duplicates: 0,
-      };
-    } else if (report.ok.length > 0) {
-      const norm = (stem: string) =>
-        (stem ?? "")
-          .trim()
-          .replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "")
-          .replace(/[（(]\s*[A-Za-z0-9√×对错vVxX正确错误\s]*[)）]/g, "")
-          .replace(/[^\p{L}\p{N}]/gu, "")
-          .toLowerCase();
+  // 3. Markdown 表格试题识别（用户用表格制作的生词表、概念表、问答表、选项表）
+  if (cleanedText.includes("|")) {
+    allCandidates.push(...parseMarkdownTableToQuestions(cleanedText, docMeta));
+  }
 
-      const existingStems = new Set(report.ok.map((q) => norm(q.stem)));
-      const isAlreadyPresent = (stem: string) => {
-        const n = norm(stem);
-        if (!n) return true;
-        for (const es of existingStems) {
-          if (es === n || (es.length >= 6 && n.length >= 6 && (es.includes(n) || n.includes(es)))) {
-            return true;
-          }
-        }
-        return false;
-      };
+  // 4. 思源自然试卷与自由排版考题识别（单行题号 1. / 1、 / (1)、一行多选项 A. xx B. yy、题干括号答案等）
+  allCandidates.push(...extractNaturalPaperQuestions(cleanedText, docMeta));
 
-      const extra = paperQuestions.filter((q) => !isAlreadyPresent(q.stem));
-      if (extra.length > 0) {
-        report.ok = [...report.ok, ...extra].sort((a, b) => {
-          const needleA = norm(a.stem).slice(0, 12);
-          const needleB = norm(b.stem).slice(0, 12);
-          const idxA = needleA ? cleanedText.indexOf(needleA) : -1;
-          const idxB = needleB ? cleanedText.indexOf(needleB) : -1;
-          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-          return 0;
-        });
+  // 5. 句末带对错符号的自然判断题识别（如：质数只有两个因数 (√)）
+  if (/[（(]\s*[√×对错vVxX正确错误TFN]+\s*[)）]/.test(cleanedText)) {
+    allCandidates.push(...parseInlineJudgeQuestions(cleanedText, docMeta));
+  }
+
+  // 6. 标题与段落问答结构识别（如：# 什么是死锁？\n回答段落...）
+  if (/#{1,6}\s+[^\n\r]+/.test(cleanedText)) {
+    allCandidates.push(...parseHeadingQaQuestions(cleanedText, docMeta));
+  }
+
+  // 7. 无序列表与有序列表概念定义卡（如 - 临界区：访问临界资源的代码段）
+  allCandidates.push(...parseBulletDefinitions(cleanedText, docMeta));
+
+  // 8. 正文粗体概念定义句（如 **虚拟内存**是指利用外存空间扩展物理内存的技术）
+  if (cleanedText.includes("**")) {
+    allCandidates.push(...parseBoldSentenceDefinitions(cleanedText, docMeta));
+  }
+
+  // 9. 高亮挖空（Cloze）：文档包含思源原生高亮标记 ==重点== 或 {{挖空}}
+  if (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText)) {
+    try {
+      const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
+      const clozeItems = parseClozeText(cleanedText, { modes: ["highlight", "curly"] });
+      if (clozeItems.length > 0) {
+        allCandidates.push(...clozeItemsToQuestions(clozeItems));
       }
+    } catch {
+      // 容错降级
     }
   }
 
-  // 兜底 2：高亮挖空（Cloze）：如果常规试题未提取出任何有效题目，但文档包含思源原生高亮标记 ==重点== 或 {{挖空}}，自动提取为填空题
-  if (!report.ok.length && !report.duplicates && (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText))) {
-    const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
-    const clozeItems = parseClozeText(cleanedText, { modes: ["highlight", "curly"] });
-    if (clozeItems.length > 0) {
-      const clozeQuestions = clozeItemsToQuestions(clozeItems);
-      report = {
-        batch: report.batch || newBatchId(),
-        ok: clozeQuestions,
-        errors: [],
-        duplicates: 0,
-      };
-    }
-  }
-
-  // 兜底 3：句末带对错符号的自然判断题识别（如：质数只有两个因数 (√)）
-  if (!report.ok.length && !report.duplicates && /[（(]\s*[√×对错vVxX正确错误]+\s*[)）]/.test(docMarkdown)) {
-    const judgeQuestions = parseInlineJudgeQuestions(docMarkdown, docMeta);
-    if (judgeQuestions.length > 0) {
-      report = {
-        batch: report.batch || newBatchId(),
-        ok: judgeQuestions,
-        errors: [],
-        duplicates: 0,
-      };
-    }
-  }
-
-  // 兜底 4：标题与段落问答结构识别（如：### 什么是死锁？\n回答段落...）
-  if (!report.ok.length && !report.duplicates && /#{2,5}\s+[^\n\r]+/.test(docMarkdown)) {
-    const headingQuestions = parseHeadingQaQuestions(docMarkdown, docMeta);
-    if (headingQuestions.length > 0) {
-      report = {
-        batch: report.batch || newBatchId(),
-        ok: headingQuestions,
-        errors: [],
-        duplicates: 0,
-      };
-    }
-  }
-
-  // 兜底 5：渐进式阅读笔记概念与列表制卡提取（识别术语定义、列举项等）
-  if (!report.ok.length && !report.duplicates && cleanedText.trim().length >= 10) {
+  // 10. 渐进式阅读笔记概念与列表制卡提取（概念摘抄兜底）
+  if (allCandidates.length === 0 && cleanedText.trim().length >= 10) {
     try {
       const { extractCardsFromExcerpt } = await import("./excerptCard");
       const excerptResult = extractCardsFromExcerpt({
@@ -634,50 +639,117 @@ export async function parseQuestionsFromSiyuanDoc(
         text: cleanedText,
       });
       if (excerptResult.questions.length > 0) {
-        report = {
-          batch: report.batch || newBatchId(),
-          ok: excerptResult.questions,
-          errors: [],
-          duplicates: 0,
-        };
+        allCandidates.push(...excerptResult.questions);
       }
     } catch {
-      // 提取异常静默容错
+      // 容错降级
     }
   }
 
-  // 兜底 6：如果文档内确实没有任何可提取的题目，归一化错误信息，消除底层 Aiken 内部“缺少 ANSWER 行”等不友好报错
-  if (!report.ok.length && !report.duplicates) {
+  // 题干归一化排重（消除不同提取策略间的重叠题目）
+  const norm = (stem: string) =>
+    (stem ?? "")
+      .trim()
+      .replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "")
+      .replace(/^(?:简述【|请阐述【|【概念辨析】|【正向考查】|【逆向回忆】)([^】]+)【的概念与核心定义。?/, "$1")
+      .replace(/[（([【]\s*[A-Za-z0-9√×对错vVxX正确错误\s]*[)）\]】]/g, "")
+      .replace(/[^\p{L}\p{N}]/gu, "")
+      .toLowerCase();
+
+  const seenStems = new Set<string>();
+  const deduplicated: Question[] = [];
+
+  for (const q of allCandidates) {
+    const n = norm(q.stem);
+    if (!n) continue;
+    let duplicate = false;
+    for (const s of seenStems) {
+      if (s === n || (s.length >= 6 && n.length >= 6 && (s.includes(n) || n.includes(s)))) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) {
+      seenStems.add(n);
+      deduplicated.push(q);
+    }
+  }
+
+  // 按在原文中的先后出现位置自然排序
+  deduplicated.sort((a, b) => {
+    const na = norm(a.stem).slice(0, 10);
+    const nb = norm(b.stem).slice(0, 10);
+    const ia = na ? cleanedText.indexOf(na) : -1;
+    const ib = nb ? cleanedText.indexOf(nb) : -1;
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    return 0;
+  });
+
+  // 如果文档内确实没有任何可提取的题目，归一化错误信息，引导一键 AI 提炼
+  if (deduplicated.length === 0) {
     return {
-      batch: report.batch || newBatchId(),
+      batch: standardReport.batch || newBatchId(),
       ok: [],
       errors: [
         {
           row: 1,
           raw: cleanedText.slice(0, 100),
-          reason: `《${docMeta.title}》未检测到题目内容（支持选择题、表格题表、==高亮挖空== 或 **术语** 定义）`,
+          reason: `《${docMeta.title}》未检测到题目内容（为日常叙述性笔记，建议使用「AI 提炼试题」一键自动阅读正文出题）`,
         },
       ],
-      duplicates: 0,
+      duplicates: standardReport.duplicates || 0,
     };
   }
 
   // 为所有成功提取的题目注入文档元数据
-  const rawQuestions = report.ok ?? [];
-  const enrichedQuestions = rawQuestions.map((q) => {
+  const enrichedQuestions = deduplicated.map((q) => {
     return {
       ...q,
       source: q.source && q.source !== "Markdown文档导入" ? q.source : docMeta.title,
       sourceKind: "real" as const,
       ...(docMeta.docId ? { sourceBlockId: docMeta.docId } : {}),
-      // 若原题无明确考点，默认将文档路径父级或标题作为建议考点
       kp: q.kp || (docMeta.hpath ? docMeta.hpath.replace(/^\/|\/$/g, "").replace(/\/[^/]+$/, "") : docMeta.title),
     };
   });
 
+  // 处理 existingHashes 幂等去重
+  let duplicates = standardReport.duplicates || 0;
+  let finalQuestions: Question[] = enrichedQuestions;
+  if (options.existingHashes && options.existingHashes.size > 0) {
+    const seen = options.existingHashes;
+    const fresh: Question[] = [];
+    let externalDupes = 0;
+    for (const q of enrichedQuestions) {
+      const h1 = q.hash;
+      const h2 = questionHash(q.stem, q.options);
+      let isDupe = seen.has(h1) || seen.has(h2);
+      if (!isDupe) {
+        for (let num = 1; num <= 30; num++) {
+          if (
+            seen.has(questionHash(`${num}. ${q.stem}`, q.options)) ||
+            seen.has(questionHash(`${num}、${q.stem}`, q.options)) ||
+            seen.has(questionHash(`(${num}) ${q.stem}`, q.options))
+          ) {
+            isDupe = true;
+            break;
+          }
+        }
+      }
+      if (isDupe) {
+        externalDupes++;
+      } else {
+        fresh.push(q);
+      }
+    }
+    finalQuestions = fresh;
+    duplicates = Math.max(duplicates, externalDupes);
+  }
+
   return {
-    ...report,
-    ok: enrichedQuestions,
+    batch: standardReport.batch || newBatchId(),
+    ok: finalQuestions,
+    errors: [],
+    duplicates,
   };
 }
 

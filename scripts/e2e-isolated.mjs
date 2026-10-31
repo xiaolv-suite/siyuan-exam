@@ -322,7 +322,7 @@ try {
 
   // ---------- 阶段 3：出题工作台（OCR 按钮键盘可达 + 手工录题 + 批量导入读回） ----------
   await activeTab().locator(".lv-rail").getByRole("button", { name: "出题", exact: true }).click();
-  await activeTab().getByRole("button", { name: /OCR 填单/ }).first().click();
+  await activeTab().getByRole("button", { name: /智能粘贴拆单|OCR 填单/ }).first().click();
   const ocrUploadTag = await activeTab().getByRole("button", { name: /选择试卷图片/ }).evaluate((el) => el.tagName);
   await activeTab().getByRole("button", { name: "取消", exact: true }).click();
   await activeTab().locator("#lv-manual-stem").fill("【真机E2E】HTTP 协议默认端口是？");
