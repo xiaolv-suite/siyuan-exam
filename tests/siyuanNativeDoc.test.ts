@@ -261,6 +261,37 @@ abundant :: 丰富的，充裕的
       expect(report.ok[1].stem).toContain("简述进程与线程的区别？");
       expect(report.ok[1].answer).toContain("进程是资源分配的基本单位");
     });
+
+    it("支持直接识别思源自然排版试卷（一行多选项与括号答案）", async () => {
+      const docMarkdown = `
+# 期末复习考题
+
+1. 下列选项中不属于面向对象基本特征的是（ C ）
+A. 封装  B. 继承  C. 递归  D. 多态
+【解析】面向对象的三大基本特征为封装、继承、多态。
+
+2、软件生命周期中时间最长的阶段是（   ）
+A. 需求分析
+B. 概要设计
+C. 编码测试
+D. 运行维护
+【答案】D
+【解析】维护阶段通常占据软件整个生命周期的绝大部分时间和成本。
+      `.trim();
+      const report = await parseQuestionsFromSiyuanDoc(docMarkdown, { docId: "doc-paper", title: "软件工程复习题" });
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].type).toBe("single");
+      expect(report.ok[0].answer).toBe("C");
+      expect(report.ok[0].options).toHaveLength(4);
+      expect(report.ok[0].options[0]).toBe("封装");
+      expect(report.ok[0].options[2]).toBe("递归");
+      expect(report.ok[0].analysis).toContain("面向对象的三大基本特征");
+
+      expect(report.ok[1].type).toBe("single");
+      expect(report.ok[1].answer).toBe("D");
+      expect(report.ok[1].options).toHaveLength(4);
+      expect(report.ok[1].options[3]).toBe("运行维护");
+    });
   });
 
   describe("2. 题库与试卷同步为思源笔记原生文档 (siyuanSyncDoc)", () => {

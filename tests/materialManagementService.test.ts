@@ -14,6 +14,10 @@ import {
   isNoteFormDirty,
   extractNoteEditValues,
   filterMaterialsList,
+  extractDocxTextFromBytes,
+  extractMaterialDocText,
+  bridgeMaterialToManualAsync,
+  bridgeMaterialToAiAsync,
 } from "@/ui/practice/services/materialManagementService";
 import type { MaterialDoc } from "@/core/materials";
 import type { MaterialNote } from "@/core/materialNotes";
@@ -385,6 +389,120 @@ describe("materialManagementService", () => {
 
       // 5. 不匹配项
       expect(filterMaterialsList(list, "概率论")).toHaveLength(0);
+    });
+  });
+
+  describe("extractDocxTextFromBytes & extractMaterialDocText", () => {
+    it("extracts text from uncompressed docx PKZIP stream", async () => {
+      const xml = "<w:p><w:t>第一段内容</w:t></w:p><w:p><w:t>第二段重点解析</w:t></w:p>";
+      const xmlBytes = new TextEncoder().encode(xml);
+      const fn = "word/document.xml";
+      const fnBytes = new TextEncoder().encode(fn);
+
+      const header = new Uint8Array(30 + fnBytes.length + xmlBytes.length);
+      header[0] = 0x50; header[1] = 0x4b; header[2] = 0x03; header[3] = 0x04;
+      header[8] = 0; header[9] = 0; // uncompressed
+      header[18] = xmlBytes.length & 0xff;
+      header[19] = (xmlBytes.length >> 8) & 0xff;
+      header[26] = fnBytes.length & 0xff;
+      header[27] = (fnBytes.length >> 8) & 0xff;
+      header.set(fnBytes, 30);
+      header.set(xmlBytes, 30 + fnBytes.length);
+
+      const extracted = await extractDocxTextFromBytes(header);
+      expect(extracted).toContain("第一段内容");
+      expect(extracted).toContain("第二段重点解析");
+    });
+
+    it("extracts text from txt/md files via client getFile api", async () => {
+      const mockApp = {
+        deps: {
+          client: {
+            baseUrl: "http://127.0.0.1:6806",
+            token: "test-token",
+          },
+        },
+      };
+
+      const material: MaterialDoc = {
+        id: "m-doc",
+        title: "备考大纲.txt",
+        locations: [{ kind: "assets", path: "assets/outline.txt", mime: "text/plain", size: 100 }],
+      } as any;
+
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("这是txt大纲正文内容").buffer,
+      }) as any;
+
+      try {
+        const text = await extractMaterialDocText(mockApp, material);
+        expect(text).toBe("这是txt大纲正文内容");
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+
+    it("bridges real file text to manual entry asynchronously", async () => {
+      const mockApp = {
+        deps: {
+          client: { baseUrl: "http://127.0.0.1:6806", token: "tok" },
+        },
+      };
+      const material: MaterialDoc = {
+        id: "m-1",
+        title: "核心考点讲义.txt",
+        subject: "政治",
+        chapter: "马原",
+        locations: [{ kind: "assets", path: "assets/mayuan.txt", mime: "text/plain", size: 50 }],
+      } as any;
+
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("马克思主义三大组成部分为哲学、政治经济学和科学社会主义。").buffer,
+      }) as any;
+
+      try {
+        const res = await bridgeMaterialToManualAsync(mockApp, material);
+        expect(res.source).toBe("政治 / 马原 / 核心考点讲义.txt");
+        expect(res.stem).toContain("马克思主义三大组成部分");
+        expect(res.toast).toContain("核心考点讲义.txt");
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+
+    it("bridges real file text to AI studio asynchronously", async () => {
+      const mockApp = {
+        listMaterialNotes: vi.fn().mockReturnValue([]),
+        deps: {
+          client: { baseUrl: "http://127.0.0.1:6806", token: "tok" },
+        },
+      };
+      const material: MaterialDoc = {
+        id: "m-2",
+        title: "近代史纲要.txt",
+        subject: "历史",
+        chapter: "辛亥革命",
+        locations: [{ kind: "assets", path: "assets/history.txt", mime: "text/plain", size: 50 }],
+      } as any;
+
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("辛亥革命推翻了清王朝统治，结束了统治中国几千年的君主专制制度。").buffer,
+      }) as any;
+
+      try {
+        const res = await bridgeMaterialToAiAsync(mockApp, material);
+        expect(res.content).toContain("【资料出处】历史 / 辛亥革命 / 近代史纲要.txt");
+        expect(res.content).toContain("辛亥革命推翻了清王朝统治");
+        expect(res.toast).toContain("近代史纲要.txt");
+      } finally {
+        globalThis.fetch = origFetch;
+      }
     });
   });
 });

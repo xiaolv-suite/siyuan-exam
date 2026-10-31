@@ -183,7 +183,84 @@ export function resolveMaterialLocatedUrl(
   return locatedUrl(base, locator);
 }
 
-/** 桥接资料到手工录题 */
+/** 从 docx 二进制流中零依赖提取文字段落 */
+export async function extractDocxTextFromBytes(bytes: Uint8Array): Promise<string> {
+  let offset = 0;
+  while (offset < bytes.length - 30) {
+    if (bytes[offset] === 0x50 && bytes[offset + 1] === 0x4b && bytes[offset + 2] === 0x03 && bytes[offset + 3] === 0x04) {
+      const compression = bytes[offset + 8] | (bytes[offset + 9] << 8);
+      const compressedSize = bytes[offset + 18] | (bytes[offset + 19] << 8) | (bytes[offset + 20] << 16) | (bytes[offset + 21] << 24);
+      const fnLen = bytes[offset + 26] | (bytes[offset + 27] << 8);
+      const extraLen = bytes[offset + 28] | (bytes[offset + 29] << 8);
+      const fileName = new TextDecoder().decode(bytes.subarray(offset + 30, offset + 30 + fnLen));
+      const dataOffset = offset + 30 + fnLen + extraLen;
+      if (fileName === "word/document.xml") {
+        const compressedData = bytes.subarray(dataOffset, dataOffset + compressedSize);
+        let xml = "";
+        if (compression === 0) {
+          xml = new TextDecoder().decode(compressedData);
+        } else if (compression === 8 && typeof DecompressionStream !== "undefined") {
+          try {
+            const ds = new DecompressionStream("deflate-raw");
+            const writer = ds.writable.getWriter();
+            const chunk = new Uint8Array(compressedSize);
+            chunk.set(compressedData);
+            writer.write(chunk);
+            writer.close();
+            const res = await new Response(ds.readable).arrayBuffer();
+            xml = new TextDecoder().decode(res);
+          } catch {
+            // 解压流降级
+          }
+        }
+        if (xml) {
+          const paragraphs = xml.split(/<\/w:p>/);
+          const lines = paragraphs.map((p) => {
+            const matches = [...p.matchAll(/<w:t[^>]*>(.*?)<\/w:t>/g)];
+            return matches.map((m) => m[1]).join("").trim();
+          }).filter(Boolean);
+          return lines.join("\n\n");
+        }
+      }
+      offset = dataOffset + Math.max(0, compressedSize);
+    } else {
+      offset++;
+    }
+  }
+  return "";
+}
+
+/** 智能读取资料文件真实正文（Word/Markdown/纯文本/笔记） */
+export async function extractMaterialDocText(app: any, material: MaterialDoc): Promise<string> {
+  const assetLoc = material.locations.find((l) => l.kind === "assets");
+  if (!assetLoc || !app?.deps?.client) return "";
+  try {
+    const rawPath = assetLoc.path.startsWith("/data") ? assetLoc.path : `/data${assetLoc.path.startsWith("/") ? "" : "/"}${assetLoc.path}`;
+    const res = await fetch(`${app.deps.client.baseUrl}/api/file/getFile`, {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${app.deps.client.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ path: rawPath }),
+    });
+    if (!res.ok) return "";
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const pathLower = assetLoc.path.toLowerCase();
+    if (pathLower.endsWith(".docx")) {
+      return await extractDocxTextFromBytes(bytes);
+    }
+    if (/\.(txt|md|text|csv|tsv|json)$/i.test(pathLower)) {
+      return new TextDecoder().decode(bytes);
+    }
+  } catch {
+    // 容错降级
+  }
+  return "";
+}
+
+/** 桥接资料到手工录题（纯函数，同步返回） */
 export function bridgeMaterialToManual(
   material: MaterialDoc,
   noteText = "",
@@ -196,7 +273,7 @@ export function bridgeMaterialToManual(
   };
 }
 
-/** 桥接资料到 AI 出题工作台 */
+/** 桥接资料到 AI 出题工作台（纯函数，同步返回） */
 export function bridgeMaterialToAi(
   app: any,
   material: MaterialDoc,
@@ -211,6 +288,47 @@ export function bridgeMaterialToAi(
   return {
     content,
     toast: `已将资料《${material.title}》带入 AI 出题工作台！`,
+  };
+}
+
+/** 异步读取资料正文并桥接资料到手工录题 */
+export async function bridgeMaterialToManualAsync(
+  app: any,
+  material: MaterialDoc,
+  noteText = "",
+): Promise<{ source: string; stem: string; toast: string }> {
+  const source = [material.subject, material.chapter, material.title].filter(Boolean).join(" / ");
+  let stem = noteText || "";
+  if (!stem && app) {
+    const fileText = await extractMaterialDocText(app, material);
+    stem = fileText.slice(0, 300).trim();
+  }
+  return {
+    source,
+    stem,
+    toast: `已将资料《${material.title}》正文与出处带入手工录题！`,
+  };
+}
+
+/** 异步读取资料正文并桥接资料到 AI 出题工作台 */
+export async function bridgeMaterialToAiAsync(
+  app: any,
+  material: MaterialDoc,
+  noteText = "",
+): Promise<{ content: string; toast: string }> {
+  const notes = app.listMaterialNotes(material.id).map((n: MaterialNote) => n.text).join("\n\n");
+  let mainBody = noteText || notes;
+  if (!mainBody && app) {
+    mainBody = await extractMaterialDocText(app, material);
+  }
+  const content = [
+    `【资料出处】${[material.subject, material.chapter, material.title].filter(Boolean).join(" / ")}`,
+    mainBody ? `【资料正文与重点】\n${mainBody.slice(0, 3500)}` : "",
+  ].filter(Boolean).join("\n\n");
+
+  return {
+    content,
+    toast: `已将资料《${material.title}》正文全量带入 AI 出题工作台！`,
   };
 }
 

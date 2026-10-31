@@ -296,6 +296,54 @@
         <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px;display:inline-flex;align-items:center;gap:4px" onclick={() => onttsSpeak([q.stem, ...q.options].join(" "), q.studyMeta?.lang ? { lang: q.studyMeta.lang } : 1)} title="听发音朗读"><Icon name="volume" size={11} /> 听发音</button>
       </div>
     {/if}
+
+    <!-- 只读模式下的标准答案与解析卡片（置顶在题干与选项上方） -->
+    {#if editingId !== q.id}
+      <div class="lv-peek-answer-card" style="margin:10px 0 12px;padding:12px 16px;background:color-mix(in srgb, var(--lv-brand-soft) 35%, var(--lv-surface));border-left:4px solid var(--lv-brand);border-radius:var(--lv-r-2);box-shadow:var(--lv-sh-1)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="lv-achievement-pill lv-achievement-pill--seal" style="font-size:11px;padding:2px 8px;font-weight:700">
+              <Icon name="check" size={12} /> 参考答案
+            </span>
+            <strong class="num" style="font-size:16px;color:var(--lv-brand);letter-spacing:0.5px">
+              {#if !peekHideAnswer}
+                {q.answer || "未设答案"}
+              {:else}
+                ••••（已遮挡自测）
+              {/if}
+            </strong>
+          </div>
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={ontoggleHideAnswer} title="切换答案显隐（自测翻看）" style="font-size:11px">
+            <Icon name={peekHideAnswer ? "eye" : "eyeoff"} size={12} /> {peekHideAnswer ? "揭晓答案" : "遮挡自测"}
+          </button>
+        </div>
+        {#if !peekHideAnswer && q.analysis}
+          <div style="font-size:12.5px;line-height:1.6;color:var(--lv-text-2);margin-top:6px;padding-top:6px;border-top:1px solid var(--lv-border-subtle)">
+            <b>💡 试题解析：</b>{q.analysis}
+          </div>
+        {/if}
+      </div>
+
+      <!-- 选择题选项列表完整呈现（A/B/C/D 逐行渲染并高亮正确项） -->
+      {#if q.options && q.options.length > 0}
+        <div class="lv-peek-options" style="display:grid;gap:8px;margin:10px 0 14px">
+          {#each q.options as opt, oi (oi)}
+            {@const letter = String.fromCharCode(65 + oi)}
+            {@const isCorrect = q.answer && q.answer.includes(letter)}
+            <div class="lv-peek-opt-row" style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:var(--lv-r-2);border:1px solid {isCorrect && !peekHideAnswer ? 'var(--lv-brand)' : 'var(--lv-border-subtle)'};background:{isCorrect && !peekHideAnswer ? 'color-mix(in srgb, var(--lv-brand-soft) 30%, var(--lv-surface))' : 'var(--lv-surface)'};transition:all var(--lv-dur-micro) ease">
+              <span class="lv-opt-letter" style="display:grid;place-items:center;width:24px;height:24px;border-radius:6px;background:{isCorrect && !peekHideAnswer ? 'var(--lv-brand)' : 'var(--lv-surface-2)'};color:{isCorrect && !peekHideAnswer ? 'var(--lv-on-brand, #fff)' : 'var(--lv-text-2)'};font-weight:700;font-size:12px;flex-shrink:0">
+                {letter}
+              </span>
+              <span style="font-size:13.5px;line-height:1.55;color:var(--lv-text);flex:1">{opt}</span>
+              {#if isCorrect && !peekHideAnswer}
+                <span class="lv-chip lv-chip--grn num sm" style="font-size:10px;padding:1px 6px">正确项</span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
+
     <div class="lv-detail">
       {#if editingId === q.id && editDraft}
         <div class="lv-row" style="margin:2px 0"><b>{t("edit.title")}</b><span class="lv-chip">{t("qtype." + q.type)}</span></div>
@@ -367,19 +415,6 @@
       {:else}
         {@const st = app.derived().byQuestion.get(q.id)}
         {@const wr = app.derived().wrongbook.get(q.id)}
-        <div class="lv-row" style="margin:8px 0 6px;align-items:center;justify-content:space-between">
-          <button class="lv-chip" class:acc={!peekHideAnswer} aria-pressed={!peekHideAnswer} onclick={ontoggleHideAnswer}>
-            <Icon name={peekHideAnswer ? "eyeoff" : "eye"} size={12} /> {peekHideAnswer ? t("browse.showAnswer") : t("browse.hideAnswer")}
-          </button>
-          {#if peekHideAnswer}
-            <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">已开启遮挡自测，点击上方按钮揭晓</span>
-          {/if}
-        </div>
-        {#if !peekHideAnswer}
-          <div class="lv-muted lv-peek-answer-box" style="animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out)">
-            <b>{t("browse.answer")}:</b> <strong class="num" style="color:var(--lv-accent)">{q.answer}</strong>{#if q.analysis} · {q.analysis}{/if}
-          </div>
-        {/if}
         {#if st && st.attempts}
           {@const stubborn = wr ? isStubbornWrong(wr) : false}
           {@const isArchived = app?.isWrongArchived(q.id)}

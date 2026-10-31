@@ -369,6 +369,129 @@ export function parseHeadingQaQuestions(rawText: string, docMeta: SiyuanDocMeta)
 }
 
 /**
+ * 12. 思源笔记试卷与自由笔记超级容错提取引擎 (Natural Paper & Free-form Notes Extractor)
+ * 专为思源笔记优化，支持：
+ * - 任意题号：1. / 1、 / (1) / 【例题1】 / 第1题
+ * - 一行多选项或多行选项：A. xxx  B. yyy  C. zzz
+ * - 题干内括号答案：下列说法正确的是 ( A )
+ * - 各类中英文答案/解析关键字
+ */
+export function extractNaturalPaperQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
+  const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
+  const itemSplitRegex = /\n+(?=(?:#{1,6}\s*)?(?:\d+[.、\s]|[(（]\d+[)）]|第\s*\d+\s*题[:：]?|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】))/g;
+  const rawItems = normalized.split(itemSplitRegex);
+  const questions: Question[] = [];
+
+  for (const item of rawItems) {
+    const trimmed = item.trim();
+    if (trimmed.length < 5) continue;
+
+    let body = trimmed;
+    // 剥离块首部的文档大标题/章节标题（如 "# 第一章 练习题" 或 "## 一、单项选择题"）
+    body = body.replace(/^(?:#{1,6}\s+[^\n\r]+\r?\n+)+/, "").trim();
+    // 剥离题目编号前缀（1. / 1、 / (1) / 【例题1】 / 第1题）
+    body = body.replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "").trim();
+
+    let analysis: string | undefined;
+    const analysisMatch = body.match(/(?:(?:【解析】|解析\s*[:：]|详解\s*[:：]|【详解】)\s*)([\s\S]+)$/i);
+    if (analysisMatch) {
+      analysis = analysisMatch[1].trim();
+      body = body.slice(0, analysisMatch.index).trim();
+    }
+
+    let answer = "";
+    const answerMatch = body.match(/(?:(?:【答案】|答案\s*[:：]|参考答案\s*[:：]|ANSWER\s*[:：]|KEY\s*[:：])\s*)([^\n\r]+)/i);
+    if (answerMatch) {
+      answer = answerMatch[1].replace(/["'`]/g, "").trim().toUpperCase();
+      body = body.slice(0, answerMatch.index).trim();
+    }
+
+    const stemAnsMatch = body.match(/[（(]\s*([A-Fa-f]{1,6}|[√×对错正确错误TFN]+)\s*[)）]/);
+    if (!answer && stemAnsMatch) {
+      const candidateAns = stemAnsMatch[1].trim().toUpperCase();
+      if (/^[A-F]{1,6}$/.test(candidateAns) || /^[√×对错正确错误TFN]+$/.test(candidateAns)) {
+        answer = candidateAns;
+        body = body.replace(stemAnsMatch[0], "（   ）");
+      }
+    }
+
+    const optSplitRegex = /(?:^|\s+)(?:[(（]?([A-Fa-f])[)）.]|([A-Fa-f])[.、:：])\s+/g;
+    const optPositions: Array<{ letter: string; index: number; fullLen: number }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = optSplitRegex.exec(body)) !== null) {
+      const letter = (m[1] || m[2]).toUpperCase();
+      optPositions.push({ letter, index: m.index, fullLen: m[0].length });
+    }
+
+    if (optPositions.length >= 2 && optPositions[0].letter === "A" && optPositions[1].letter === "B") {
+      const stem = body.slice(0, optPositions[0].index).trim();
+      const options: string[] = [];
+      for (let i = 0; i < optPositions.length; i++) {
+        const start = optPositions[i].index + optPositions[i].fullLen;
+        const end = i < optPositions.length - 1 ? optPositions[i + 1].index : body.length;
+        options.push(body.slice(start, end).trim());
+      }
+
+      if (stem && options.length >= 2) {
+        const type: QuestionType = answer.length > 1 ? "multiple" : "single";
+        const q = makeQuestion({
+          type,
+          stem,
+          options,
+          answer: answer || "A",
+          analysis,
+          kp: docMeta.title,
+          source: docMeta.title,
+        });
+        q.sourceKind = "real";
+        questions.push(q);
+        continue;
+      }
+    }
+
+    // 判断题：若题干尾部有括号对错标记，或提取出的答案为对错符号
+    const isJudgeAns = /^[√×对错vVxX正确错误TFN]+$/.test(answer);
+    const judgeMatch = body.match(/^(.*?)[（(]\s*([√×对错vVxX正确错误TFN]+)\s*[)）]\s*$/);
+    if (isJudgeAns || judgeMatch) {
+      const rawAns = (isJudgeAns ? answer : judgeMatch![2]).trim().toUpperCase();
+      const ans = /[√对vVT正确]/.test(rawAns) ? "对" : "错";
+      let stem = judgeMatch ? judgeMatch[1].trim() : body.replace(/（\s*）|[（(]\s*[)）]/g, "").trim();
+      stem = stem.replace(/^[.、\s]+|[.、\s]+$/g, "");
+      if (stem.length >= 2) {
+        const q = makeQuestion({
+          type: "judge",
+          stem,
+          options: [],
+          answer: ans,
+          analysis,
+          kp: docMeta.title,
+          source: docMeta.title,
+        });
+        q.sourceKind = "real";
+        questions.push(q);
+        continue;
+      }
+    }
+
+    if (body.includes("____") || body.includes("（   ）") || (answer && body.length < 300)) {
+      const q = makeQuestion({
+        type: "fill",
+        stem: body,
+        options: [],
+        answer: answer || "待补充",
+        analysis,
+        kp: docMeta.title,
+        source: docMeta.title,
+      });
+      q.sourceKind = "real";
+      questions.push(q);
+    }
+  }
+
+  return questions;
+}
+
+/**
  * 从思源笔记文档 Markdown 原文解析提取全套题目
  */
 export async function parseQuestionsFromSiyuanDoc(
@@ -412,6 +535,51 @@ export async function parseQuestionsFromSiyuanDoc(
         errors: [],
         duplicates: 0,
       };
+    }
+  }
+
+  // 兜底与增强 1.5：思源自然试卷与自由排版试题容错识别（单行题号 1. / 1、 / (1) / 【例题1】、一行多选项 A. xxx B. yyy、题干括号答案等）
+  const paperQuestions = extractNaturalPaperQuestions(cleanedText, docMeta);
+  if (paperQuestions.length > 0) {
+    if (!report.ok.length && !report.duplicates) {
+      report = {
+        batch: report.batch || newBatchId(),
+        ok: paperQuestions,
+        errors: [],
+        duplicates: 0,
+      };
+    } else if (report.ok.length > 0) {
+      const norm = (stem: string) =>
+        (stem ?? "")
+          .trim()
+          .replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "")
+          .replace(/[（(]\s*[A-Za-z0-9√×对错vVxX正确错误\s]*[)）]/g, "")
+          .replace(/[^\p{L}\p{N}]/gu, "")
+          .toLowerCase();
+
+      const existingStems = new Set(report.ok.map((q) => norm(q.stem)));
+      const isAlreadyPresent = (stem: string) => {
+        const n = norm(stem);
+        if (!n) return true;
+        for (const es of existingStems) {
+          if (es === n || (es.length >= 6 && n.length >= 6 && (es.includes(n) || n.includes(es)))) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      const extra = paperQuestions.filter((q) => !isAlreadyPresent(q.stem));
+      if (extra.length > 0) {
+        report.ok = [...report.ok, ...extra].sort((a, b) => {
+          const needleA = norm(a.stem).slice(0, 12);
+          const needleB = norm(b.stem).slice(0, 12);
+          const idxA = needleA ? cleanedText.indexOf(needleA) : -1;
+          const idxB = needleB ? cleanedText.indexOf(needleB) : -1;
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          return 0;
+        });
+      }
     }
   }
 

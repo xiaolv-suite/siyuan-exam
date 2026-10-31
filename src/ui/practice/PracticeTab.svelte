@@ -306,8 +306,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       saveMaterialNoteItem as serviceSaveMaterialNoteItem,
       removeMaterialNoteWithConfirm as serviceRemoveMaterialNoteWithConfirm,
       resolveMaterialLocatedUrl as serviceResolveMaterialLocatedUrl,
-      bridgeMaterialToManual as serviceBridgeMaterialToManual,
-      bridgeMaterialToAi as serviceBridgeMaterialToAi,
+      bridgeMaterialToManualAsync as serviceBridgeMaterialToManual,
+      bridgeMaterialToAiAsync as serviceBridgeMaterialToAi,
       createBlankNoteFormState,
       getNoteDraftSignature,
       isNoteFormDirty,
@@ -4511,16 +4511,16 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     /** R54 原型高级交互：把资料/笔记一键带入手工出题 */
-    function bridgeMaterialToManual(m: import("../../core/materials").MaterialDoc, noteText = "") {
-      const b = serviceBridgeMaterialToManual(m, noteText);
+    async function bridgeMaterialToManual(m: import("../../core/materials").MaterialDoc, noteText = "") {
+      const b = await serviceBridgeMaterialToManual(app, m, noteText);
       mSource = b.source; if (b.stem) mStem = b.stem;
       view = "manual";
       showMessage(b.toast, 2800, "info");
     }
 
     /** R54 原型高级交互：把资料/笔记一键带入 AI 材料 */
-    function bridgeMaterialToAi(m: import("../../core/materials").MaterialDoc, noteText = "") {
-      const bridged = serviceBridgeMaterialToAi(app, m, noteText);
+    async function bridgeMaterialToAi(m: import("../../core/materials").MaterialDoc, noteText = "") {
+      const bridged = await serviceBridgeMaterialToAi(app, m, noteText);
       aiSource = bridged.content;
       view = "ai";
       showMessage(bridged.toast, 2800, "info");
