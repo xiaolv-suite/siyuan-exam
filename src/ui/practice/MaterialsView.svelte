@@ -183,6 +183,16 @@
     <p>{t("head.materials.desc")}</p>
   </div>
   <StudioSubNav currentView="materials" {t} {onchangeView} />
+  <!-- 使用说明向导卡片 -->
+  <div class="lv-card" style="margin:8px 0 10px;padding:12px 16px;background:color-mix(in srgb, var(--lv-accent-soft) 30%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);display:flex;align-items:flex-start;gap:12px">
+    <Icon name="info" size={16} />
+    <div style="font-size:12.5px;line-height:1.6;color:var(--lv-text-2)">
+      <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 学习资料库如何使用？</b>
+      1. <b>上传教材与讲义</b>：支持上传 Word (.docx)、PDF、Markdown、音视频等资料，自动安全保存在思源 <code>data/assets</code> 目录中。<br />
+      2. <b>一键转化为试题</b>：选中资料后，点击「<b>带入手工出题工坊</b>」或「<b>带入 AI 智能出题</b>」，可自动将资料作为题目背景或直接提取考点出题。<br />
+      3. <b>考点笔记与定位</b>：点击「<b>整理笔记</b>」，可边读资料边随堂记录核心采分点与摘录，笔记可随时一键裂变为对应题目的题干！
+    </div>
+  </div>
   <div class="lv-row">
     <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("import.back")}</button>
     <b><Icon name="book" size={15} /> {t("materials.title")}</b>
@@ -259,12 +269,25 @@
               <div class="lv-material-location"><Icon name={l.kind === "assets" ? matIconName(m.kind) : "link"} size={13} /><span>{l.path}</span></div>
             {/each}
           </div>
-          <div class="lv-row lv-material-actions">
-            <button class="lv-btn lv-btn--primary sm" onclick={() => onopenMaterial(m)}><Icon name="external-link" size={13} /> {t("materials.open")}</button>
-            <button class="lv-btn sm" aria-expanded={notesOpenId === m.id} aria-busy={materialsBusy} onclick={() => ontoggleNotes(m)} disabled={materialsBusy}><Icon name="pencil" size={13} /> {t("materials.notes")}（<span class="num">{materialNoteCounts.get(m.id) ?? 0}</span>）</button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => onbridgeToManual(m)} title="把当前资料来源带入手工录题"><Icon name="edit" size={13} /> {t("materials.toManual", "带入录题")}</button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => onbridgeToAi(m)} title="把当前资料与笔记带入 AI 出题"><Icon name="sparkles" size={13} /> {t("materials.toAi", "带入 AI")}</button>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => onremoveMaterial(m)} disabled={materialsBusy || app?.materialsReadonly} aria-busy={materialsBusy} title={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")} aria-label={app?.materialsReadonly ? t("materials.readonly") : t("materials.removeTitle")}><Icon name="trash" size={13} /></button>
+          <div class="lv-material-actions-panel" style="margin:12px 0;padding:12px 14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border-subtle)">
+            <b style="display:block;font-size:12px;color:var(--lv-text-3);margin-bottom:8px">资料应用与备考转化：</b>
+            <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
+              <button class="lv-btn lv-btn--primary sm" onclick={() => onbridgeToManual(m)} title="把当前资料来源带入手工录题台">
+                <Icon name="pencil" size={13} /> 带入手工出题工坊
+              </button>
+              <button class="lv-btn sm" onclick={() => onbridgeToAi(m)} title="把当前资料与笔记带入 AI 出题">
+                <Icon name="sparkles" size={13} /> 带入 AI 智能出题
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" aria-expanded={notesOpenId === m.id} aria-busy={materialsBusy} onclick={() => ontoggleNotes(m)} disabled={materialsBusy}>
+                <Icon name="clipboard" size={13} /> {t("materials.notes")}（<span class="num">{materialNoteCounts.get(m.id) ?? 0}</span>）
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={() => onopenMaterial(m)} title="在思源/浏览器中打开原件">
+                <Icon name="external-link" size={13} /> 打开原件 ↗
+              </button>
+              <button class="lv-btn sm lv-btn--ghost" style="margin-left:auto" onclick={() => onremoveMaterial(m)} disabled={materialsBusy || app?.materialsReadonly} title="从资料库移除">
+                <Icon name="trash" size={13} />
+              </button>
+            </div>
           </div>
           {#if notesOpenId === m.id}
             <div class="lv-material-notes">

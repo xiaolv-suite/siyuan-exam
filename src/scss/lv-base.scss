@@ -1964,9 +1964,10 @@ input[type="range"] {
 }
 
 /* —— 工坊与资料库通用布局 (Studio & Materials) —— */
-.lv-studio-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(300px, .92fr); gap: var(--lv-space-panel); align-items: start; }
+.lv-studio-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: var(--lv-space-panel); align-items: start; }
 .lv-studio-grid > * { min-width: 0; }
 .lv-studio-form { margin: 8px 0; }
+.lv-studio-form textarea.lv-textarea { resize: vertical !important; width: 100% !important; box-sizing: border-box !important; }
 .lv-preview-card { margin: 8px 0; position: sticky; top: 10px; }
 .lv-preview-face { border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); padding: 20px; }
 .lv-preview-face h3 { margin: 14px 0 18px; font-size: 18px; line-height: 1.7; font-weight: var(--lv-font-weight-semibold); white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -190,7 +190,7 @@
     if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer);
     docSearchDebounceTimer = setTimeout(() => {
       onDoSearchDocs(val);
-    }, 250);
+    }, 150);
   }
 </script>
 
@@ -254,8 +254,12 @@
         </button>
       </div>
       {#if importSubTab === "siyuan"}
-        <!-- 从思源笔记原生文档直接提取题目导入 -->
+        <!-- 从思源笔记原生文档直接提取题目导入（本插件核心特色能力） -->
         <div class="stack-sm" style="margin-top:6px">
+          <div class="lv-card" style="margin:2px 0 6px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+            <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 思源原生笔记试题提取指引（本插件核心特色）：</b>
+            直接读取思源笔记正文，支持单选/多选/判断/表格题、<code>==高亮划重点填空==</code>、<code>**术语定义**</code> 以及 <code>::</code> 闪卡语法。提取后的题目自动与思源原笔记段落挂载 <code>sourceBlockId</code> 双向链接！
+          </div>
           <div class="lv-chip lv-chip--grn" style="font-size:11px;padding:4px 8px;margin-bottom:4px" role="note">
             {t("import.siyuanDocSafety")}
           </div>

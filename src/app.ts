@@ -3685,12 +3685,18 @@ export class ExamApp {
   }
 
   // ---------- 思源笔记原生文档联动与离线永存 ----------
-  async searchSiyuanDocs(query: string): Promise<Array<{ id: string; title: string; hpath: string; box: string }>> {
+  async searchSiyuanDocs(query = ""): Promise<Array<{ id: string; title: string; hpath: string; box: string }>> {
     if (!this.kernelOnline) return [];
     const clean = query.trim().replace(/'/g, "''");
-    const sql = clean
-      ? `SELECT id, content, hpath, box FROM blocks WHERE type='d' AND (content LIKE '%${clean}%' OR hpath LIKE '%${clean}%') ORDER BY updated DESC LIMIT 30`
-      : `SELECT id, content, hpath, box FROM blocks WHERE type='d' ORDER BY updated DESC LIMIT 30`;
+    const terms = clean.split(/\s+/).filter(Boolean);
+    const filterSql = terms.length > 0
+      ? terms.map((t) => `(content LIKE '%${t}%' OR hpath LIKE '%${t}%')`).join(" AND ")
+      : "";
+    const excludeDerived = `hpath NOT LIKE '/小驴考试/%' AND hpath NOT LIKE '/导出/%' AND hpath NOT LIKE '/每日战报/%'`;
+    const whereClause = filterSql
+      ? `WHERE type='d' AND ${excludeDerived} AND (${filterSql})`
+      : `WHERE type='d' AND ${excludeDerived}`;
+    const sql = `SELECT id, content, hpath, box FROM blocks ${whereClause} ORDER BY updated DESC LIMIT 100`;
     try {
       const rows = await this.deps.client.sql<Record<string, string>>(sql);
       return rows.map((r) => ({

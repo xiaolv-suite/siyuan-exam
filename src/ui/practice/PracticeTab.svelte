@@ -2189,7 +2189,12 @@ import { confirmDialogSync } from "@/libs/dialog";
     function switchView(next: View) {
       errorMsg = "";
       view = next;
-      if (next === "import") void checkImportCheckpoint();
+      if (next === "import") {
+        void checkImportCheckpoint();
+        if (importSubTab === "siyuan" && !siyuanDocCandidates.length) {
+          void doSearchDocs("");
+        }
+      }
     }
     const railItems = $derived([
       { icon: "grid", name: t("mode.browse"), on: (view as string) === "browse", onclick: () => { switchView("browse"); void loadQuestions(); } },
@@ -4378,9 +4383,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       try {
         const res = await serviceRegisterMaterialFile(app, file, { subject: matSubject, chapter: matChapter }, t);
         loadMaterials();
+        if (res.material?.id) {
+          selectedMaterialId = res.material.id;
+        }
         materialsNote = res.message;
+        showMessage(`学习资料《${file.name}》已成功登记入库并选中，可立即带入出题！✓`, 3400, "info");
       } catch (err) {
-        materialsNote = String(err instanceof Error ? err.message : err);
+        const msg = String(err instanceof Error ? err.message : err);
+        materialsNote = msg;
+        showMessage(`资料上传失败：${msg}`, 4000, "error");
       } finally { materialsBusy = false; }
     }
 
@@ -5131,7 +5142,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       siyuanDocBusy = true;
       selectedDocIds = {};
       try {
-        siyuanDocCandidates = await searchSiyuanDocCandidates(app, q);
+        const query = q.trim();
+        siyuanDocCandidates = query
+          ? await searchSiyuanDocCandidates(app, query)
+          : (await app.searchSiyuanDocs(""));
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 3000, "error");
       } finally {

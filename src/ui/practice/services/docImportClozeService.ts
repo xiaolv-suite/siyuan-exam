@@ -21,12 +21,12 @@ export interface DocExtractResult {
   isError: boolean;
 }
 
-/** 检索思源文档候选列表 */
+/** 检索思源文档候选列表（支持空搜索词自动加载全部最近文档） */
 export async function searchSiyuanDocCandidates(
   app: any,
   query: string,
 ): Promise<SiyuanDocCandidate[]> {
-  if (!app || !query.trim()) return [];
+  if (!app || typeof app.searchSiyuanDocs !== "function" || !query.trim()) return [];
   return (await app.searchSiyuanDocs(query.trim())) as SiyuanDocCandidate[];
 }
 
