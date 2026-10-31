@@ -304,6 +304,71 @@ export function parseInlineFlashcards(
 }
 
 /**
+ * 10. 解析思源笔记中带有末尾对错符号的自然判断题，如：
+ * 质数只有两个因数。( √ )
+ * 所有的偶数都是合数。( × )
+ */
+export function parseInlineJudgeQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
+  const lines = rawText.split(/\r?\n/);
+  const questions: Question[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim().replace(/^[-*+]\s+/, "").replace(/^\d+[.、]\s*/, "");
+    const m = trimmed.match(/^(.*?)[（(]\s*([√×对错vVxX正确错误TFN]+)\s*[)）]\s*$/);
+    if (m && m[1].trim().length >= 4) {
+      const stem = m[1].trim();
+      const rawAns = m[2].trim().toUpperCase();
+      const answer = /[√对vVT正确]/.test(rawAns) ? "对" : "错";
+      const q = makeQuestion({
+        type: "judge",
+        stem,
+        options: [],
+        answer,
+        kp: docMeta.title,
+        source: docMeta.title,
+      });
+      q.sourceKind = "real";
+      questions.push(q);
+    }
+  }
+  return questions;
+}
+
+/**
+ * 11. 解析思源笔记中的标题与问答段落结构（Markdown Heading QA）：
+ * ### 什么是死锁？
+ * 死锁是指两个或两个以上的进程在执行过程中...
+ */
+export function parseHeadingQaQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
+  const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
+  const sections = normalized.split(/\n+(?=#{2,5}\s+)/);
+  const questions: Question[] = [];
+  for (const sec of sections) {
+    const trimmed = sec.trim();
+    const m = trimmed.match(/^#{2,5}\s+([^\n\r]+)\r?\n([\s\S]+)$/);
+    if (!m) continue;
+    const heading = m[1].trim().replace(/^\d+[.、]\s*/, "");
+    const body = m[2].trim();
+    if (/目录|前言|总结|大纲|参考资料|附录/i.test(heading)) continue;
+    if (heading.length >= 3 && body.length >= 4 && body.length <= 1500 && !body.startsWith("#")) {
+      const isQuestion = /[？?]|什么是|简述|解释|为什么|如何|概念|定义/.test(heading);
+      if (isQuestion || body.length < 400) {
+        const q = makeQuestion({
+          type: body.length > 50 ? "short" : "fill",
+          stem: heading.endsWith("？") || heading.endsWith("?") ? heading : `${heading}？`,
+          options: [],
+          answer: body,
+          kp: docMeta.title,
+          source: docMeta.title,
+        });
+        q.sourceKind = "real";
+        questions.push(q);
+      }
+    }
+  }
+  return questions;
+}
+
+/**
  * 从思源笔记文档 Markdown 原文解析提取全套题目
  */
 export async function parseQuestionsFromSiyuanDoc(
@@ -365,7 +430,33 @@ export async function parseQuestionsFromSiyuanDoc(
     }
   }
 
-  // 兜底 3：渐进式阅读笔记概念与列表制卡提取（识别术语定义、列举项等）
+  // 兜底 3：句末带对错符号的自然判断题识别（如：质数只有两个因数 (√)）
+  if (!report.ok.length && !report.duplicates && /[（(]\s*[√×对错vVxX正确错误]+\s*[)）]/.test(docMarkdown)) {
+    const judgeQuestions = parseInlineJudgeQuestions(docMarkdown, docMeta);
+    if (judgeQuestions.length > 0) {
+      report = {
+        batch: report.batch || newBatchId(),
+        ok: judgeQuestions,
+        errors: [],
+        duplicates: 0,
+      };
+    }
+  }
+
+  // 兜底 4：标题与段落问答结构识别（如：### 什么是死锁？\n回答段落...）
+  if (!report.ok.length && !report.duplicates && /#{2,5}\s+[^\n\r]+/.test(docMarkdown)) {
+    const headingQuestions = parseHeadingQaQuestions(docMarkdown, docMeta);
+    if (headingQuestions.length > 0) {
+      report = {
+        batch: report.batch || newBatchId(),
+        ok: headingQuestions,
+        errors: [],
+        duplicates: 0,
+      };
+    }
+  }
+
+  // 兜底 5：渐进式阅读笔记概念与列表制卡提取（识别术语定义、列举项等）
   if (!report.ok.length && !report.duplicates && cleanedText.trim().length >= 10) {
     try {
       const { extractCardsFromExcerpt } = await import("./excerptCard");
@@ -387,7 +478,7 @@ export async function parseQuestionsFromSiyuanDoc(
     }
   }
 
-  // 兜底 4：如果文档内确实没有任何可提取的题目，归一化错误信息，消除底层 Aiken 内部“缺少 ANSWER 行”等不友好报错
+  // 兜底 6：如果文档内确实没有任何可提取的题目，归一化错误信息，消除底层 Aiken 内部“缺少 ANSWER 行”等不友好报错
   if (!report.ok.length && !report.duplicates) {
     return {
       batch: report.batch || newBatchId(),

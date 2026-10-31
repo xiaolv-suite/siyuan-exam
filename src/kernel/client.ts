@@ -484,9 +484,30 @@ export class KernelApiClient {
     throw lastErr;
   }
 
-  /** 写入工作区文件（120-02 资料登记：/api/file/putFile，file=base64；目录不存在自动创建） */
-  async putFile(path: string, base64: string): Promise<void> {
-    await this.writePost("/api/file/putFile", { path, file: base64, isDir: false, mtime: Math.floor(Date.now() / 1000) });
+  /** 写入工作区文件（120-02 资料登记：/api/file/putFile，思源官方契约必须使用 multipart/form-data） */
+  async putFile(path: string, fileOrData: string | Blob | File): Promise<void> {
+    const targetPath = path.startsWith("/data") ? path : `/data${path.startsWith("/") ? "" : "/"}${path}`;
+    const fd = new FormData();
+    fd.append("path", targetPath);
+    if (typeof fileOrData === "string") {
+      let blob: Blob;
+      try {
+        const binStr = atob(fileOrData);
+        const bytes = new Uint8Array(binStr.length);
+        for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+        blob = new Blob([bytes]);
+      } catch {
+        blob = new Blob([fileOrData], { type: "text/plain" });
+      }
+      fd.append("file", blob, path.split("/").pop() || "file.bin");
+    } else {
+      fd.append("file", fileOrData, path.split("/").pop() || "file.bin");
+    }
+    if (this.t.postForm) {
+      await this.t.postForm("/api/file/putFile", fd, path.split("/").pop() || "file.bin", { retries: 0, retryable: false });
+    } else {
+      await this.writePost("/api/file/putFile", { path: targetPath, file: String(fileOrData), isDir: false });
+    }
   }
 
   /** 删除工作区文件（资料移除时的可选清理；调用方自担确认） */

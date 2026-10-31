@@ -198,13 +198,19 @@
 {:else}
   {#if session && session.phase === "running"}
     <div class="lv-pad">
-      <div class="lv-card lv-resume">
+      <div class="lv-card lv-resume" style="margin-bottom:12px;padding:12px 18px;background:color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface));border-left:3.5px solid var(--lv-amber);border-radius:var(--lv-r-2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
         <div>
-          <b>{t("resume.title")}</b>
-          <div class="lv-muted">{t("resume.progress")}: {session.progress.done}/{session.progress.total}</div>
+          <b style="font-size:14px;display:flex;align-items:center;gap:6px"><Icon name="clock" size={14} /> {t("resume.title", "上次练习尚未完成")}</b>
+          <div class="lv-muted" style="font-size:12px;margin-top:2px">当前已答进度：<span class="num">{session.progress.done} / {session.progress.total}</span> 题</div>
         </div>
-        <button class="lv-btn lv-btn--primary" onclick={onResume} disabled={resumeBusy || exitBusy}>{resumeBusy ? "…" : t("resume.continue")}</button>
-        <button class="lv-btn lv-btn--ghost" disabled={resumeBusy || exitBusy} onclick={ondiscardSession}>{t("resume.discard")}</button>
+        <div class="lv-row" style="margin:0;gap:8px">
+          <button class="lv-btn lv-btn--primary sm" onclick={onResume} disabled={resumeBusy || exitBusy}>
+            <Icon name="play" size={12} /> {resumeBusy ? "…" : "继续做题"}
+          </button>
+          <button class="lv-btn lv-btn--ghost sm" disabled={resumeBusy || exitBusy} onclick={ondiscardSession} title="清空未完成练习并重新开始" style="color:var(--lv-accent-seal)">
+            <Icon name="trash" size={12} /> 放弃该次练习
+          </button>
+        </div>
       </div>
       {#if resumeError}<div class="lv-error" role="alert" style="margin-top:8px">{resumeError}</div>{/if}
     </div>

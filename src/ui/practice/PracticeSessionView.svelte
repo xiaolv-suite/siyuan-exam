@@ -389,7 +389,9 @@
   {#if q}
     <div class="lv-pad lv-session-grid">
       <div class="lv-row lv-session-head">
-        <button class="lv-btn lv-btn--ghost" onclick={onexitSession} disabled={exitBusy} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {exitBusy ? "…" : t("session.exit")}</button>
+        <button class="lv-btn lv-btn--ghost" onclick={onexitSession} disabled={exitBusy} style="display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--lv-text)" title="结束本次做题并退出（下次可在首页随时继续或放弃）">
+          <Icon name="close" size={13} /> {exitBusy ? "…" : "结束练习"}
+        </button>
         <div class="lv-row" style="flex:1;min-width:120px;gap:var(--lv-space-2)">
           <div class="lv-progress" style="flex:1" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={curProgress.total} aria-valuenow={curProgress.done}><i style="width:{curProgress.total ? Math.round((curProgress.done / curProgress.total) * 100) : 0}%"></i></div>
           <span class="num lv-muted">{curProgress.done}/{curProgress.total}</span>
@@ -430,6 +432,7 @@
           <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={ontogglePureListen}><Icon name="eyeoff" size={13} /></button>
           <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-label={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-pressed={soundEnabled} onclick={() => { soundEnabled = !soundEnabled; }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
           <button class="lv-chip" class:acc={hotkeysHelpOpen} title={t("hotkeys.tip")} aria-label={t("hotkeys.tip")} aria-pressed={hotkeysHelpOpen} onclick={() => (hotkeysHelpOpen = !hotkeysHelpOpen)}><Icon name="activity" size={13} /></button>
+          <button type="button" class="lv-chip" onclick={onexitSession} disabled={exitBusy} title="结束做题并退出"><Icon name="close" size={13} /></button>
         </div>
         <span class="lv-chip" style="gap:2px;padding:2px 4px" role="group" aria-label="试题速记标记">
           <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("star")} title={t("session.tagStar")} aria-label={t("session.tagStar")} aria-pressed={(q.userTags || []).includes("star")} onclick={() => ontoggleUserTag("star")}><Icon name="star" size={12} /></button>

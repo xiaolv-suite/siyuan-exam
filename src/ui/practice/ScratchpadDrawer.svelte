@@ -53,8 +53,8 @@
     </div>
     <textarea
       class="lv-input lv-textarea num"
-      rows="3"
-      style="font-family:monospace;font-size:var(--lv-font-size-sm);line-height:1.4"
+      rows="8"
+      style="font-family:monospace;font-size:var(--lv-font-size-sm);line-height:1.5;min-height:180px!important;resize:both!important;width:100%!important;box-sizing:border-box"
       placeholder={t("scratchpad.placeholder")}
       aria-label={t("scratchpad.title")}
       value={text}

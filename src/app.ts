@@ -172,17 +172,6 @@ import {
 } from "./core/kpRelations";
 import { getStandardMathTaxonomyPreset } from "./core/taxonomyAdapter";
 
-/** ArrayBuffer → base64（分块拼接，避免大文件 String.fromCharCode 展开栈溢出） */
-function arrayBufferToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let bin = "";
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(bin);
-}
-
 export interface BankInfo {
   id: string;
   name: string;
@@ -2165,9 +2154,8 @@ export class ExamApp {
     if (!this.kernelOnline) throw new Error("离线：登记资料需要内核可写（拷入 assets）");
     const guard = canCopyIntoAssets(file.size);
     if (!guard.ok) throw new Error(guard.reason ?? "文件不可拷入");
-    const base64 = arrayBufferToBase64(await file.arrayBuffer());
     const path = assetsPathFor(file.name);
-    await this.deps.client.putFile(path, base64);
+    await this.deps.client.putFile(path, file);
     const kind = kindFromFileName(file.name);
     const title = meta.title?.trim() || file.name.replace(/\.[^.]+$/, "");
     const result = registerMaterial(

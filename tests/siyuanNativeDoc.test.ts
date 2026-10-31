@@ -231,6 +231,36 @@ abundant :: 丰富的，充裕的
       expect(report.ok[1].stem).toBe("abundant");
       expect(report.ok[1].answer).toBe("丰富的,充裕的");
     });
+
+    it("支持直接识别带有句末 (√)/(×)/(对)/(错) 的自然判断题", async () => {
+      const docMarkdown = `
+# 数学基础考点辨析
+1. 质数只有两个因数。( √ )
+2. 所有的偶数都是合数。( × )
+      `.trim();
+      const report = await parseQuestionsFromSiyuanDoc(docMarkdown, { docId: "doc-judge", title: "数学辨析" });
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].type).toBe("judge");
+      expect(report.ok[0].answer).toBe("对");
+      expect(report.ok[1].type).toBe("judge");
+      expect(report.ok[1].answer).toBe("错");
+    });
+
+    it("支持直接识别思源三级标题问答笔记（### 什么是死锁？）", async () => {
+      const docMarkdown = `
+### 什么是死锁？
+死锁是指两个或两个以上的进程在执行过程中，因争夺资源而造成的一种互相等待的现象。
+
+### 简述进程与线程的区别？
+进程是资源分配的基本单位，线程是独立调度的基本单位。一个进程可以包含多个线程。
+      `.trim();
+      const report = await parseQuestionsFromSiyuanDoc(docMarkdown, { docId: "doc-qa", title: "操作系统核心笔记" });
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].stem).toContain("什么是死锁？");
+      expect(report.ok[0].answer).toContain("死锁是指两个或两个以上的进程");
+      expect(report.ok[1].stem).toContain("简述进程与线程的区别？");
+      expect(report.ok[1].answer).toContain("进程是资源分配的基本单位");
+    });
   });
 
   describe("2. 题库与试卷同步为思源笔记原生文档 (siyuanSyncDoc)", () => {
