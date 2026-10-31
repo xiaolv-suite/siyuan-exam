@@ -64,6 +64,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private boundBlockIcon = this.onBlockIconClick.bind(this);
   private boundImageMenu = this.onImageMenu.bind(this);
   private boundFlashcardAction = this.onFlashcardAction.bind(this);
+  private boundContentMenu = this.onContentMenu.bind(this);
+  private boundBlockRefMenu = this.onBlockRefMenu.bind(this);
   /** 47-05 lite：设置默认值快照（注册完成时；恢复默认用） */
   private settingDefaults: Map<string, unknown> = new Map();
   /** Epoch 6：服务桥注销句柄 */
@@ -291,6 +293,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     this.eventBus.on("click-blockicon", this.boundBlockIcon);
     this.eventBus.on("open-menu-image", this.boundImageMenu);
     this.eventBus.on("click-flashcard-action", this.boundFlashcardAction);
+    this.eventBus.on("open-menu-content", this.boundContentMenu);
+    this.eventBus.on("open-menu-blockref", this.boundBlockRefMenu);
   }
 
   /**
@@ -475,6 +479,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     this.eventBus.off("click-blockicon", this.boundBlockIcon);
     this.eventBus.off("open-menu-image", this.boundImageMenu);
     this.eventBus.off("click-flashcard-action", this.boundFlashcardAction);
+    this.eventBus.off("open-menu-content", this.boundContentMenu);
+    this.eventBus.off("open-menu-blockref", this.boundBlockRefMenu);
     // 48-05：雷切组件注销（注册/注销配对；重试定时器一并清理）
     this.speedSwitchHandle?.dispose();
     this.speedSwitchHandle = null;
@@ -636,7 +642,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           const kramdown = await this.examApp.deps.client.getBlockKramdown(blockId);
           const source = combineBlockSources([kramdown]);
           const blockTitle = (nodeElement?.getAttribute?.("aria-label") || nodeElement?.getAttribute?.("data-type") || "笔记段落").trim();
-          openPracticeView(this, "entry", {
+          openPracticeView(this, "manual", {
             bankId: bank.id,
             sourceText: source.text || nodeElement.textContent?.trim() || "",
             sourceTitle: blockTitle,
@@ -644,7 +650,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
             sourceBlockId: blockId,
           });
         } catch {
-          openPracticeView(this, "entry", {
+          openPracticeView(this, "manual", {
             bankId: bank.id,
             sourceText: nodeElement.textContent?.trim() || "",
             sourceKind: "block",
@@ -778,7 +784,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           try {
             const kramdown = await exam.deps.client.getBlockKramdown(blockId);
             const source = combineBlockSources([kramdown]);
-            openPracticeView(this, "entry", {
+            openPracticeView(this, "manual", {
               bankId: bank.id,
               sourceText: source.text || el.textContent?.trim() || "",
               sourceTitle: blockTitle,
@@ -786,7 +792,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
               sourceBlockId: blockId,
             });
           } catch {
-            openPracticeView(this, "entry", {
+            openPracticeView(this, "manual", {
               bankId: bank.id,
               sourceText: el.textContent?.trim() || "",
               sourceTitle: blockTitle,
@@ -1019,6 +1025,78 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           }
         } catch (e) {
           showMessage(`识题失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        }
+      },
+    });
+  }
+
+  private onContentMenu({ detail }: { detail?: { menu?: Menu; range?: Range } }) {
+    if (!detail?.menu) return;
+    const selectedText = detail.range ? detail.range.toString().trim() : "";
+    if (!selectedText || selectedText.length < 2) return;
+
+    detail.menu.addItem({
+      iconHTML: "<svg><use xlink:href='#iconExam'></use></svg>",
+      label: this.i18n["menu.convertToQuestion"] ?? "转为小驴试题（入库）",
+      click: async () => {
+        if (!this.examApp || !this.examApp.kernelOnline) {
+          showMessage(this.i18n["state.offlineHint"] ?? "请稍候，应用初始化中…", 3000, "info");
+          return;
+        }
+        const bank = this.examApp.listBanks()[0];
+        if (!bank) {
+          showMessage(this.i18n["guard.needBankFirst"] ?? "请先创建一个题库", 3600, "error");
+          return;
+        }
+        openPracticeView(this, "manual", {
+          bankId: bank.id,
+          sourceText: selectedText,
+          sourceTitle: "划选笔记文字",
+          sourceKind: "block",
+        });
+      },
+    });
+
+    detail.menu.addItem({
+      iconHTML: "<svg><use xlink:href='#iconExam'></use></svg>",
+      label: this.i18n["menu.aiFromSelection"] ?? "以划选内容为材料 AI 出题",
+      click: async () => {
+        if (!this.examApp || !this.examApp.kernelOnline) {
+          showMessage(this.i18n["state.offlineHint"] ?? "请稍候，应用初始化中…", 3000, "info");
+          return;
+        }
+        const bank = this.examApp.listBanks()[0];
+        if (!bank) {
+          showMessage(this.i18n["guard.needBankFirst"] ?? "请先创建一个题库", 3600, "error");
+          return;
+        }
+        openPracticeView(this, "ai", {
+          bankId: bank.id,
+          sourceText: selectedText,
+          sourceTitle: "划选笔记文字",
+          sourceKind: "block",
+        });
+      },
+    });
+  }
+
+  private onBlockRefMenu({ detail }: { detail?: { menu?: Menu; target?: HTMLElement } }) {
+    if (!detail?.menu || !detail?.target) return;
+    const refId = detail.target.getAttribute("data-id") || "";
+    if (!refId || !this.examApp) return;
+
+    detail.menu.addItem({
+      iconHTML: "<svg><use xlink:href='#iconExam'></use></svg>",
+      label: "在小驴考试中查看/练习此题",
+      click: async () => {
+        const hit = await this.examApp!.findQuestionByBlock(refId);
+        if (hit) {
+          this.pendingPractice = [hit.q];
+          this.pendingPracticeBankId = hit.bank.id;
+          emitExamEvent("open-practice-questions", { qids: [hit.q.id], bank: hit.bank.id });
+          this.openPractice();
+        } else {
+          showMessage("该引用块未在小驴考试中登记为试题", 3000, "info");
         }
       },
     });
