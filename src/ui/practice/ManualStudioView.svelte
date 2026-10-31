@@ -581,7 +581,7 @@
         }} disabled={mSaving || !hasStem} aria-busy={mSaving} title="保存题目并直接存为思源笔记题库块">
           <Icon name="save" size={14} /> {mSaving ? "正在写入思源块…" : "入库并存为思源块"}
         </button>
-        <button class="lv-btn sm" onclick={() => {
+        <button class="lv-btn" onclick={() => {
           if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
             onsetCorrectOption(0);
           }
@@ -595,10 +595,10 @@
         }} disabled={mSaving || !hasStem} title="保存当前题后保留考点与出处，直接继续录入下一题">
           <Icon name="plus" size={13} /> 入库并继续下一题
         </button>
-        <button class="lv-btn lv-btn--ghost" onclick={() => onsaveManual("draft")} disabled={mSaving || !hasStem} title="未填答案亦可保存为思源草稿块，方便随时暂存">
+        <button class="lv-btn" onclick={() => onsaveManual("draft")} disabled={mSaving || !hasStem} title="未填答案亦可保存为思源草稿块，方便随时暂存">
           存为草稿块
         </button>
-        <button class="lv-btn lv-btn--ghost" onclick={onblankManualDraft} disabled={mSaving || (!mStem && !mAnswer && !mAnalysis)} title={t("manual.blankTitle", "清空并开始录入新题")}>
+        <button class="lv-btn" onclick={onblankManualDraft} disabled={mSaving || (!mStem && !mAnswer && !mAnalysis)} title={t("manual.blankTitle", "清空并开始录入新题")}>
           换一道新题
         </button>
         {#if mSaved}<span class="lv-muted" role="status" style="color:var(--lv-accent);font-size:12px;display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> 已保存为思源原生题块 ✓</span>{/if}

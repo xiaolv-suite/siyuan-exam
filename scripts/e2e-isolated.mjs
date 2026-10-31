@@ -353,6 +353,11 @@ try {
   await siyuanDocTabBtn.click();
   await sleep(500);
 
+  // 1.1 验证场景模式预设切换（切换到「标准试卷」模式）
+  const paperPresetBtn = activeTab().getByRole("button", { name: /标准试卷/ });
+  await paperPresetBtn.waitFor({ state: "visible" });
+  await paperPresetBtn.click();
+
   // 2. 检索并直接提取「自然排版试卷」（一行多选项 + 题干括号答案）
   const searchDocInput = activeTab().locator('input[placeholder*="搜索思源文档"]');
   await searchDocInput.fill("自然排版");
@@ -363,7 +368,14 @@ try {
   await paperDocRow.waitFor({ state: "visible", timeout: 15000 });
   await paperDocRow.getByRole("button", { name: /直接提取/ }).click();
 
-  // 3. 自动切到解析预览：验证提取出 2 题且成功入库读回确认
+  // 3. 自动切到解析预览：验证提取出的题目卡片含高置信度勋章、筛选功能与成功入库
+  const confBadge = activeTab().locator(".lv-card").first().locator(".lv-chip--grn, .lv-chip--amb");
+  await confBadge.first().waitFor({ state: "visible", timeout: 15000 });
+  const selectHighBtn = activeTab().getByRole("button", { name: /仅勾选高置信题/ });
+  if (await selectHighBtn.isVisible()) {
+    await selectHighBtn.click();
+  }
+
   const commitPaperBtn = activeTab().getByRole("button", { name: /^入库\s*\(/ });
   await commitPaperBtn.waitFor({ state: "visible", timeout: 15000 });
   await commitPaperBtn.click();
@@ -387,9 +399,14 @@ try {
   await activeTab().getByText(/读回确认 2 题/).waitFor({ state: "visible", timeout: 20000 });
   await snap("03c-siyuan-doc-import-judge.png");
 
-  // 5. 再次切到「从思源文档导入」，测试概念速查问答笔记提取
+  // 5. 再次切到「从思源文档导入」，测试概念速查问答笔记提取（切换回「智能全能」或「读书笔记」模式）
   await siyuanDocTabBtn.click();
   await sleep(400);
+  const allPresetBtn = activeTab().getByRole("button", { name: /智能全能/ });
+  await allPresetBtn.waitFor({ state: "visible" });
+  await allPresetBtn.click();
+  await sleep(300);
+
   await searchDocInput.fill("概念速查");
   await activeTab().locator(".stack-sm").getByRole("button", { name: "搜索", exact: true }).click();
   await sleep(500);
@@ -426,7 +443,7 @@ try {
   const padInput = activeTab().getByPlaceholder(/在此演练计算/);
   await padInput.waitFor({ state: "visible" });
   await padInput.fill("真机E2E草稿：重载不能丢");
-  await sleep(400);
+  await sleep(1500);
 
   // 整页刷新思源宿主，验证会话、第1阶提示展开态（受助暴露）与草稿纸跨刷新恢复
   await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
@@ -547,12 +564,16 @@ try {
   }
   record("9. 背诵模式空格翻面/评级后整页刷新自动续做第 2 题", reciteProgressText.startsWith("2/"), `进度=${reciteProgressText}`);
 
-  // ---------- 阶段 6：题库详情抽屉「衍生变式题」规格继承 + 批量勾选四合一打印版式 ----------
+  // ---------- 阶段 6：题库详情抽屉「衍生变式题」规格继承 + 笔记深度绑定操作 + 批量勾选四合一打印版式 ----------
   await activeTab().locator(".lv-rail").getByRole("button", { name: "题库", exact: true }).click();
   const httpRow = activeTab().locator(".lv-qrow").filter({ hasText: "HTTP 协议默认端口" }).locator(".lv-qrow-head");
   await httpRow.click();
+
   const cloneBtn = activeTab().getByRole("button", { name: /衍生变式题/ });
   await cloneBtn.waitFor({ state: "visible" });
+  const bindNoteBtn = activeTab().getByRole("button", { name: /绑定思源笔记|换绑笔记/ });
+  const hasBindNoteBtn = await bindNoteBtn.isVisible();
+
   await cloneBtn.click();
   const clonedSecKp = await activeTab().locator("#lv-manual-sec-kp").inputValue();
   const clonedStem = await activeTab().locator("#lv-manual-stem").inputValue();
@@ -594,8 +615,9 @@ try {
   const batchBottomPx = await batchToolbar.evaluate((el) => parseFloat(getComputedStyle(el).bottom));
   await page.setViewportSize({ width: 1440, height: 960 });
   record(
-    "10. 衍生变式题继承辅助考点、批量浮岛导出「授课讲义卷」HTML 且 390px 窄屏自动抬升防遮挡",
+    "10. 衍生变式题继承辅助考点、详情抽屉笔记双向绑定按钮就绪、批量浮岛导出「授课讲义卷」HTML 且 390px 窄屏自动抬升防遮挡",
     clonedStem.includes("（变式）") &&
+      hasBindNoteBtn &&
       clonedSecKp.includes("协议端口") &&
       lectureHtml.includes("教师授课讲义卷") &&
       lectureHtml.includes("参考答案") &&

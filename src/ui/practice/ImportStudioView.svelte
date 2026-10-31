@@ -149,7 +149,7 @@
     lastMap,
     mappingBusy,
     committing,
-    remainingImportQuestions,
+    remainingImportQuestions: _remainingImportQuestions = [],
     trialConfirmed,
     trialBusy,
     commitProgress,
@@ -278,10 +278,9 @@
     selectedImportQids = next;
   }
 
-  function removeImportQuestion(idx: number) {
+  function removeImportQuestion(target: any) {
     if (!importReport?.ok) return;
-    importReport.ok.splice(idx, 1);
-    importReport.ok = [...importReport.ok];
+    importReport.ok = importReport.ok.filter((item) => item !== target && (!item.id || item.id !== target.id));
   }
 
   function onPaperFileSelected(e: Event) {
@@ -773,7 +772,7 @@
                           <span class="lv-chip num sm" style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={q.kp}>{q.kp}</span>
                         {/if}
                       </div>
-                      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => removeImportQuestion(qi)} title="不导入此题" aria-label="删除此题" style="color:var(--lv-red);padding:2px 6px">
+                      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => removeImportQuestion(q)} title="不导入此题" aria-label="删除此题" style="color:var(--lv-red);padding:2px 6px">
                         <Icon name="close" size={12} /> 不导入
                       </button>
                     </div>
@@ -925,10 +924,10 @@
                 importReport.ok = importReport.ok.filter((q, qi) => selectedImportQids[q.id || String(qi)] !== false);
               }
               onCommitImport();
-            }} disabled={importBusy || (!remainingImportQuestions.length && !importReport.updates?.length && !trialConfirmed.length)} aria-busy={committing}>
-              {committing ? t("import.committing") : importReport.updates?.length ? t("import.commitSummary").replace("{new}", String(remainingImportQuestions.length)).replace("{update}", String(importReport.updates.length)) : remainingImportQuestions.length ? t("import.commit") + " (" + remainingImportQuestions.length + ")" : t("import.finishTrial")}
+            }} disabled={importBusy || (!selectedImportCount && !importReport.updates?.length && !trialConfirmed.length)} aria-busy={committing}>
+              {committing ? t("import.committing") : importReport.updates?.length ? t("import.commitSummary").replace("{new}", String(selectedImportCount)).replace("{update}", String(importReport.updates.length)) : selectedImportCount ? t("import.commit") + " (" + selectedImportCount + ")" : t("import.finishTrial")}
             </button>
-            <button class="lv-btn sm" onclick={onTrialImport5} disabled={importBusy || !remainingImportQuestions.length} aria-busy={trialBusy}>
+            <button class="lv-btn sm" onclick={onTrialImport5} disabled={importBusy || !selectedImportCount} aria-busy={trialBusy}>
               {trialBusy ? "…" : t("import.trial5")}
             </button>
             {#if committing && commitProgress}
