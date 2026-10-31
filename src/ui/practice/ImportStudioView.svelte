@@ -13,7 +13,7 @@
     importCheckpoint: ImportCheckpoint | null;
     importBusy: boolean;
     importDragOver: boolean;
-    importSubTab: "standard" | "cloze" | "siyuan";
+    importSubTab: "standard" | "cloze" | "siyuan" | "tag";
     docSearchQuery: string;
     siyuanDocBusy: boolean;
     siyuanDocCandidates: Array<{ id: string; title: string; hpath: string; box: string }>;
@@ -95,6 +95,12 @@
     onRetryMissing: () => void;
     onGoPractice: () => void;
     onGoBrowse: () => void;
+    selectedTag?: string;
+    customTagInput?: string;
+    taggedBlocks?: Array<{ id: string; content: string; rootId: string; hpath: string }>;
+    tagSearchBusy?: boolean;
+    onDoSearchTags?: (tag: string) => void;
+    onImportTagQuestions?: (tag: string) => void;
   }
 
   let {
@@ -185,6 +191,12 @@
     onRetryMissing,
     onGoPractice,
     onGoBrowse,
+    selectedTag = $bindable("#考点"),
+    customTagInput = $bindable(""),
+    taggedBlocks = [],
+    tagSearchBusy = false,
+    onDoSearchTags = () => {},
+    onImportTagQuestions = () => {},
   }: Props = $props();
 
   let docSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -243,13 +255,16 @@
       ondragleave={() => { importDragOver = false; }}
       ondrop={onImportFileDrop}
     >
-      <!-- 52-09 导入方式子分面切换：批量文件导入 vs 思源笔记文档直接导入 vs 正文划重点挖空出题 -->
+      <!-- 52-09 导入方式子分面切换：批量文件导入 vs 思源笔记文档直接导入 vs 思源标签与闪卡提取 vs 正文划重点挖空出题 -->
       <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="导入方式切换" style="margin-bottom:14px" onkeydown={handleTablistKeydown}>
         <button type="button" role="tab" tabindex={importSubTab === "standard" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "standard"} aria-selected={importSubTab === "standard"} onclick={() => importSubTab = "standard"}>
-          <Icon name="import" size={12} /> {t("import.title")}（Excel / CSV / Aiken）
+          <Icon name="import" size={12} /> {t("import.title")}（Excel / CSV / Aiken / Word）
         </button>
         <button type="button" role="tab" tabindex={importSubTab === "siyuan" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "siyuan"} aria-selected={importSubTab === "siyuan"} onclick={() => { importSubTab = "siyuan"; onDoSearchDocs(""); }}>
           <Icon name="book" size={12} /> {t("import.fromSiyuanDoc")}
+        </button>
+        <button type="button" role="tab" tabindex={importSubTab === "tag" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "tag"} aria-selected={importSubTab === "tag"} onclick={() => { importSubTab = "tag"; onDoSearchTags(selectedTag || "#考点"); }}>
+          <Icon name="tag" size={12} /> 按思源标签与闪卡提取
         </button>
         <button type="button" role="tab" tabindex={importSubTab === "cloze" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "cloze"} aria-selected={importSubTab === "cloze"} onclick={() => importSubTab = "cloze"}>
           <Icon name="edit" size={12} /> {t("cloze.tab")}
@@ -380,6 +395,48 @@
             {/each}
           </div>
         {/if}
+      {:else if importSubTab === "tag"}
+        <!-- 按思源标签与原生闪卡汇聚题库（核心特色新来源） -->
+        <div class="stack-sm" style="margin-top:6px">
+          <div class="lv-card" style="margin:2px 0 6px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+            <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 按思源标签与原生闪卡汇聚题库（全新题库来源）：</b>
+            支持扫描思源全库中带有 <code>#考点#</code>、<code>#必考#</code>、<code>#真题#</code>、<code>#错题#</code> 等标签的内容块，或思源原生闪卡包，一键将日常散落的重点笔记汇聚为独立研学题库，题目与思源原块原生双向绑定！
+          </div>
+          <div class="lv-row" style="margin:4px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
+            <span class="lv-muted" style="font-size:12px">常用标签与闪卡：</span>
+            {#each ["#考点", "#必考", "#真题", "#错题", "#重点", "#背诵", "思源闪卡"] as tg (tg)}
+              <button type="button" class="lv-chip sm" class:acc={selectedTag === tg} onclick={() => { selectedTag = tg; onDoSearchTags(tg); }}>{tg}</button>
+            {/each}
+          </div>
+          <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+            <input class="lv-input sm" style="flex:1" placeholder="输入自定义标签名称（如 #考研真题 或 #法考重点）…" bind:value={customTagInput} onkeydown={(e) => { if (e.key === "Enter") { selectedTag = customTagInput || selectedTag; onDoSearchTags(selectedTag); } }} />
+            <button class="lv-btn sm lv-btn--primary" disabled={tagSearchBusy} onclick={() => { selectedTag = customTagInput || selectedTag; onDoSearchTags(selectedTag); }}>
+              <Icon name="search" size={13} /> {tagSearchBusy ? "正在检索…" : "检索标签内容块"}
+            </button>
+          </div>
+          <div class="stack-sm" style="max-height:360px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2);padding:6px;background:var(--lv-surface)">
+            {#if tagSearchBusy}
+              <div class="lv-muted" style="padding:16px;text-align:center">正在检索全库标签块…</div>
+            {:else if !taggedBlocks.length}
+              <div class="lv-muted" style="padding:16px;text-align:center">未找到带有该标签的内容块，请在上方点击常用标签或在思源笔记中添加 <code>#考点#</code></div>
+            {:else}
+              <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border-subtle);flex-wrap:wrap;gap:6px">
+                <span class="lv-muted" style="font-size:12px">检索到 <b>{taggedBlocks.length}</b> 个包含 <code>{selectedTag}</code> 的内容块</span>
+                <button class="lv-btn sm lv-btn--primary" onclick={() => onImportTagQuestions(selectedTag)}>
+                  <Icon name="import" size={12} /> 一键全部转换为试题并入库 ({taggedBlocks.length})
+                </button>
+              </div>
+              {#each taggedBlocks as b (b.id)}
+                <div class="lv-row" style="justify-content:space-between;align-items:flex-start;padding:8px 10px;border-bottom:1px solid var(--lv-border-subtle);gap:8px">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:12.5px;line-height:1.55;color:var(--lv-text)">{b.content.slice(0, 160)}</div>
+                    <div class="lv-muted" style="font-size:11px;margin-top:2px">{b.hpath}</div>
+                  </div>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </div>
       {:else}
         <!-- 批量文件导入与纯文本 Aiken/GIFT 导入向导 -->
         <div class="lv-card" style="margin:2px 0 10px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">

@@ -5198,11 +5198,49 @@ import { confirmDialogSync } from "@/libs/dialog";
     const copyScratchpad = () => copyScratchpadText(currentScratchpadText, showMessage, t);
 
     // ---------- 52-09 正文划重点挖空出题（Cloze Generator） ----------
-    let importSubTab = $state<"standard" | "cloze" | "siyuan">("standard");
+    let importSubTab = $state<"standard" | "cloze" | "siyuan" | "tag">("standard");
     let clozeInputText = $state("");
     let clozeModes = $state<("highlight" | "curly" | "bracket")[]>(["highlight", "curly"]);
     let clozeParsedItems = $state<ParsedClozeItem[]>([]);
     let clozeImporting = $state(false);
+
+    // 思源标签与闪卡题库提取状态
+    let selectedTag = $state("#考点");
+    let customTagInput = $state("");
+    let taggedBlocks = $state<Array<{ id: string; content: string; rootId: string; hpath: string }>>([]);
+    let tagSearchBusy = $state(false);
+
+    async function doSearchTags(tag: string) {
+      if (!app) return;
+      tagSearchBusy = true;
+      try {
+        const isRiff = tag.includes("闪卡");
+        taggedBlocks = isRiff
+          ? await app.searchRiffCardBlocks()
+          : await app.searchBlocksByTag(tag);
+        showMessage(taggedBlocks.length ? `成功检索到 ${taggedBlocks.length} 个相关考点块！` : `未检索到包含 ${tag} 的内容块`, 2500, "info");
+      } catch (err) {
+        showMessage(`检索标签失败：${String(err instanceof Error ? err.message : err)}`, 3000, "error");
+      } finally {
+        tagSearchBusy = false;
+      }
+    }
+
+    async function doImportTagQuestions(tag: string) {
+      if (!app) return;
+      tagSearchBusy = true;
+      try {
+        const report = await app.importFromTaggedBlocks(tag);
+        applyDocExtractionResult({
+          report,
+          message: `已从 ${tag} 成功提取 ${report.ok.length} 道试题！`,
+        });
+      } catch (err) {
+        showMessage(`从标签提取试题失败：${String(err instanceof Error ? err.message : err)}`, 3500, "error");
+      } finally {
+        tagSearchBusy = false;
+      }
+    }
 
     // 思源文档导入状态
     let docSearchQuery = $state("");
@@ -6433,6 +6471,12 @@ import { confirmDialogSync } from "@/libs/dialog";
       onRetryMissing={retryMissing}
       onGoPractice={() => { view = "entry"; void loadQuestions(); }}
       onGoBrowse={() => { view = "browse"; void loadQuestions(); }}
+      bind:selectedTag
+      bind:customTagInput
+      {taggedBlocks}
+      {tagSearchBusy}
+      onDoSearchTags={(tg) => void doSearchTags(tg)}
+      onImportTagQuestions={(tg) => void doImportTagQuestions(tg)}
     />
   {/if}
     </div>

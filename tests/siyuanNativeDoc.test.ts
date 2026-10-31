@@ -8,6 +8,8 @@ import {
   parseQuestionsFromSiyuanDoc,
   parseQuestionsFromSiyuanDocBatch,
   parseInlineFlashcards,
+  convertTaggedBlockToQuestion,
+  buildReportFromTaggedBlocks,
 } from "../src/core/siyuanDocImporter";
 import {
   buildSiyuanExamDocMarkdown,
@@ -497,6 +499,35 @@ A. 管道  B. 寄存器  C. 栈  D. 堆
       expect(report.errors.length).toBeGreaterThan(0);
       expect(report.errors[0].reason).toContain("未检测到题目内容");
       expect(report.errors[0].reason).not.toContain("缺少 ANSWER 行");
+    });
+
+    it("支持从思源笔记标签内容块（#考点#、#必考#）智能提取试题并保留源块链接", () => {
+      const block1 = {
+        id: "blk-tag-1",
+        content: "#考点# 进程：拥有系统资源分配与保护的独立基本单位。",
+        rootId: "doc-os",
+        hpath: "/操作系统/第二章",
+      };
+      const block2 = {
+        id: "blk-tag-2",
+        content: "#必考# 什么是死锁？死锁是指两个或多个进程因争夺资源而无限等待。",
+        rootId: "doc-os",
+        hpath: "/操作系统/第二章",
+      };
+
+      const q1 = convertTaggedBlockToQuestion(block1, "考点");
+      expect(q1).not.toBeNull();
+      expect(q1?.stem).toContain("进程");
+      expect(q1?.answer).toContain("拥有系统资源分配");
+      expect(q1?.sourceBlockId).toBe("blk-tag-1");
+
+      const q2 = convertTaggedBlockToQuestion(block2, "必考");
+      expect(q2).not.toBeNull();
+      expect(q2?.sourceBlockId).toBe("blk-tag-2");
+
+      const report = buildReportFromTaggedBlocks([block1, block2], "考点");
+      expect(report.ok.length).toBe(2);
+      expect(report.duplicates).toBe(0);
     });
   });
 

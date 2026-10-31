@@ -3739,6 +3739,47 @@ export class ExamApp {
     return parseQuestionsFromSiyuanDocBatch(batchItems);
   }
 
+  async searchBlocksByTag(tag: string): Promise<Array<{ id: string; content: string; rootId: string; hpath: string }>> {
+    if (!this.kernelOnline) return [];
+    const cleanTag = tag.trim().replace(/^#|#$/g, "").replace(/'/g, "''");
+    if (!cleanTag) return [];
+    const sql = `SELECT id, content, root_id, hpath FROM blocks WHERE type IN ('p', 'l', 'i', 'h', 'tb', 's') AND content LIKE '%#${cleanTag}%' AND hpath NOT LIKE '/小驴考试/%' ORDER BY updated DESC LIMIT 150`;
+    try {
+      const rows = await this.deps.client.sql<Record<string, string>>(sql);
+      return rows.map((r) => ({
+        id: String(r.id ?? ""),
+        content: String(r.content ?? "").trim(),
+        rootId: String(r.root_id ?? ""),
+        hpath: String(r.hpath ?? ""),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async searchRiffCardBlocks(): Promise<Array<{ id: string; content: string; rootId: string; hpath: string }>> {
+    if (!this.kernelOnline) return [];
+    const sql = `SELECT id, content, root_id, hpath FROM blocks WHERE (ial LIKE '%custom-riff-decks%' OR ial LIKE '%custom-card-%') AND hpath NOT LIKE '/小驴考试/%' ORDER BY updated DESC LIMIT 150`;
+    try {
+      const rows = await this.deps.client.sql<Record<string, string>>(sql);
+      return rows.map((r) => ({
+        id: String(r.id ?? ""),
+        content: String(r.content ?? "").trim(),
+        rootId: String(r.root_id ?? ""),
+        hpath: String(r.hpath ?? ""),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async importFromTaggedBlocks(tag: string): Promise<import("./importer/pipeline").ImportReport> {
+    const isRiff = tag === "riff" || tag === "闪卡" || tag === "思源闪卡";
+    const blocks = isRiff ? await this.searchRiffCardBlocks() : await this.searchBlocksByTag(tag);
+    const { buildReportFromTaggedBlocks } = await import("./core/siyuanDocImporter");
+    return buildReportFromTaggedBlocks(blocks, tag);
+  }
+
   async syncBankToSiyuanDoc(bankId?: string): Promise<{ docId: string; title: string; hpath: string }> {
     const targetBank = bankId ?? this.listBanks()[0]?.id;
     if (!targetBank) throw new Error("请先选择或创建一个题库");

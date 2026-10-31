@@ -802,3 +802,124 @@ export async function parseQuestionsFromSiyuanDocBatch(
     duplicates,
   };
 }
+
+/**
+ * 15. 将思源笔记中带有指定标签（如 #考点#、#必考#、#错题#、#真题#）的块转换为试题对象
+ */
+export function convertTaggedBlockToQuestion(
+  block: { id: string; content: string; rootId: string; hpath: string },
+  tag: string,
+): Question | null {
+  const cleanTag = tag.trim().replace(/^#|#$/g, "");
+  const cleanContent = (block.content ?? "")
+    .replace(new RegExp(`#${cleanTag}#?|#?${cleanTag}#`, "gi"), "")
+    .trim();
+  if (cleanContent.length < 4) return null;
+
+  const docTitle = block.hpath ? block.hpath.split("/").pop() || "思源笔记" : "思源笔记";
+  const docMeta: SiyuanDocMeta = {
+    docId: block.id,
+    title: docTitle,
+    hpath: block.hpath,
+  };
+
+  // 1. 如果块内本身包含自然试题格式（单选、判断、问答、列表定义）
+  const paper = extractNaturalPaperQuestions(cleanContent, docMeta);
+  if (paper.length > 0) {
+    const q = paper[0];
+    q.sourceBlockId = block.id;
+    return q;
+  }
+
+  // 2. 检查列表项定义（例如 进程：资源分配基本单位）
+  const bullet = parseBulletDefinitions(cleanContent, docMeta);
+  if (bullet.length > 0) {
+    const q = bullet[0];
+    q.sourceBlockId = block.id;
+    return q;
+  }
+
+  // 3. 检查冒号或破折号定义结构
+  const colonMatch = cleanContent.match(/^(?:【|\*\*|「|“|")?([^\s:：—\-*【「"”]{2,25})(?:】|\*\*|」|”|")?\s*[:：——]\s*(.+)$/);
+  if (colonMatch) {
+    const term = colonMatch[1].trim();
+    const def = colonMatch[2].trim();
+    const q = makeQuestion({
+      type: def.length > 50 ? "short" : "fill",
+      stem: `简述【${term}】的概念与核心定义。`,
+      options: [],
+      answer: def,
+      analysis: `出处：${block.hpath || docTitle} · 标签 #${cleanTag}#`,
+      kp: docTitle,
+      source: docTitle,
+    });
+    q.sourceBlockId = block.id;
+    q.sourceKind = "real";
+    return q;
+  }
+
+  // 4. 检查定义句式（X是/是指Y）
+  const defMatch = cleanContent.match(/^(?:【|\*\*|「|“|")?([^\s:：—\-*【「"”]{2,20})(?:】|\*\*|」|”|")?\s*(?:是指|是|指|即为|定义为)\s*(.+)$/);
+  if (defMatch) {
+    const term = defMatch[1].trim();
+    const def = defMatch[2].trim();
+    const q = makeQuestion({
+      type: "short",
+      stem: `什么是【${term}】？请阐述其核心内涵。`,
+      options: [],
+      answer: `${term}是指${def}`,
+      analysis: `出处：${block.hpath || docTitle} · 标签 #${cleanTag}#`,
+      kp: docTitle,
+      source: docTitle,
+    });
+    q.sourceBlockId = block.id;
+    q.sourceKind = "real";
+    return q;
+  }
+
+  // 5. 兜底为重点复述考点卡
+  const q = makeQuestion({
+    type: cleanContent.length > 60 ? "short" : "fill",
+    stem: cleanContent.length > 60
+      ? `【考点阐述】请结合以下要点进行论述：\n${cleanContent.slice(0, 80)}…`
+      : `【重点复述】根据《${docTitle}》，请写出以下考点的完整表述：`,
+    options: [],
+    answer: cleanContent,
+    analysis: `出处：${block.hpath || docTitle} · 标签 #${cleanTag}#`,
+    kp: docTitle,
+    source: docTitle,
+  });
+  q.sourceBlockId = block.id;
+  q.sourceKind = "real";
+  return q;
+}
+
+/**
+ * 16. 从思源笔记标签检索出的块列表中批量生成试题导入报告
+ */
+export function buildReportFromTaggedBlocks(
+  blocks: Array<{ id: string; content: string; rootId: string; hpath: string }>,
+  tag: string,
+): ImportReport {
+  const ok: Question[] = [];
+  const seenHashes = new Set<string>();
+  let duplicates = 0;
+
+  for (const b of blocks) {
+    const q = convertTaggedBlockToQuestion(b, tag);
+    if (!q) continue;
+    if (seenHashes.has(q.hash)) {
+      duplicates++;
+    } else {
+      seenHashes.add(q.hash);
+      ok.push(q);
+    }
+  }
+
+  return {
+    batch: newBatchId(),
+    ok,
+    errors: [],
+    duplicates,
+  };
+}
