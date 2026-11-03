@@ -24,6 +24,9 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
   afterEach(() => {
     const hub = (window as any).__LV_NOTICE_HUB__;
     if (hub) hub.destroy();
+    delete (window as any).__LV_AI_GATEWAY__;
+    delete (window as any).__LV_ACTIVITY_STREAM__;
+    localStorage.clear();
   });
 
   it("lvNotify.capsule 能够生成瞬时轻量微胶囊 DOM 元素", () => {
@@ -252,5 +255,51 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
     const startBtn = card?.querySelector(".lv-notice-btn--primary") as HTMLButtonElement;
     startBtn.click();
     expect(reviewLaunched).toBe(true);
+  });
+
+  describe("Epoch 7 Phase 3: 统一 AI 网关 (lvAi) 与今日活动流 (lvActivity)", () => {
+    it("lvAi 支持全生态共享 AI 配置与 LvGatewayAiChannel 免填 Key 代理", async () => {
+      const { lvAi } = await import("../src/libs/lv-notice-kit");
+      const { LvGatewayAiChannel } = await import("../src/ai/client");
+
+      lvAi.setConfig({
+        endpoint: "https://api.deepseek.com/v1",
+        apiKey: "sk-shared-test-key",
+        model: "deepseek-chat",
+      });
+
+      const config = lvAi.getConfig();
+      expect(config?.apiKey).toBe("sk-shared-test-key");
+      expect(config?.endpoint).toBe("https://api.deepseek.com/v1");
+
+      const channel = new LvGatewayAiChannel("考试");
+      expect(channel.id).toBe("lv-ai");
+    });
+
+    it("lvActivity 能够正确记录交卷与做题活动并生成结构化 Markdown", async () => {
+      const { lvActivity } = await import("../src/libs/lv-notice-kit");
+
+      lvActivity.record({
+        source: "考试",
+        category: "exam",
+        title: "完成模拟试卷交卷 (得分: 92/100)",
+        detail: "正确率 92% · 达标合格",
+        linkBlockId: "doc-20261103-mock-exam",
+      });
+
+      const todayList = lvActivity.getTodayRecords();
+      expect(todayList.length).toBeGreaterThan(0);
+      const last = todayList[todayList.length - 1];
+      expect(last.source).toBe("考试");
+      expect(last.category).toBe("exam");
+      expect(last.title).toContain("得分: 92/100");
+      expect(last.linkBlockId).toBe("doc-20261103-mock-exam");
+
+      const md = lvActivity.formatAsMarkdown();
+      expect(md).toContain("小驴全家桶 · 今日活动汇编");
+      expect(md).toContain("[考试]");
+      expect(md).toContain("完成模拟试卷交卷 (得分: 92/100)");
+      expect(md).toContain("siyuan://blocks/doc-20261103-mock-exam");
+    });
   });
 });

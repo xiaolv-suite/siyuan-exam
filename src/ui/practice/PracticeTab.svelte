@@ -6,6 +6,7 @@ import {
   notifyPracticeFinishCard,
   showExamNotice,
 } from "@/libs/notice";
+import { lvActivity } from "@/libs/lv-notice-kit";
 const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
   showExamNotice(msg, timeout, type);
 };
@@ -3576,6 +3577,14 @@ import { confirmDialogSync } from "@/libs/dialog";
           onReviewWrongs: () => {
             void startFilteredWrongDrill();
           },
+        });
+
+        // 广播今日全生态活动主干流 (Epoch 7 Phase 3: lvActivity)
+        lvActivity.record({
+          source: "考试",
+          category: "exam",
+          title: `完成《${bankName || "专项练习"}》结算 (正确: ${sessionDone.correct}/${sessionDone.total})`,
+          detail: `正确率 ${Math.round((sessionDone.correct / sessionDone.total) * 100)}% · 发现错题 ${sessionDone.wrong} 道`,
         });
       }
     }

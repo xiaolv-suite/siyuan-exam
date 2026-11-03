@@ -85,7 +85,7 @@ export async function executeMisdiagnosisTask(options: MisdiagnosisOptions): Pro
   const { buildMisdiagnosisMessages } = await import("@/ai/misdiagnosis");
   const { AiTaskRunner, questionFingerprint } = await import("@/ai/task");
 
-  const ch = await createAiChannel(client, aiConfig);
+  const ch = await createAiChannel(client, aiConfig, "考试");
   const messages = buildMisdiagnosisMessages(q, {
     myAnswer,
     confidence: meta.confidence,

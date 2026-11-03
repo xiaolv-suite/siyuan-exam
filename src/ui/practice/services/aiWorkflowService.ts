@@ -9,17 +9,31 @@ export interface AiChannelConfig {
 }
 
 /**
- * 构造统一 AI 调用通道（优先 OpenAI 兼容端点，回退思源内置 AI）
+ * 构造统一 AI 调用通道（优先 OpenAI 兼容端点 / 统一 AI 网关，回退思源内置 AI）
  */
-export async function createAiChannel(client: KernelApiClient, config: AiChannelConfig) {
-  const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
+export async function createAiChannel(client: KernelApiClient, config: AiChannelConfig, source = "考试") {
+  const { SiyuanAiChannel, OpenAiChannel, LvGatewayAiChannel } = await import("@/ai/client");
+  const { lvAi } = await import("@/libs/lv-notice-kit");
+
   const endpoint = String(config.endpoint ?? "").trim();
   const apiKey = String(config.apiKey ?? "").trim();
-  const model = String(config.model ?? "gpt-4o-mini").trim();
+  const model = String(config.model ?? "").trim();
 
+  // 1. 若本插件已配置专属端点与 Key，同步更新至统一网关并使用
   if (endpoint && apiKey) {
-    return new OpenAiChannel({ endpoint, apiKey, model }, (u, i) => fetch(u, i));
+    try {
+      lvAi.setConfig({ endpoint, apiKey, model: model || "gpt-4o-mini" });
+    } catch { /* ignore */ }
+    return new OpenAiChannel({ endpoint, apiKey, model: model || "gpt-4o-mini" }, (u, i) => fetch(u, i));
   }
+
+  // 2. 统一 AI 网关 (lvAi)：若全生态已存在共享 Key 且当前无客户端专属代理，免填 Key 自动继承复用
+  const shared = lvAi.getConfig();
+  if (shared?.apiKey && !client?.aiChat) {
+    return new LvGatewayAiChannel(source);
+  }
+
+  // 3. 回退思源内置 AI 代理通道
   return new SiyuanAiChannel(client);
 }
 
@@ -102,7 +116,7 @@ export async function executeAiExplain(options: ExplainRequestOptions) {
     sessionId,
   };
 
-  const ch = await createAiChannel(client, aiConfig);
+  const ch = await createAiChannel(client, aiConfig, "考试");
   const messages = buildExplainMessages(q, learnerAnswer, mode, { profilePrefix });
   const runner = new AiTaskRunner(ch);
   const env = await runner.run(reqCtx, messages);
@@ -145,7 +159,7 @@ export async function executeAiHint(options: HintRequestOptions) {
     sessionId,
   };
 
-  const ch = await createAiChannel(client, aiConfig);
+  const ch = await createAiChannel(client, aiConfig, "考试");
   const messages = buildHintMessages(q, learnerAnswer, step.level, shownTexts);
   const env = await new AiTaskRunner(ch).run(reqCtx, messages);
 

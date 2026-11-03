@@ -14,9 +14,9 @@ export interface OpenAiConfig {
 
 export type AiMessage = { role: "system" | "user" | "assistant"; content: string };
 
-/** 统一接口：两条通道各自实现 */
+/** 统一接口：三条通道各自实现 */
 export interface AiChannel {
-  readonly id: "siyuan" | "openai";
+  readonly id: "siyuan" | "openai" | "lv-ai";
   chat(messages: AiMessage[], signal?: AbortSignal): Promise<string>;
 }
 
@@ -77,5 +77,22 @@ export class OpenAiChannel implements AiChannel {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
     }
+  }
+}
+
+/** 通道 C：小驴全生态统一 AI 网关 (lvAi)，支持免填 Key 继承与并发限流 */
+export class LvGatewayAiChannel implements AiChannel {
+  readonly id = "lv-ai" as const;
+  constructor(private readonly source = "考试") {}
+
+  async chat(messages: AiMessage[], signal?: AbortSignal): Promise<string> {
+    const { lvAi } = await import("@/libs/lv-notice-kit");
+    const res = await lvAi.chat({
+      source: this.source,
+      messages,
+      signal,
+      priority: "high",
+    });
+    return res.content;
   }
 }

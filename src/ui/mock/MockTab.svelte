@@ -24,7 +24,7 @@
       notifyMockFinishCard,
       showExamNotice,
     } from "../../libs/notice";
-    import { withDocLock } from "../../libs/lv-notice-kit";
+    import { withDocLock, lvActivity } from "../../libs/lv-notice-kit";
     const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
       showExamNotice(msg, timeout, type);
     };
@@ -965,7 +965,16 @@
             isMock: false,
           });
         });
-        if (res.docId) lastSavedMockDoc = { docId: res.docId, title: res.title };
+        if (res.docId) {
+          lastSavedMockDoc = { docId: res.docId, title: res.title };
+          lvActivity.record({
+            source: "考试",
+            category: "exam",
+            title: `生成错题攻坚手册《${res.title}》`,
+            detail: `收录 ${wrongQuestions.length} 道错题`,
+            linkBlockId: res.docId,
+          });
+        }
         showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
@@ -1256,6 +1265,15 @@
               view = "report";
             },
           });
+
+          // 广播今日全生态活动主干流 (Epoch 7 Phase 3: lvActivity)
+          lvActivity.record({
+            source: "考试",
+            category: "exam",
+            title: `完成模拟试卷交卷 (得分: ${score.total}/${score.full})`,
+            detail: `正确率 ${score.percent}% · ${score.pass ? "达标合格" : "未及格"} · 错题 ${wrongCount} 道`,
+            linkBlockId: lastSavedMockDoc?.docId,
+          });
         }
       } catch (e) {
         submitError = t("mock.submitFailed").replace("{message}", String(e instanceof Error ? e.message : e));
@@ -1302,6 +1320,15 @@
             onViewReport: () => {
               view = "report";
             },
+          });
+
+          // 广播今日全生态活动主干流 (Epoch 7 Phase 3: lvActivity)
+          lvActivity.record({
+            source: "考试",
+            category: "exam",
+            title: `完成模拟试卷交卷 (得分: ${score.total}/${score.full})`,
+            detail: `正确率 ${score.percent}% · ${score.pass ? "达标合格" : "未及格"} · 错题 ${wrongCount} 道`,
+            linkBlockId: lastSavedMockDoc?.docId,
           });
         }
       } catch (e) {
@@ -1371,7 +1398,16 @@
         const docId = await withDocLock(`doc-score:${targetBankId}`, async () => {
           return await app.writeScoreDoc(targetBankId, scoreToMarkdown(blueprint, result, resultStartedAt, details));
         });
-        if (docId) lastSavedMockDoc = { docId, title: `模考成绩单 · ${blueprint.name}` };
+        if (docId) {
+          lastSavedMockDoc = { docId, title: `模考成绩单 · ${blueprint.name}` };
+          lvActivity.record({
+            source: "考试",
+            category: "exam",
+            title: `完成模拟试卷交卷 (得分: ${result.total}/${result.full})`,
+            detail: `成绩单已写入题库导出区 · 正确率 ${result.percent}%`,
+            linkBlockId: docId,
+          });
+        }
         showMessage(t("mock.scoreWritten", "成绩单已写入本题库的「导出」文档。"), 3200, "info");
       } catch (e) {
         scoreWriteError = t("mock.scoreWriteFailed", "成绩单写入失败，成绩仍保留，可重试或下载：{message}").replace("{message}", String(e instanceof Error ? e.message : e));
