@@ -82,23 +82,23 @@ function showMessage(message: string, timeout = 3000, type: "info" | "error" = "
 1. **类型检查**：运行 `pnpm run check` 或 `tsc --noEmit`，确保 0 TS 错误；
 2. **测试门禁**：运行 `pnpm test`（或对应测试脚本），确保全量单测 100% 通过；
 3. **打包构建**：运行 `pnpm run build`，确保生产构建正常；
-85	4. **本地 Git 规范**：严格执行**仅本地 commit**（Conventional Commit，如 `feat(notice): integrate ecosystem unified notice kit`），**绝不执行 git push**（GitHub 冻结保护）。
-86	5. **任务状态回写**：完成后将本文档首部的 `- **任务状态**: `pending`` 改为 `completed`。
-87	
-88	---
-89	
-90	## 五、 实施记录与验收结论
-91	
-92	- **完成日期**: 2026-11-03
-93	- **接入文件**:
-94	  - `src/libs/lv-notice-kit.ts`：去中心化自协商标准核心库（Protocol v1.0.0，毛玻璃卡片、微胶囊与移动端顶部微条）
-95	  - `src/libs/notice.ts`：小驴考试专属通知出口适配层（答题轻量化、交卷成绩单、定时复习到期卡片）
-96	  - `src/core/reviewReminder.ts`：艾宾浩斯临界衰减期评估与每日定时复习调度器（支持稍后提醒与今日免打扰）
-97	  - `src/index.ts`：生命周期注册与卸载无缝交棒、复习调度器挂载
-98	  - `src/ui/mock/MockTab.svelte`：做题标旗全面转为 `notifyInline`/`notifyCapsule`，交卷成功弹出 `notifyMockFinishCard`（带得分与【查看错题本】）
-99	  - `src/ui/practice/PracticeTab.svelte` & `PracticeSessionView.svelte`：收藏与试题速记打标原位微反馈，练习完成弹出 `notifyPracticeFinishCard`（带得分与【查看错题本】/【立即消灭错题】）
-100	- **质量验证结果**:
-101	  - `pnpm run check`: 0 errors, 0 warnings，样式与架构一致性 100% 通过
-102	  - `npx vitest run`: 241 passed (241 test files, 1896 unit tests green)
-103	  - `pnpm run build`: 生产构建成功，生成 `package.zip`
-104	  - 严格本地 Git Commit，严禁 git push 保护。
+4. **本地 Git 规范**：严格执行**仅本地 commit**（Conventional Commit，如 `feat(notice): integrate ecosystem unified notice kit`），**绝不执行 git push**（GitHub 冻结保护）。
+5. **任务状态回写**：完成后将本文档首部的 `- **任务状态**: `pending`` 改为 `completed`。
+
+---
+
+## 五、 实施记录与验收结论
+
+- **完成日期**: 2026-11-03
+- **接入文件**:
+  - `src/libs/lv-notice-kit.ts`：去中心化自协商标准核心库（Protocol v1.0.0，毛玻璃卡片、微胶囊与移动端顶部微条，与小驴快门 docs 标准核心代码字节级一致）
+  - `src/libs/notice.ts`：小驴考试专属通知出口适配层（答题轻量化、交卷战报卡片、定时复习到期卡片）
+  - `src/core/reviewReminder.ts`：艾宾浩斯临界衰减期评估与每日定时复习调度器（支持“稍后提醒”与“今日免打扰”）
+  - `src/index.ts`：生命周期注册与卸载无缝交棒（`lvNotify.registerPlugin("siyuan-exam")`）
+  - `src/ui/mock/MockTab.svelte`：做题标旗与选项排除划线全面转为 `notifyInline`/`notifyCapsule`，严禁遮挡题干；交卷成功弹出 `notifyMockFinishCard`（展示得分与【查看错题解析】按钮）
+  - `src/ui/practice/PracticeTab.svelte` & `PracticeSessionView.svelte`：做题中加入错题本、标记选项全面改用 `lvNotify.inline` 或 `lvNotify.capsule`，练习结算弹出 `notifyPracticeFinishCard`（展示得分与【查看错题解析】按钮）
+- **质量验证结果**:
+  - `pnpm run check`: 0 errors, 0 warnings，样式与架构一致性 100% 通过
+  - `npx vitest run`: 241 passed (241 test files, 1896 unit tests green)
+  - `pnpm run build`: 生产构建成功，生成 `package.zip`
+  - 严格本地 Git Commit，严禁 git push 保护。

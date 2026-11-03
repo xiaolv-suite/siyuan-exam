@@ -144,10 +144,16 @@
       }
     });
 
-    function toggleMockEliminate(val: string) {
+    function toggleMockEliminate(val: string, targetEl?: HTMLElement | null) {
       if (examLocked) return;
-      mockEliminatedChoices[val] = !mockEliminatedChoices[val];
-      if (mockEliminatedChoices[val]) {
+      const nextVal = !mockEliminatedChoices[val];
+      mockEliminatedChoices[val] = nextVal;
+      if (targetEl) {
+        notifyInline(targetEl, nextVal ? "已划线排除" : "已恢复选项");
+      } else {
+        notifyCapsule(nextVal ? `已划线排除选项 ${val}` : `已恢复选项 ${val}`, 1200);
+      }
+      if (nextVal) {
         if (currentQ.type === "multiple" && (answeredMap[current] ?? "").includes(val)) {
           pickOption(val);
         } else if (currentQ.type === "single" && selected === val) {
@@ -2347,20 +2353,20 @@
               role={currentQ.type === "multiple" ? "checkbox" : "radio"}
               aria-checked={currentQ.type === "multiple" ? (answeredMap[current] ?? "").includes(choice.value) : selected === choice.value}
               class:eliminated={!!mockEliminatedChoices[choice.value]}
-              onclick={() => {
+              onclick={(e) => {
                 if (mockEliminatedChoices[choice.value]) {
-                  toggleMockEliminate(choice.value);
+                  toggleMockEliminate(choice.value, e.currentTarget);
                 } else {
                   pickOption(choice.value);
                 }
               }}
               oncontextmenu={(e) => {
                 e.preventDefault();
-                toggleMockEliminate(choice.value);
+                toggleMockEliminate(choice.value, e.currentTarget);
               }}
               ondblclick={(e) => {
                 e.preventDefault();
-                toggleMockEliminate(choice.value);
+                toggleMockEliminate(choice.value, e.currentTarget);
               }}
               title={mockEliminatedChoices[choice.value] ? "已划线排除（点击或右键恢复）" : "左键选中，右键或双击可划线排除干扰项"}
             >

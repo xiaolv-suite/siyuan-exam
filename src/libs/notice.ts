@@ -82,7 +82,7 @@ export function notifyMockFinishCard(opts: MockFinishCardOptions): string {
 
   if (opts.wrongCount > 0 && opts.onViewWrongbook) {
     actions.push({
-      label: `查看错题本 (${opts.wrongCount})`,
+      label: "查看错题解析",
       primary: true,
       onClick: opts.onViewWrongbook,
     });
@@ -129,7 +129,7 @@ export function notifyPracticeFinishCard(opts: PracticeFinishCardOptions): strin
   if (opts.wrong > 0) {
     if (opts.onViewWrongbook) {
       actions.push({
-        label: `查看错题本 (${opts.wrong})`,
+        label: "查看错题解析",
         primary: true,
         onClick: opts.onViewWrongbook,
       });

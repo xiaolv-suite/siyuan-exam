@@ -14,7 +14,7 @@
   import type { ScratchpadMode } from "@/core/scratchpad";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
   import { shuffleAnswerChoices } from "@/core/answerChoices";
-  import { notifyInline } from "../../libs/notice";
+  import { notifyInline, notifyCapsule } from "../../libs/notice";
 
   interface Props {
     session: PracticeSession;
@@ -371,10 +371,16 @@
     }
   });
 
-  function toggleEliminate(choiceValue: string) {
+  function toggleEliminate(choiceValue: string, targetEl?: HTMLElement | null) {
     if (feedback) return;
-    eliminatedChoices[choiceValue] = !eliminatedChoices[choiceValue];
-    if (eliminatedChoices[choiceValue]) {
+    const nextVal = !eliminatedChoices[choiceValue];
+    eliminatedChoices[choiceValue] = nextVal;
+    if (targetEl) {
+      notifyInline(targetEl, nextVal ? "已划线排除" : "已恢复选项");
+    } else {
+      notifyCapsule(nextVal ? `已划线排除选项 ${choiceValue}` : `已恢复选项 ${choiceValue}`, 1200);
+    }
+    if (nextVal) {
       if (curQ?.type === "multiple" && selected.includes(choiceValue)) {
         onpickChoice(choiceValue);
       } else if (curQ?.type === "single" && selected === choiceValue) {
@@ -579,20 +585,20 @@
                       class:wrong={feedback?.verdict === "wrong" && (q.type === "multiple" ? (feedback.myAnswer ?? "").includes(choice.value) && !q.answer.includes(choice.value) : feedback.myAnswer === choice.value)}
                       class:eliminated={!!eliminatedChoices[choice.value]}
                       disabled={!!feedback && !reciteToggle}
-                      onclick={() => {
+                      onclick={(e) => {
                         if (eliminatedChoices[choice.value]) {
-                          toggleEliminate(choice.value);
+                          toggleEliminate(choice.value, e.currentTarget);
                         } else {
                           onpickChoice(choice.value);
                         }
                       }}
                       oncontextmenu={(e) => {
                         e.preventDefault();
-                        toggleEliminate(choice.value);
+                        toggleEliminate(choice.value, e.currentTarget);
                       }}
                       ondblclick={(e) => {
                         e.preventDefault();
-                        toggleEliminate(choice.value);
+                        toggleEliminate(choice.value, e.currentTarget);
                       }}
                       title={eliminatedChoices[choice.value] ? "已划线排除（点击或右键恢复）" : "左键选中，右键或双击可划线排除干扰项"}
                     >

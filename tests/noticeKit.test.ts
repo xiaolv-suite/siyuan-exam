@@ -186,6 +186,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
 
     const buttons = card?.querySelectorAll(".lv-notice-btn");
     expect(buttons?.length).toBe(2);
+    expect((buttons?.[0] as HTMLButtonElement).textContent?.trim()).toBe("查看错题解析");
 
     (buttons?.[0] as HTMLButtonElement).click();
     expect(wrongClicked).toBe(true);
@@ -196,11 +197,15 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
 
   it("notifyPracticeFinishCard 准确装配练习结算卡片", () => {
     let wrongDrillStarted = false;
+    let wrongbookViewed = false;
     notifyPracticeFinishCard({
       bankName: "微积分基础专练",
       total: 10,
       correct: 8,
       wrong: 2,
+      onViewWrongbook: () => {
+        wrongbookViewed = true;
+      },
       onReviewWrongs: () => {
         wrongDrillStarted = true;
       },
@@ -211,6 +216,13 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
     expect(card?.textContent).toContain("微积分基础专练");
     expect(card?.textContent).toContain("正确率 80%");
     expect(card?.textContent).toContain("2 道错题已归集入库");
+
+    const reviewBtn = Array.from(card?.querySelectorAll(".lv-notice-btn") || []).find((b) =>
+      b.textContent?.includes("查看错题解析"),
+    ) as HTMLButtonElement;
+    expect(reviewBtn).toBeDefined();
+    reviewBtn.click();
+    expect(wrongbookViewed).toBe(true);
 
     const drillBtn = Array.from(card?.querySelectorAll(".lv-notice-btn") || []).find((b) =>
       b.textContent?.includes("立即消灭错题"),
