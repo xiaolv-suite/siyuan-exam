@@ -17,7 +17,7 @@ import { registerExamDailySummary } from "./ecosystem/speedSwitch";
 import { TabAppRegistry } from "./core/tabAppRegistry";
 import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
-import { lvNotify, lvBackup } from "./libs/lv-notice-kit";
+import { lvNotify, lvBackup, lvLaunchpad } from "./libs/lv-notice-kit";
 import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
 
 const TAB_PRACTICE = "exam-practice";
@@ -85,6 +85,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private reviewReminderCtrl?: ReviewReminderController;
   /** Epoch 7 Phase 4：全生态一键灾备切面注销句柄 */
   private backupCleaner?: () => void;
+  /** Epoch 7 Phase 5：小驴罗盘注册注销句柄 */
+  private launchpadCleaner?: () => void;
 
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
@@ -96,7 +98,27 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       async (data) => this.restoreData(data),
     );
 
+    // Epoch 7 Phase 5：注册到小驴罗盘（顶栏收敛与极速二级行动直达）
+    this.launchpadCleaner = lvLaunchpad.register({
+      id: "siyuan-exam",
+      name: "考试",
+      fullName: "小驴考试",
+      svgIcon: "icon-lv-exam",
+      color: "#" + "3b82f6",
+      desc: "题库刷题 · 错题特训",
+      digit: 5,
+      badge: "今日待测",
+      badgeType: "primary",
+      actions: ["开启薄弱知识点10题特训", "打开今日错题本复习", "开启全真计时模拟考试", "导入新试卷与Markdown题库"],
+      onClick: () => this.openExamHome(),
+      onAction: (action) => this.handleQuickAction(action),
+    });
+
     this.addIcons(`
+<symbol id="icon-lv-exam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+  <path d="m9 12 2 2 4-4"/>
+</symbol>
 <symbol id="iconExam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
   <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
   <path d="m9 12 2 2 4-4"/>
@@ -571,6 +593,10 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onunload() {
+    // Epoch 7 Phase 5：注销小驴罗盘注册入口
+    this.launchpadCleaner?.();
+    this.launchpadCleaner = undefined;
+
     // Epoch 7 Phase 4：注销全生态一键灾备切面
     this.backupCleaner?.();
     this.backupCleaner = undefined;
@@ -1331,6 +1357,88 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
   openReport() {
     this.openTabByType(TAB_REPORT, "iconReport", this.i18n["tab.report"]);
+  }
+
+  /** 小驴罗盘入口：直达考试主页 */
+  openExamHome(): boolean {
+    return this.openPractice();
+  }
+
+  /** 小驴罗盘极速二级行动派发 */
+  handleQuickAction(action: string): void {
+    switch (action) {
+      case "开启薄弱知识点10题特训":
+        void this.startWeakSpotTraining(10);
+        break;
+      case "打开今日错题本复习":
+        this.openWrongbook();
+        break;
+      case "开启全真计时模拟考试":
+        this.openMock();
+        break;
+      case "导入新试卷与Markdown题库":
+        openPracticeView(this, "import");
+        break;
+      default:
+        this.openExamHome();
+        break;
+    }
+  }
+
+  /** 针对薄弱考点或临界遗忘点开启 10 题靶向特训会话 */
+  async startWeakSpotTraining(count = 10): Promise<boolean> {
+    if (!this.examApp || !this.examApp.kernelOnline) {
+      this.openPractice();
+      return false;
+    }
+    try {
+      const banks = this.examApp.listBanks();
+      if (!banks.length) {
+        this.openPractice();
+        return false;
+      }
+      const activeBankId = banks[0].id;
+      const questions = await this.examApp.listQuestions(activeBankId);
+      if (!questions.length) {
+        this.openPractice();
+        return false;
+      }
+      const derived = this.examApp.derived();
+      const { masteryByKp, weakTop } = await import("@/core/report");
+      const { sampleWeakSpotDrill } = await import("@/core/weakSpot");
+      const mastery = masteryByKp(questions, derived.byQuestion, this.examApp.attempts.all());
+      const weak = weakTop(mastery, 10);
+      const weakRoots = weak.map((w) => w.root);
+      const wrongQids = new Set<string>(
+        [...derived.wrongbook.values()].filter((w) => w.status === "active").map((w) => w.qid),
+      );
+      const attemptedQids = new Set<string>(derived.byQuestion.keys());
+
+      let picked = sampleWeakSpotDrill({
+        bank: questions,
+        weakRoots,
+        wrongQids,
+        attemptedQids,
+        count,
+      });
+
+      if (!picked.length) {
+        const cram = this.examApp.cramDrill(questions);
+        picked = (cram.length ? cram : questions).slice(0, count);
+      }
+
+      if (picked.length) {
+        this.pendingPractice = picked;
+        this.pendingPracticeBankId = activeBankId;
+        emitExamEvent("open-practice-questions", { qids: picked.map((q) => q.id), bank: activeBankId });
+      }
+      this.openPractice();
+      return true;
+    } catch (err) {
+      console.warn("[LvExam] startWeakSpotTraining error:", err);
+      this.openPractice();
+      return false;
+    }
   }
 }
 

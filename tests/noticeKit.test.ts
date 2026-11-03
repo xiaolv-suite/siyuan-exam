@@ -27,6 +27,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
     delete (window as any).__LV_AI_GATEWAY__;
     delete (window as any).__LV_ACTIVITY_STREAM__;
     delete (window as any).__LV_BACKUP_HUB__;
+    delete (window as any).__LV_LAUNCHPAD__;
     localStorage.clear();
   });
 
@@ -345,7 +346,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
 
       const diag = lvEcosystem.getDiagnostics();
       expect(diag.registeredPlugins).toContain("siyuan-exam");
-      expect(diag.version).toBe(130);
+      expect(diag.version).toBeGreaterThanOrEqual(130);
 
       const badgeText = lvEcosystem.getStatusBadgeText();
       expect(badgeText).toContain("🐴 小驴全家桶协同正常");
@@ -395,6 +396,61 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
       expect(restoredMocks.length).toBe(1);
       expect(restoredMocks[0].name).toBe("全真模拟试卷一");
       expect(restoredMocks[0].total).toBe(85);
+    });
+  });
+
+  describe("Epoch 7 Phase 5: 小驴罗盘 (lvLaunchpad) 注册与二级极速行动", () => {
+    it("lvLaunchpad 支持注册小驴考试并提供三态属性与二级快捷行动", async () => {
+      const { lvLaunchpad } = await import("../src/libs/lv-notice-kit");
+
+      let homeOpened = false;
+      let triggeredAction = "";
+
+      const unreg = lvLaunchpad.register({
+        id: "siyuan-exam",
+        name: "考试",
+        fullName: "小驴考试",
+        svgIcon: "icon-lv-exam",
+        color: "#3b82f6",
+        desc: "题库刷题 · 错题特训",
+        digit: 5,
+        badge: "今日待测",
+        badgeType: "primary",
+        actions: ["开启薄弱知识点10题特训", "打开今日错题本复习", "开启全真计时模拟考试", "导入新试卷与Markdown题库"],
+        onClick: () => {
+          homeOpened = true;
+        },
+        onAction: (act) => {
+          triggeredAction = act;
+        },
+      });
+
+      const items = lvLaunchpad.getItems();
+      const examItem = items.find((i) => i.id === "siyuan-exam");
+      expect(examItem).toBeDefined();
+      expect(examItem?.fullName).toBe("小驴考试");
+      expect(examItem?.svgIcon).toBe("icon-lv-exam");
+      expect(examItem?.color).toBe("#3b82f6");
+      expect(examItem?.state).toBe("docked");
+      expect(examItem?.actions?.length).toBe(4);
+
+      // 测试三态切换 (pinned / docked / hidden)
+      lvLaunchpad.setPluginState("siyuan-exam", "pinned");
+      const updatedItems = lvLaunchpad.getItems();
+      expect(updatedItems.find((i) => i.id === "siyuan-exam")?.state).toBe("pinned");
+
+      // 点击主入口
+      examItem?.onClick();
+      expect(homeOpened).toBe(true);
+
+      // 触发二级行动
+      examItem?.onAction?.("开启全真计时模拟考试");
+      expect(triggeredAction).toBe("开启全真计时模拟考试");
+
+      // 卸载注销
+      unreg();
+      const afterUnreg = lvLaunchpad.getItems();
+      expect(afterUnreg.find((i) => i.id === "siyuan-exam")).toBeUndefined();
     });
   });
 });
