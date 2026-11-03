@@ -9,7 +9,7 @@
 > **Personal Notes → Independent Retrieval → Honest Evidence → Wrongbook Elimination → Timed Mock Verification**  
 > Every question is a native, searchable, linkable **SiYuan block** in your own workspace — never locked in an external cloud.
 
-[![Release](https://img.shields.io/badge/release-v0.13.1-blue.svg)](https://github.com/ai68298100/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.0-blue.svg)](https://github.com/ai68298100/siyuan-exam/releases)
 [![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
@@ -26,11 +26,11 @@
 
 | Module | Capabilities |
 |---|---|
-| 📥 **Import & Authoring** | Extract from native SiYuan notes · Import XLSX/XLS, CSV, TSV, GIFT, Aiken · Manual authoring with numeric tolerance, multi-blank, rubric & image occlusion · 5-row trial preview, checkpoints & readback verification |
-| ✏️ **Independent Practice** | Keyboard-first workflow (`A`–`J` select, `Enter` submit, `1`–`3` confidence, `G` guess) · Recall-first option masking · Assisted answers (`hint`/`explain`/`reveal`) persisted across reloads and strictly separated from independent mastery |
-| 🧠 **Wrongbook** | Active / Eliminated / Archived / CBM High-Risk & Fragile tabs · Only unassisted consecutive correct answers eliminate a wrong item · Variant & mother-question drills · Push to FSRS flashcards & print pure retest sheets |
-| 📖 **Recitation** | Paper-like active recall · Spacebar reveal · 1–4 self-rating with Riff/FSRS sync, graduation pool filtering, real dwell timing, and reload-safe progress |
-| 📝 **Timed Mock Exams** | Blueprint presets & section quotas · Wall-clock timer, CBT answer sheet, and reload-safe snapshot (including scratchpad) · A4 double-column exam & answer-sheet printing |
+| 📥 **Import & Authoring** | Extract from native SiYuan notes · Import XLSX/XLS, CSV, TSV, GIFT, Aiken · Manual authoring with pin attributes (`pinAttributes`), 4-layer structure with expansion & quick-solve tricks (`expansion`), rubric & image occlusion |
+| ✏️ **Independent Practice** | Auto-next on correct with 3.5s countdown & instant advance/pause · Clean recite mode (`reciteToggle`) · Deterministic option shuffling (Fisher-Yates) · Scratchpad fluorescent highlighters · Dark mode diagram inverted filter |
+| 🧭 **Diagnosis & Remediation** | Prerequisite DAG diagnostic engine (`diagnoseQuestionRootCauses`) · Automated root cause backtracking & topological learning path synthesis · Active / Eliminated / Archived wrongbook tabs |
+| 🏛️ **Marketplace & Ecosystem** | Public domain zero-copyright catalog with 8 core disciplines · Cross-discipline cart & selective stash (`cartItemsToQuestions`) · Quality metrics & taxonomy tree · Non-destructive delta sync & merge · Packaging wizard & privacy sanitizer · Seamless interoperability with `siyuan-lv-cards` (`.lvcards`, `lvcards.v1`) |
+| 📝 **Timed Mock Exams** | 100+ CBT question accordion sheet groupings · Post-exam subjective self-rating rubric re-scoring (`rateSubjectiveQuestion`) · Wall-clock timer, snapshot & A4 double-column print sheets |
 | 📊 **Evidence Report** | Independent vs. assisted vs. delayed-recall breakdown · 30-day trend, 53-week heatmap, confidence calibration & full local data backup |
 
 ---

@@ -2,7 +2,13 @@
     // 练习台：入口(S1) / 会话(S2) / 浏览(S3) / 导入(S9) 四视图
     // 状态设计（docs/11）：loading/empty(守卫)/error/normal 四态可达
     import { onMount, tick } from "svelte";
-import { showMessage } from "siyuan";
+import {
+  notifyPracticeFinishCard,
+  showExamNotice,
+} from "@/libs/notice";
+const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
+  showExamNotice(msg, timeout, type);
+};
 import manifest from "../../../plugin.json";
 import { getBridgeSafely } from "@/libs/ecosystem-bridge-kit";
 import { renderMathInText } from "@/core/math";
@@ -45,9 +51,12 @@ import { confirmDialogSync } from "@/libs/dialog";
     import { resolveLink } from "@/core/externalLinks";
     import { redactUrlForDisplay } from "@/core/urlRedaction";
     import { onExamEvent, emitExamEvent } from "@/core/bus";
+    import { diagnoseQuestionRootCauses, type AdaptiveDiagnosisReport } from "@/core/diagnosticEngine";
     import PracticeSessionView from "./PracticeSessionView.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
+    import MarketplaceModal from "./MarketplaceModal.svelte";
+    import MarketplaceStudioView from "./MarketplaceStudioView.svelte";
     import SessionSheetModal from "./SessionSheetModal.svelte";
     import ReciteStudioView from "./ReciteStudioView.svelte";
     import WrongbookStudioView from "./WrongbookStudioView.svelte";
@@ -153,12 +162,14 @@ import { confirmDialogSync } from "@/libs/dialog";
       executeLoadQuestionRevisions,
       executeRestoreQuestionRevision,
     } from "./services/questionRevisionService";
+    import PaperAssembleModal from "./PaperAssembleModal.svelte";
     import {
       archiveWrongItem,
       unarchiveWrongItem,
       snoozeWrongItem,
       restoreWrongItemToActive,
       extractWrongQueueKpOptions,
+      extractWrongQueueTagOptions,
       filterAndSortWrongQueue,
     } from "./services/wrongbookDispositionService";
     import {
@@ -387,6 +398,9 @@ import { confirmDialogSync } from "@/libs/dialog";
     import OcclusionEditor from "./OcclusionEditor.svelte";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
+
+    let tabAssembleOpen = $state(false);
+    let tabAssembleQuestions = $state<Question[]>([]);
     import { SvelteMap, SvelteSet } from "svelte/reactivity";
     import Rail from "../shared/Rail.svelte";
     import { escapeHtml, renderInlineText } from "../../libs/sanitize";
@@ -440,7 +454,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       try { globalThis.localStorage?.removeItem(key); } catch { /* optional */ }
     };
 
-    type View = "entry" | "session" | "browse" | "import" | "recite" | "manual" | "ai" | "materials" | "wrongbook";
+    type View = "entry" | "session" | "browse" | "import" | "recite" | "manual" | "ai" | "materials" | "wrongbook" | "marketplace";
     let view: View = $state("entry");
     let soundEnabled = $state(readLocal("lv-exam/sound") !== "0");
     $effect(() => {
@@ -577,6 +591,7 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     // 题库管理画廊 Hub 状态
     let bankHubOpen = $state(false);
+    let marketplaceOpen = $state(false);
     let sessionSheetOpen = $state(false);
 
     async function cycleBankCategory(b: BankInfo) {
@@ -1025,6 +1040,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       ),
     );
     let groupBatchModal = $state<GroupBatchSummary | null>(null);
+    let diagnosisModal = $state<AdaptiveDiagnosisReport | null>(null);
     let groupBatchStart = $state(1); // 44-01 当前小组批次起始题号（1-based）
 
     // 导入批次回滚（TODO 12 组）：按 custom-exam-batch 定位块逐块删除；只动题块不动流水
@@ -1601,7 +1617,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       const onOpenView = (env: import("@/core/bus").BusEvent<{ view: string; requestId?: string }>) => {
         if (!tabRoot?.isConnected) return;
         const next = env.payload.view;
-        if (!["wrongbook", "entry", "browse", "manual", "import", "ai", "materials", "recite"].includes(next)) return;
+        if (!["wrongbook", "entry", "browse", "manual", "import", "ai", "materials", "recite", "marketplace"].includes(next)) return;
         let request: import("@/core/pluginTab").PracticeViewRequest | undefined;
         const requestId = env.payload.requestId;
         if (requestId) {
@@ -1657,7 +1673,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         } else {
           mType = "short";
         }
-        showMessage("[小驴学习] 已由长文划词自动载入出题制卡工坊 ✓", 3200, "info");
+        showMessage("[小驴考试] 已由长文划词自动载入出题制卡工坊 ✓", 3200, "info");
       }
 
       const offs = [
@@ -2134,10 +2150,11 @@ import { confirmDialogSync } from "@/libs/dialog";
     });
     const clearPct = $derived(calculateClearPercentage(eliminatedCount, wrongList.length));
     /** 错题队列：错次降序 → 最近错误降序（紧迫度序）；benchmark-fusion 增补 CBM 双维分栏 */
-    let wbTab = $state<"active" | "archived" | "eliminated" | "highrisk" | "fragile">("active");
+    let wbTab = $state<"active" | "archived" | "eliminated" | "highrisk" | "fragile" | "ebbinghaus">("active");
     let wbReasonFilter = $state<"all" | "careless" | "unknown" | "trap">("all");
     let wbFilterStubborn = $state(false);
     let wbKpFilter = $state("");
+    let wbTagFilter = $state("");
     let wbSortMode = $state<"default" | "wrongCount" | "kp">((readLocal("lv-exam/wrong-sort") as any) || "default");
     const archivedWrongList = $derived.by(() => {
       void dataRev;
@@ -2169,10 +2186,12 @@ import { confirmDialogSync } from "@/libs/dialog";
       [...wrongList].sort((a, b) => b.wrongCount - a.wrongCount || b.lastWrongAt - a.lastWrongAt),
     );
     const wbKpOptions = $derived(extractWrongQueueKpOptions(wrongQueue, questionMap));
+    const wbTagOptions = $derived(extractWrongQueueTagOptions(wrongQueue, questionMap));
     const filteredWrongQueue = $derived(filterAndSortWrongQueue(wrongQueue, questionMap, reasonOf, {
       reasonFilter: wbReasonFilter,
       filterStubborn: wbFilterStubborn,
       kpFilter: wbKpFilter,
+      tagFilter: wbTagFilter,
       sortMode: wbSortMode,
       highriskQids: cbmHighriskQids,
     }));
@@ -2241,7 +2260,11 @@ import { confirmDialogSync } from "@/libs/dialog";
       },
     }));
 
-    async function onTaskNav(target: "today" | "bank" | "create" | "mock" | "report") {
+    async function onTaskNav(target: "today" | "bank" | "marketplace" | "create" | "mock" | "report") {
+      if (target === "marketplace") {
+        switchView("marketplace");
+        return;
+      }
       if (target === "mock") {
         if (questions.length < 3) {
           const { confirmDialogSync } = await import("../../libs/dialog");
@@ -2463,6 +2486,14 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!targetList.length) return;
       const all = questions.length ? questions : await loadQuestions();
       const qs = resolveFilteredWrongDrillQuestions(all, targetList);
+      if (!qs.length) return;
+      await safeStart(qs, "wrong", () => enterSessionView());
+    }
+
+    async function startCustomDrill(qids: string[]) {
+      if (!qids.length) return;
+      const all = questions.length ? questions : await loadQuestions();
+      const qs = all.filter((q) => qids.includes(q.id));
       if (!qs.length) return;
       await safeStart(qs, "wrong", () => enterSessionView());
     }
@@ -3224,9 +3255,20 @@ import { confirmDialogSync } from "@/libs/dialog";
     let checkinNote = $state("");
     const checkinSettings = () => extractCheckinSettingsFromPlugin(plugin);
     async function runCheckinBridge() {
-      const res = await runCheckinSync(app, checkinSettings(), window);
+      const res = await runCheckinSync(app, checkinSettings(), window, (item) => {
+        try {
+          plugin?.settingUtils?.set?.("checkinItemId", item.id);
+          void plugin?.settingUtils?.save?.();
+          showMessage(`[小驴考试] 已自动匹配打卡项「${item.name}」并同步打卡！`, 3000, "info");
+        } catch {
+          /* fail-soft */
+        }
+      });
       checkinStatus = res.status;
       checkinNote = res.note;
+      if (res.status === "synced") {
+        await loadCheckinStreak();
+      }
     }
     /** 重载补写：上次未写入的打卡事件以原 externalRef 重试（写入成功才清除） */
     async function retryCheckinPending() {
@@ -3340,6 +3382,21 @@ import { confirmDialogSync } from "@/libs/dialog";
     /** 114-01 泄露守卫拦截的待决提示（提交前）：用户明确揭示才展示（G6） */
     let leakPending = $state<{ level: 1 | 2 | 3; text: string; reasons: string } | null>(null);
     let speedTimer: ReturnType<typeof setTimeout> | null = null;
+    let autoNextOnCorrect = $state(readLocal("lv-exam/auto-next") !== "0");
+    let autoNextPending = $state(false);
+    let autoNextRemainingS = $state(3.5);
+    let autoNextInterval: ReturnType<typeof setInterval> | null = null;
+    let autoNextTimer: ReturnType<typeof setTimeout> | null = null;
+    let shuffleOptions = $state(readLocal("lv-exam/shuffle-options") === "1");
+
+    function clearAutoNext() {
+      if (speedTimer) { clearTimeout(speedTimer); speedTimer = null; }
+      if (autoNextTimer) { clearTimeout(autoNextTimer); autoNextTimer = null; }
+      if (autoNextInterval) { clearInterval(autoNextInterval); autoNextInterval = null; }
+      autoNextPending = false;
+      autoNextRemainingS = 3.5;
+    }
+
     function pickPracticeChoice(value: string) {
       const q = session?.current;
       if (!q || feedback) return;
@@ -3347,16 +3404,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       session.setDraft(q.id, selected);
       trailInput(q.id, selected);
 
-      // 极速刷题手感模式：单选或判断题即选即提交，答对顿歇 320ms 自动切题，答错暂停展示解析
-      if (speedDrillEnabled && (q.type === "single" || q.type === "judge") && selected) {
+      // 答对自动翻题 (FLOW-01) 与极速刷题：单选或判断题选定后自动提交判分
+      if ((speedDrillEnabled || autoNextOnCorrect) && (q.type === "single" || q.type === "judge") && selected) {
         submitAnswer();
-        if (feedback?.verdict === "correct") {
-          if (speedTimer) clearTimeout(speedTimer);
-          speedTimer = setTimeout(() => {
-            speedTimer = null;
-            nextQuestion();
-          }, 320);
-        }
       }
     }
 
@@ -3394,9 +3444,19 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
     function submitAnswer() {
       clearReciteSubmitTimer();
+      clearAutoNext();
       if (!session || feedback) return;
       const q = session.current;
       if (!q) return;
+
+      // 📖 考前背题速记模式 (FLOW-02)：直接揭示参考答案与解析，不判错、不污染统计与错题本
+      if (reciteToggle && !selected && !session.getDraft(q.id)) {
+        feedback = { verdict: "recite", myAnswer: q.answer };
+        if (q.analysis) addExposure(q.id, "analysis", false);
+        sessionRev++;
+        return;
+      }
+
       const timeMs = Date.now() - answerStart;
       // 选择题/判断用 selected；填空/简答用 draft
       const ans = isChoiceQuestion(q) ? selected : session.getDraft(q.id);
@@ -3442,12 +3502,34 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
       feedback = { verdict: g.verdict, myAnswer: g.myAnswer };
-      if (g.verdict === "correct" && soundEnabled) playSuccessChime();
+      if (g.verdict === "correct") {
+        if (soundEnabled) playSuccessChime();
+        // ⚡ 答对自动翻题：给出倒计时供考生扫读考点与核心解析，期间可立即翻题或停留看解析
+        if ((autoNextOnCorrect || speedDrillEnabled) && !session.isDelayedReviewAtCurrent() && !reciteToggle) {
+          clearAutoNext();
+          autoNextPending = true;
+          autoNextRemainingS = speedDrillEnabled ? 1.5 : 3.5;
+          const startMs = Date.now();
+          const totalMs = autoNextRemainingS * 1000;
+          autoNextInterval = setInterval(() => {
+            const elapsed = Date.now() - startMs;
+            const remaining = Math.max(0, (totalMs - elapsed) / 1000);
+            autoNextRemainingS = Math.round(remaining * 10) / 10;
+            if (remaining <= 0) {
+              clearAutoNext();
+              nextQuestion();
+            }
+          }, 100);
+        }
+      } else {
+        clearAutoNext();
+      }
       sessionRev++; // 类实例非响应式：提交后推进读数
     }
 
     function nextQuestion() {
       clearReciteSubmitTimer();
+      clearAutoNext();
       feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
       hideOptions = false; recallDraft = ""; leakPending = null; // 52-02：切题重置先回忆态（揭示/草稿不沿用上一题，U02 口径）；114-01 泄露待决随之作废
       if (!session.next()) { void finishSession(); return; }
@@ -3460,6 +3542,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     /** 键盘 K 回到上一题：PracticeSession 是类实例，游标变化后必须推进响应式镜像。 */
     function previousQuestion() {
       clearReciteSubmitTimer();
+      clearAutoNext();
       if (!session?.prev()) return;
       restoreQuestionControls();
       sessionRev++;
@@ -3478,6 +3561,22 @@ import { confirmDialogSync } from "@/libs/dialog";
       void postSessionCheckinSafely(checkinItemId, sessionDone.total, sessionDone.correct);
 
       void runCheckinBridge().catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error")); // 48-03 lite：结算自动同步打卡（幂等 externalRef，失败进待重试）
+
+      // Epoch 7：交卷与结算成绩单重点提醒卡片（支持得分查看与【查看错题本】直达）
+      if (sessionDone) {
+        notifyPracticeFinishCard({
+          bankName: bankName || "专项练习",
+          total: sessionDone.total,
+          correct: sessionDone.correct,
+          wrong: sessionDone.wrong,
+          onViewWrongbook: () => {
+            view = "wrongbook";
+          },
+          onReviewWrongs: () => {
+            void startFilteredWrongDrill();
+          },
+        });
+      }
     }
 
     const syncWrongbookToCards = () =>
@@ -3555,6 +3654,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let mOptions = $state<string[]>(["", ""]);
     let mAnswer = $state("");        // single/multiple: 字母；judge: 对/错；fill/short: 文本
     let mAnalysis = $state("");
+    let mExpansion = $state("");
     let mKp = $state("");
     let mSecondaryKps = $state("");
     let mSource = $state("");
@@ -3701,7 +3801,17 @@ import { confirmDialogSync } from "@/libs/dialog";
       });
     }
 
-    async function printWrongSheet(type: "question" | "answer" | "retest") {
+    function handleDiagnosePrereqs(q: Question) {
+      if (!q || !app) return;
+      const wrongIds = new Set(app.wrongItems().map((w) => w.qid));
+      const attemptsList = (app.attempts?.all?.() ?? []).map((e) => ({
+        questionId: e.qid,
+        correct: e.verdict === "correct",
+      }));
+      diagnosisModal = diagnoseQuestionRootCauses(q, questions, attemptsList, wrongIds);
+    }
+
+    async function printWrongSheet(type: "question" | "answer" | "retest" | "interactive") {
       if (printWrongBusy || !activeBankId || !filteredWrongQueue.length) return;
       printWrongBusy = true;
       try {
@@ -3753,6 +3863,7 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     // ---------- 录题草稿保护（45-06 lite）：输入防抖自动保存 → 重载/切视图恢复 → 提交成功清理 ----------
     let draftRestored = $state(false);
+    let pinAttributes = $state(readLocal("lv-exam/pin-attributes") === "1");
     let draftTimer: ReturnType<typeof setTimeout> | null = null;
     $effect(() => {
       // 读取全部草稿字段建立依赖；防抖 800ms 落盘（切视图/崩溃后可恢复）
@@ -3780,7 +3891,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     function currentManualFormData(statusToSave?: QuestionLifecycleStatus) {
       const form = assembleManualFormData({
         type: mType, stem: mStem, options: mOptions, answer: mAnswer,
-        analysis: mAnalysis, kp: mKp, secondaryKps: mSecondaryKps, source: mSource, group: mGroup, status: mStatus,
+        analysis: mAnalysis, expansion: mExpansion, kp: mKp, secondaryKps: mSecondaryKps, source: mSource, group: mGroup, status: mStatus,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
         orderIndependent: mSpecOrderIndependent,
         rubricOpen: mRubricOpen, rubricText: mRubricText, studyLang: mStudyLang, studyPhonetic: mStudyPhonetic,
@@ -3814,7 +3925,20 @@ import { confirmDialogSync } from "@/libs/dialog";
         mSaved = res.question!.id;
         showMessage(statusToSave === "draft" ? "试题已成功保存为草稿 ✓" : "试题已成功入库 ✓", 2800, "info");
         if (signature === JSON.stringify(currentManualFormData(statusToSave))) {
-          clearManualFormWithoutConfirm();
+          if (pinAttributes) {
+            // 📌 属性锁定 (AUTH-01)：保留当前题型、考点、出处与标签，只清空题干、选项、答案与解析并聚焦首行
+            mStem = "";
+            mOptions = mType === "single" || mType === "multiple" ? ["", ""] : [];
+            mAnswer = "";
+            mAnalysis = "";
+            mExpansion = "";
+            clearManualValidation();
+            void clearManualDraftAux(app);
+            await tick();
+            document.getElementById("lv-manual-stem")?.focus();
+          } else {
+            clearManualFormWithoutConfirm();
+          }
         }
         await refreshQuestionsAfterWrite(questions.length + 1);
       } catch (e) {
@@ -3825,6 +3949,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     function clearManualFormWithoutConfirm() {
       const b = createBlankManualFormState();
       mStem = b.stem; mOptions = b.options; mAnswer = b.answer; mAnalysis = b.analysis;
+      mExpansion = "";
       mSecondaryKps = "";
       mSpecOpen = b.specOpen; mSpecUnit = b.specUnit; mSpecAbsTol = b.specAbsTol; mSpecRelPct = b.specRelPct; mSpecAltUnits = b.specAltUnits;
       mSpecOrderIndependent = false;
@@ -4250,6 +4375,23 @@ import { confirmDialogSync } from "@/libs/dialog";
       const targetBankId = activeBankId;
       importParsing = true; importReport = null; updateResult = null;
       try {
+        const trimmed = importText.trim();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+          const { parseQCardsJson } = await import("@/core/qcard");
+          const qres = parseQCardsJson(trimmed);
+          if (qres.valid && qres.questions.length > 0) {
+            importReport = {
+              ok: qres.questions,
+              errors: [],
+              duplicates: 0,
+              batch: `batch_${Date.now()}`,
+            };
+            importPreviewBankId = targetBankId;
+            showMessage(`已识别标准 Agent 题卡（QCard），成功载入 ${qres.count} 道试题 ✓`, 3500, "info");
+            return;
+          }
+        }
+
         // parseText 按内容特征分流（廿五批）：GIFT / TSV(Anki) / Aiken；
         // 并存模式（2.3 重复合并策略 lite）：不回灌已有题 hash → 与题库重复的行照常入库（批内去重仍生效）
         importReport = await parseText(importText, {
@@ -4271,14 +4413,14 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!file) return;
 
       const fileName = file.name.toLowerCase();
-      // 1. 如果是纯文本试题文件（.txt / .gift / .aiken / .md）：直接读入文本输入框并自动触发解析预览
-      if (/\.(txt|gift|aiken|md|text)$/i.test(fileName)) {
+      // 1. 如果是纯文本试题文件（.txt / .gift / .aiken / .md / .json / .qcard）：直接读入文本输入框并自动触发解析预览
+      if (/\.(txt|gift|aiken|md|text|json|qcard)$/i.test(fileName)) {
         input.value = "";
         importParsing = true;
         try {
           const content = await file.text();
           importText = content;
-          showMessage(`已成功载入纯文本文件《${file.name}》，正在自动解析预览…`, 3000, "info");
+          showMessage(`已成功载入文件《${file.name}》，正在自动解析预览…`, 3000, "info");
           doParseText();
         } catch (err) {
           importError = `文本文件读取失败：${String(err instanceof Error ? err.message : err)}`;
@@ -5255,12 +5397,52 @@ import { confirmDialogSync } from "@/libs/dialog";
     const copyScratchpad = () => copyScratchpadText(currentScratchpadText, showMessage, t);
 
     // ---------- 52-09 正文划重点挖空出题（Cloze Generator） ----------
-    let importSubTab = $state<"standard" | "cloze" | "siyuan" | "tag">("standard");
+    let importSubTab = $state<"standard" | "cloze" | "siyuan" | "tag" | "glean">("standard");
     let importDocProfile = $state<"all" | "paper" | "notes" | "cloze" | "table">("all");
     let clozeInputText = $state("");
     let clozeModes = $state<("highlight" | "curly" | "bracket")[]>(["highlight", "curly"]);
     let clozeParsedItems = $state<ParsedClozeItem[]>([]);
     let clozeImporting = $state(false);
+
+    // 小驴拾遗剪藏出题状态
+    let gleanClips = $state<Array<{ id: string; title: string; site?: string; url?: string; summary?: string }>>([]);
+    let gleanLoading = $state(false);
+    let selectedGleanIds = $state<Record<string, boolean>>({});
+    const selectedGleanCount = $derived(Object.values(selectedGleanIds).filter(Boolean).length);
+
+    async function loadGleanClips() {
+      const { listGleanClipsSafely } = await import("./services/gleanEcosystemService");
+      gleanLoading = true;
+      try {
+        const clips = await listGleanClipsSafely(window, 50);
+        gleanClips = clips;
+      } catch (err) {
+        console.warn("[LvExam] loadGleanClips error:", err);
+      } finally {
+        gleanLoading = false;
+      }
+    }
+
+    async function importSelectedGleanDocs() {
+      const ids = Object.keys(selectedGleanIds).filter((id) => selectedGleanIds[id]);
+      if (ids.length) {
+        await runDocExtract(
+          () => extractFromBatchSiyuanDocs(app, ids, { profile: importDocProfile }),
+          "批量提取拾遗剪藏试题失败",
+        );
+      }
+    }
+
+    function toggleSelectAllGlean() {
+      const anySelected = Object.values(selectedGleanIds).some(Boolean);
+      if (anySelected) {
+        selectedGleanIds = {};
+      } else {
+        const next: Record<string, boolean> = {};
+        for (const c of gleanClips) next[c.id] = true;
+        selectedGleanIds = next;
+      }
+    }
 
     // 思源标签与闪卡题库提取状态
     let selectedTag = $state("#考点");
@@ -5626,10 +5808,20 @@ import { confirmDialogSync } from "@/libs/dialog";
           <span class="lv-chip sm">{bankName}</span>
         {/if}
         <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
+        <button
+          type="button"
+          class="lv-btn sm lv-btn--ghost"
+          onclick={() => { marketplaceOpen = true; }}
+          disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)}
+          title="题库与闪卡公共集市：精选公版题库与网络卡包"
+          aria-label="题库集市"
+        >
+          <Icon name="sparkles" size={13} /> 🏛️ 题库集市
+        </button>
       </div>
   </div>
   <div class="lv-shell" class:lv-shell-focus={view === "session" && !sessionDone} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
-    <Rail active="practice" taskactive={view === "browse" || view === "wrongbook" ? "bank" : view === "manual" || view === "import" || view === "ai" || view === "materials" ? "create" : "today"} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
+    <Rail active="practice" taskactive={view === "marketplace" ? "marketplace" : (view === "browse" || view === "wrongbook" ? "bank" : view === "manual" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
       project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => (view = "entry")}
       onquickcreate={() => { view = "manual"; }} />
     <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: ${viewportBottomPad + 16}px;` : undefined}>
@@ -5808,6 +6000,11 @@ import { confirmDialogSync } from "@/libs/dialog";
       {speechRecording}
       {reciteToggle}
       bind:speedDrillEnabled
+      bind:autoNextOnCorrect
+      {autoNextPending}
+      {autoNextRemainingS}
+      oncancelAutoNext={clearAutoNext}
+      bind:shuffleOptions
       {pureListen}
       bind:soundEnabled
       bind:hotkeysHelpOpen
@@ -5831,6 +6028,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {misdiagnosisBusy}
       {misdiagnosisText}
       {helpShown}
+      {trails}
       {actionBusy}
       {actionNote}
       {t}
@@ -5905,6 +6103,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onnextQuestion={nextQuestion}
       ondrillVariant={() => { if (curQ) void drillVariantFor(curQ); }}
       ontraceMother={() => { if (curQ) void traceMotherQuestion(curQ); }}
+      ondiagnosePrereqs={(q) => handleDiagnosePrereqs(q)}
       ontoCard={toCard}
       onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
       onexplainCurrent={(m) => explainCurrent(m)}
@@ -5968,6 +6167,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:wbFilterStubborn
       {wbKpOptions}
       bind:wbKpFilter
+      {wbTagOptions}
+      bind:wbTagFilter
       bind:wbSortMode
       {filteredWrongQueue}
       {shownWrongQueue}
@@ -6013,6 +6214,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onbrowseWrongFilter={() => { filterWrong = true; view = "browse"; void loadQuestions(); }}
       onchangeWbSortMode={(val) => writeLocal("lv-exam/wrong-sort", val)}
       onstartCbmDrill={(k) => void startCbmDrill(k)}
+      onstartCustomDrill={(qids) => void startCustomDrill(qids)}
       onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
       oneditReflection={(qid) => void editReflection(qid)}
       {reflections}
@@ -6020,11 +6222,14 @@ import { confirmDialogSync } from "@/libs/dialog";
     />
   {:else if view === "manual"}
     <ManualStudioView
+      existingQuestions={questions}
+      bind:pinAttributes
       bind:mType
       bind:mStem
       bind:mOptions
       bind:mAnswer
       bind:mAnalysis
+      bind:mExpansion
       bind:mKp
       bind:mSecondaryKps
       bind:mSource
@@ -6218,6 +6423,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {smartViewLoadFailed}
       {smartViewError}
       {activeBankId}
+      bankName={bankName || "题库试题"}
       {shownQuestions}
       {questions}
       {sectionOpen}
@@ -6233,6 +6439,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:moreRoot
       bind:morePop
       {app}
+      {showMessage}
       {questionMap}
       {sectionBusy}
       {sectionTree}
@@ -6367,6 +6574,14 @@ import { confirmDialogSync } from "@/libs/dialog";
       onexportGiftFormat={() => void executeBankExportAction("gift", app, activeBankId, bankName, showMessage)}
       onexportAnkiFormat={() => void executeBankExportAction("anki", app, activeBankId, bankName, showMessage)}
       onexportMdDocFormat={() => void executeBankExportAction("mddoc", app, activeBankId, bankName, showMessage)}
+      onexportLvCardsPackage={async () => {
+        const { exportLvCardsPackageFile } = await import("./services/bankExportService");
+        await exportLvCardsPackageFile(bankName, activeBankId, questions, showMessage);
+      }}
+      onexportQCardsJson={async () => {
+        const { exportQCardsJsonFile } = await import("./services/bankExportService");
+        await exportQCardsJsonFile(bankName, questions, showMessage);
+      }}
       onclearSectionSel={() => { sectionSel = null; }}
       onsearchKp={(kp) => setSearch(kp)}
       onpreviewKpMerge={previewKpMerge}
@@ -6508,6 +6723,17 @@ import { confirmDialogSync } from "@/libs/dialog";
       onImportAllSearchedDocs={importAllSearchedDocs}
       onPickAndImportSiyuanDoc={(id, title) => void pickAndImportSiyuanDoc(id, title)}
       onAiExtractDoc={(id, title) => void aiExtractSiyuanDoc(id, title)}
+      hasGleanPlugin={Boolean(getBridgeSafely("glean") || (typeof window !== "undefined" && (window as any).siyuanGlean))}
+      gleanClipsList={gleanClips}
+      gleanClipsLoading={gleanLoading}
+      bind:selectedGleanIds
+      {selectedGleanCount}
+      onloadGleanClips={() => void loadGleanClips()}
+      onextractSelectedGlean={() => void importSelectedGleanDocs()}
+      ontoggleGleanId={(id) => { selectedGleanIds[id] = !selectedGleanIds[id]; selectedGleanIds = { ...selectedGleanIds }; }}
+      ontoggleSelectAllGlean={toggleSelectAllGlean}
+      onPickGleanClip={(c) => void pickAndImportSiyuanDoc(c.id, c.title)}
+      onAiExtractGleanClip={(c) => void aiExtractSiyuanDoc(c.id, c.title)}
       onToggleClozeMode={(m) => toggleClozeMode(m)}
       onDoParseCloze={doParseCloze}
       onImportClozeQuestions={importClozeQuestions}
@@ -6543,6 +6769,76 @@ import { confirmDialogSync } from "@/libs/dialog";
       onSegmentPaperText={(txt, name) => void doSegmentPaperText(txt, name)}
       onPaperImageUpload={(file) => void handlePaperImageFile(file)}
     />
+  {:else if view === "marketplace"}
+    <MarketplaceStudioView
+      {app}
+      {readLocal}
+      {writeLocal}
+      {showMessage}
+      onback={() => { view = "entry"; }}
+      onbankCreated={async (newId) => {
+        activeBankId = newId;
+        await onBankSwitch();
+        banks = app.listBanks();
+        view = "browse";
+        void loadQuestions();
+      }}
+      onstartCartDrill={async (cartItems) => {
+        try {
+          const { cartItemsToQuestions } = await import("@/core/marketplaceCart");
+          const { installCartQuestionsToBank } = await import("./services/marketplaceService");
+          const qs = cartItemsToQuestions(cartItems);
+          const nowStr = new Date().toISOString().slice(5, 10).replace("-", "");
+          const bankTitle = `🛒 集市挑选专练-${nowStr}`;
+
+          let targetBank = banks.find((b) => b.name === bankTitle);
+          let targetBankId = targetBank?.id;
+          if (!targetBankId) {
+            const bRes = await installCartQuestionsToBank(app, bankTitle, qs);
+            if (!bRes.success || !bRes.bankId) {
+              showMessage(`创建专练题库失败：${bRes.error || "未知错误"}`, 3500, "error");
+              return;
+            }
+            targetBankId = bRes.bankId;
+            banks = app.listBanks();
+          } else {
+            for (const q of qs) {
+              await app.writeManualQuestion(targetBankId, q);
+            }
+          }
+          activeBankId = targetBankId;
+          await onBankSwitch();
+          const loaded = await loadQuestions();
+          await safeStart(groupAdjacent(loaded.length ? loaded : qs), "quick", () => {
+            enterSessionView();
+            restoreQuestionControls();
+            showMessage(`已就地开启跨学科试题篮精选特训（共 ${qs.length} 题）🚀`, 3200, "info");
+          });
+        } catch (err) {
+          showMessage(`启动试题篮练习异常：${String(err instanceof Error ? err.message : err)}`, 3500, "error");
+        }
+      }}
+      oncloneCartToBank={async (cartItems, bankName) => {
+        try {
+          const { cartItemsToQuestions } = await import("@/core/marketplaceCart");
+          const { installCartQuestionsToBank } = await import("./services/marketplaceService");
+          const qs = cartItemsToQuestions(cartItems);
+          const bRes = await installCartQuestionsToBank(app, bankName, qs);
+          if (!bRes.success || !bRes.bankId) {
+            showMessage(`保存题库失败：${bRes.error || "未知错误"}`, 3500, "error");
+            return;
+          }
+          activeBankId = bRes.bankId;
+          await onBankSwitch();
+          banks = app.listBanks();
+          view = "browse";
+          void loadQuestions();
+          showMessage(`已成功创建专属题库《${bankName}》（共 ${qs.length} 题）✓`, 3200, "info");
+        } catch (err) {
+          showMessage(`保存专属题库异常：${String(err instanceof Error ? err.message : err)}`, 3500, "error");
+        }
+      }}
+    />
   {/if}
     </div>
     <Palette commands={paletteCommands} bind:open={paletteOpen} {t} />
@@ -6567,6 +6863,15 @@ import { confirmDialogSync } from "@/libs/dialog";
         kernelOnline={!!app?.kernelOnline}
         onclearSelection={clearSelection}
         onstartFocusDrill={startFilteredFocusDrill}
+        onopenAssembleStudio={() => {
+          const selected = questions.filter((q) => selectedIds[q.id]);
+          if (selected.length) {
+            tabAssembleQuestions = selected;
+            tabAssembleOpen = true;
+          } else {
+            showMessage("请先勾选需要组卷排版的题目", 2000, "info");
+          }
+        }}
         onprintSelectedQuestions={(f) => void printSelectedQuestions(f)}
         onbatchConvertToCards={() => void batchConvertToCards()}
       />
@@ -6609,6 +6914,21 @@ import { confirmDialogSync } from "@/libs/dialog";
       oncycleBankCategory={cycleBankCategory}
       onsyncBankToDoc={syncBankToDoc}
       onremoveBank={removeActiveBank}
+      onopenMarketplace={() => { bankHubOpen = false; marketplaceOpen = true; }}
+    />
+    <MarketplaceModal
+      bind:open={marketplaceOpen}
+      {app}
+      {readLocal}
+      {writeLocal}
+      {showMessage}
+      onclose={() => (marketplaceOpen = false)}
+      onbankCreated={async (newId) => {
+        activeBankId = newId;
+        await onBankSwitch();
+        banks = app.listBanks();
+        marketplaceOpen = false;
+      }}
     />
     <ShortcutsHelpModal
       open={hotkeysHelpOpen}
@@ -6616,9 +6936,60 @@ import { confirmDialogSync } from "@/libs/dialog";
       title={t("hotkeys.title")}
       onclose={() => hotkeysHelpOpen = false}
     />
+    {#if diagnosisModal}
+      <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭自适应诊断弹层" onclick={() => (diagnosisModal = null)}></button>
+      <div class="lv-hotkeys-wrap">
+        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="错题自适应先修根因诊断" style="width:min(620px, 94vw);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-card, 20px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop)">
+          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 12px">
+            <div class="lv-dialog-title-wrap">
+              <span class="lv-dialog-title-icon"><Icon name="compass" size={13} /></span>
+              <span>错题自适应先修根因诊断</span>
+            </div>
+            <button class="lv-btn sm lv-btn--ghost" onclick={() => (diagnosisModal = null)} aria-label="关闭"><Icon name="close" size={13} /></button>
+          </div>
+          <div class="lv-card" style="padding:10px 14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);margin-bottom:12px;border:1px solid var(--lv-border-subtle)">
+            <div style="font-size:12px;color:var(--lv-text-3)">目标考点：<b>{diagnosisModal.targetKp}</b></div>
+            <div style="font-size:13px;line-height:1.6;margin-top:6px;color:var(--lv-text)">{diagnosisModal.summaryText}</div>
+          </div>
+          <h3 style="font-size:13px;font-weight:600;margin:12px 0 6px">🗺️ 推荐先修筑基与靶向攻克路线：</h3>
+          <div class="stack-sm">
+            {#each diagnosisModal.learningPath as stage, si (si)}
+              <div class="lv-diagnosis-stage"
+                class:lv-stage--root={stage.status === 'root_cause'}
+                class:lv-stage--shaky={stage.status === 'shaky'}
+                class:lv-stage--target={stage.status === 'untested'}
+                style="padding:10px 12px;background:var(--lv-surface);border:1px solid var(--lv-border);border-radius:var(--lv-r-1)">
+                <div style="font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+                  <span>{stage.title}</span>
+                  <span class="lv-chip sm">{stage.status === 'root_cause' ? '薄弱根因' : (stage.status === 'shaky' ? '掌握不稳' : '冲刺目标')}</span>
+                </div>
+                {#if stage.recommendedQuestions.length > 0}
+                  <div style="font-size:12px;color:var(--lv-text-3);margin-top:6px">
+                    推荐强化题量：共 {stage.recommendedQuestions.length} 题
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+          <div class="lv-row" style="margin-top:16px;justify-content:flex-end">
+            <button class="lv-btn sm lv-btn--primary" onclick={() => (diagnosisModal = null)}>关闭</button>
+          </div>
+        </div>
+      </div>
+    {/if}
+    <PaperAssembleModal
+      open={tabAssembleOpen}
+      bankName={bankName || "试题组卷"}
+      questions={tabAssembleQuestions}
+      onclose={() => (tabAssembleOpen = false)}
+      {showMessage}
+    />
   </div>
 </div>
 
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
+  .lv-stage--root { border-left: 4px solid var(--lv-accent-seal) !important; }
+  .lv-stage--shaky { border-left: 4px solid var(--lv-accent) !important; }
+  .lv-stage--target { border-left: 4px solid var(--lv-brand) !important; }
 </style>

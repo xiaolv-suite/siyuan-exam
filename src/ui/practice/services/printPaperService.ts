@@ -3,10 +3,10 @@ import type { PrintProOptions } from "@/core/printPro";
 
 export type MessageReporter = (msg: string, timeoutMs?: number, type?: "info" | "error") => void;
 
-export type PrintPaperFormat = "exam" | "answer" | "lecture" | "homework";
+export type PrintPaperFormat = "exam" | "answer" | "lecture" | "homework" | "interactive";
 
 /**
- * 按选定卷面版式（标准测试卷 / 独立答案册 / 授课讲义卷 / 留白作业单）生成打印 HTML 并打开或回退下载
+ * 按选定卷面版式（标准测试卷 / 独立答案册 / 授课讲义卷 / 留白作业单 / 交互式讲题自测卷）生成 HTML 并打开或回退下载
  */
 export async function printQuestionsByFormat(
   format: PrintPaperFormat,
@@ -23,7 +23,14 @@ export async function printQuestionsByFormat(
       buildCompactAnswerSheetPro,
       buildTeacherLectureSheetPro,
       buildStudentHomeworkSheetPro,
+      buildInteractiveReviewSheetPro,
     } = await import("@/core/printPro");
+
+    if (format === "interactive") {
+      const html = buildInteractiveReviewSheetPro(`${label} · 交互式讲题自测卷`, targetQuestions, customOptions);
+      openOrDownloadHtml(html, `${label}-交互式讲题自测卷.html`, "已生成交互式讲题自测卷文件", showMessage);
+      return;
+    }
 
     if (format === "answer") {
       const html = buildCompactAnswerSheetPro(`${label} · 独立答案册`, targetQuestions, {

@@ -95,7 +95,7 @@ export function englishSampleQuestions(): Question[] {
   ];
 
   return seeds.map((seed) => ({
-    ...makeQuestion({ ...seed, source: "小驴学习多语言研学示例（大学与雅思英语）", difficulty: 2 }),
+    ...makeQuestion({ ...seed, source: "小驴考试多语言示例（大学与雅思英语）", difficulty: 2 }),
     sourceKind: "real",
   }));
 }

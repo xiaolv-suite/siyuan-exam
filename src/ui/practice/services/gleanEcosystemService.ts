@@ -8,6 +8,18 @@ import {
 import type { MessageReporter } from "./printPaperService";
 
 /**
+ * 安全列出稍后读剪藏（不弹提示框，用于导入工坊列表展示）
+ */
+export async function listGleanClipsSafely(
+  win: Window = typeof window !== "undefined" ? window : ({} as Window),
+  limit = 30,
+): Promise<GleanClip[]> {
+  const g = probeGlean(win);
+  if (!g) return [];
+  return await listLaterClips(g, limit);
+}
+
+/**
  * 探测拾遗插件并拉取稍后读剪藏素材
  */
 export async function fetchGleanClips(

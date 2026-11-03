@@ -344,7 +344,7 @@ export function isRubricDrifted(spec: RubricSpec | null | undefined, snapshot: R
 /** 自评明细 CSV（UTF-8 BOM）：逐采分点得分可核对 */
 export function exportRubricBreakdownCsv(result: RubricScoreResult): string {
   const rows: string[] = [];
-  rows.push("小驴学习(原小驴考试) 主观题自评明细");
+  rows.push("小驴考试 主观题自评明细");
   rows.push(`题目满分,${result.fullScore}`);
   rows.push(`已评得分,${result.earned}`);
   rows.push(`已评满分,${result.ratedMax}`);

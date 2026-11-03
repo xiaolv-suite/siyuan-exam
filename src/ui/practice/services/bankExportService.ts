@@ -120,6 +120,65 @@ export async function exportMdDocFormat(
 }
 
 /**
+ * 导出题库为标准 Agent 题卡（QCard JSON）文件
+ */
+export async function exportQCardsJsonFile(
+  bankName: string,
+  questions: readonly Question[],
+  showMessage: MessageReporter,
+): Promise<void> {
+  if (!questions.length) return;
+  try {
+    const { exportQCardsJson } = await import("@/core/qcard");
+    const json = exportQCardsJson(bankName, questions);
+    downloadBlobFile(
+      json,
+      `${bankName || "题库"}-Agent题卡.qcard.json`,
+      "application/json;charset=utf-8;",
+    );
+    showMessage(`已导出 ${questions.length} 道标准 Agent 题卡 ✓`, 3000, "info");
+  } catch (err) {
+    showMessage(String(err instanceof Error ? err.message : err), 4000, "error");
+  }
+}
+
+/**
+ * 导出题库为小驴闪卡（.lvcards）原生分享包格式
+ * 严格按照 siyuan-lv-cards 规范 (format: "lvcards.v1") 打包，实现双向零损互通
+ */
+export async function exportLvCardsPackageFile(
+  bankName: string,
+  bankId: string,
+  questions: readonly Question[],
+  showMessage: MessageReporter,
+): Promise<void> {
+  if (!questions.length) {
+    showMessage("题库内暂无试题可导出为闪卡包", 2500, "error");
+    return;
+  }
+  try {
+    const { questionsToLvCardsPackage, serializeLvCardsPackage } = await import("@/core/lvcardsBridge");
+    const pkg = questionsToLvCardsPackage(
+      {
+        id: bankId || `bank-${Date.now()}`,
+        name: bankName || "小驴题库",
+        description: `由小驴考试导出，共 ${questions.length} 道精选题卡。`,
+      },
+      questions,
+    );
+    const json = serializeLvCardsPackage(pkg);
+    downloadBlobFile(
+      json,
+      `${bankName || "小驴题库"}.lvcards`,
+      "application/json;charset=utf-8;",
+    );
+    showMessage(`已成功导出 ${questions.length} 张小驴闪卡包 (.lvcards) ✓`, 3000, "info");
+  } catch (err) {
+    showMessage(String(err instanceof Error ? err.message : err), 4000, "error");
+  }
+}
+
+/**
  * 导出考纲知识点出题缺口体检报告 Markdown
  */
 export async function exportSyllabusAudit(
@@ -142,10 +201,10 @@ export async function exportSyllabusAudit(
 }
 
 /**
- * 打印/导出错题特训卷（试卷 / 答案册 / 重测卷）
+ * 打印/导出错题特训卷（试卷 / 答案册 / 重测卷 / 交互式讲题卷）
  */
 export async function printWrongSheet(options: {
-  type: "question" | "answer" | "retest";
+  type: "question" | "answer" | "retest" | "interactive";
   activeBankId: string;
   bankName: string;
   wrongQids: string[];
@@ -161,10 +220,17 @@ export async function printWrongSheet(options: {
       showMessage("当前筛选条件下无可用题目", 3000, "info");
       return;
     }
-    const title = `${bankName || "小驴学习"} · 错题攻坚特训卷（共${qs.length}题）`;
-    const { buildCompactQuestionSheetPro, buildCompactAnswerSheetPro, buildWrongbookRetestSheetPro } = await import("@/core/printPro");
+    const title = `${bankName || "小驴考试"} · 错题攻坚特训卷（共${qs.length}题）`;
+    const {
+      buildCompactQuestionSheetPro,
+      buildCompactAnswerSheetPro,
+      buildWrongbookRetestSheetPro,
+      buildInteractiveReviewSheetPro,
+    } = await import("@/core/printPro");
     const html =
-      type === "retest"
+      type === "interactive"
+        ? buildInteractiveReviewSheetPro(title, qs)
+        : type === "retest"
         ? buildWrongbookRetestSheetPro(title, qs, { headerTitle: "错题清零纯净重测卷 · A4双栏", columns: "double" })
         : type === "question"
         ? buildCompactQuestionSheetPro(title, qs, { headerTitle: "错题攻坚特训卷 · A4双栏", columns: "double" })
@@ -178,7 +244,7 @@ export async function printWrongSheet(options: {
     } else {
       downloadBlobFile(
         html,
-        `${title}-${type === "retest" ? "错题重测卷" : type === "question" ? "试卷" : "答案册"}.html`,
+        `${title}-${type === "interactive" ? "交互式讲题卷" : type === "retest" ? "错题重测卷" : type === "question" ? "试卷" : "答案册"}.html`,
         "text/html;charset=utf-8",
       );
       showMessage("已生成双栏排版文件", 3000, "info");

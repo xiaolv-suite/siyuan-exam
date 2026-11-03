@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { showMessage } from "siyuan";
   import Icon from "../shared/Icon.svelte";
   import type { BankInfo } from "../../app";
   import type { BankCategory, BankCategoryMeta } from "@/core/bankCategory";
@@ -19,6 +20,7 @@
     oncycleBankCategory: (b: BankInfo) => Promise<void>;
     onsyncBankToDoc: (id: string) => Promise<void>;
     onremoveBank: (id: string) => Promise<void>;
+    onopenMarketplace?: () => void;
   }
 
   let {
@@ -36,6 +38,7 @@
     oncycleBankCategory,
     onsyncBankToDoc,
     onremoveBank,
+    onopenMarketplace,
   }: Props = $props();
 
   let bankFilterCategory = $state<string>("all");
@@ -84,6 +87,19 @@
     renamingBankId = "";
   }
 
+  function copyBankUri(b: BankInfo): void {
+    const uri = `siyuan://plugins/siyuan-exam?bank=${b.id}`;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(uri).then(() => {
+        showMessage(`已复制题库专属跳转链接：${uri}`, 2600, "info");
+      }).catch(() => {
+        showMessage(`链接：${uri}`, 4000, "info");
+      });
+    } else {
+      showMessage(`链接：${uri}`, 4000, "info");
+    }
+  }
+
   const curBank = $derived(banks.find((b) => b.id === activeBankId));
 </script>
 
@@ -99,7 +115,20 @@
           <span>{t("bank.hubTitle")}</span>
           <span class="lv-dialog-title-tag num">{banks.length} 题库</span>
         </div>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
+        <div class="lv-row" style="margin:0;gap:6px">
+          {#if onopenMarketplace}
+            <button
+              type="button"
+              class="lv-btn sm lv-btn--primary"
+              style="font-weight:600;display:inline-flex;align-items:center;gap:4px"
+              onclick={onopenMarketplace}
+              title="浏览题库与闪卡公共集市，一键获取精选公版题库与社区订阅卡包"
+            >
+              <Icon name="sparkles" size={13} /> 🏛️ 题库集市
+            </button>
+          {/if}
+          <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
+        </div>
       </div>
 
       <!-- 置顶重点提示当前激活题库与切换说明 -->
@@ -162,7 +191,7 @@
                 {:else}
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                     <b style="font-size:15px;color:var(--lv-text)">{b.name}</b>
-                    <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="display:inline-flex;align-items:center;gap:4px" onclick={() => void oncycleBankCategory(b)} title="点击切换研学场景分类（备考/语言/教研/通识）" aria-label={`切换研学场景分类: ${b.name}`}><span>{getBankCategoryMeta(b.category).badge}</span> <Icon name="rotate" size={11} /></button>
+                    <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="display:inline-flex;align-items:center;gap:4px" onclick={() => void oncycleBankCategory(b)} title="点击切换题库场景分类（备考/语言/教研/通识）" aria-label={`切换题库场景分类: ${b.name}`}><span>{getBankCategoryMeta(b.category).badge}</span> <Icon name="rotate" size={11} /></button>
                     {#if b.id === activeBankId}
                       <span class="lv-chip sm lv-chip--acc" style="font-weight:700">✓ 当前正在使用</span>
                     {/if}
@@ -185,6 +214,9 @@
                     <Icon name="check" size={12} /> 已在此题库
                   </button>
                 {/if}
+                <button class="lv-btn sm" onclick={() => copyBankUri(b)} title="复制该题库专属的 siyuan:// 快捷跳转协议链接，可直接贴入思源看板或文档" aria-label={`复制题库专属链接: ${b.name}`}>
+                  <Icon name="link" size={12} />
+                </button>
                 <button class="lv-btn sm lv-btn--ghost" onclick={() => void onsyncBankToDoc(b.id)} title="将整套题库题册格式化同步为思源原生文档，折叠答案，卸载插件依然永久保留" aria-label={`同步题库到思源文档: ${b.name}`}>
                   <Icon name="file" size={12} /> {t("bank.syncToDoc")}
                 </button>

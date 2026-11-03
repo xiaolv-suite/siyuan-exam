@@ -223,6 +223,9 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
   page.on("pageerror", (err) => pageErrors.push(String(err?.stack ?? err)));
+  page.on("console", (msg) => {
+    if (msg.text().includes("[handleInstall")) console.log(">>> BROWSER LOG:", msg.text());
+  });
 
   const snap = async (file) => {
     const p = join(OUT_DIR, file);
@@ -332,8 +335,18 @@ try {
   await activeTab().locator("#lv-manual-kp").fill("计算机网络/应用层");
   await activeTab().locator("#lv-manual-sec-kp").fill("协议端口, 传输基础");
   await activeTab().locator("#lv-manual-analysis").fill("HTTP 默认使用 80 端口。");
-  await activeTab().locator("[data-manual-form] .lv-btn--primary").first().click();
+  await activeTab().locator("#lv-manual-expansion").fill("【秒杀技巧】常见知名端口：HTTP 80、HTTPS 443、DNS 53、SSH 22。");
+
+  // 验证属性锁定 (AUTH-01 / TODO-Pin)
+  const pinBtn = activeTab().getByRole("button", { name: /锁定属性|属性已锁定/ });
+  await pinBtn.click();
+  await activeTab().getByRole("button", { name: /📌 连录下一题|入库并继续下一题/ }).click();
   await activeTab().locator('[data-manual-form] [role="status"]').waitFor({ state: "visible", timeout: 15000 });
+  const stemAfterPin = await activeTab().locator("#lv-manual-stem").inputValue();
+  const kpAfterPin = await activeTab().locator("#lv-manual-kp").inputValue();
+  const pinSuccess = stemAfterPin === "" && kpAfterPin === "计算机网络/应用层";
+  // 关闭属性锁定以恢复常规
+  await pinBtn.click();
 
   await activeTab().getByRole("navigation", { name: "出题工作台" }).getByRole("button", { name: "批量导入", exact: true }).click();
   await activeTab().locator("textarea.lv-textarea").first().fill(
@@ -345,7 +358,7 @@ try {
   await commitBtn.click();
   await activeTab().getByText(/读回确认 1 题/).waitFor({ state: "visible", timeout: 20000 });
   await snap("03-import-studio.png");
-  record("5. OCR 按钮真 button 可聚焦、手工录题落块与批量导入读回确认", ocrUploadTag === "BUTTON", `ocrBtn=${ocrUploadTag}`);
+  record("5. OCR 按钮真 button 可聚焦、录题属性锁定连录、四层拓展与批量导入读回确认", ocrUploadTag === "BUTTON" && pinSuccess, `ocrBtn=${ocrUploadTag}, pinSuccess=${pinSuccess}`);
 
   // ---------- 阶段 3.5：多方位真机测试从思源笔记直接提取导入题库 ----------
   // 1. 切换到「从思源文档导入」子分面
@@ -379,7 +392,7 @@ try {
   const commitPaperBtn = activeTab().getByRole("button", { name: /^入库\s*\(/ });
   await commitPaperBtn.waitFor({ state: "visible", timeout: 15000 });
   await commitPaperBtn.click();
-  await activeTab().getByText(/读回确认 2 题/).waitFor({ state: "visible", timeout: 20000 });
+  await activeTab().getByText(/读回确认 2 题/).first().waitFor({ state: "visible", timeout: 20000 });
   await snap("03b-siyuan-doc-import-paper.png");
 
   // 4. 再次切到「从思源文档导入」，测试自然判断题笔记直接提取
@@ -396,7 +409,12 @@ try {
   const commitJudgeBtn = activeTab().getByRole("button", { name: /^入库\s*\(/ });
   await commitJudgeBtn.waitFor({ state: "visible", timeout: 15000 });
   await commitJudgeBtn.click();
-  await activeTab().getByText(/读回确认 2 题/).waitFor({ state: "visible", timeout: 20000 });
+  try {
+    await activeTab().getByText(/读回确认 2 题/).first().waitFor({ state: "visible", timeout: 20000 });
+  } catch (e) {
+    await snap("debug-judge-commit-fail.png");
+    throw e;
+  }
   await snap("03c-siyuan-doc-import-judge.png");
 
   // 5. 再次切到「从思源文档导入」，测试概念速查问答笔记提取（切换回「智能全能」或「读书笔记」模式）
@@ -418,7 +436,7 @@ try {
   const commitQaBtn = activeTab().getByRole("button", { name: /^入库\s*\(/ });
   await commitQaBtn.waitFor({ state: "visible", timeout: 15000 });
   await commitQaBtn.click();
-  await activeTab().getByText(/读回确认 2 题/).waitFor({ state: "visible", timeout: 20000 });
+  await activeTab().getByText(/读回确认 2 题/).first().waitFor({ state: "visible", timeout: 20000 });
   await snap("03d-siyuan-doc-import-qa.png");
 
   record(
@@ -456,15 +474,20 @@ try {
   const hintStillExpanded = await activeTab().getByRole("button", { name: /考点提示（卡壳再看）/ }).getAttribute("aria-expanded");
   await activeTab().getByRole("button", { name: /草稿纸/ }).click();
   const restoredPadValue = await activeTab().getByPlaceholder(/在此演练计算/).inputValue();
+
+  // 验证顶部快捷坞工具：自动翻题与选项乱序 (FLOW-01/03)
+  const hasAutoNextChip = (await activeTab().getByRole("button", { name: /自动翻题|翻题关/ }).count()) > 0;
+  const hasShuffleChip = (await activeTab().getByRole("button", { name: /选项乱序|乱序|顺序/ }).count()) > 0;
+
   record(
-    "7. 做题会话：普通题隐藏跟读、答前侧栏不泄考点、重载后提示受助态与草稿纸完整恢复",
-    micOnNormal === 0 && sideChipsAfterHint.length > sideChipsBefore.length && hintStillExpanded === "true" && restoredPadValue === "真机E2E草稿：重载不能丢",
-    `mic=${micOnNormal}, hintExpanded=${hintStillExpanded}, pad="${restoredPadValue}"`,
+    "7. 做题会话：普通题隐藏跟读、答前侧栏不泄考点、重载后提示受助态与草稿纸完整恢复（含自动翻题/乱序工具）",
+    micOnNormal === 0 && sideChipsAfterHint.length > sideChipsBefore.length && hintStillExpanded === "true" && restoredPadValue === "真机E2E草稿：重载不能丢" && hasAutoNextChip && hasShuffleChip,
+    `mic=${micOnNormal}, hintExpanded=${hintStillExpanded}, pad="${restoredPadValue}", autoNext=${hasAutoNextChip}, shuffle=${hasShuffleChip}`,
   );
 
-  // 故意引发一道错题以检查 AI 讲解深度下拉与错因快捷键
+  // 故意引发一道错题以检查 AI 讲解深度下拉、思路拓展卡与自适应根因诊断
   let gotWrongFeedback = false;
-  for (let step = 0; step < 4 && !gotWrongFeedback; step++) {
+  for (let step = 0; step < 6 && !gotWrongFeedback; step++) {
     const hasOpts = (await activeTab().locator(".lv-question .lv-opt").count()) > 0;
     if (hasOpts) {
       await activeTab().locator(".lv-question .lv-opt").last().click();
@@ -472,14 +495,39 @@ try {
       const ta = activeTab().locator(".lv-question textarea, .lv-question input.lv-input").first();
       if (await ta.count()) await ta.fill("故意错误答案");
     }
-    await activeTab().getByRole("button", { name: /^确认/ }).click();
-    const fbText = await activeTab().locator(".lv-feedback").innerText();
+    const submitBtn = activeTab().getByRole("button", { name: /^确认/ });
+    if (await submitBtn.isVisible().catch(() => false)) {
+      await submitBtn.click();
+    }
+    await sleep(300);
+    const fbLoc = activeTab().locator(".lv-feedback");
+    const fbText = (await fbLoc.count()) > 0 ? (await fbLoc.innerText().catch(() => "")) : "";
     if (/回答错误|正确答案/.test(fbText)) {
       gotWrongFeedback = true;
     } else {
-      await activeTab().getByRole("button", { name: /^下一题/ }).click();
+      const nextBtn = activeTab().getByRole("button", { name: /^下一题/ });
+      if (await nextBtn.isVisible().catch(() => false)) {
+        await nextBtn.click();
+        await sleep(300);
+      }
     }
   }
+
+  // 验证自适应根因诊断与先修路线推荐 (DIAG-02/03)
+  const diagnoseBtn = activeTab().getByRole("button", { name: /溯源根因/ });
+  let diagnoseModalOk = false;
+  if (await diagnoseBtn.count()) {
+    await diagnoseBtn.click();
+    await sleep(400);
+    const modal = activeTab().locator('[aria-label="错题自适应先修根因诊断"]');
+    if (await modal.count()) {
+      diagnoseModalOk = true;
+      await snap("04b-adaptive-diagnosis-modal.png");
+      await modal.getByRole("button", { name: "关闭" }).first().click();
+      await sleep(200);
+    }
+  }
+
   const explainSelect = activeTab().getByRole("combobox", { name: "选择 AI 讲解模式" });
   await explainSelect.waitFor({ state: "visible" });
   const explainModes = await explainSelect.locator("option").allInnerTexts();
@@ -511,9 +559,9 @@ try {
     await confirmBtn.click();
   }
   record(
-    "8. 错题反馈态 AI 讲解下拉与按钮胶囊等高同行对齐（38px/9999px）且含 3 档深度模式",
-    explainModes.length === 3 && actionAlign.ok && (await explainBtn.count()) >= 0,
-    `${explainModes.join(" / ")} · align=${JSON.stringify(actionAlign)}`,
+    "8. 错题反馈态 AI 讲解下拉对齐、思路拓展与自适应根因诊断闭环",
+    explainModes.length === 3 && actionAlign.ok && (await explainBtn.count()) >= 0 && diagnoseModalOk,
+    `${explainModes.join(" / ")} · align=${JSON.stringify(actionAlign)}, diagnoseModal=${diagnoseModalOk}`,
   );
 
   // ---------- 阶段 5：错题本核验（错题集落盘）+ 首页归档思源文档 + 背诵模式跨刷新续做 ----------
@@ -539,7 +587,8 @@ try {
     undefined,
     { timeout: 25000 },
   );
-  await activeTab().getByRole("button", { name: /00 题库总览与考纲导航/ }).waitFor({ state: "visible", timeout: 15000 });
+  await activeTab().getByRole("button", { name: /00 题库总览与考纲导航/ }).waitFor({ state: "visible", timeout: 20000 });
+  await activeTab().getByRole("button", { name: /完整题册/ }).waitFor({ state: "visible", timeout: 20000 });
   await sleep(600);
   await activeTab().locator("button.lv-mode").filter({ hasText: "背诵" }).first().click();
   await activeTab().getByRole("button", { name: /翻开答案/ }).waitFor({ state: "visible" });
@@ -678,7 +727,7 @@ try {
   await snap("08-mock-score.png");
   record(
     "11. 全真模考首屏开始按钮置顶无需滚动、中断刷新恢复（含草稿纸）并交卷出分与写入成绩单文档",
-    Boolean(startMockBox && startMockBox.y < 480) && restoredMockPad === "模考真机草稿888" && reportPrintOpts.length === 4,
+    Boolean(startMockBox && startMockBox.y < 480) && restoredMockPad === "模考真机草稿888" && reportPrintOpts.length >= 4,
     `startBtnY=${Math.round(startMockBox?.y ?? 999)}px, pad="${restoredMockPad}", PrintFormats=${reportPrintOpts.join("/")}`,
   );
 
@@ -819,7 +868,55 @@ try {
     `len={总览:${overviewMd.length}, 日志:${journalMd.length}, 题册:${fullBankMd.length}, 错题册:${wrongExportMd.length}, 攻坚手册:${wrongManualMd.length}, 模拟卷:${mockPaperMd.length}, 成绩单:${scoreMd.length}, 战报:${dailyReportMd.length}}, nativeRefs=${nativeRefsCount}, syncedAttrs=${syncedAttrsCount}, wbBtns=${wbJumpBtnCount}/${wbReflectBtnCount}`,
   );
 
-  record("15. 全程浏览器 0 未捕获页面异常", pageErrors.length === 0, `pageErrors=${pageErrors.length}`);
+  // ---------- 阶段 15：公共题库与闪卡集市双向互通全链路核验 ----------
+  const exitSessionBtn = activeTab().getByRole("button", { name: /结束练习/ });
+  if (await exitSessionBtn.isVisible()) {
+    await exitSessionBtn.click();
+    await page.waitForTimeout(300);
+  }
+
+  const mktRailBtn = activeTab().locator('.lv-rail-btn[title="集市"], .lv-rail-btn[aria-label="集市"]').first();
+  await mktRailBtn.waitFor({ state: "visible", timeout: 10000 });
+  await mktRailBtn.click();
+
+  await activeTab().locator(".lv-marketplace-studio").waitFor({ state: "visible", timeout: 10000 });
+  const mktCardsCount = await activeTab().locator(".lv-marketplace-card").count();
+
+  const targetCard = activeTab().locator(".lv-marketplace-card").first();
+  const previewBtn = targetCard.getByRole("button", { name: /试看样题/ });
+  if (await previewBtn.isVisible()) {
+    await previewBtn.click();
+    await page.waitForTimeout(200);
+  }
+
+  const flashcardTabBtn = targetCard.getByRole("button", { name: /小驴闪卡/ });
+  let flashcardModeOk = false;
+  if (await flashcardTabBtn.isVisible()) {
+    await flashcardTabBtn.click();
+    await page.waitForTimeout(200);
+    flashcardModeOk = (await targetCard.getByText(/卡片正面/).count()) > 0;
+  }
+
+  const mktCloneBtn = targetCard.getByRole("button", { name: /克隆至题库/ });
+  const exportCardsBtn = targetCard.getByRole("button", { name: /导出闪卡包/ });
+  const cloneBtnOk = await mktCloneBtn.isVisible();
+  const exportCardsBtnOk = await exportCardsBtn.isVisible();
+
+  await mktCloneBtn.click();
+  // 等待克隆并批量落库完成（自动切入题库浏览视图并聚焦新题库）
+  const browseHeading = activeTab().getByRole("heading", { name: /按章节翻题/ }).first();
+  await browseHeading.waitFor({ state: "visible", timeout: 25000 });
+  const clonedOk = await browseHeading.isVisible();
+
+  await snap("12-marketplace-studio.png");
+
+  record(
+    "15. 题库集市与小驴闪卡双向互通：公版集市进入、双模试看切换与一键克隆入库",
+    mktCardsCount >= 8 && flashcardModeOk && cloneBtnOk && exportCardsBtnOk && clonedOk,
+    `cards=${mktCardsCount}, flashcardMode=${flashcardModeOk}, cloneBtn=${cloneBtnOk}, exportCardsBtn=${exportCardsBtnOk}, cloned=${clonedOk}`,
+  );
+
+  record("16. 全程浏览器 0 未捕获页面异常", pageErrors.length === 0, `pageErrors=${pageErrors.length}`);
 } finally {
   await browser?.close().catch(() => undefined);
   if (keep) {

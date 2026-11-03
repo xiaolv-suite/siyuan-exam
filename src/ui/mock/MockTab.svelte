@@ -18,13 +18,21 @@
     import type { ExamApp } from "../../app";
     import Rail from "../shared/Rail.svelte";
     import type { Question, QuestionType } from "../../core/types";
-    import { showMessage } from "siyuan";
+    import {
+      notifyInline,
+      notifyCapsule,
+      notifyMockFinishCard,
+      showExamNotice,
+    } from "../../libs/notice";
+    const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
+      showExamNotice(msg, timeout, type);
+    };
     import { assemble, blueprintTotals, defaultMockSections, dedupeSectionNames, MockSession, validateBlueprint, type Blueprint, type BlueprintSection, type SectionSource, type MockRunSnapshot, type MockScore } from "../../core/mock";
     import { newRunId } from "../../core/ids";
     import { emitExamEvent, onExamEvent, computeWeakKnowledgePoints } from "../../core/bus";
     import { openPracticeView, type ExamPluginLike } from "../../core/pluginTab";
     import { answerChoices, isChoiceQuestion, toggleChoice } from "../../core/answerChoices";
-    import { specOf, splitBlanks, joinBlanks } from "../../core/structuredAnswer";
+    import { specOf, splitBlanks, joinBlanks, formatDisplayAnswer } from "../../core/structuredAnswer";
     import { estimateScore, normalizeEstimateInput } from "../../core/estimate";
     import Icon from "../shared/Icon.svelte";
     import Palette from "../shared/Palette.svelte";
@@ -41,6 +49,8 @@
     import { ttsSpeak, ttsSupported } from "../../core/tts";
     import { renderOcclusionSvg } from "../../core/imageOcclusion";
     import { openSiYuanTarget } from "../practice/services/backlinkNavigationService";
+    import ScratchpadDrawer from "../practice/ScratchpadDrawer.svelte";
+    import PaperAssembleModal from "../practice/PaperAssembleModal.svelte";
     
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
     let appOverride = $state<ExamApp | null>(null);
@@ -127,6 +137,24 @@
     let selected = $state("");
     let answeredMap = $state<Record<string, string>>({});
     let feedbackOn = $state(false);          // 模考默认不即时判分；交卷后统一
+    let mockEliminatedChoices = $state<Record<string, boolean>>({});
+    $effect(() => {
+      if (currentQ?.id) {
+        mockEliminatedChoices = {};
+      }
+    });
+
+    function toggleMockEliminate(val: string) {
+      if (examLocked) return;
+      mockEliminatedChoices[val] = !mockEliminatedChoices[val];
+      if (mockEliminatedChoices[val]) {
+        if (currentQ.type === "multiple" && (answeredMap[current] ?? "").includes(val)) {
+          pickOption(val);
+        } else if (currentQ.type === "single" && selected === val) {
+          pickOption(val);
+        }
+      }
+    }
     let score = $state<MockScore | null>(null);
     let history = $state<any[]>([]);
     let historyDetail = $state(-1);
@@ -526,6 +554,63 @@
       return res;
     });
 
+    let collapsedSections = $state<Record<string, boolean>>({});
+    function toggleSectionCollapse(secName: string) {
+      collapsedSections = { ...collapsedSections, [secName]: !collapsedSections[secName] };
+    }
+
+    const sheetSectionGroups = $derived.by(() => {
+      if (!session) return [];
+      const qids = session.state.qids;
+      if (!qids.length) return [];
+      const groups: {
+        name: string;
+        startIndex: number;
+        endIndex: number;
+        items: { qid: string; index: number }[];
+        answeredCount: number;
+        flaggedCount: number;
+      }[] = [];
+      let curGroup: (typeof groups)[0] | null = null;
+      for (let i = 0; i < qids.length; i++) {
+        const qid = qids[i];
+        const explicitSec = session.sectionOfQ(qid);
+        const q = questionMap.get(qid);
+        const typeLabel = q?.type ? ({
+          single: "单项选择题",
+          multiple: "多项选择题",
+          judge: "判断题",
+          fill: "填空题",
+          short: "综合解答题",
+          material: "材料题",
+        }[q.type] || "试题") : "试题";
+
+        // 考场大题分卷手风琴（TODO-01 / EXAM-01）：有显式大题优先用大题；大题量（>25题）或多题型卷按题型自动分区
+        const secName = (explicitSec && explicitSec !== "基础题")
+          ? explicitSec
+          : (q?.type && qids.length > 25 ? typeLabel : (explicitSec || "基础题"));
+
+        if (!curGroup || curGroup.name !== secName) {
+          curGroup = {
+            name: secName,
+            startIndex: i,
+            endIndex: i,
+            items: [],
+            answeredCount: 0,
+            flaggedCount: 0,
+          };
+          groups.push(curGroup);
+        }
+        curGroup.endIndex = i;
+        const isAnswered = Boolean(answeredMap[qid]?.trim());
+        const isFlagged = session.flags.has(qid);
+        if (isAnswered) curGroup.answeredCount++;
+        if (isFlagged) curGroup.flaggedCount++;
+        curGroup.items.push({ qid, index: i });
+      }
+      return groups;
+    });
+
     function gotoNextUnanswered() {
       if (!session || !unansweredIndices.length) return;
       const after = unansweredIndices.find((idx) => idx > cursor);
@@ -617,6 +702,8 @@
     let printBusy = $state(false);
     let abBusy = $state(false);
     let mockMiniSheetOpen = $state(false);
+    let mockSweepOpen = $state(false);
+    const sweepIndices = $derived(Array.from(new Set([...unansweredIndices, ...flaggedIndices])).sort((a, b) => a - b));
     let mockPaperGridOpen = $state(false);
     let viewportBottomPad = $state(0);
     let presetOptions = $state<import("@/core/examPresets").ExamBlueprintPreset[]>([]);
@@ -776,15 +863,30 @@
 
     let mockPrintFormat = $state<"exam" | "answer" | "lecture" | "homework">("exam");
     let reportPrintFormat = $state<"answer" | "lecture" | "exam" | "homework">("answer");
+    let mockAssembleOpen = $state(false);
+    let mockAssembleQuestions = $state<Question[]>([]);
 
-    async function printMockByFormat(format: "exam" | "answer" | "lecture" | "homework") {
+    function openMockAssemble() {
+      if (!questions.length) {
+        showMessage("当前模考卷暂无试题", 2000, "info");
+        return;
+      }
+      mockAssembleQuestions = questions;
+      mockAssembleOpen = true;
+    }
+
+    async function printMockByFormat(format: "exam" | "answer" | "lecture" | "homework" | "interactive") {
       if (printBusy || !activeBankId || !questions.length) return;
       printBusy = true;
       const title = bp.name || "全真模拟试卷";
       try {
         let html: string;
         let suffix: string;
-        if (format === "answer") {
+        if (format === "interactive") {
+          const { buildInteractiveReviewSheetPro } = await import("../../core/printPro");
+          html = buildInteractiveReviewSheetPro(title, questions);
+          suffix = "交互式讲题自测卷";
+        } else if (format === "answer") {
           html = await app.buildCompactAnswerSheet(title, activeBankId);
           suffix = "独立答案册";
         } else if (format === "lecture") {
@@ -1031,6 +1133,11 @@
       if (!session || examLocked) return;
       session.navigateTo(i, Date.now());
       cursor = session.cursor;
+      // 自动展开目标题目所在的手风琴分卷
+      const targetSec = sheetSectionGroups.find((g) => i >= g.startIndex && i <= g.endIndex);
+      if (targetSec && collapsedSections[targetSec.name]) {
+        collapsedSections = { ...collapsedSections, [targetSec.name]: false };
+      }
       selected = answeredMap[session.state.qids[cursor]] ?? "";
       if (bp.sectionTimed && currentSection) session.enterSection(currentSection, Date.now());
       persistRun();
@@ -1120,6 +1227,27 @@
         await app.clearMockRun();   // 交卷回执落定后清除运行快照
         emitMockSessionEnded();
         view = "report";
+
+        if (score) {
+          const details = buildScoreDetailsSnapshot();
+          const wrongCount = details.wrongItems?.length ?? 0;
+          notifyMockFinishCard({
+            paperName: bp.name || "全真模拟考",
+            totalScore: score.total,
+            fullScore: score.full,
+            percent: score.percent,
+            pass: score.pass,
+            wrongCount,
+            onViewWrongbook: () => {
+              mockReviewFilter = "wrong";
+              showWrongDetail = true;
+              view = "report";
+            },
+            onViewReport: () => {
+              view = "report";
+            },
+          });
+        }
       } catch (e) {
         submitError = t("mock.submitFailed").replace("{message}", String(e instanceof Error ? e.message : e));
         // 自动交卷或保存失败时保持成绩视图可见，用户才能看到“重试保存”入口。
@@ -1146,9 +1274,42 @@
         submitError = "";
         emitMockSessionEnded();
         view = "report";
+
+        if (score) {
+          const details = buildScoreDetailsSnapshot();
+          const wrongCount = details.wrongItems?.length ?? 0;
+          notifyMockFinishCard({
+            paperName: bp.name || "全真模拟考",
+            totalScore: score.total,
+            fullScore: score.full,
+            percent: score.percent,
+            pass: score.pass,
+            wrongCount,
+            onViewWrongbook: () => {
+              mockReviewFilter = "wrong";
+              showWrongDetail = true;
+              view = "report";
+            },
+            onViewReport: () => {
+              view = "report";
+            },
+          });
+        }
       } catch (e) {
         submitError = t("mock.submitFailed").replace("{message}", String(e instanceof Error ? e.message : e));
       } finally { submitting = false; }
+    }
+
+    function handleToggleFlag(targetEl?: HTMLElement | null) {
+      if (!session || !current || examLocked) return;
+      const nextFlagged = !session.flags.has(current);
+      session.toggleFlag(current);
+      persistRun();
+      if (targetEl) {
+        notifyInline(targetEl, nextFlagged ? "已标记本题" : "已取消标记");
+      } else {
+        notifyCapsule(nextFlagged ? "已标记本题（存疑备查）" : "已取消标记", 1800);
+      }
     }
 
     function buildScoreDetailsSnapshot(): import("@/core/exportScore").ScoreMarkdownDetails {
@@ -1206,6 +1367,32 @@
       } finally { scoreWriteBusy = false; }
     }
 
+    let insertDailyBusy = $state(false);
+    async function insertScoreToDailyNote() {
+      if (!score || !app || insertDailyBusy) return;
+      insertDailyBusy = true;
+      try {
+        const totalCount = score.sections.reduce((acc, s) => acc + s.total, 0);
+        const correctCount = score.sections.reduce((acc, s) => acc + s.correct, 0);
+        const secSummary = score.sections.map((s) => `${s.name}: ${s.score}/${s.full} (${s.correct}/${s.total})`).join("；");
+        const md = [
+          `> 🎯 **小驴考试 · 全真模考战绩归档**`,
+          `> - **试卷名称**：${bp.name || "全真模拟考试"}`,
+          `> - **交卷时间**：${new Date().toLocaleString()}`,
+          `> - **卷面得分**：**${score.total}** / ${score.full}（得分率 **${score.percent}%**）`,
+          `> - **考核判定**：${score.pass ? "✅ 达标合格" : "❌ 未达标"}（合格线 ${bp.passLine}%）`,
+          `> - **题量统计**：共 ${totalCount} 题（正确 ${correctCount} 题，错题 ${wrongList.length} 题）`,
+          `> - **分卷明细**：${secSummary}`,
+        ].join("\n");
+        await app.appendScoreToDailyNote(md);
+        showMessage("模考战绩已成功追加写入今日日记文档！✓", 3200, "info");
+      } catch (e) {
+        showMessage(`写入日记失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        insertDailyBusy = false;
+      }
+    }
+
     /** 错题回炉：本次模考错题开练习会话（启动失败可见化，47-06 lite） */
     async function rewrongDrill() {
       if (!session || rewrongBusy || !wrongList.length) return;
@@ -1231,6 +1418,38 @@
     }
     let rewrongBusy = $state(false);
 
+    let targetDrillBusy = $state(false);
+    async function createMockTargetDrill() {
+      if (!session || targetDrillBusy || !wrongList.length || !app) return;
+      targetDrillBusy = true;
+      try {
+        const wrongIds = [...session.answers.values()].filter((a) => a.verdict === "wrong").map((a) => a.qid);
+        const wrongs = questions.filter((q) => wrongIds.includes(q.id));
+        if (!wrongs.length) return;
+        const tag = `mock-run-${new Date(startedAt || Date.now()).toISOString().replace(/[-:T]/g, "").slice(0, 12)}`;
+        for (const w of wrongs) {
+          try {
+            await app.tagQuestion(w as Question & { blockId: string }, tag, "add");
+          } catch {
+            if (!w.userTags) w.userTags = [];
+            if (!w.userTags.includes(tag)) w.userTags.push(tag);
+          }
+        }
+        showMessage(`已为 ${wrongs.length} 道错题打上「${tag}」专场标签，立即开启靶向攻坚！`, 3500, "info");
+        await app.startSession(wrongs, "wrong", activeBankId);
+        if (plugin) {
+          plugin.pendingPractice = wrongs;
+          plugin.pendingPracticeBankId = activeBankId;
+        }
+        emitExamEvent("open-practice-questions", { qids: wrongs.map((q) => q.id), bank: activeBankId });
+        openPractice();
+      } catch (e) {
+        showMessage(`生成专属攻坚卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        targetDrillBusy = false;
+      }
+    }
+
     // ---------- 复盘（44-07 lite）：本次错题清单 + 加入下一步行动（U15 去重） ----------
     const wrongList = $derived(score && session
       ? [...session.answers.values()].filter((a) => a.verdict === "wrong").map((a) => ({
@@ -1238,6 +1457,43 @@
           stem: (questionMap.get(a.qid)?.stem ?? a.qid).slice(0, 40),
         }))
       : []);
+
+    const subjectiveQuestions = $derived(
+      session
+        ? session.state.qids
+            .map((id) => questionMap.get(id))
+            .filter((q): q is Question => q?.type === "short")
+        : []
+    );
+
+    async function applySubjectiveSelfRating(qid: string, factor: number) {
+      if (!session) return;
+      session.rateSubjectiveQuestion(qid, factor);
+      score = session.score();
+      const effectiveRunId = runId || "mock-" + bp.id;
+      if (score && app) {
+        await app.saveMockResult({
+          id: bp.id,
+          runId: effectiveRunId,
+          name: bp.name,
+          startedAt,
+          total: score.total,
+          full: score.full,
+          percent: score.percent,
+          pass: score.pass,
+          sections: score.sections.map((s) => ({
+            name: s.name,
+            score: s.score,
+            full: s.full,
+            correct: s.correct,
+            total: s.total,
+          })),
+          extraTimeS: session.state.extraTimeS,
+        });
+        await reloadMockHistory();
+        showMessage(`主观大题得分已重新结算！当前卷面总分：${score.total} / ${score.full}（${score.percent}%）`, 2200, "info");
+      }
+    }
     let mockActionNote = $state("");
     let mockActionBusy = $state(false);
     let mockReasonBusy = $state(false);
@@ -1427,11 +1683,36 @@
     // 45-08 收口：成绩单分段/历史数据表 + CSV（与雷达/折线同一数据快照）
     let mockTableOpen = $state(false);
     let showWrongDetail = $state(false);
+    let mockReviewFilter = $state<"wrong" | "flagged" | "all">("wrong");
+    const displayedReviewList = $derived.by(() => {
+      if (!session || !score) return [];
+      const qids = session.state.qids;
+      return qids
+        .map((qid, idx) => {
+          const ans = session.answers.get(qid);
+          const q = questionMap.get(qid);
+          const verdict = ans?.verdict ?? (answeredMap[qid] ? "wrong" : "not_attempted");
+          const isFlagged = session.flags.has(qid);
+          return {
+            qid,
+            idx,
+            verdict,
+            isFlagged,
+            changes: ans?.changes ?? 0,
+            stem: (q?.stem ?? qid).slice(0, 50),
+          };
+        })
+        .filter((item) => {
+          if (mockReviewFilter === "wrong") return item.verdict === "wrong";
+          if (mockReviewFilter === "flagged") return item.isFlagged;
+          return true;
+        });
+    });
     async function copyExamSummaryMarkdown() {
       if (!score) return;
       const passText = score.pass ? "及格" : "未及格";
       const lines = [
-        `### 小驴学习 · 全真模考战报`,
+        `### 小驴考试 · 全真模考战报`,
         `- **考试科目**：${bp.name || "全真模拟卷"}`,
         `- **交卷时间**：${new Date().toLocaleString()}`,
         `- **最终成绩**：**${score.total} / ${score.full}**（得分率 ${score.percent}% · ${passText}）`,
@@ -1442,7 +1723,7 @@
       if (revisionDrift.length) {
         lines.push(`- **改动说明**：包含 ${revisionDrift.length} 道在考后已修订题`);
       }
-      lines.push(`\n> 来自小驴学习（原小驴考试）`);
+      lines.push(`\n> 来自小驴考试`);
       const text = lines.join("\n");
       try {
         await navigator.clipboard.writeText(text);
@@ -1454,7 +1735,7 @@
 
     function downloadMockCsv(csv: string, name: string) {
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      downloadBlob(blob, `小驴学习-模考-${name}-${new Date().toISOString().slice(0, 10)}.csv`);
+      downloadBlob(blob, `小驴考试-模考-${name}-${new Date().toISOString().slice(0, 10)}.csv`);
       showMessage(t("mock.exportReady", "已开始下载文件。"), 3000, "info");
     }
 
@@ -1491,12 +1772,13 @@
       // Ctrl/⌘+K 由 Palette 组件自身统一监听并按活动页签隔离，此处直接放行避免双次翻转抵消
       if ((e.key === "k" || e.key === "K") && (e.ctrlKey || e.metaKey)) return;
       if (view !== "exam" || !session || !currentQ || examLocked) return;
-      if (e.key === "Escape" && mockMiniSheetOpen) {
+      if (e.key === "Escape" && (mockMiniSheetOpen || mockSweepOpen)) {
         e.preventDefault();
         mockMiniSheetOpen = false;
+        mockSweepOpen = false;
         return;
       }
-      if (handInConfirming || submitting || mockMiniSheetOpen || paletteOpen || !!document.querySelector('[role="dialog"]')) return;
+      if (handInConfirming || submitting || mockMiniSheetOpen || mockSweepOpen || paletteOpen || !!document.querySelector('[role="dialog"]')) return;
       if (!tabRoot?.getClientRects().length) return;
       const tgt = e.target as HTMLElement | null;
       if (tgt && tgt !== document.body && !tabRoot.contains(tgt)) return;
@@ -1530,8 +1812,7 @@
 
       if (action.type === "toggle_flag" && current) {
         e.preventDefault();
-        session.toggleFlag(current);
-        persistRun();
+        handleToggleFlag(null);
         return;
       }
 
@@ -1754,7 +2035,11 @@
           <option value="answer">独立答案册</option>
           <option value="lecture">授课讲义卷</option>
           <option value="homework">留白作业单</option>
+          <option value="interactive">🌐 交互式讲题自测卷</option>
         </select>
+        <button class="lv-btn sm lv-btn--ghost" onclick={openMockAssemble} disabled={!questions.length} title="进入专业组卷排版工坊，自定义 A4 纸面大标题、密封线、总分表与答题留白并直接打印">
+          <Icon name="printer" size={13} /> 🖨️ 组卷排版工坊
+        </button>
         <button class="lv-btn sm lv-btn--ghost" onclick={() => void printMockByFormat(mockPrintFormat)} disabled={printBusy || !questions.length} aria-busy={printBusy} title="按所选版式导出 A4 双栏试卷 / 答案册 / 授课讲义 / 作业单"><Icon name="file" size={13} /> {printBusy ? "…" : t("mock.printCompact")}</button>
         <button class="lv-btn sm lv-btn--ghost" onclick={saveMockExamAsDoc} disabled={!questions.length} title="将当前模考试卷整套排版存为思源笔记原生文档，折叠答案与解析，即使卸载插件考卷与作答永久保留"><Icon name="folder" size={13} /> {t("mock.saveAsSiyuanDoc")}</button>
         <button class="lv-btn sm lv-btn--ghost" onclick={generateABMockPapers} disabled={abBusy || !questions.length} aria-busy={abBusy} title="一键生成同考点但单选/多选选项智能洗牌防作弊的 A 卷与 B 卷"><Icon name="shuffle" size={13} /> {abBusy ? "…" : t("mock.generateAB")}</button>
@@ -1987,7 +2272,7 @@
       <button type="button" class="lv-btn sm lv-btn--ghost num" onclick={cycleExamFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）" aria-label="切换题干字号大小">
         A{examFontSize === "normal" ? "" : examFontSize === "large" ? "⁺" : "²⁺"}
       </button>
-      <button class="lv-btn sm lv-flag-btn" class:lv-flag-btn--on={session.flags.has(current)} title={`${t("mock.flag")} (F)`} aria-label={`${t("mock.flag")} (F)`} aria-pressed={session.flags.has(current)} disabled={examLocked} onclick={() => { session?.toggleFlag(current); persistRun(); }}><Icon name="pin" size={14} /> <span class="lv-kbd sm">F</span></button>
+      <button class="lv-btn sm lv-flag-btn" class:lv-flag-btn--on={session.flags.has(current)} title={`${t("mock.flag")} (F)`} aria-label={`${t("mock.flag")} (F)`} aria-pressed={session.flags.has(current)} disabled={examLocked} onclick={(e) => handleToggleFlag(e.currentTarget)}><Icon name="pin" size={14} /> <span class="lv-kbd sm">F</span></button>
       <button class="lv-btn sm lv-flag-btn" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-label={t("scratchpad.tip")} aria-pressed={scratchpadOpen} disabled={examLocked} onclick={() => scratchpadOpen = !scratchpadOpen}><Icon name="pencil" size={13} /></button>
       <button class="lv-btn sm" class:acc={isFullscreen} title={isFullscreen ? t("mock.exitFullscreen") : t("mock.fullscreen")} aria-label={isFullscreen ? t("mock.exitFullscreen") : t("mock.fullscreen")} disabled={examLocked} onclick={(e) => void toggleExamFullscreen(e.currentTarget)}><Icon name={isFullscreen ? "close" : "expand"} size={14} /></button>
       <button class="lv-btn lv-btn--primary sm" disabled={examLocked || handInConfirming} aria-busy={submitting || handInConfirming} onclick={() => finishExam(false)}>{submitting ? t("mock.savingScore", "正在保存成绩…") : handInConfirming ? t("mock.confirmingHandIn", "等待交卷确认…") : t("mock.handIn")}</button>
@@ -2007,42 +2292,20 @@
           <button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button>
         </div>
       {:else}
-      {#if scratchpadOpen}
-        <!-- 52-08 模考电子草稿纸浮层 -->
-        <div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);padding:10px 14px">
-          <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
-            <div class="lv-row" style="margin:0;gap:6px">
-              <b><Icon name="pencil" size={13} /> {t("scratchpad.title")}</b>
-              <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "per_question"} onclick={() => { scratchpadMode = "per_question"; persistRun(); }}>
-                {t("scratchpad.modePerQ")}
-              </button>
-              <button type="button" class="lv-chip sm" class:acc={scratchpadMode === "shared"} onclick={() => { scratchpadMode = "shared"; persistRun(); }}>
-                {t("scratchpad.modeShared")}
-              </button>
-            </div>
-            <div class="lv-row" style="margin:0;gap:4px">
-              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={copyScratchpad} title={t("scratchpad.copy")}>
-                <Icon name="copy" size={11} /> {t("scratchpad.copy")}
-              </button>
-              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={clearScratchpad} title={t("scratchpad.clear")} style="display:inline-flex;align-items:center;gap:4px">
-                <Icon name="trash" size={11} /> {t("scratchpad.clear")}
-              </button>
-              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => scratchpadOpen = false} title="收起草稿纸" aria-label="收起草稿纸">
-                <Icon name="close" size={12} />
-              </button>
-            </div>
-          </div>
-          <textarea
-            class="lv-input lv-textarea num"
-            rows="8"
-            style="font-family:monospace;font-size:var(--lv-font-size-sm);line-height:1.5;min-height:180px!important;resize:both!important;width:100%!important;box-sizing:border-box"
-            placeholder={t("scratchpad.placeholder")}
-            value={currentScratchpadText}
-            oninput={(e) => onScratchpadInput((e.target as HTMLTextAreaElement).value)}
-          ></textarea>
-        </div>
-      {/if}
-      <span class="lv-chip lv-chip--acc">{t("qtype." + currentQ.type)}</span>
+        <!-- 52-08 模考电子草稿纸与数理手绘板浮层 -->
+        <ScratchpadDrawer
+          open={scratchpadOpen}
+          mode={scratchpadMode}
+          text={currentScratchpadText}
+          qid={currentQ?.id}
+          {t}
+          onmodeChange={(m) => { scratchpadMode = m; persistRun(); }}
+          oninput={onScratchpadInput}
+          onclear={clearScratchpad}
+          oncopy={copyScratchpad}
+          onclose={() => (scratchpadOpen = false)}
+        />
+        <span class="lv-chip lv-chip--acc">{t("qtype." + currentQ.type)}</span>
       {#if stemHtml}
         <div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{@html stemHtml}</div>
       {:else}
@@ -2083,7 +2346,24 @@
             <button class="lv-opt" class:sel={currentQ.type === "multiple" ? (answeredMap[current] ?? "").includes(choice.value) : selected === choice.value} disabled={examLocked}
               role={currentQ.type === "multiple" ? "checkbox" : "radio"}
               aria-checked={currentQ.type === "multiple" ? (answeredMap[current] ?? "").includes(choice.value) : selected === choice.value}
-              onclick={() => pickOption(choice.value)}>
+              class:eliminated={!!mockEliminatedChoices[choice.value]}
+              onclick={() => {
+                if (mockEliminatedChoices[choice.value]) {
+                  toggleMockEliminate(choice.value);
+                } else {
+                  pickOption(choice.value);
+                }
+              }}
+              oncontextmenu={(e) => {
+                e.preventDefault();
+                toggleMockEliminate(choice.value);
+              }}
+              ondblclick={(e) => {
+                e.preventDefault();
+                toggleMockEliminate(choice.value);
+              }}
+              title={mockEliminatedChoices[choice.value] ? "已划线排除（点击或右键恢复）" : "左键选中，右键或双击可划线排除干扰项"}
+            >
               <span class="lv-opt-check" class:box={currentQ.type === "multiple"} aria-hidden="true"></span>
               <span class="key">{choice.letter}</span><span class="lv-opt-text">{@html renderInlineText(choice.text)}</span>
             </button>
@@ -2192,64 +2472,189 @@
       </div>
     </div>
     {#if sheetDisplayMode === "grid"}
-      <div class="lv-sheet">
-        {#each session.state.qids as qid, i (i)}
-          {@const answered = Boolean(answeredMap[qid]?.trim())}
-          {@const flagged = session.flags.has(qid)}
-          {@const dimmed = sheetFilter === "unanswered" ? answered : sheetFilter === "flagged" ? !flagged : false}
-          <button class="lv-cell" class:done={answered} class:flag={flagged} class:dimmed={dimmed} disabled={examLocked}
-            class:cur={i === cursor} aria-current={i === cursor ? "step" : undefined}
-            aria-label={`${t("mock.questionN", "第 {n} 题").replace("{n}", String(i + 1))}，${answered ? t("mock.legend.done") : t("mock.unanswered", "未答")}，${flagged ? t("mock.legend.flag") : t("mock.unflagged", "未标记")}${i === cursor ? `，${t("mock.legend.cur")}` : ""}`}
-            onclick={() => goto(i)}>{i + 1}</button>
-        {/each}
-      </div>
+      {#if sheetSectionGroups.length > 1}
+        <div class="lv-row" style="margin:0 0 6px;justify-content:space-between;align-items:center;font-size:11px">
+          <span class="lv-muted">分卷大题导航（{sheetSectionGroups.length} 个分部）</span>
+          <div class="lv-row" style="margin:0;gap:4px">
+            <button type="button" class="lv-chip sm" onclick={() => { collapsedSections = {}; }}>全部展开</button>
+            <button type="button" class="lv-chip sm" onclick={() => {
+              const next: Record<string, boolean> = {};
+              sheetSectionGroups.forEach((g) => { next[g.name] = true; });
+              const curSec = sheetSectionGroups.find((g) => cursor >= g.startIndex && cursor <= g.endIndex);
+              if (curSec) next[curSec.name] = false;
+              collapsedSections = next;
+            }}>仅看当前大题</button>
+          </div>
+        </div>
+        <div class="stack-sm" style="max-height:300px;overflow-y:auto;padding-right:2px">
+          {#each sheetSectionGroups as grp (grp.name)}
+            <div class="lv-sheet-section-accordion" style="margin-bottom:6px">
+              <button
+                type="button"
+                class="lv-sheet-sec-header"
+                aria-expanded={!collapsedSections[grp.name]}
+                onclick={() => toggleSectionCollapse(grp.name)}
+                style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-1, 6px);cursor:pointer;font-size:12px;color:var(--lv-text)"
+              >
+                <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+                  <Icon name={collapsedSections[grp.name] ? "chev-right" : "arrow-down"} size={11} />
+                  <b>{grp.name}</b>
+                  <span class="lv-muted num" style="font-size:11px">（{grp.startIndex + 1} - {grp.endIndex + 1}）</span>
+                </div>
+                <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+                  <span class="lv-chip sm num" class:lv-chip--acc={grp.answeredCount === grp.items.length}>
+                    {grp.answeredCount} / {grp.items.length}
+                  </span>
+                  {#if grp.flaggedCount > 0}
+                    <span class="lv-chip sm lv-chip--amb num" title="标记题"><Icon name="star" size={10} /> {grp.flaggedCount}</span>
+                  {/if}
+                </div>
+              </button>
+              {#if !collapsedSections[grp.name]}
+                <div class="lv-sheet" style="margin-top:6px">
+                  {#each grp.items as it (it.qid)}
+                    {@const i = it.index}
+                    {@const answered = Boolean(answeredMap[it.qid]?.trim())}
+                    {@const flagged = session.flags.has(it.qid)}
+                    {@const dimmed = sheetFilter === "unanswered" ? answered : sheetFilter === "flagged" ? !flagged : false}
+                    <button class="lv-cell" class:done={answered} class:flag={flagged} class:dimmed={dimmed} disabled={examLocked}
+                      class:cur={i === cursor} aria-current={i === cursor ? "step" : undefined}
+                      aria-label={`${t("mock.questionN", "第 {n} 题").replace("{n}", String(i + 1))}，${answered ? t("mock.legend.done") : t("mock.unanswered", "未答")}，${flagged ? t("mock.legend.flag") : t("mock.unflagged", "未标记")}${i === cursor ? `，${t("mock.legend.cur")}` : ""}`}
+                      onclick={() => goto(i)}>{i + 1}</button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="lv-sheet">
+          {#each session.state.qids as qid, i (i)}
+            {@const answered = Boolean(answeredMap[qid]?.trim())}
+            {@const flagged = session.flags.has(qid)}
+            {@const dimmed = sheetFilter === "unanswered" ? answered : sheetFilter === "flagged" ? !flagged : false}
+            <button class="lv-cell" class:done={answered} class:flag={flagged} class:dimmed={dimmed} disabled={examLocked}
+              class:cur={i === cursor} aria-current={i === cursor ? "step" : undefined}
+              aria-label={`${t("mock.questionN", "第 {n} 题").replace("{n}", String(i + 1))}，${answered ? t("mock.legend.done") : t("mock.unanswered", "未答")}，${flagged ? t("mock.legend.flag") : t("mock.unflagged", "未标记")}${i === cursor ? `，${t("mock.legend.cur")}` : ""}`}
+              onclick={() => goto(i)}>{i + 1}</button>
+          {/each}
+        </div>
+      {/if}
     {:else}
       <!-- 机读答题卡涂卡流 -->
       <div class="stack-sm" style="max-height:260px;overflow-y:auto;padding:8px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border)">
-        {#each session.state.qids as qid, i (i)}
-          {@const q = questions.find((item) => item.id === qid)}
-          {@const curAns = answeredMap[qid] || ""}
-          {@const isChoice = q && (q.type === "single" || q.type === "multiple" || q.type === "judge")}
-          <div class="lv-row" style="justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid var(--lv-border-subtle);background:var(--lv-surface);border-radius:4px">
-            <div style="display:flex;align-items:center;gap:6px">
-              <button type="button" class="lv-chip sm" class:cur={i === cursor} onclick={() => goto(i)} style="cursor:pointer">
-                第 {i + 1} 题
+        {#if sheetSectionGroups.length > 1}
+          {#each sheetSectionGroups as grp (grp.name)}
+            <div style="margin-bottom:6px">
+              <button
+                type="button"
+                class="lv-sheet-sec-header"
+                aria-expanded={!collapsedSections[grp.name]}
+                onclick={() => toggleSectionCollapse(grp.name)}
+                style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:4px;cursor:pointer;font-size:11px;color:var(--lv-text);margin-bottom:4px"
+              >
+                <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+                  <Icon name={collapsedSections[grp.name] ? "chev-right" : "arrow-down"} size={11} />
+                  <b>{grp.name}</b>
+                  <span class="lv-muted num">（{grp.startIndex + 1}-{grp.endIndex + 1}）</span>
+                </div>
+                <span class="lv-chip sm num" class:lv-chip--acc={grp.answeredCount === grp.items.length}>{grp.answeredCount}/{grp.items.length}</span>
               </button>
-              <span class="lv-muted" style="font-size:11px">【{q ? (q.type === "single" ? "单选" : q.type === "multiple" ? "多选" : q.type === "judge" ? "判断" : "主观") : ""}】</span>
-            </div>
-            {#if isChoice}
-              <div class="lv-row" style="margin:0;gap:4px">
-                {#each (q && q.type === "judge" ? ["T", "F"] : ["A", "B", "C", "D"]) as b (b)}
-                  {@const active = curAns.includes(b)}
-                  <button
-                    type="button"
-                    class="lv-chip sm"
-                    class:lv-chip--acc={active}
-                    style="min-width:28px;text-align:center;font-weight:700;cursor:pointer"
-                    disabled={examLocked}
-                    onclick={() => onBubbleFill(qid, b, q?.type)}
-                  >
-                    {b}
-                  </button>
+              {#if !collapsedSections[grp.name]}
+                {#each grp.items as it (it.qid)}
+                  {@const i = it.index}
+                  {@const q = questions.find((item) => item.id === it.qid)}
+                  {@const curAns = answeredMap[it.qid] || ""}
+                  {@const isChoice = q && (q.type === "single" || q.type === "multiple" || q.type === "judge")}
+                  <div class="lv-row" style="justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid var(--lv-border-subtle);background:var(--lv-surface);border-radius:4px">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <button type="button" class="lv-chip sm" class:cur={i === cursor} onclick={() => goto(i)} style="cursor:pointer">
+                        第 {i + 1} 题
+                      </button>
+                      <span class="lv-muted" style="font-size:11px">【{q ? (q.type === "single" ? "单选" : q.type === "multiple" ? "多选" : q.type === "judge" ? "判断" : "主观") : ""}】</span>
+                    </div>
+                    {#if isChoice}
+                      <div class="lv-row" style="margin:0;gap:4px">
+                        {#each (q && q.type === "judge" ? ["T", "F"] : ["A", "B", "C", "D"]) as b (b)}
+                          {@const active = curAns.includes(b)}
+                          <button
+                            type="button"
+                            class="lv-chip sm"
+                            class:lv-chip--acc={active}
+                            style="min-width:28px;text-align:center;font-weight:700;cursor:pointer"
+                            disabled={examLocked}
+                            onclick={() => onBubbleFill(it.qid, b, q?.type)}
+                          >
+                            {b}
+                          </button>
+                        {/each}
+                      </div>
+                    {:else}
+                      <input
+                        class="lv-input num sm"
+                        style="max-width:140px;height:26px"
+                        placeholder="输入答案…"
+                        value={curAns}
+                        disabled={examLocked}
+                        oninput={(e) => {
+                          const val = (e.target as HTMLInputElement).value;
+                          session?.setAnswer(it.qid, val, Date.now());
+                          answeredMap = { ...answeredMap, [it.qid]: val };
+                          persistRun();
+                        }}
+                      />
+                    {/if}
+                  </div>
                 {/each}
+              {/if}
+            </div>
+          {/each}
+        {:else}
+          {#each session.state.qids as qid, i (i)}
+            {@const q = questions.find((item) => item.id === qid)}
+            {@const curAns = answeredMap[qid] || ""}
+            {@const isChoice = q && (q.type === "single" || q.type === "multiple" || q.type === "judge")}
+            <div class="lv-row" style="justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid var(--lv-border-subtle);background:var(--lv-surface);border-radius:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <button type="button" class="lv-chip sm" class:cur={i === cursor} onclick={() => goto(i)} style="cursor:pointer">
+                  第 {i + 1} 题
+                </button>
+                <span class="lv-muted" style="font-size:11px">【{q ? (q.type === "single" ? "单选" : q.type === "multiple" ? "多选" : q.type === "judge" ? "判断" : "主观") : ""}】</span>
               </div>
-            {:else}
-              <input
-                class="lv-input num sm"
-                style="max-width:140px;height:26px"
-                placeholder="输入答案…"
-                value={curAns}
-                disabled={examLocked}
-                oninput={(e) => {
-                  const val = (e.target as HTMLInputElement).value;
-                  session?.setAnswer(qid, val, Date.now());
-                  answeredMap = { ...answeredMap, [qid]: val };
-                  persistRun();
-                }}
-              />
-            {/if}
-          </div>
-        {/each}
+              {#if isChoice}
+                <div class="lv-row" style="margin:0;gap:4px">
+                  {#each (q && q.type === "judge" ? ["T", "F"] : ["A", "B", "C", "D"]) as b (b)}
+                    {@const active = curAns.includes(b)}
+                    <button
+                      type="button"
+                      class="lv-chip sm"
+                      class:lv-chip--acc={active}
+                      style="min-width:28px;text-align:center;font-weight:700;cursor:pointer"
+                      disabled={examLocked}
+                      onclick={() => onBubbleFill(qid, b, q?.type)}
+                    >
+                      {b}
+                    </button>
+                  {/each}
+                </div>
+              {:else}
+                <input
+                  class="lv-input num sm"
+                  style="max-width:140px;height:26px"
+                  placeholder="输入答案…"
+                  value={curAns}
+                  disabled={examLocked}
+                  oninput={(e) => {
+                    const val = (e.target as HTMLInputElement).value;
+                    session?.setAnswer(qid, val, Date.now());
+                    answeredMap = { ...answeredMap, [qid]: val };
+                    persistRun();
+                  }}
+                />
+              {/if}
+            </div>
+          {/each}
+        {/if}
       </div>
     {/if}
     <!-- 三态图例：新用户无需猜测紫底/琥珀框/实心的含义 -->
@@ -2266,7 +2671,21 @@
       <span class="lv-muted num">{cursor + 1} / {session.state.qids.length}</span>
     </div>
     {#if view === "exam" && session}
-      <div style="position:fixed;bottom:22px;right:22px;z-index:90">
+      <div style="position:fixed;bottom:22px;right:22px;z-index:90;display:flex;gap:8px;align-items:center">
+        {#if unansweredIndices.length > 0 || flaggedIndices.length > 0}
+          <button
+            type="button"
+            class="lv-achievement-pill"
+            style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-brand);color:var(--lv-on-accent, #fff);border-color:var(--lv-brand)"
+            onclick={() => (mockSweepOpen = !mockSweepOpen)}
+            title="考前高危遗漏与标旗速排浮窗：集中快速补填未答题与核对存疑题"
+            aria-expanded={mockSweepOpen}
+            aria-label="考前高危遗漏速排"
+          >
+            <Icon name="target" size={13} />
+            <span>⚡ 冲刺速排 ({unansweredIndices.length}未答 / {flaggedIndices.length}标旗)</span>
+          </button>
+        {/if}
         <button
           type="button"
           class="lv-achievement-pill lv-achievement-pill--seal"
@@ -2279,6 +2698,71 @@
           <Icon name="edit" size={13} />
           <span>{unansweredIndices.length > 0 ? `未答 ${unansweredIndices.length}` : "全部答完"} ({cursor + 1}/{session.state.qids.length})</span>
         </button>
+      </div>
+    {/if}
+    {#if mockSweepOpen && session}
+      <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭冲刺速排" onclick={() => (mockSweepOpen = false)}></button>
+      <div class="lv-hotkeys-wrap">
+        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="考前高危遗漏速排" style="width:min(580px, 94vw);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-card, 20px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop)">
+          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 12px">
+            <div class="lv-dialog-title-wrap">
+              <span class="lv-dialog-title-icon"><Icon name="target" size={14} /></span>
+              <span>考前高危遗漏与标旗速排</span>
+              <span class="lv-chip lv-chip--red sm num">未答 {unansweredIndices.length}</span>
+              <span class="lv-chip lv-chip--amb sm num">标旗 {flaggedIndices.length}</span>
+            </div>
+            <button class="lv-btn sm" onclick={() => (mockSweepOpen = false)} aria-label="关闭"><Icon name="close" size={13} /></button>
+          </div>
+          <p class="lv-muted" style="font-size:12px;margin:0 0 10px">
+            快速扫清所有漏填题目与存疑蒙猜标记，点击选项即刻秒填并自动前进：
+          </p>
+          <div class="stack-sm" style="max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+            {#each sweepIndices as idx (idx)}
+              {@const qid = session.state.qids[idx]}
+              {@const q = questions.find((item) => item.id === qid)}
+              {@const curAns = answeredMap[qid] || ""}
+              {@const isChoice = q && (q.type === "single" || q.type === "multiple" || q.type === "judge")}
+              <div class="lv-card" style="padding:10px 12px;background:var(--lv-surface-2);border-radius:8px;border:1px solid var(--lv-border-subtle)">
+                <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+                  <div style="font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:6px">
+                    <span class="lv-chip sm num" class:lv-chip--red={!curAns} class:lv-chip--amb={session.flags.has(qid)}>第 {idx + 1} 题</span>
+                    <span>{q?.stem.slice(0, 50) ?? qid}</span>
+                  </div>
+                  <button class="lv-btn sm" onclick={() => { goto(idx); mockSweepOpen = false; }} title="进入此题完整做题界面">
+                    跳转 ↗
+                  </button>
+                </div>
+                {#if isChoice}
+                  <div class="lv-row" style="margin:4px 0 0;gap:6px">
+                    {#each (q && q.type === "judge" ? ["对", "错"] : ["A", "B", "C", "D"]) as opt (opt)}
+                      {@const active = curAns.includes(opt)}
+                      <button type="button" class="lv-chip" class:acc={active}
+                        style="{active ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}cursor:pointer;padding:3px 10px;font-size:11px"
+                        onclick={() => onBubbleFill(qid, opt, q?.type)}>
+                        {opt}
+                      </button>
+                    {/each}
+                  </div>
+                {:else}
+                  <input class="lv-input sm" style="width:100%;margin-top:4px" placeholder="填入作答…" value={curAns} oninput={(e) => {
+                    const val = (e.target as HTMLInputElement).value;
+                    session?.setAnswer(qid, val, Date.now());
+                    answeredMap = { ...answeredMap, [qid]: val };
+                    persistRun();
+                  }} />
+                {/if}
+              </div>
+            {:else}
+              <div class="lv-empty" style="padding:24px 0;font-size:12px">🎉 所有题目均已完成作答，且无存疑标记！可安心交卷。</div>
+            {/each}
+          </div>
+          <div class="lv-row" style="margin-top:14px;justify-content:space-between;align-items:center">
+            <button class="lv-btn sm" onclick={() => (mockSweepOpen = false)}>关闭速排</button>
+            <button class="lv-btn sm lv-btn--primary" onclick={() => { mockSweepOpen = false; void finishExam(false); }}>
+              确认无误，立即交卷
+            </button>
+          </div>
+        </div>
       </div>
     {/if}
     {#if mockMiniSheetOpen && session}
@@ -2299,20 +2783,44 @@
             <span>标记 {flaggedIndices.length}</span>
           </div>
           <div class="lv-sheet" style="max-height:50vh;overflow-y:auto">
-            {#each session.state.qids as qid, i (i)}
-              {@const answered = Boolean(answeredMap[qid]?.trim())}
-              {@const flagged = session.flags.has(qid)}
-              <button
-                class="lv-cell"
-                class:done={answered}
-                class:flag={flagged}
-                class:cur={i === cursor}
-                disabled={examLocked}
-                onclick={() => { goto(i); mockMiniSheetOpen = false; }}
-              >
-                {i + 1}
-              </button>
-            {/each}
+            {#if sheetSectionGroups.length > 1}
+              {#each sheetSectionGroups as grp (grp.name)}
+                <div style="width:100%;margin:6px 0 2px;font-size:11px;font-weight:600;color:var(--lv-text-2);display:flex;justify-content:space-between">
+                  <span>{grp.name}（{grp.startIndex + 1}-{grp.endIndex + 1}）</span>
+                  <span class="lv-muted num">{grp.answeredCount}/{grp.items.length}</span>
+                </div>
+                {#each grp.items as it (it.qid)}
+                  {@const i = it.index}
+                  {@const answered = Boolean(answeredMap[it.qid]?.trim())}
+                  {@const flagged = session.flags.has(it.qid)}
+                  <button
+                    class="lv-cell"
+                    class:done={answered}
+                    class:flag={flagged}
+                    class:cur={i === cursor}
+                    disabled={examLocked}
+                    onclick={() => { goto(i); mockMiniSheetOpen = false; }}
+                  >
+                    {i + 1}
+                  </button>
+                {/each}
+              {/each}
+            {:else}
+              {#each session.state.qids as qid, i (i)}
+                {@const answered = Boolean(answeredMap[qid]?.trim())}
+                {@const flagged = session.flags.has(qid)}
+                <button
+                  class="lv-cell"
+                  class:done={answered}
+                  class:flag={flagged}
+                  class:cur={i === cursor}
+                  disabled={examLocked}
+                  onclick={() => { goto(i); mockMiniSheetOpen = false; }}
+                >
+                  {i + 1}
+                </button>
+              {/each}
+            {/if}
           </div>
           {#if unansweredIndices.length > 0}
             <div class="lv-row" style="margin-top:12px;justify-content:center">
@@ -2457,6 +2965,57 @@
         {/if}
       </div>
     {/each}
+    {#if subjectiveQuestions.length > 0 && session}
+      <!-- ✍️ 主观大题考后采分自评通道（ECO-02 / TODO-09） -->
+      <div class="lv-card" style="margin:12px 0;padding:14px 18px;border-left:4px solid var(--lv-brand);background:var(--lv-surface)">
+        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px">
+          <div style="font-weight:700;font-size:14px;color:var(--lv-text);display:flex;align-items:center;gap:6px">
+            <Icon name="edit" size={14} /> ✍️ 主观大题考后采分自评通道（{subjectiveQuestions.length} 道大题）
+          </div>
+          <span class="lv-muted" style="font-size:12px">对照参考答案与采分要点打分，卷面总分实时重新加权结算</span>
+        </div>
+        <div class="stack-sm">
+          {#each subjectiveQuestions as sq (sq.id)}
+            {@const curAns = session.answers.get(sq.id)}
+            {@const factor = curAns?.factor ?? 0}
+            {@const scoreEach = session.scoreOfQ(sq.id) || sq.score || 10}
+            <div style="padding:10px 14px;background:var(--lv-surface-2);border:1px solid var(--lv-border);border-radius:var(--lv-r-2);margin-bottom:8px">
+              <div style="font-weight:600;font-size:13px;color:var(--lv-text);margin-bottom:4px">
+                {sq.stem} <span class="lv-muted">（满分 {scoreEach} 分 · 当前得分 {(scoreEach * factor).toFixed(1)} 分）</span>
+              </div>
+              {#if curAns?.answer}
+                <div style="font-size:12px;color:var(--lv-text-2);margin-bottom:6px;padding:4px 8px;background:var(--lv-surface);border-radius:4px">
+                  <b>考生考场作答：</b>{curAns.answer}
+                </div>
+              {/if}
+              <div style="font-size:12px;color:var(--lv-text-3);margin-bottom:8px">
+                <b>参考标准：</b>{sq.answer || "见采分点标准"}
+                {#if sq.analysis} · <b>解析：</b>{sq.analysis}{/if}
+              </div>
+              <div class="lv-row" style="gap:6px;align-items:center;flex-wrap:wrap">
+                <span class="lv-muted" style="font-size:11px">采分比例自评：</span>
+                {#each [
+                  { f: 0, label: "0% (0分)" },
+                  { f: 0.3, label: "30% (及格偏下)" },
+                  { f: 0.6, label: "60% (合格)" },
+                  { f: 0.8, label: "80% (良好)" },
+                  { f: 1.0, label: "100% (满分)" },
+                ] as opt (opt.f)}
+                  <button
+                    type="button"
+                    class="lv-chip sm"
+                    class:acc={Math.abs(factor - opt.f) < 0.05}
+                    onclick={() => applySubjectiveSelfRating(sq.id, opt.f)}
+                  >
+                    {opt.label}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
     {#if pacingPostMortem}
       <div class="lv-card" style="margin:12px 0;padding:12px 16px;background:var(--lv-surface-2);border-radius:var(--lv-r-3, 14px);border:1px solid var(--lv-border-subtle)">
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px">
@@ -2593,30 +3152,52 @@
         {/if}
       </div>
     {/if}
-    {#if wrongList.length}
+    {#if score && session}
       <div class="lv-card" style="margin:12px 0">
-        <div class="lv-row" style="justify-content:space-between;margin:0 0 6px">
-          <b style="font-size:var(--lv-font-size-body-compact)">{t("mock.wrongList")}（{wrongList.length}）</b>
+        <div class="lv-row" style="justify-content:space-between;margin:0 0 8px;align-items:center;flex-wrap:wrap;gap:6px">
+          <div class="lv-session-dock" role="tablist" style="margin:0">
+            <button type="button" role="tab" class="lv-chip sm" class:acc={mockReviewFilter === "wrong"} onclick={() => { mockReviewFilter = "wrong"; showWrongDetail = true; }}>
+              错题复盘 ({wrongList.length})
+            </button>
+            <button type="button" role="tab" class="lv-chip sm" class:acc={mockReviewFilter === "flagged"} onclick={() => { mockReviewFilter = "flagged"; showWrongDetail = true; }}>
+              标旗存疑 ({score.flagsUsed})
+            </button>
+            <button type="button" role="tab" class="lv-chip sm" class:acc={mockReviewFilter === "all"} onclick={() => { mockReviewFilter = "all"; showWrongDetail = true; }}>
+              全卷详单 ({session.state.qids.length})
+            </button>
+          </div>
           <button class="lv-btn sm lv-btn--ghost" onclick={() => showWrongDetail = !showWrongDetail}>
             {showWrongDetail ? t("mock.hideWrongDetail") : t("mock.toggleWrongDetail")}
           </button>
         </div>
         {#if !showWrongDetail}
           <div class="lv-row" style="margin:8px 0 0;gap:var(--lv-space-compact)">
-            {#each wrongList.slice(0, 12) as w, _i (_i)}
+            {#each displayedReviewList.slice(0, 12) as w, _i (_i)}
               <span class="lv-chip num" title={w.stem}>{w.stem}</span>
             {/each}
-            {#if wrongList.length > 12}<span class="lv-muted num">… +{wrongList.length - 12}</span>{/if}
+            {#if displayedReviewList.length > 12}<span class="lv-muted num">… +{displayedReviewList.length - 12}</span>{/if}
           </div>
         {:else}
           <div class="lv-detail" style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
-            {#each wrongList as w, wi (w.qid)}
+            {#each displayedReviewList as w (w.qid)}
               {@const q = questionMap.get(w.qid)}
               <div class="lv-error-row" style="white-space:normal;padding:8px 12px;border-radius:var(--lv-r-1);background:var(--lv-surface-2)">
-                <div style="font-weight:600"><span class="num">#{wi + 1}</span> {q?.stem ?? w.stem}</div>
+                <div style="font-weight:600;display:flex;align-items:center;gap:6px">
+                  <span class="num">#{w.idx + 1}</span>
+                  <span class="lv-chip sm num" class:lv-chip--grn={w.verdict === "correct"} class:lv-chip--red={w.verdict === "wrong"} class:lv-chip--amb={w.verdict === "not_attempted"}>
+                    {w.verdict === "correct" ? "正解" : w.verdict === "wrong" ? "错题" : "未答"}
+                  </span>
+                  <span>{q?.stem ?? w.stem}</span>
+                </div>
                 <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-2);align-items:center;flex-wrap:wrap">
-                  <span class="lv-chip lv-chip--acc num">标准答案: {q?.answer ?? "—"}</span>
-                  {#if answeredMap[w.qid]}<span class="lv-chip lv-chip--red num">考生作答: {answeredMap[w.qid]}</span>{/if}
+                  <span class="lv-chip lv-chip--acc num">标准答案: {formatDisplayAnswer(q?.answer) || "—"}</span>
+                  {#if answeredMap[w.qid]}<span class="lv-chip lv-chip--red num">考生作答: {formatDisplayAnswer(answeredMap[w.qid])}</span>{/if}
+                  {#if w.changes > 0}
+                    <span class="lv-chip lv-chip--amb num" title="考场作答犹豫修改次数"><Icon name="rotate" size={11} /> 犹豫改选 {w.changes} 次</span>
+                  {/if}
+                  {#if w.isFlagged}
+                    <span class="lv-chip lv-chip--amb num" title="考生在考场标记此题为存疑/蒙猜"><Icon name="star" size={11} /> 考场存疑蒙猜</span>
+                  {/if}
                   {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
                   {#if q?.blockId}
                     <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => openInSiYuan(q.rootId || "", q.blockId)}>
@@ -2625,6 +3206,7 @@
                   {/if}
                 </div>
                 {#if q?.analysis}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px"><span class="lv-badge" style="margin-right:4px">解析</span>{q.analysis}</div>{/if}
+                {#if q?.expansion}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px;padding:3px 8px;background:var(--lv-surface-2);border-left:2px solid var(--lv-accent);border-radius:2px"><span style="color:var(--lv-accent);font-weight:600">💡 思路拓展：</span>{q.expansion}</div>{/if}
               </div>
             {/each}
           </div>
@@ -2641,16 +3223,22 @@
     {/if}
     <div class="lv-row" style="flex-wrap:wrap;gap:6px">
       {#if wrongList.length}
+        <button class="lv-btn sm lv-btn--primary" onclick={createMockTargetDrill} disabled={targetDrillBusy} title="为本次所有做错的试题打上专场靶向标签，并一键开启二刷靶向攻坚"><Icon name="target" size={13} /> {targetDrillBusy ? "…" : "🎯 生成本场专属攻坚卷"}</button>
         <button class="lv-btn sm lv-btn--primary" onclick={printMockWrongSheet} disabled={printBusy} title="将本次模考全部错题排版生成 A4 双栏精练卷"><Icon name="file" size={13} /> {t("mock.printWrongSheet", "打印本次错题精练卷")}</button>
         <button class="lv-btn sm lv-btn--ghost" onclick={saveMockWrongsAsDoc} title="将本次模考错题存为思源原生笔记文档"><Icon name="book" size={13} /> {t("mock.saveWrongsToDoc", "存为错题集笔记")}</button>
       {/if}
+      <button class="lv-btn sm" onclick={insertScoreToDailyNote} disabled={insertDailyBusy} title="将本次模考得分率、耗时与及格判定以引用块格式追加写入思源今日日记文档"><Icon name="calendar" size={13} /> {insertDailyBusy ? "…" : "插入今日日记"}</button>
       <button class="lv-btn lv-btn--ghost sm" onclick={exportScoreMd} disabled={scoreExportBusy}><Icon name="table" size={13} /> {scoreExportBusy ? "…" : t("mock.exportScore")}</button>
       <select class="lv-select sm" bind:value={reportPrintFormat} disabled={printBusy} aria-label="选择考后打印版式">
         <option value="answer">独立答案册</option>
         <option value="lecture">授课讲义卷</option>
         <option value="exam">标准测试卷</option>
         <option value="homework">留白作业单</option>
+        <option value="interactive">🌐 交互式讲题自测卷</option>
       </select>
+      <button class="lv-btn lv-btn--ghost sm" onclick={openMockAssemble} disabled={!questions.length} title="进入专业组卷排版工坊，自定义 A4 纸面大标题、密封线、总分表与答题留白并直接打印">
+        <Icon name="printer" size={13} /> 🖨️ 组卷排版
+      </button>
       <button class="lv-btn lv-btn--ghost sm" onclick={() => void printMockByFormat(reportPrintFormat)} disabled={printBusy} title="按所选版式打印答案册、授课讲义或测试卷"><Icon name="file" size={13} /> {t("mock.printAnswerSheet")}</button>
       {#if activeBankId}
         <button class="lv-btn lv-btn--ghost sm" onclick={writeScoreDoc} disabled={scoreWriteBusy} aria-busy={scoreWriteBusy}><Icon name="book" size={14} /> {scoreWriteBusy ? t("mock.scoreWriting", "正在写入成绩单…") : scoreWriteError ? t("mock.scoreWriteRetry", "重试写入成绩单") : t("mock.exportToDoc")}</button>
@@ -2673,6 +3261,13 @@
 </div>
   </div>
   <Palette commands={paletteCommands} bind:open={paletteOpen} {t} />
+  <PaperAssembleModal
+    open={mockAssembleOpen}
+    bankName={bp.name || "全真模拟考试卷"}
+    questions={mockAssembleQuestions}
+    onclose={() => (mockAssembleOpen = false)}
+    showMessage={(msg) => showMessage(msg)}
+  />
 </div>
 </div>
 
@@ -2700,6 +3295,9 @@
   .lv-opt.sel .lv-opt-check::after { transform: scale(1); }
   .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
   .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
+  .lv-opt.eliminated { opacity: 0.45; background: var(--lv-surface-2) !important; border-style: dashed !important; }
+  .lv-opt.eliminated .lv-opt-text { text-decoration: line-through; }
+  .lv-opt.eliminated .key { opacity: 0.6; text-decoration: line-through; }
   .lv-bp-table { border: 1px solid var(--lv-border); border-radius: 12px; overflow-x: auto; margin: 10px 0; background: var(--lv-surface); }
   .lv-bp-row { display: grid; grid-template-columns: 1fr .45fr .45fr .65fr 1.1fr .85fr 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border)); align-items: center; min-width: 680px; }
   .lv-bp-row:last-child { border-bottom: none; }

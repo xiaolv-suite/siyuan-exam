@@ -99,5 +99,10 @@ describe("练习工作区命令面板与导航服务 (practicePaletteService)", 
     const resCreate = resolveTaskNavigation("create", openMock, openReport);
     expect(resCreate.isTab).toBe(false);
     expect(resCreate.nextView).toBe("manual");
+
+    // 6. 题库集市
+    const resMarketplace = resolveTaskNavigation("marketplace", openMock, openReport);
+    expect(resMarketplace.isTab).toBe(false);
+    expect(resMarketplace.nextView).toBe("marketplace");
   });
 });

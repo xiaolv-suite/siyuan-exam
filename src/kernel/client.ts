@@ -380,6 +380,14 @@ export class KernelApiClient {
     return { name: String(d.name ?? ""), dailyNoteSavePath: String(conf.dailyNoteSavePath ?? "") };
   }
 
+  /** 获取或创建思源日记文档（CAND-09：/api/filetree/createDailyNote，幂等返回今日日记文档 ID） */
+  async createDailyNote(notebookId: string): Promise<string> {
+    const r = await this.writePost("/api/filetree/createDailyNote", { notebook: notebookId });
+    const id = String((r.data as Record<string, unknown>)?.id ?? "");
+    if (!id) throw new KernelError("fatal", "createDailyNote", "未取得日记文档 ID");
+    return id;
+  }
+
   /** 笔记本导出 .sy.zip（题库包分享；返回工作区相对路径，如 /export/X.sy.zip） */
   async exportNotebookSy(notebookId: string): Promise<{ zipPath: string }> {
     const r = await this.writePost("/api/export/exportNotebookSY", { id: notebookId });

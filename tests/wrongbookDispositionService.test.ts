@@ -6,6 +6,7 @@ import {
   restoreWrongItemToActive,
   markWrongMastered,
   extractWrongQueueKpOptions,
+  extractWrongQueueTagOptions,
   filterAndSortWrongQueue,
 } from "@/ui/practice/services/wrongbookDispositionService";
 import type { Question } from "@/core/types";
@@ -118,5 +119,21 @@ describe("错题归档与延期处置服务 (wrongbookDispositionService)", () =
       highriskQids: new Set(["q-2"]),
     });
     expect(pinned.map((x) => x.qid)).toEqual(["q-2", "q-1", "q-3"]);
+
+    // 5. CAND-02: 提取错题队列标签与专场标签过滤
+    (qMap.get("q-1") as any).userTags = ["mock-run-20261101", "star"];
+    (qMap.get("q-2") as any).userTags = ["trap"];
+    const tagOptions = extractWrongQueueTagOptions(wrongQueue, qMap);
+    expect(tagOptions).toEqual(["mock-run-20261101", "star", "trap"]);
+
+    const filteredTag = filterAndSortWrongQueue(wrongQueue, qMap, () => "careless", {
+      reasonFilter: "all",
+      filterStubborn: false,
+      kpFilter: "",
+      tagFilter: "mock-run-20261101",
+      sortMode: "default",
+    });
+    expect(filteredTag).toHaveLength(1);
+    expect(filteredTag[0].qid).toBe("q-1");
   });
 });

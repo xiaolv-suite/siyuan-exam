@@ -73,6 +73,56 @@ export function dailyTrend(days: ReplayResult["days"], today: Date = new Date(),
   return out;
 }
 
+/** 周粒度作答趋势聚合（最近 weeks 周，旧→新，CAND-11） */
+export function weeklyTrend(days: ReplayResult["days"], today: Date = new Date(), weeks = 12): DayTrendPoint[] {
+  const out: DayTrendPoint[] = [];
+  const cur = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dayOfWeek = (cur.getDay() + 6) % 7;
+  cur.setDate(cur.getDate() - dayOfWeek - (weeks - 1) * 7);
+
+  for (let w = 0; w < weeks; w++) {
+    let weekAttempts = 0;
+    let weekCorrect = 0;
+    const startStr = `${String(cur.getMonth() + 1).padStart(2, "0")}/${String(cur.getDate()).padStart(2, "0")}`;
+    for (let d = 0; d < 7; d++) {
+      const k = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+      const v = days.get(k);
+      if (v) {
+        weekAttempts += v.attempts;
+        weekCorrect += v.correct;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    out.push({ date: `第${w + 1}周 (${startStr})`, attempts: weekAttempts, correct: weekCorrect });
+  }
+  return out;
+}
+
+/** 月粒度作答趋势聚合（最近 months 月，旧→新，CAND-11） */
+export function monthlyTrend(days: ReplayResult["days"], today: Date = new Date(), months = 6): DayTrendPoint[] {
+  const out: DayTrendPoint[] = [];
+  const y = today.getFullYear();
+  const m = today.getMonth();
+
+  for (let i = months - 1; i >= 0; i--) {
+    const targetDate = new Date(y, m - i, 1);
+    const yearStr = targetDate.getFullYear();
+    const monthStr = String(targetDate.getMonth() + 1).padStart(2, "0");
+    const prefix = `${yearStr}-${monthStr}`;
+
+    let monthAttempts = 0;
+    let monthCorrect = 0;
+    for (const [k, v] of days.entries()) {
+      if (k.startsWith(prefix)) {
+        monthAttempts += v.attempts;
+        monthCorrect += v.correct;
+      }
+    }
+    out.push({ date: `${yearStr}.${monthStr}`, attempts: monthAttempts, correct: monthCorrect });
+  }
+  return out;
+}
+
 /** 每日笔记文档路径（思源约定：conf.dailyNoteSavePath 模板含 {{now | date ...}}；
  *  我们按 "YYYY-MM-DD" 日粒度落 —— 与内核 createDailyNote 的当日文档一致） */
 export function dailyDocPath(savePathTpl: string, today: Date = new Date()): string {

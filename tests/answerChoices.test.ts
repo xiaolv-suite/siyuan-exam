@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { removeChoiceOption } from "../src/core/answerChoices";
+import { removeChoiceOption, answerChoices, shuffleAnswerChoices } from "../src/core/answerChoices";
 import { makeQuestion } from "../src/core/blockTemplate";
 import { grade } from "../src/core/answer";
 
@@ -53,5 +53,55 @@ describe("删除选项时迁移正确答案", () => {
       answer: "人民\u200B代表大会\uFEFF制度",
     });
     expect(grade(q, "人民代表大会制度").verdict).toBe("correct");
+  });
+
+  describe("选项随机打乱算法 (shuffleAnswerChoices - FLOW-03)", () => {
+    const rawChoices = [
+      { letter: "A", text: "选项一", value: "A" },
+      { letter: "B", text: "选项二", value: "B" },
+      { letter: "C", text: "选项三", value: "C" },
+      { letter: "D", text: "选项四", value: "D" },
+    ];
+
+    it("空种子或单项时不打乱", () => {
+      expect(shuffleAnswerChoices(rawChoices, "")).toEqual(rawChoices);
+      expect(shuffleAnswerChoices([rawChoices[0]], "seed-1")).toEqual([rawChoices[0]]);
+    });
+
+    it("同一题目特征种子打乱结果严格确定且可复现", () => {
+      const s1 = shuffleAnswerChoices(rawChoices, "qid-algebra-101");
+      const s2 = shuffleAnswerChoices(rawChoices, "qid-algebra-101");
+      expect(s1).toEqual(s2);
+    });
+
+    it("打乱后显示字母始终按 A, B, C, D 顺序呈现，但各选项原始 value 完整保留", () => {
+      const shuffled = shuffleAnswerChoices(rawChoices, "qid-math-202");
+      // 显示字母必为 A, B, C, D
+      expect(shuffled.map((c) => c.letter)).toEqual(["A", "B", "C", "D"]);
+      // 原始 value 集合完全不变
+      expect(shuffled.map((c) => c.value).sort()).toEqual(["A", "B", "C", "D"]);
+      // 文本与原始 value 映射未被破坏
+      for (const item of shuffled) {
+        const orig = rawChoices.find((r) => r.value === item.value);
+        expect(orig?.text).toBe(item.text);
+      }
+    });
+
+    it("结合 grade 判分：打乱后考生点击新字母选项，利用其 value 能准确命中真题答案", () => {
+      const q = makeQuestion({
+        type: "single",
+        stem: "若 x+1=3，则 x 等于？",
+        options: ["1", "2", "3", "4"],
+        answer: "B", // 原答案是 B ("2")
+      });
+      const choices = answerChoices(q);
+      const shuffled = shuffleAnswerChoices(choices, q.id);
+      // 找到包含 "2" 的选项项
+      const targetChoice = shuffled.find((c) => c.text === "2");
+      expect(targetChoice).toBeDefined();
+      expect(targetChoice?.value).toBe("B");
+      // 提交它的 value 进行判分，依然精准判定为正确！
+      expect(grade(q, targetChoice!.value).verdict).toBe("correct");
+    });
   });
 });

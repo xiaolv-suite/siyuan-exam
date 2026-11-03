@@ -2,6 +2,7 @@
   import Icon from "../shared/Icon.svelte";
   import SpeechEvalCapsule from "./SpeechEvalCapsule.svelte";
   import type { Question } from "../../core/types";
+  import { formatDisplayAnswer } from "@/core/answer";
   import type { SpeechEvalResult } from "@/core/speechEval";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
 
@@ -188,14 +189,14 @@
       {:else}
         <div class="lv-recite-revealed">
           {#if q.options.length}
-            <div class="lv-analysis"><b>{t("recite.answer")}:</b> {q.answer}</div>
+            <div class="lv-analysis"><b>{t("recite.answer")}:</b> {formatDisplayAnswer(q.answer)}</div>
             {#each q.options as opt, i (i)}
               <div class="lv-opt" class:right={q.answer.includes(String.fromCharCode(65 + i))} style="cursor:default">
                 <span class="key">{String.fromCharCode(65 + i)}</span><span class="lv-opt-text">{@html renderInlineText(opt)}</span>
               </div>
             {/each}
           {:else}
-            <div class="lv-analysis"><b>{t("recite.answer")}:</b> {q.answer}</div>
+            <div class="lv-analysis"><b>{t("recite.answer")}:</b> {formatDisplayAnswer(q.answer)}</div>
           {/if}
           {#if q.analysis}<div class="lv-analysis">{q.analysis}</div>{/if}
           <div class="lv-rate" role="group" aria-label="自评掌握程度">

@@ -4,6 +4,7 @@
 // ============================================================
 import type { Question } from "./types";
 import { specOf, gradeWithSpec } from "./structuredAnswer";
+export { formatDisplayAnswer } from "./structuredAnswer";
 
 export const OPTION_LETTERS = "ABCDEFGHIJ";
 
@@ -63,9 +64,9 @@ export function foldText(s: string): string {
 
 /** 判断题答案方言归一化：对/T/F/√/×/true/false/是/否 → "对"|"错" */
 export function normalizeJudge(raw: string): "对" | "错" | null {
-  const s = foldText(raw).toLowerCase();
-  if (["对", "t", "true", "√", "是", "y", "yes", "正确"].includes(s)) return "对";
-  if (["错", "f", "false", "×", "x", "否", "n", "no", "错误"].includes(s)) return "错";
+  const s = foldText(raw).toLowerCase().replace(/^[（(\[【]\s*|\s*[)）\]】]$/g, "");
+  if (["对", "t", "true", "√", "v", "是", "y", "yes", "正确", "○", "r", "right"].includes(s)) return "对";
+  if (["错", "f", "false", "×", "x", "否", "n", "no", "错误", "●", "w", "wrong"].includes(s)) return "错";
   return null;
 }
 
@@ -75,11 +76,13 @@ export function normalizeAnswer(type: Question["type"], raw: string): string | n
   if (!s) return null;
   if (type === "judge") return normalizeJudge(s);
   if (type === "single") {
-    const m = s.toUpperCase().match(/^[A-J]/);
-    return m ? m[0] : null;
+    const clean = s.replace(/^(?:(?:【?答案】?|key)\s*[:：]?\s*)/i, "");
+    const m = clean.toUpperCase().match(/(?:^[（(\[【]?\s*([A-J])\s*[)）\]】、.]?|^([A-J]))/i);
+    return m ? (m[1] || m[2]).toUpperCase() : null;
   }
   if (type === "multiple") {
-    const letters = s
+    const clean = s.replace(/^(?:(?:【?答案】?|key)\s*[:：]?\s*)/i, "");
+    const letters = clean
       .toUpperCase()
       .replace(/[^A-J]/g, "")
       .split("");

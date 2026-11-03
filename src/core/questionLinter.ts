@@ -29,6 +29,14 @@ const JUDGE_AFFIRMATIVE = new Set(["对", "正确", "√", "v", "V", "true", "T"
 const JUDGE_NEGATIVE = new Set(["错", "错误", "×", "x", "X", "false", "F", "NO", "N", "否", "0"]);
 
 /**
+ * 判定文本中是否包含真正的挖空占位符（连续下划线、空白括号、花括号挖空等）
+ */
+export function hasBlankPlaceholder(text: string): boolean {
+  if (!text) return false;
+  return /_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|［\s*］|\{\{c\d+::/i.test(text);
+}
+
+/**
  * 深度质检单道试题，输出置信度评分与告警项
  */
 export function lintQuestion(q: Partial<Question>): QuestionLintReport {
@@ -80,13 +88,14 @@ export function lintQuestion(q: Partial<Question>): QuestionLintReport {
         severity: "error",
       });
       score -= 35;
-    } else if (options.length > 8) {
+    } else if (options.length > 6) {
       issues.push({
         code: "TOO_MANY_OPTIONS",
-        message: `选项数量异常偏多（共 ${options.length} 项）`,
-        severity: "warning",
+        message: `选择题选项异常偏多（共 ${options.length} 项，建议裁切为4项或转为简答）`,
+        severity: options.length > 8 ? "error" : "warning",
+        autoFixable: true,
       });
-      score -= 10;
+      score -= options.length > 8 ? 40 : 20;
     }
 
     // 检查重复选项
@@ -168,12 +177,35 @@ export function lintQuestion(q: Partial<Question>): QuestionLintReport {
         score -= 20;
       }
     }
-  } else {
-    // 4. 填空与简答题
+  } else if (type === "fill") {
+    // 3. 填空题深度质检
     if (!answer && !q.analysis) {
       issues.push({
         code: "MISSING_ANSWER",
-        message: "主观/填空题缺少参考答案与解析",
+        message: "填空题缺少参考答案与解析",
+        severity: "warning",
+      });
+      score -= 20;
+    }
+    const hasBlank = hasBlankPlaceholder(stem);
+    if (!hasBlank) {
+      const isQuestionPrompt = /^(?:什么是|简述|简答|解释|为什么|如何|请谈谈|请阐述|阐述|试述)|(?:区别|联系|定义|概念|特征|优缺点)[？?]?$|[？?]/.test(stem);
+      issues.push({
+        code: "FILL_WITHOUT_BLANK",
+        message: isQuestionPrompt
+          ? "填空题题干为问答句式且缺少挖空占位符（建议转为简答题）"
+          : "填空题题干缺少挖空占位符（如 ____ 或 （ ））",
+        severity: "warning",
+        autoFixable: true,
+      });
+      score -= 25;
+    }
+  } else {
+    // 4. 简答与主观题
+    if (!answer && !q.analysis) {
+      issues.push({
+        code: "MISSING_ANSWER",
+        message: "主观简答题缺少参考答案与采分要点",
         severity: "warning",
       });
       score -= 20;
@@ -209,10 +241,10 @@ export function lintQuestion(q: Partial<Question>): QuestionLintReport {
 export function autoFixQuestion(q: Question): { question: Question; fixedIssues: string[] } {
   const fixed: string[] = [];
   let stem = (q.stem ?? "").trim();
-  const type = q.type || "single";
+  let type = q.type || "single";
   let options = Array.isArray(q.options) ? [...q.options] : [];
   let answer = (q.answer ?? "").trim();
-  const analysis = (q.analysis ?? "").trim();
+  let analysis = (q.analysis ?? "").trim();
 
   // 1. 题干多余空行折叠
   const cleanedStem = stem.replace(/\n{3,}/g, "\n\n").trim();
@@ -247,6 +279,33 @@ export function autoFixQuestion(q: Question): { question: Question; fixedIssues:
       fixed.push("清理选项前缀多余字母符号");
       options = cleanedOpts;
     }
+
+    // 选项过多（> 6 项）自愈：如果答案在有效选项范围内，则裁切多余选项并保留到解析；如果无答案则转为简答题
+    if (options.length > 6) {
+      const validChoiceAns = /^[A-Fa-f]{1,6}$/.test(answer);
+      if (!validChoiceAns || !answer) {
+        // 转为简答题，保留全部选项到答案/解析
+        type = "short";
+        const formattedOpts = options.map((o, idx) => `${String.fromCharCode(65 + idx)}. ${o}`).join("\n");
+        analysis = analysis ? `${analysis}\n\n【原选项归档】\n${formattedOpts}` : `【原选项归档】\n${formattedOpts}`;
+        if (!answer) {
+          answer = formattedOpts;
+        }
+        options = [];
+        fixed.push(`异常超量选项（${q.options?.length ?? 0}项）已自动安全转换为简答题`);
+      } else {
+        const ansCodes = answer.toUpperCase().split("").map((l) => l.charCodeAt(0) - 65);
+        const maxCode = Math.max(3, ...ansCodes);
+        const keepCount = Math.min(options.length, Math.max(4, maxCode + 1));
+        if (options.length > keepCount) {
+          const trimmed = options.slice(keepCount);
+          options = options.slice(0, keepCount);
+          const extraStr = trimmed.map((o, idx) => `${String.fromCharCode(65 + keepCount + idx)}. ${o}`).join("\n");
+          analysis = analysis ? `${analysis}\n\n【裁切的多余选项归档】\n${extraStr}` : `【裁切的多余选项归档】\n${extraStr}`;
+          fixed.push(`裁切异常超额选项（保留前 ${keepCount} 项，多余项存入解析）`);
+        }
+      }
+    }
   }
 
   // 3. 判断题答案归一化
@@ -261,6 +320,17 @@ export function autoFixQuestion(q: Question): { question: Question; fixedIssues:
       if (answer !== "错") {
         answer = "错";
         fixed.push("判断题负向答案归一为【错】");
+      }
+    }
+  }
+
+  // 4. 填空题自愈纠偏：如果题干没有任何挖空占位符，且为问答句式或长答案，自动安全转为简答题
+  if (type === "fill") {
+    if (!hasBlankPlaceholder(stem)) {
+      const isQuestionPrompt = /^(?:什么是|简述|简答|解释|为什么|如何|请谈谈|请阐述|阐述|试述)|(?:区别|联系|定义|概念|特征|优缺点)[？?]?$|[？?]/.test(stem);
+      if (isQuestionPrompt || answer.length > 20 || /[。；;！!\n]/.test(answer)) {
+        type = "short";
+        fixed.push("题干无挖空且为问答句式，已自动纠偏为【简答题】");
       }
     }
   }
@@ -281,3 +351,61 @@ export function autoFixQuestion(q: Question): { question: Question; fixedIssues:
 
   return { question: updated, fixedIssues: fixed };
 }
+
+/**
+ * 裁切试题多余选项（默认保留前 4 项 A-D，超出内容归档至解析，绝不丢失知识点）
+ */
+export function pruneQuestionOptions(q: Question, maxCount = 4): Question {
+  const options = Array.isArray(q.options) ? [...q.options] : [];
+  if (options.length <= maxCount) return q;
+  const kept = options.slice(0, maxCount);
+  const extra = options.slice(maxCount);
+  const extraStr = extra.map((o, idx) => `${String.fromCharCode(65 + maxCount + idx)}. ${o}`).join("\n");
+  const analysis = q.analysis ? `${q.analysis}\n\n【裁切的多余选项归档】\n${extraStr}` : `【裁切的多余选项归档】\n${extraStr}`;
+  const updated: Question = {
+    ...q,
+    options: kept,
+    analysis,
+    hash: questionHash(q.stem, kept),
+  };
+  const lint = lintQuestion(updated);
+  updated.confidence = Math.round(lint.score) / 100;
+  return updated;
+}
+
+/**
+ * 将畸形或异常选择题一键安全转换为简答/论述题（保留所有选项到答案或解析中）
+ */
+export function convertQuestionToShort(q: Question): Question {
+  const options = Array.isArray(q.options) ? [...q.options] : [];
+  const formattedOpts = options.map((o, idx) => `${String.fromCharCode(65 + idx)}. ${o}`).join("\n");
+  const answer = q.answer && q.answer.trim().length > 4 ? q.answer : formattedOpts || q.answer || "见解析";
+  const analysis = q.analysis ? `${q.analysis}\n\n【原选项归档】\n${formattedOpts}` : (options.length ? `【原选项归档】\n${formattedOpts}` : q.analysis);
+  const updated: Question = {
+    ...q,
+    type: "short",
+    options: [],
+    answer,
+    analysis,
+    hash: questionHash(q.stem, []),
+  };
+  const lint = lintQuestion(updated);
+  updated.confidence = Math.round(lint.score) / 100;
+  return updated;
+}
+
+/**
+ * 将缺少挖空占位符的填空题一键转换为简答题
+ */
+export function convertFillWithoutBlankToShort(q: Question): Question {
+  const updated: Question = {
+    ...q,
+    type: "short",
+    options: [],
+    hash: questionHash(q.stem, []),
+  };
+  const lint = lintQuestion(updated);
+  updated.confidence = Math.round(lint.score) / 100;
+  return updated;
+}
+

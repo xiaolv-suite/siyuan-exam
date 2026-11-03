@@ -69,7 +69,7 @@ export function cantoneseSampleQuestions(): Question[] {
   ];
 
   return seeds.map((seed) => ({
-    ...makeQuestion({ ...seed, source: "小驴学习内置泛语言研学示例（粤语口语）", difficulty: 1 }),
+    ...makeQuestion({ ...seed, source: "小驴考试内置语言示例（粤语口语）", difficulty: 1 }),
     sourceKind: "real",
   }));
 }

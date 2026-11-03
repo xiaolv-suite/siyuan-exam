@@ -3,6 +3,7 @@
   import type { Question, QuestionLifecycleStatus } from "../../core/types";
   import type { ExamApp } from "../../app";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
+  import { computeTextDiff } from "@/core/textDiff";
 
   type QuestionWithBlock = Question & { blockId: string };
 
@@ -217,6 +218,7 @@
   let writeBackBusy = $state<string>("");
   let writeBackSuccess = $state<Record<string, boolean>>({});
   let writeBackError = $state<Record<string, string>>({});
+  let activeDiffTs = $state<number | null>(null);
 
   async function handleWriteBackNote(targetQ: QuestionWithBlock, text: string, rkey: string) {
     if (!targetQ.blockId || !app?.kernelOnline) return;
@@ -236,6 +238,26 @@
   let drawerDocSearch = $state("");
   let drawerDocCandidates = $state<Array<{ id: string; title: string; hpath: string }>>([]);
   let drawerDocBusy = $state(false);
+
+  let quickKpEditing = $state(false);
+  let quickKpValue = $state("");
+
+  async function updateQuickDifficulty(d: number) {
+    if (!q.blockId || !app?.kernelOnline) return;
+    q.difficulty = d;
+    try {
+      await app.deps.client.setExamAttrs(q.blockId, { "exam-difficulty": String(d) });
+    } catch {
+      /* 离线降级 */
+    }
+  }
+
+  async function saveQuickKp() {
+    if (!q.blockId || !app?.kernelOnline) return;
+    const clean = quickKpValue.trim();
+    await app.markQuestionKp(q, clean);
+    quickKpEditing = false;
+  }
 
   async function searchDocsForDrawer(query: string) {
     if (!app) return;
@@ -325,6 +347,33 @@
   </header>
   <div class="lv-peek-body">
     <div class="lv-peek-stem">{q.stem}</div>
+
+    <!-- 快捷考点与难度就地即时点改 -->
+    <div class="lv-row" style="margin:6px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
+      <div class="lv-chip sm" style="gap:2px;display:inline-flex;align-items:center">
+        <span class="lv-muted">难度:</span>
+        {#each [1, 2, 3, 4, 5] as star (star)}
+          <button type="button" class="lv-btn sm lv-btn--ghost"
+            style="padding:0 1px;min-width:14px;color:{star <= (q.difficulty ?? 1) ? 'var(--lv-amber)' : 'var(--lv-text-3)'};cursor:pointer"
+            onclick={() => updateQuickDifficulty(star)}
+            title={`点击设为 ${star} 星难度`}>
+            ★
+          </button>
+        {/each}
+      </div>
+
+      {#if !quickKpEditing}
+        <button type="button" class="lv-chip sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px" onclick={() => { quickKpValue = q.kp || ""; quickKpEditing = true; }} title="点击快速修改考点">
+          <Icon name="tag" size={11} /> 考点: <b>{q.kp || "未分类考点"}</b> <Icon name="pencil" size={10} />
+        </button>
+      {:else}
+        <div class="lv-row" style="margin:0;gap:3px;align-items:center">
+          <input class="lv-input sm" style="max-width:140px;height:24px;font-size:11px" bind:value={quickKpValue} placeholder="输入考点…" />
+          <button type="button" class="lv-btn sm lv-btn--primary" style="padding:1px 6px;font-size:11px" onclick={saveQuickKp}>保存</button>
+          <button type="button" class="lv-btn sm" style="padding:1px 6px;font-size:11px" onclick={() => quickKpEditing = false}>取消</button>
+        </div>
+      {/if}
+    </div>
 
     <!-- 来源思源笔记与双向溯源 -->
     <div class="lv-row" style="margin:6px 0 10px;gap:6px;align-items:center;flex-wrap:wrap">
@@ -615,9 +664,44 @@
                     {/if}
                     <span class="lv-muted num">{t("browse.answer")}: <b>{r.answer}</b></span>
                     {#if r.kp}<span class="lv-muted"> · {r.kp}</span>{/if}
+                    <button type="button" class="lv-btn sm" style="padding:1px 6px;font-size:11px" onclick={() => activeDiffTs = activeDiffTs === r.ts ? null : r.ts} title="查看与当前最新试题内容的文字级 Diff 对比">
+                      <Icon name="eye" size={11} /> {activeDiffTs === r.ts ? "收起差异" : "对比差异"}
+                    </button>
                     {#if r.summary}<span class="lv-muted" style="font-size:var(--lv-font-size-caption);width:100%;display:inline-flex;align-items:center;gap:4px" title={r.summary}><Icon name="file-text" size={11} /> {r.summary}</span>{/if}
                     {#if revRestoreFailedKey === `${q.id}#${r.ts}`}<span class="lv-error" role="alert">{t("rev.restoreFailed").replace("{message}", revRestoreError[q.id])}</span><button class="lv-btn sm" disabled={!!revRestoreKey} onclick={() => onrestoreRevision(q, r)}>{t("rev.retry")}</button>{/if}
                     <button class="lv-btn sm lv-btn--ghost" style="margin-left:auto" disabled={!!revRestoreKey} aria-busy={revRestoreKey === `${q.id}#${r.ts}`} onclick={() => onrestoreRevision(q, r)}>{revRestoreKey === `${q.id}#${r.ts}` ? "…" : t("rev.restore")}</button>
+                    {#if activeDiffTs === r.ts}
+                      {@const stemDiff = computeTextDiff(r.stem || "", q.stem || "")}
+                      {@const analysisDiff = computeTextDiff(r.analysis || "", q.analysis || "")}
+                      <div class="lv-card" style="width:100%;padding:8px 10px;margin-top:6px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-1, 6px);font-size:12px">
+                        <b>题干差异对比（绿色为当前新增，红色为旧版删除）：</b>
+                        <div style="line-height:1.6;margin:4px 0 8px">
+                          {#each stemDiff as d, _di (_di)}
+                            {#if d.op === "equal"}
+                              <span>{d.text}</span>
+                            {:else if d.op === "insert"}
+                              <span class="lv-chip sm lv-chip--grn" style="padding:0 3px;text-decoration:none;font-weight:600">+{d.text}</span>
+                            {:else if d.op === "delete"}
+                              <span class="lv-chip sm lv-chip--red" style="padding:0 3px;text-decoration:line-through;opacity:0.8">-{d.text}</span>
+                            {/if}
+                          {/each}
+                        </div>
+                        {#if (r.analysis || q.analysis) && r.analysis !== q.analysis}
+                          <b>解析差异对比：</b>
+                          <div style="line-height:1.6;margin-top:4px">
+                            {#each analysisDiff as d, _di (_di)}
+                              {#if d.op === "equal"}
+                                <span>{d.text}</span>
+                              {:else if d.op === "insert"}
+                                <span class="lv-chip sm lv-chip--grn" style="padding:0 3px;text-decoration:none;font-weight:600">+{d.text}</span>
+                              {:else if d.op === "delete"}
+                                <span class="lv-chip sm lv-chip--red" style="padding:0 3px;text-decoration:line-through;opacity:0.8">-{d.text}</span>
+                              {/if}
+                            {/each}
+                          </div>
+                        {/if}
+                      </div>
+                    {/if}
                   </div>
                 {:else}
                   <span class="lv-muted num">{t("rev.empty")}</span>

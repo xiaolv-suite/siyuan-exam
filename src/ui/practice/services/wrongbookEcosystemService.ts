@@ -11,22 +11,22 @@ export async function pushWrongsToCards(
   bankName: string,
   wrongQs: Question[],
   hasCardsPlugin: boolean,
-  showMessage: MessageReporter,
+  showMessage: (msg: string, timeout?: number, type?: "info" | "error") => void,
 ): Promise<number> {
   if (!hasCardsPlugin) {
-    showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
+    showMessage("[小驴考试] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
     return 0;
   }
   if (!wrongQs.length) {
-    showMessage("[小驴学习] 当前筛选下没有可推送到闪卡的错题", 2500, "info");
+    showMessage("[小驴考试] 当前筛选下没有可推送到闪卡的错题", 2500, "info");
     return 0;
   }
   try {
     const n = await app.convertToCards(bankId, bankName, wrongQs);
-    showMessage(`[小驴学习] 已将 ${n} 道错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
+    showMessage(`[小驴考试] 已将 ${n} 道错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
     return n;
   } catch (e) {
-    showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+    showMessage(`[小驴考试] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
     return 0;
   }
 }
@@ -38,24 +38,24 @@ export async function pushSingleWrongToCard(
   app: ExamApp,
   bankId: string,
   bankName: string,
-  targetQ: Question | undefined,
+  q: Question | undefined,
   hasCardsPlugin: boolean,
-  showMessage: MessageReporter,
+  showMessage: (msg: string, timeout?: number, type?: "info" | "error") => void,
 ): Promise<boolean> {
   if (!hasCardsPlugin) {
-    showMessage("[小驴学习] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
+    showMessage("[小驴考试] 未检测到小驴闪卡插件（siyuan-lv-cards），可前往思源集市安装以开启卡包同步；当前内置错题重练已就绪！", 3500, "info");
     return false;
   }
-  if (!targetQ) {
-    showMessage("[小驴学习] 未找到该题目对象", 2500, "info");
+  if (!q) {
+    showMessage("[小驴考试] 未找到该题目对象", 2500, "info");
     return false;
   }
   try {
-    const n = await app.convertToCards(bankId, bankName, [targetQ]);
-    showMessage(`[小驴学习] 已将 ${n} 道顽疾错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
-    return true;
+    const n = await app.convertToCards(bankId, bankName, [q]);
+    showMessage(`[小驴考试] 已将 ${n} 道顽疾错题同步推送到小驴闪卡卡包 ✓`, 3500, "info");
+    return n > 0;
   } catch (e) {
-    showMessage(`[小驴学习] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+    showMessage(`[小驴考试] 推送闪卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
     return false;
   }
 }

@@ -541,7 +541,7 @@ export class ExamApp {
       await this.deps.client.createDocWithMd(
         notebookId,
         "/首页",
-        `# 题库：${clean}\n\n> 本笔记本由小驴学习（原小驴考试）管理。章节文档存放研学题目与卡片。\n> 可在练习台导入题目，或删除「示例题」文档后自建章节。\n`,
+        `# 题库：${clean}\n\n> 本笔记本由小驴考试管理。章节文档存放题目与试卷。\n> 可在练习台导入题目，或删除「示例题」文档后自建章节。\n`,
       );
     } catch { /* 首页失败不阻断 */ }
     // 章节骨架：按官方模板的考点分层示例（47-02 首五分钟任务的最短路径）
@@ -2537,10 +2537,8 @@ export class ExamApp {
   // ---------- 每日战报（联动小驴复盘预留） ----------
   /** 把当日战报写入思源日记（首个开启"每日笔记"的笔记本），返回日记文档 id */
   async writeDailyReport(bankId: string, bankName: string): Promise<string> {
-    const { dailyDocPath } = await import("./core/weekly");
     const { formatSiyuanBlockRef } = await import("./core/siyuanSyncDoc");
     const now = this.deps.now?.() ?? Date.now();
-    const today = new Date(now);
     const cutoff = reportWindowStart(1, now);
     const bankQuestions = await this.listQuestions(bankId);
     const qById = new Map(bankQuestions.map((q) => [q.id, q]));
@@ -2607,20 +2605,14 @@ export class ExamApp {
     // 优先检查当前选中题库，其次检查其它开启每日笔记的题库
     const orderedBanks = [...this.listBanks()].sort((a, b) => (a.id === bankId ? -1 : b.id === bankId ? 1 : 0));
     for (const nb of orderedBanks) {
-      const conf = await this.deps.client.getNotebookConf(nb.id);
-      if (conf.dailyNoteSavePath) {
-        const hpath = dailyDocPath(conf.dailyNoteSavePath, today);
-        const parts = hpath.split("/").filter(Boolean);
-        for (let i = 1; i < parts.length; i++) {
-          await this.ensureDoc(nb.id, "/" + parts.slice(0, i).join("/"));
+      try {
+        const docId = await this.deps.client.createDailyNote(nb.id);
+        if (docId) {
+          await writeOrUpdateReportBlock(docId);
+          return docId;
         }
-        // 直接用 ensureDoc 的返回 id：紧跟其后的 SQL 重查会撞属性/块索引滞后，
-        // 新建文档在索引可见前查不到 → 误抛「日记文档未找到」（真机走查实测）
-        const docId = await this.ensureDoc(nb.id, hpath);
-        if (!docId) throw new Error("日记文档未找到");
-        // 45-02：每日写回过 SaveGate（对象级状态进报告中心顶栏 SaveStatus 矩阵，不再只有 toast 单点）
-        await writeOrUpdateReportBlock(docId);
-        return docId;
+      } catch {
+        /* 继续尝试下一个 */
       }
     }
     const fallbackBankId = bankId || orderedBanks[0]?.id;
@@ -2752,6 +2744,26 @@ export class ExamApp {
     const hms = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const hpath = `/导出/模考成绩单 ${ymd}-${hms}`;
     return (await this.deps.client.createDocWithMd(bankId, hpath, md)) || (await this.ensureDoc(bankId, hpath, md));
+  }
+
+  /**
+   * 将模考成绩/学习进度卡片追加写入思源今日日记文档文末（CAND-09）
+   */
+  async appendScoreToDailyNote(
+    markdown: string,
+    notebookId?: string,
+  ): Promise<{ docId: string }> {
+    if (!this.kernelOnline) throw new Error("离线：写入日记需要思源内核在线");
+    let targetNotebook = notebookId;
+    if (!targetNotebook) {
+      const notebooks = await this.deps.client.listNotebooks();
+      const normalNb = notebooks.find((n) => !n.name.startsWith("题库【") && !n.name.startsWith("题库 ["));
+      targetNotebook = (normalNb ?? notebooks[0])?.id;
+    }
+    if (!targetNotebook) throw new Error("未找到可写入日记的笔记本");
+    const docId = await this.deps.client.createDailyNote(targetNotebook);
+    await this.deps.client.appendBlock(docId, markdown);
+    return { docId };
   }
 
   /** 错题册导出：生成 Markdown 并写入题库笔记本"导出"文档，返回文档 id
@@ -2933,7 +2945,7 @@ export class ExamApp {
           docId = await this.deps.client.createDocWithMd(
             bankId,
             hpath,
-            "# 学习闪卡册\n\n> 本卡册由小驴学习自动生成（研学卡片与题目）。正面思考，背面核对，已送入 FSRS 间隔重复卡包。\n",
+            "# 学习闪卡册\n\n> 本卡册由小驴考试自动生成（卡片与题目）。正面思考，背面核对，已送入 FSRS 间隔重复卡包。\n",
           );
         } catch {
           /* 创建文档失败将回退原块转卡 */

@@ -9,6 +9,10 @@ import {
   buildWrongbookRetestSheetPro,
   auditQuestionSheetSafety,
   computeOptionColumns,
+  groupAndSortPaperQuestions,
+  buildStandardAnswerCardPro,
+  generatePaperVariant,
+  auditPaperBeforePrint,
 } from "../src/core/printPro";
 
 function mkQ(id: string, overrides: Partial<Question> = {}): Question {
@@ -251,6 +255,96 @@ describe("PrintPro A4 双栏紧凑打印与分页防断引擎 (68-04 / 79-02)", 
 
       expect(html).toContain("answer-area-custom");
       expect(html).toContain("style=\"min-height:6.5cm\"");
+    });
+
+    it("支持卷首阅卷总分表格、考生信息栏、小题得分框与卷尾解析附录", () => {
+      const q1 = mkQ("q-grid-1", { type: "single", score: 5 });
+      const q2 = mkQ("q-grid-2", { type: "short", score: 10, analysis: "大题详细推导", expansion: "秒杀公式" });
+      const html = buildCompactQuestionSheetPro("期中模拟考试", [q1, q2], {
+        subtitle: "考试时长：120分钟 满分：100分",
+        showStudentInfoBar: true,
+        showScoreGrid: true,
+        showPerQuestionScoreBox: true,
+        appendSolutionsAtEnd: true,
+        fontSizeMode: "compact",
+      });
+
+      expect(html).toContain("sheet-main-title");
+      expect(html).toContain("期中模拟考试");
+      expect(html).toContain("sheet-sub-title");
+      expect(html).toContain("考试时长：120分钟 满分：100分");
+      expect(html).toContain("student-info-bar");
+      expect(html).toContain("score-grid-table");
+      expect(html).toContain("核分人");
+      expect(html).toContain("q-score-box");
+      expect(html).toContain("solution-appendix-divider");
+      expect(html).toContain("大题详细推导");
+      expect(html).toContain("秒杀公式");
+    });
+
+    it("groupAndSortPaperQuestions 能够正确将试题按大题归类并生成正规指导语", () => {
+      const qSingle = mkQ("q-s", { type: "single", score: 3 });
+      const qJudge = mkQ("q-j", { type: "judge", score: 2 });
+      const qShort = mkQ("q-sh", { type: "short", score: 10 });
+      const groups = groupAndSortPaperQuestions([qShort, qSingle, qJudge]);
+
+      expect(groups.length).toBe(3);
+      // 应按标准考试顺序：单选 -> 判断 -> 解答
+      expect(groups[0].type).toBe("single");
+      expect(groups[0].sectionIndex).toBe("一");
+      expect(groups[0].sectionTitle).toContain("单项选择题");
+      expect(groups[0].sectionNotice).toContain("本大题共 1 小题");
+
+      expect(groups[1].type).toBe("judge");
+      expect(groups[1].sectionIndex).toBe("二");
+
+      expect(groups[2].type).toBe("short");
+      expect(groups[2].sectionIndex).toBe("三");
+    });
+
+    it("buildStandardAnswerCardPro 生成标准 A4 填涂答题卡 HTML", () => {
+      const q1 = mkQ("q-ans-1", { type: "single" });
+      const q2 = mkQ("q-ans-2", { type: "judge" });
+      const q3 = mkQ("q-ans-3", { type: "short", score: 12 });
+      const html = buildStandardAnswerCardPro("期末统一考试", [q1, q2, q3]);
+
+      expect(html).toContain("期末统一考试 · 答题卡");
+      expect(html).toContain("条形码粘贴区");
+      expect(html).toContain("准考证号");
+      expect(html).toContain("一、客观选择题填涂区");
+      expect(html).toContain("bubble-matrix");
+      expect(html).toContain("[A]");
+      expect(html).toContain("[T]");
+      expect(html).toContain("二、非选择题作答区");
+      expect(html).toContain("card-subjective-box");
+      expect(html).toContain("超出边框无效");
+    });
+
+    it("generatePaperVariant 能够为 A/B 卷打乱选项并正确重映射答案", () => {
+      const q = mkQ("q-var-1", {
+        type: "single",
+        options: ["第一项", "第二项", "第三项", "第四项"],
+        answer: "B",
+      });
+
+      const varB = generatePaperVariant([q], "B");
+      expect(varB.length).toBe(1);
+      expect(varB[0].options.length).toBe(4);
+      // 答案字母必须在新选项列表中依然指向“第二项”
+      const newAnsIndex = varB[0].answer.charCodeAt(0) - 65;
+      expect(varB[0].options[newAnsIndex]).toBe("第二项");
+    });
+
+    it("auditPaperBeforePrint 印刷前排版质检与总分统计", () => {
+      const qOk = mkQ("q-ok", { score: 5, answer: "A", options: ["A", "B", "C", "D"] });
+      const qErr = mkQ("q-err", { score: 0, answer: "Z", options: ["A", "B"] });
+
+      const audit = auditPaperBeforePrint([qOk, qErr]);
+      expect(audit.totalScore).toBe(5);
+      expect(audit.questionCount).toBe(2);
+      expect(audit.errors.length).toBeGreaterThan(0);
+      expect(audit.errors.some((e) => e.includes("超出选项范围"))).toBe(true);
+      expect(audit.warnings.some((w) => w.includes("0 分"))).toBe(true);
     });
   });
 });

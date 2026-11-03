@@ -17,6 +17,8 @@ import { registerExamDailySummary } from "./ecosystem/speedSwitch";
 import { TabAppRegistry } from "./core/tabAppRegistry";
 import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
+import { lvNotify } from "./libs/lv-notice-kit";
+import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
 
 const TAB_PRACTICE = "exam-practice";
 const TAB_MOCK = "exam-mock";
@@ -66,12 +68,21 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private boundFlashcardAction = this.onFlashcardAction.bind(this);
   private boundContentMenu = this.onContentMenu.bind(this);
   private boundBlockRefMenu = this.onBlockRefMenu.bind(this);
+  private boundWidgetMessage = (e: MessageEvent) => {
+    if (e.data?.type === "lvexam-open-practice") {
+      this.openPractice();
+    }
+  };
   /** 47-05 lite：设置默认值快照（注册完成时；恢复默认用） */
   private settingDefaults: Map<string, unknown> = new Map();
   /** Epoch 6：服务桥注销句柄 */
   private disposeLvExamBridge?: () => void;
   /** Epoch 6：闪卡事件监听器 */
-  private cardsReviewedHandler?: () => void;
+  private cardsReviewedHandler?: (evt: Event) => void;
+  /** Epoch 7：去中心化统一通知系统生命周期注销句柄 */
+  private noticeHubCleaner?: () => void;
+  /** Epoch 7：每日错题复习巡检控制器 */
+  private reviewReminderCtrl?: ReviewReminderController;
 
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
@@ -295,6 +306,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     this.eventBus.on("click-flashcard-action", this.boundFlashcardAction);
     this.eventBus.on("open-menu-content", this.boundContentMenu);
     this.eventBus.on("open-menu-blockref", this.boundBlockRefMenu);
+    window.addEventListener("message", this.boundWidgetMessage);
   }
 
   /**
@@ -345,6 +357,10 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         open: () => this.openPractice(),
         dailyGoal: () => Math.max(1, Number(this.settingUtils?.get?.("dailyGoal") ?? 10) || 10),
         findPlugin: (name) => (this.app as unknown as { plugins?: Array<{ name: string }> })?.plugins?.find?.((p) => p.name === name),
+      });
+      // Epoch 7：启动每日错题复习提醒巡检（支持稍后提醒与今日免打扰）
+      this.reviewReminderCtrl = startReviewReminderScheduler(this.examApp, () => {
+        this.openWrongbook();
       });
     }
     // 47-04/48-06/Epoch 6：挂载考试服务桥公开 API（多别名 + 稳定命令入口 + 按需脱敏统计快照 + 概览）
@@ -428,9 +444,45 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       },
     });
 
-    // Epoch 6：监听闪卡学习完成事件（刷新跨插件学习统计）
-    this.cardsReviewedHandler = () => {
+    // Epoch 6：监听闪卡学习完成事件（刷新跨插件学习统计 + 错题掌握状态双向联动消灭）
+    this.cardsReviewedHandler = async (evt: Event) => {
       this.dispatchPublicStats();
+      try {
+        const custom = evt as CustomEvent<{
+          cardID?: string;
+          deckID?: string;
+          blockID?: string;
+          rating?: number; // 1: Again, 2: Hard, 3: Good, 4: Easy
+        }>;
+        const detail = custom?.detail;
+        if (!detail || !detail.blockID || typeof detail.rating !== "number" || !this.examApp) return;
+
+        // 闪卡复习巩固（Good=3 或 Easy=4）且该题目在考试错题本中处于活跃状态时，自动消减/攻克
+        if (detail.rating >= 3) {
+          const blockID = String(detail.blockID).trim();
+          const banks = this.examApp.listBanks();
+          for (const bank of banks) {
+            const questions = await this.examApp.listQuestions(bank.id);
+            const matched = questions.find((q) => q.blockId === blockID || q.id === blockID);
+            if (matched) {
+              const wrongItems = this.examApp.wrongItems();
+              const wrong = wrongItems.find((w) => w.qid === matched.id);
+              if (wrong && wrong.status === "active") {
+                await this.examApp.setWrongStatus(matched.id, "mastered");
+                const stemPreview = (matched.stem || "").replace(/<[^>]*>/g, "").trim().slice(0, 16);
+                showMessage(
+                  `[小驴考试] 错题「${stemPreview || "试题"}…」已在小驴闪卡复习掌握（Good/Easy），已自动从错题本攻克归档！`,
+                  4200,
+                  "info",
+                );
+                break;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[LvExam] cardsReviewedHandler error:", err);
+      }
     };
     window.addEventListener("lv-cards:reviewed", this.cardsReviewedHandler);
 
@@ -446,6 +498,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     } catch {
       // 本地记忆不可用时仍完成插件就绪与统计广播。
     }
+    // Epoch 7：去中心化自协商统一通知系统生命周期接入
+    this.noticeHubCleaner = lvNotify.registerPlugin("siyuan-exam");
     this.dispatchPublicStats();
   }
 
@@ -476,11 +530,18 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onunload() {
+    // Epoch 7：去中心化统一通知系统生命周期交棒与复习定时器清理
+    this.reviewReminderCtrl?.dispose();
+    this.reviewReminderCtrl = undefined;
+    this.noticeHubCleaner?.();
+    this.noticeHubCleaner = undefined;
+
     this.eventBus.off("click-blockicon", this.boundBlockIcon);
     this.eventBus.off("open-menu-image", this.boundImageMenu);
     this.eventBus.off("click-flashcard-action", this.boundFlashcardAction);
     this.eventBus.off("open-menu-content", this.boundContentMenu);
     this.eventBus.off("open-menu-blockref", this.boundBlockRefMenu);
+    window.removeEventListener("message", this.boundWidgetMessage);
     // 48-05：雷切组件注销（注册/注销配对；重试定时器一并清理）
     this.speedSwitchHandle?.dispose();
     this.speedSwitchHandle = null;
@@ -799,6 +860,87 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
               sourceKind: "block",
               sourceBlockId: blockId,
             });
+          }
+        },
+      });
+      detail.menu.addItem({
+        iconHTML: "<svg><use xlink:href='#iconExam'></use></svg>",
+        label: "小驴考试：划词一键制填空卡",
+        click: async () => {
+          if (!exam.kernelOnline) {
+            showMessage(this.i18n["state.offlineHint"], 3600, "error");
+            return;
+          }
+          const bank = exam.listBanks()[0];
+          if (!bank) {
+            showMessage(this.i18n["guard.needBankFirst"], 3600, "error");
+            return;
+          }
+          try {
+            const kramdown = await exam.deps.client.getBlockKramdown(blockId);
+            const { extractCardsFromExcerpt } = await import("@/core/excerptCard");
+            const res = extractCardsFromExcerpt(
+              {
+                text: kramdown,
+                blockId,
+                materialTitle: blockTitle,
+              },
+              { targetTypes: ["fill"] },
+            );
+            if (!res.questions.length) {
+              showMessage("未检测到高亮（==挖空==）或加粗语法，请在重点词两侧添加 == 或 ** 后再试", 4000, "info");
+              return;
+            }
+            const targetQ = res.questions[0];
+            await exam.writeManualQuestion(bank.id, targetQ);
+            showMessage(`已成功提取填空题并存入题库：《${targetQ.stem.slice(0, 20)}…》✓`, 3500, "info");
+          } catch (e) {
+            showMessage(`制卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+          }
+        },
+      });
+      detail.menu.addItem({
+        iconHTML: "<svg><use xlink:href='#iconExam'></use></svg>",
+        label: "小驴考试：扫描整篇笔记高亮批量制卡",
+        click: async () => {
+          if (!exam.kernelOnline) {
+            showMessage(this.i18n["state.offlineHint"], 3600, "error");
+            return;
+          }
+          const bank = exam.listBanks()[0];
+          if (!bank) {
+            showMessage(this.i18n["guard.needBankFirst"], 3600, "error");
+            return;
+          }
+          try {
+            const rows = await exam.deps.client.sql(`SELECT root_id, content FROM blocks WHERE id='${blockId.replace(/'/g, "''")}' LIMIT 1`);
+            const rootDocId = rows[0]?.root_id ? String(rows[0].root_id) : blockId;
+            const doc = await exam.deps.client.exportDocMarkdown(rootDocId);
+            const { extractCardsFromExcerpt } = await import("@/core/excerptCard");
+            const res = extractCardsFromExcerpt(
+              {
+                text: doc.content,
+                blockId: rootDocId,
+                materialTitle: doc.title || blockTitle,
+              },
+              { targetTypes: ["fill"] },
+            );
+            if (!res.questions.length) {
+              showMessage("未在当前文档中检测到带有 ==重点== 或 **考点** 语法的挖空句", 3500, "info");
+              return;
+            }
+            let count = 0;
+            for (const q of res.questions) {
+              try {
+                await exam.writeManualQuestion(bank.id, q);
+                count++;
+              } catch {
+                /* 忽略个别重复题目 */
+              }
+            }
+            showMessage(`已从《${doc.title || "当前文档"}》扫描并成功批量录入 ${count} 道填空题！✓`, 4000, "info");
+          } catch (e) {
+            showMessage(`批量扫描制卡失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
           }
         },
       });

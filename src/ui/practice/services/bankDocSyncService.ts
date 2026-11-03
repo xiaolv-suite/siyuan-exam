@@ -75,7 +75,7 @@ export function buildTodayStudyReportMarkdown(params: TodayReportParams): string
   const d = new Date();
   const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const lines = [
-    `### 📅 小驴学习 · 今日研学打卡`,
+    `### 📅 小驴考试 · 今日备考打卡`,
     `- **学习日期**：${todayStr}`,
     `- **当前题库**：${params.bankName || "默认题库"}`,
     `- **今日作答**：**${params.todayDone} 题**（今日目标：${params.dailyGoal} 题 · 达成率 ${params.goalPct}%）`,

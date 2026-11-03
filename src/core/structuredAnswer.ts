@@ -284,8 +284,15 @@ export function gradeMultiBlank(spec: MultiBlankSpec, given: string): MultiBlank
 
 /** 草稿 → 逐空数组：按 ";;" 切分，不足 n 段补空串（判分按位置对应，多余段保留如实提交） */
 export function splitBlanks(draft: string, n: number): string[] {
-  const normalized = String(draft ?? "").replace(/；；/g, MULTI_BLANK_SEP);
-  const parts = normalized.split(MULTI_BLANK_SEP);
+  let normalized = String(draft ?? "").replace(/；；/g, MULTI_BLANK_SEP);
+  if (!normalized.includes(MULTI_BLANK_SEP) && n > 1) {
+    if (normalized.includes("\n") && normalized.split("\n").length >= n) {
+      normalized = normalized.split("\n").join(MULTI_BLANK_SEP);
+    } else if (normalized.includes("；") && normalized.split("；").length >= n) {
+      normalized = normalized.split("；").join(MULTI_BLANK_SEP);
+    }
+  }
+  const parts = normalized.split(MULTI_BLANK_SEP).map((p) => p.trim());
   while (parts.length < n) parts.push("");
   return parts;
 }
@@ -324,3 +331,26 @@ export function inferAnswerSpec(
   }
   return undefined;
 }
+
+const CIRCLE_DIGITS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳"];
+
+/**
+ * 格式化展示答案（针对多空填空题，将底层的 ";;" 分隔符转换为人类友好的 "空①: xx · 空②: yy" 格式）
+ */
+export function formatDisplayAnswer(raw: string | null | undefined): string {
+  if (raw == null) return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+  const normalized = s.replace(/；；/g, MULTI_BLANK_SEP);
+  if (normalized.includes(MULTI_BLANK_SEP)) {
+    const parts = normalized.split(MULTI_BLANK_SEP).map((p) => p.trim());
+    return parts
+      .map((p, idx) => {
+        const num = CIRCLE_DIGITS[idx] || `(${idx + 1})`;
+        return `空${num}: ${p || "（空）"}`;
+      })
+      .join(" · ");
+  }
+  return s;
+}
+

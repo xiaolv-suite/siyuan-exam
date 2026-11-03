@@ -17,14 +17,25 @@ describe("答案规范化", () => {
     expect(normalizeJudge("否")).toBe("错");
     expect(normalizeJudge("不知道")).toBeNull();
   });
-  it("单选取首字母大写", () => {
+  it("单选取首字母大写与括号/前缀容错", () => {
     expect(normalizeAnswer("single", "b")).toBe("B");
     expect(normalizeAnswer("single", " Ｂ ")).toBe("B");
+    expect(normalizeAnswer("single", "(C)")).toBe("C");
+    expect(normalizeAnswer("single", "【答案】D")).toBe("D");
+    expect(normalizeAnswer("single", "答案: A")).toBe("A");
+    expect(normalizeAnswer("single", "B.")).toBe("B");
     expect(normalizeAnswer("single", "xy")).toBeNull();
   });
-  it("多选去重排序", () => {
+  it("判断题符号与括号容错", () => {
+    expect(normalizeAnswer("judge", "（√）")).toBe("对");
+    expect(normalizeAnswer("judge", "[×]")).toBe("错");
+    expect(normalizeAnswer("judge", "○")).toBe("对");
+    expect(normalizeAnswer("judge", "●")).toBe("错");
+  });
+  it("多选去重排序与前缀容错", () => {
     expect(normalizeAnswer("multiple", "dba")).toBe("ABD");
     expect(normalizeAnswer("multiple", "A,A,c")).toBe("AC");
+    expect(normalizeAnswer("multiple", "【答案】A、B、C")).toBe("ABC");
     expect(normalizeAnswer("multiple", "123")).toBeNull();
   });
 });

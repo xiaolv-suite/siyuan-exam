@@ -72,3 +72,107 @@ export function playCelebrationChord(): void {
     /* 忽略 */
   }
 }
+
+// ============================================================
+// 专注心流白噪音引擎 (Web Audio 实时积分滤波合成，零外部音频文件，零体积，CAND-05)
+// ============================================================
+
+export type WhiteNoiseKind = "rain" | "waves" | "stream" | "whitenoise";
+
+let noiseNode: AudioNode | null = null;
+let noiseGainNode: GainNode | null = null;
+let isNoisePlaying = false;
+
+/**
+ * 启动 Web Audio 代码实时合成的离线专注白噪音（零外部音频文件，零体积，带 800ms 平滑淡入）
+ */
+export function startFocusNoise(kind: WhiteNoiseKind = "rain", volume = 0.05, fadeMs = 800): void {
+  try {
+    stopFocusNoise(0);
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const bufferSize = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let lastOut = 0.0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      lastOut = (lastOut + 0.02 * white) / 1.02;
+      data[i] = lastOut * 3.5;
+    }
+
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = buffer;
+    noiseSource.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(kind === "rain" ? 750 : kind === "waves" ? 400 : 600, ctx.currentTime);
+
+    const gain = ctx.createGain();
+    const targetVol = Math.max(0.01, Math.min(0.2, volume));
+    if (fadeMs > 0) {
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + fadeMs / 1000);
+    } else {
+      gain.gain.setValueAtTime(targetVol, ctx.currentTime);
+    }
+
+    noiseSource.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    noiseSource.start();
+    noiseNode = noiseSource;
+    noiseGainNode = gain;
+    isNoisePlaying = true;
+  } catch {
+    /* 忽略音频错误 */
+  }
+}
+
+/** 停止专注白噪音并平滑淡出释放音频节点（默认 600ms 淡出，消除耳膜突兀感） */
+export function stopFocusNoise(fadeMs = 600): void {
+  try {
+    const ctx = getAudioContext();
+    if (noiseGainNode && ctx && fadeMs > 0) {
+      const curVol = noiseGainNode.gain.value;
+      noiseGainNode.gain.cancelScheduledValues(ctx.currentTime);
+      noiseGainNode.gain.setValueAtTime(curVol, ctx.currentTime);
+      noiseGainNode.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fadeMs / 1000);
+      const prevSource = noiseNode;
+      const prevGain = noiseGainNode;
+      noiseNode = null;
+      noiseGainNode = null;
+      isNoisePlaying = false;
+      setTimeout(() => {
+        try {
+          (prevSource as AudioBufferSourceNode)?.stop?.();
+          prevSource?.disconnect();
+          prevGain?.disconnect();
+        } catch {
+          /* 忽略释放错误 */
+        }
+      }, fadeMs + 60);
+    } else {
+      if (noiseNode) {
+        (noiseNode as AudioBufferSourceNode).stop?.();
+        noiseNode.disconnect();
+        noiseNode = null;
+      }
+      if (noiseGainNode) {
+        noiseGainNode.disconnect();
+        noiseGainNode = null;
+      }
+      isNoisePlaying = false;
+    }
+  } catch {
+    /* 忽略错误 */
+  }
+}
+
+export function isFocusNoiseActive(): boolean {
+  return isNoisePlaying;
+}
+

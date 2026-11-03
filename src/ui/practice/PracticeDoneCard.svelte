@@ -50,6 +50,7 @@
     onadoptMisdiagnosis: (qid: string) => void;
     onopenInSiYuan?: (rootId: string, blockId?: string) => void;
     onexitSession: () => void;
+    trails?: Map<string, any>;
   }
 
   let {
@@ -87,6 +88,7 @@
     onadoptMisdiagnosis,
     onopenInSiYuan,
     onexitSession,
+    trails,
   }: Props = $props();
 
   // 时长格式化：60s 以下直接秒，以上折叠为 m s，成就胶囊唯一呈现避免重复展示
@@ -257,9 +259,15 @@
         <div class="lv-detail" style="text-align:left;max-height:260px;overflow:auto;margin-bottom:8px">
           {#each session.answered.filter((a) => a.grade.verdict !== "correct") as a, _ri (_ri)}
             {@const aq = questionMap.get(a.qid)}
+            {@const tr = trails?.get(a.qid)}
             <div class="lv-error-row" style="white-space:normal">
               <b class="num" style="display:inline-flex;align-items:center;color:var(--lv-red)"><Icon name="close" size={13} /></b> {aq?.stem.slice(0, 80) ?? a.qid}
               <div class="lv-muted num">{t("browse.answer")}: {aq?.answer ?? "—"}{#if a.grade.myAnswer} · {t("session.myAnswer")}: {a.grade.myAnswer}{/if}{#if aq?.analysis} · {aq.analysis}{/if}</div>
+              {#if tr && tr.edits && tr.edits.length > 0}
+                <div class="lv-chip sm lv-chip--amb" style="margin-top:3px;display:inline-flex;align-items:center;gap:4px">
+                  <Icon name="rotate" size={11} /> 犹豫轨迹：首选 {tr.first} → 最终改选 {tr.edits[tr.edits.length - 1].to}（改答 {tr.edits.length} 次）
+                </div>
+              {/if}
               {#if reflections[a.qid]}
                 <!-- 52-04：上次检查点回显 -->
                 <div class="lv-muted" style="font-size:var(--lv-font-size-caption)"><Icon name="pencil" size={12} /> {t("reflection.last").replace("{d}", new Date(reflections[a.qid].at).toLocaleDateString())}：{reflections[a.qid].text}</div>

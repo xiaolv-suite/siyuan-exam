@@ -44,6 +44,7 @@ export function buildPracticePaletteCommands(handlers: PaletteActionHandlers): P
     { group: t("palette.views"), icon: "home", label: t("tab.practice"), keywords: "home entry today", run: () => { switchView("entry"); } },
     { group: t("palette.views"), icon: "xcircle", label: t("wrongbook.title"), keywords: "wrongbook wrong", run: () => { switchView("wrongbook"); void loadQuestions(); } },
     { group: t("palette.views"), icon: "table", label: t("mode.browse"), keywords: "browse bank list", run: () => { switchView("browse"); void loadQuestions(); } },
+    { group: t("palette.views"), icon: "sparkles", label: "公共题库与闪卡集市", keywords: "marketplace 集市 题库 闪卡 公版", run: () => { switchView("marketplace"); } },
     { group: t("palette.views"), icon: "import", label: t("import.title"), keywords: "import excel csv aiken gift", run: () => { switchView("import"); } },
     { group: t("palette.views"), icon: "pencil", label: t("entry.manual"), keywords: "manual add", run: () => { switchView("manual"); } },
     { group: t("palette.views"), icon: "sparkles", label: t("ai.title"), keywords: "ai generate", run: () => { switchView("ai"); } },
@@ -67,10 +68,10 @@ export function buildPracticePaletteCommands(handlers: PaletteActionHandlers): P
  * 解析启程中心快捷任务卡片导航
  */
 export function resolveTaskNavigation(
-  target: "today" | "bank" | "create" | "mock" | "report",
+  target: "today" | "bank" | "marketplace" | "create" | "mock" | "report",
   openMock?: () => void,
   openReport?: () => void,
-): { isTab: boolean; nextView?: "entry" | "browse" | "manual" } {
+): { isTab: boolean; nextView?: "entry" | "browse" | "manual" | "marketplace" } {
   if (target === "mock") {
     openMock?.();
     return { isTab: true };
@@ -78,6 +79,9 @@ export function resolveTaskNavigation(
   if (target === "report") {
     openReport?.();
     return { isTab: true };
+  }
+  if (target === "marketplace") {
+    return { isTab: false, nextView: "marketplace" };
   }
   const nextView = target === "today" ? "entry" : target === "bank" ? "browse" : "manual";
   return { isTab: false, nextView };

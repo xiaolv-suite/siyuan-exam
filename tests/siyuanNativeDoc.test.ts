@@ -333,6 +333,34 @@ A. 管道  B. 寄存器  C. 栈  D. 堆
       expect(Array.isArray(report.ok[0].lintIssues)).toBe(true);
     });
 
+    it("文档中的问答标题（如什么是死锁？/简述进程与线程区别？）提取为 short 简答题而非 fill 填空题", async () => {
+      const docMarkdown = `
+# 核心概念速查
+
+### 什么是死锁？
+死锁是指多个进程因争夺资源造成的互相等待。
+
+### 简述进程与线程区别？
+进程是资源分配单位，线程是调度单位。
+      `.trim();
+
+      const report = await parseQuestionsFromSiyuanDoc(docMarkdown, {
+        docId: "20261031201017-dx9holn",
+        title: "调试概念速查",
+      });
+
+      expect(report.ok.length).toBe(2);
+      expect(report.ok[0].type).toBe("short");
+      expect(report.ok[0].stem).toBe("什么是死锁？");
+      expect(report.ok[0].answer).toContain("死锁是指多个进程因争夺资源造成的互相等待。");
+      expect(report.ok[0].confidence).toBeGreaterThanOrEqual(0.85);
+
+      expect(report.ok[1].type).toBe("short");
+      expect(report.ok[1].stem).toBe("简述进程与线程区别？");
+      expect(report.ok[1].answer).toContain("进程是资源分配单位");
+      expect(report.ok[1].confidence).toBeGreaterThanOrEqual(0.85);
+    });
+
     it("导入场景预设 (profile=paper) 仅识别严格试题，屏蔽正文概念与列表定义", async () => {
       const docMarkdown = `
 # 软考真题与复习指南

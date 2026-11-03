@@ -450,6 +450,7 @@
           <option value="answer">独立答案册</option>
           <option value="lecture">授课讲义卷</option>
           <option value="homework">留白作业单</option>
+          <option value="interactive">🌐 交互式讲题自测卷</option>
         </select>
         <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintSelectedQuestions(batchPrintFormat)} title="按所选版式将勾选题目生成 A4 双栏卷">
           <Icon name="file" size={13} /> {t("batch.printSelected")}

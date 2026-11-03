@@ -86,7 +86,7 @@ export function k12SampleQuestions(): Question[] {
   ];
 
   return seeds.map((seed) => ({
-    ...makeQuestion({ ...seed, source: "小驴学习K12基础教育全科示范（幼小初高）", difficulty: 2 }),
+    ...makeQuestion({ ...seed, source: "小驴考试K12基础教育全科示范（幼小初高）", difficulty: 2 }),
     sourceKind: "real",
   }));
 }

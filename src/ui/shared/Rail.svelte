@@ -7,7 +7,7 @@
   import Icon from "./Icon.svelte";
   import { openPracticeView, type ExamPluginLike } from "../../core/pluginTab";
 
-  type TaskTarget = "today" | "bank" | "create" | "mock" | "report";
+  type TaskTarget = "today" | "bank" | "marketplace" | "create" | "mock" | "report";
 
   let {
     active,
@@ -298,6 +298,7 @@
     if (ontasknavigate) return ontasknavigate(target);
     if (target === "mock") return plugin?.openMock?.();
     if (target === "report") return plugin?.openReport?.();
+    if (target === "marketplace") return openPracticeView(plugin, "marketplace");
     const view = target === "today" ? "entry" : target === "bank" ? "browse" : "manual";
     openPracticeView(plugin, view);
   }
@@ -305,6 +306,7 @@
   const globals = [
     { target: "today" as const, icon: "home", label: t("task.today", "今日") },
     { target: "bank" as const, icon: "book", label: t("task.bank", "题库") },
+    { target: "marketplace" as const, icon: "sparkles", label: t("task.marketplace", "集市") },
     { target: "create" as const, icon: "create", label: t("task.create", "出题") },
     { target: "mock" as const, icon: "clock", label: t("task.mock", "模考") },
     { target: "report" as const, icon: "chart", label: t("task.report", "复盘") },

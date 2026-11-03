@@ -134,7 +134,7 @@ export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAct
 
     // 反馈态（Feedback）下的快捷流
     if (session.hasFeedback) {
-      if (e.key === "Enter" || e.key.toLowerCase() === "j") {
+      if (e.key === "Enter" || e.key === " " || e.key.toLowerCase() === "j") {
         return { type: "next_question" };
       }
       if (e.key.toLowerCase() === "k") {
@@ -157,6 +157,11 @@ export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAct
     const upperKey = e.key.toUpperCase();
     const choiceCount = session.choiceCount ?? (q.options?.length || (isChoiceQuestion(q) ? 4 : 0));
     const choiceIdx = upperKey.charCodeAt(0) - 65;
+
+    if (q.type === "judge") {
+      if (e.key === "1" || upperKey === "T") return { type: "pick_choice", key: "对" };
+      if (e.key === "2" || upperKey === "F") return { type: "pick_choice", key: "错" };
+    }
 
     if (isChoiceQuestion(q) && /^[A-J]$/.test(upperKey) && choiceIdx >= 0 && choiceIdx < choiceCount) {
       return { type: "pick_choice", key: upperKey };
@@ -182,7 +187,7 @@ export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAct
       return { type: "toggle_scratchpad" };
     }
 
-    if (e.key === "Enter") {
+    if (e.key === "Enter" || e.key === " ") {
       if (session.canSubmit) {
         return { type: "submit_answer" };
       }

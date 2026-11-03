@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   fetchGleanClips,
   batchMarkGleanClipsDone,
+  listGleanClipsSafely,
 } from "@/ui/practice/services/gleanEcosystemService";
 import type { GleanClip } from "@/core/gleanBridge";
 
@@ -64,5 +65,12 @@ describe("拾遗剪藏生态服务 (gleanEcosystemService)", () => {
     expect(doneRes.okCount).toBe(1);
     expect(markMock).toHaveBeenCalledWith("clip-1", "done");
     expect(msgs[1]).toContain("[ai.gleanDoneAll]");
+
+    // 3. listGleanClipsSafely
+    const safeClips = await listGleanClipsSafely(mockWin, 5);
+    expect(safeClips).toHaveLength(1);
+    expect(safeClips[0].title).toBe("论文笔记摘要");
+    const emptySafe = await listGleanClipsSafely({} as Window, 5);
+    expect(emptySafe).toEqual([]);
   });
 });

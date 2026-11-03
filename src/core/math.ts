@@ -125,6 +125,89 @@ const LATEX_SYMBOLS_MAP: Record<string, string> = {
   oint: "∮",
 };
 
+export interface LatexValidationIssue {
+  valid: boolean;
+  message?: string;
+  unclosed?: string[];
+}
+
+/**
+ * LaTeX 公式定界符与括号栈即时校验（CAND-03）
+ * 检测公式中的成对括号（{}、[]、()）是否闭合，以及 $ 是否配对。
+ */
+export function validateLatexSyntax(text: string): LatexValidationIssue {
+  if (!text) return { valid: true };
+
+  // 1. 检查行内/块级 $ 定界符是否成对
+  const unescaped = text.replace(/\\(\$|\\|\{|\}|\[|\]|\(|\))/g, "");
+  let dollarCount = 0;
+  for (let i = 0; i < unescaped.length; i++) {
+    if (unescaped[i] === "$") dollarCount++;
+  }
+  if (dollarCount % 2 !== 0) {
+    return {
+      valid: false,
+      message: "检测到公式定界符 $ 未成对闭合",
+      unclosed: ["$"],
+    };
+  }
+
+  // 2. 提取所有公式内容进行括号栈深度检查
+  const formulaSegments: string[] = [];
+  const mathRegex = /\$\$([\s\S]*?)\$\$|\$([^$\n\r]+?)\$/g;
+  let match: RegExpExecArray | null;
+  let foundMath = false;
+  while ((match = mathRegex.exec(text)) !== null) {
+    foundMath = true;
+    formulaSegments.push(match[1] ?? match[2] ?? "");
+  }
+
+  if (!foundMath && /\\[a-zA-Z]+/.test(text)) {
+    formulaSegments.push(text);
+  }
+
+  const PAIRS: Record<string, string> = { "{": "}", "[": "]", "(": ")" };
+  const OPEN = new Set(["{", "[", "("]);
+  const CLOSE = new Set(["}", "]", ")"]);
+
+  for (const seg of formulaSegments) {
+    const cleanSeg = seg.replace(/\\(\{|\}|\[|\]|\(|\))/g, "");
+    const stack: { char: string; pos: number }[] = [];
+    for (let i = 0; i < cleanSeg.length; i++) {
+      const ch = cleanSeg[i];
+      if (OPEN.has(ch)) {
+        stack.push({ char: ch, pos: i });
+      } else if (CLOSE.has(ch)) {
+        if (!stack.length) {
+          return {
+            valid: false,
+            message: `检测到多余的闭合符号「${ch}」`,
+            unclosed: [ch],
+          };
+        }
+        const last = stack.pop()!;
+        if (PAIRS[last.char] !== ch) {
+          return {
+            valid: false,
+            message: `括号不匹配：期待「${PAIRS[last.char]}」，实际遇到「${ch}」`,
+            unclosed: [last.char, ch],
+          };
+        }
+      }
+    }
+    if (stack.length > 0) {
+      const missing = stack.map((s) => PAIRS[s.char]).reverse();
+      return {
+        valid: false,
+        message: `检测到公式括号未闭合，缺少「${missing.join(" ")}」`,
+        unclosed: missing,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 /**
  * 规范化 LaTeX 公式语法（支持消除 OCR 常见空格分裂、括号转换）
  */

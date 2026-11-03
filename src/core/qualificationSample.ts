@@ -121,7 +121,7 @@ export function qualificationSampleQuestions(): Question[] {
   ];
 
   return seeds.map((seed) => ({
-    ...makeQuestion({ ...seed, source: "小驴学习从业资格与升学示范（教资/基金/K12）", difficulty: 2 }),
+    ...makeQuestion({ ...seed, source: "小驴考试从业资格示范（教资/基金/会计）", difficulty: 2 }),
     sourceKind: "real",
   }));
 }

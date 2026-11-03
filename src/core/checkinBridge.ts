@@ -53,9 +53,17 @@ export function buildCheckinEvent(
     unit: "题",
     source: "api",
     externalRef: `exam:${cfg.itemId.trim()}:${localDate}`,
-    note: "小驴考试（内测版）每日练习",
+    note: "小驴考试 · 每日练习",
     occurredAt: new Date(nowMs).toISOString(),
   };
+}
+
+export interface CheckinItemSummary {
+  id: string;
+  name: string;
+  unit?: string;
+  kind?: string;
+  archived?: boolean;
 }
 
 /** 打卡公开 API 的最小消费面（防御性 typing；完整契约见打卡 docs/api-v5.md） */
@@ -64,6 +72,8 @@ export interface CheckinApiV5 {
   whenReady?: () => Promise<void> | void;
   hasCapability?: (name: string) => boolean;
   recordEvent?: (input: CheckinEventInput) => CheckinEventRecord | undefined;
+  queryItems?: (options?: { includeArchived?: boolean; limit?: number }) => CheckinItemSummary[];
+  getItems?: () => CheckinItemSummary[];
 }
 
 export interface CheckinEventRecord {
@@ -71,13 +81,51 @@ export interface CheckinEventRecord {
 }
 
 export type CheckinSyncStatus =
-  | "disabled" // 用户未配置 itemId
+  | "disabled" // 用户未配置 itemId 且未发现匹配项
   | "no-api" // 打卡未安装/协议不符
   | "no-capability" // 未开放 events.record
   | "below-threshold" // 当日未达标
   | "synced" // 新写入
   | "duplicate" // 幂等命中（当日已同步过）
   | "pending"; // 写入失败 → 保留原引用待重试
+
+/**
+ * 自动从打卡插件中发现合适的刷题打卡项：
+ * 1. 优先匹配名称含「刷题」、「做题」、「考试」、「考备」、「备考」的活跃项目
+ * 2. 其次匹配名称含「学习」、「复习」的项目
+ * 3. 如仅有一个活跃项目，采纳该项目
+ */
+export function autoResolveCheckinItem(api: CheckinApiV5 | null): CheckinItemSummary | null {
+  if (!api) return null;
+  try {
+    const rawItems = typeof api.queryItems === "function"
+      ? api.queryItems({ includeArchived: false, limit: 50 })
+      : typeof api.getItems === "function"
+      ? api.getItems()
+      : [];
+    if (!Array.isArray(rawItems) || !rawItems.length) return null;
+    const items = rawItems.filter((it) => it && it.id && !it.archived);
+    if (!items.length) return null;
+
+    // 1. 强关键字优先
+    const strongMatch = items.find((it) =>
+      /刷题|做题|小驴考试|考试|考备|备考/.test(it.name || "")
+    );
+    if (strongMatch) return strongMatch;
+
+    // 2. 次级关键字
+    const studyMatch = items.find((it) =>
+      /学习|复习|打卡/.test(it.name || "")
+    );
+    if (studyMatch) return studyMatch;
+
+    // 3. 只有一个活跃项目时兜底采纳
+    if (items.length === 1) return items[0];
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /** 探测并返回可用 API（多别名支持 + 协议不符 → null） */
 export function probeCheckinApi(w: unknown): CheckinApiV5 | null {
@@ -98,20 +146,29 @@ export async function syncCheckin(
   todayAttempts: number,
   nowMs: number,
   fallbackGoal: number,
-): Promise<{ status: CheckinSyncStatus; event?: CheckinEventInput }> {
-  if (!bridgeEnabled(cfg)) return { status: "disabled" };
-  if (!shouldCheckin(todayAttempts, cfg, fallbackGoal)) return { status: "below-threshold" };
+): Promise<{ status: CheckinSyncStatus; event?: CheckinEventInput; autoResolvedItem?: CheckinItemSummary }> {
+  let effectiveCfg = cfg;
+  let autoResolvedItem: CheckinItemSummary | undefined;
+  if (!bridgeEnabled(effectiveCfg) && api) {
+    const discovered = autoResolveCheckinItem(api);
+    if (discovered && discovered.id) {
+      effectiveCfg = { ...cfg, itemId: discovered.id };
+      autoResolvedItem = discovered;
+    }
+  }
+  if (!bridgeEnabled(effectiveCfg)) return { status: "disabled" };
+  if (!shouldCheckin(todayAttempts, effectiveCfg, fallbackGoal)) return { status: "below-threshold" };
   if (!api) return { status: "no-api" };
   try {
     await api.whenReady?.();
     if (api.hasCapability && !api.hasCapability("events.record")) return { status: "no-capability" };
     if (typeof api.recordEvent !== "function") return { status: "no-capability" };
-    const event = buildCheckinEvent(cfg, todayAttempts, nowMs);
+    const event = buildCheckinEvent(effectiveCfg, todayAttempts, nowMs);
     const result = api.recordEvent(event); // undefined = 未写入（保留原 externalRef 重试，不换新引用）
-    if (result === undefined) return { status: "pending", event };
-    return { status: "synced", event }; // 新写入与幂等命中都视为已同步（duplicate 返回已有副本）
+    if (result === undefined) return { status: "pending", event, autoResolvedItem };
+    return { status: "synced", event, autoResolvedItem }; // 新写入与幂等命中都视为已同步（duplicate 返回已有副本）
   } catch {
-    return { status: "pending", event: buildCheckinEvent(cfg, todayAttempts, nowMs) };
+    return { status: "pending", event: buildCheckinEvent(effectiveCfg, todayAttempts, nowMs), autoResolvedItem };
   }
 }
 

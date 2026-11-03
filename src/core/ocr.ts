@@ -183,10 +183,21 @@ export function parseOcrQuestionText(
       matches.push({ letter, index: m.index, length: m[0].length });
     }
 
-    if (matches.length >= 2) {
-      for (let i = 0; i < matches.length; i++) {
-        const cur = matches[i];
-        const next = matches[i + 1];
+    const sequentialMatches: typeof matches = [];
+    for (const match of matches) {
+      const expectedCode = 65 + sequentialMatches.length;
+      if (match.letter.charCodeAt(0) === expectedCode) {
+        sequentialMatches.push(match);
+        if (sequentialMatches.length >= 6) break; // 选择题合理上限 6 项
+      } else if (sequentialMatches.length >= 2) {
+        break;
+      }
+    }
+
+    if (sequentialMatches.length >= 2) {
+      for (let i = 0; i < sequentialMatches.length; i++) {
+        const cur = sequentialMatches[i];
+        const next = sequentialMatches[i + 1];
         const content = next
           ? fullOptionText.slice(cur.index + cur.length, next.index).trim()
           : fullOptionText.slice(cur.index + cur.length).trim();
@@ -197,6 +208,7 @@ export function parseOcrQuestionText(
       for (const optLine of optionLines) {
         const stripped = optLine.replace(/^[A-J][.、\s]|^[(（[【][A-J][)）\]】]\s*/i, "").trim();
         parsedOptions.push(shouldNormalize ? normalizeLatexFormula(stripped) : stripped);
+        if (parsedOptions.length >= 6) break;
       }
     }
   }

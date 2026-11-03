@@ -792,6 +792,23 @@ details summary {
     border-radius: var(--lv-r-2);
   }
 
+  /* AUTH-04：暗黑模式下试题数学插图/几何线稿智能去刺眼白底与柔和反色 */
+  [data-theme-mode="dark"] &,
+  [data-theme="dark"] &,
+  .theme--dark & {
+    img {
+      filter: invert(0.88) hue-rotate(180deg) contrast(1.1) brightness(0.92);
+      mix-blend-mode: screen;
+      background: transparent;
+      transition: filter 0.2s ease;
+
+      &:hover {
+        filter: none;
+        mix-blend-mode: normal;
+      }
+    }
+  }
+
   table {
     max-width: 100%;
     overflow-x: auto;
@@ -1860,6 +1877,12 @@ input[type="range"] {
     color: var(--lv-accent);
     box-shadow: var(--lv-sh-1);
   }
+
+  @media (max-width: 640px) {
+    .lv-dock-label {
+      display: none;
+    }
+  }
 }
 
 /* —— 题库场景徽章与主题色彩映射 —— */
@@ -2110,6 +2133,7 @@ input[type="range"] {
 
 /* —— 浏览列表与更多弹出菜单 (Browse list & More popover) —— */
 .lv-qrow {
+  cursor: pointer;
   padding: 14px 18px;
   margin-bottom: 8px;
   border: 1px solid var(--lv-border-subtle, var(--lv-border));
@@ -2131,7 +2155,7 @@ input[type="range"] {
 .lv-qrow-head:hover { background: var(--lv-surface-2); }
 .lv-qrow.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 80%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), var(--lv-sh-1); }
 .lv-qrow-src { margin-left: auto; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--lv-font-size-caption); color: var(--lv-text-3); }
-.lv-qrow-stem { font-size: var(--lv-font-size-body); font-weight: var(--lv-font-weight-medium); line-height: var(--lv-line-height-snug); color: var(--lv-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-qrow-stem { cursor: pointer; font-size: var(--lv-font-size-body); font-weight: var(--lv-font-weight-medium); line-height: var(--lv-line-height-snug); color: var(--lv-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lv-qrow-peek-arrow {
   margin-left: auto;
   display: inline-flex;

@@ -5,7 +5,7 @@
     import { SvelteMap } from "svelte/reactivity";
     import { showMessage } from "siyuan";
     import { resolveAiKey } from "@/ai/secrets";
-    import { weeklyAggregates, weekCompare, dailyTrend } from "@/core/weekly";
+    import { weeklyAggregates, weekCompare, dailyTrend, weeklyTrend, monthlyTrend } from "@/core/weekly";
     import { quadrantReport, quadrantSignals, type QuadrantReport } from "@/core/quadrant";
     import type { ExamApp } from "../../app";
     import Rail from "../shared/Rail.svelte";
@@ -721,6 +721,33 @@
       plugin.openPractice?.();
     }
 
+    let weakHandbookBusy = $state(false);
+    async function exportWeakKnowledgeHandbook() {
+      if (!app || weakHandbookBusy || !weak.length) return;
+      weakHandbookBusy = true;
+      try {
+        const top5 = weak.slice(0, 5);
+        const topKps = top5.map((w) => w.root);
+        const weakQuestions = questions.filter(
+          (q) => q.kp && topKps.some((kp) => q.kp === kp || q.kp?.startsWith(kp + "/")),
+        );
+        if (!weakQuestions.length) {
+          showMessage("当前薄弱考点下暂无题库试题", 3000, "info");
+          return;
+        }
+        const title = `薄弱专题手册 · ${topKps.slice(0, 3).join("、")}${topKps.length > 3 ? "等" : ""}（${weakQuestions.length}题）`;
+        const res = await app.saveQuestionsToSiyuanDoc(title, weakQuestions, {
+          bankId,
+          isMock: false,
+        });
+        showMessage(`已成功生成思源《${res.title}》专题手册文档！✓`, 3500, "info");
+      } catch (e) {
+        showMessage(`生成手册失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+      } finally {
+        weakHandbookBusy = false;
+      }
+    }
+
     /** 下一行动（U15 lite）：完成=用户确认（最小证据）；取消保留记录可回看 */
     async function finishAction(id: string) {
       if (!app || actionBusyId) return;
@@ -886,7 +913,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `小驴学习-数据出库 ${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `小驴考试-数据出库 ${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         showMessage(t("data.exportDone"), 3200, "info");
@@ -920,13 +947,22 @@
     const heatColor = (n: number) => (n === 0 ? "" : n < 5 ? "l1" : n < 15 ? "l2" : n < 30 ? "l3" : "l4");
     const maxHour = $derived(Math.max(1, ...hours));
     const hoursSvg = $derived(hours.map((n, i) => `${(i / 23) * 300},${40 - Math.round((n / maxHour) * 36)}`).join(" "));
-    const maxTrend = $derived(Math.max(1, ...trend30.map((p) => p.attempts)));
-    const trendSpan = $derived(Math.max(1, trend30.length - 1));
+    let trendGrain = $state<"day" | "week" | "month">("day");
+    const displayedTrend = $derived.by(() => {
+      if (!app) return trend30;
+      const derivedDays = app.derived().days;
+      if (trendGrain === "week") return weeklyTrend(derivedDays);
+      if (trendGrain === "month") return monthlyTrend(derivedDays);
+      return trend30;
+    });
+
+    const maxTrend = $derived(Math.max(1, ...displayedTrend.map((p) => p.attempts)));
+    const trendSpan = $derived(Math.max(1, displayedTrend.length - 1));
     /** 55-04 lite：正确率折线点——有作答日连成段（0 题日以 null 断开），比例尺 0-100% 对满高（viewBox 600×90） */
     const trendAccLines = $derived.by(() => {
       const lines: string[] = [];
       let points: string[] = [];
-      for (const [i, p] of trend30.entries()) {
+      for (const [i, p] of displayedTrend.entries()) {
         if (p.attempts > 0) points.push(`${(i / trendSpan) * 600},${86 - Math.round(((p.correct ?? 0) / p.attempts) * 78)}`);
         else if (points.length) { lines.push(points.join(" ")); points = []; }
       }
@@ -936,7 +972,7 @@
 
     /** v6 图表质感：题量面积多边形（渐变填充）与最后一个有作答日的末点坐标 */
     const trendArea = $derived.by(() => {
-      const pts = trend30
+      const pts = displayedTrend
         .map((p, i) => `${(i / trendSpan) * 600},${86 - Math.round((p.attempts / maxTrend) * 78)}`)
         .filter(Boolean);
       if (!pts.length) return "";
@@ -944,8 +980,8 @@
       return `0,88 ${pts.join(" ")} ${lastX},88`;
     });
     const trendLastDot = $derived.by(() => {
-      for (let i = trend30.length - 1; i >= 0; i--) {
-        if (trend30[i].attempts > 0) return { x: (i / trendSpan) * 600, y: 86 - Math.round((trend30[i].attempts / maxTrend) * 78) };
+      for (let i = displayedTrend.length - 1; i >= 0; i--) {
+        if (displayedTrend[i].attempts > 0) return { x: (i / trendSpan) * 600, y: 86 - Math.round((displayedTrend[i].attempts / maxTrend) * 78) };
       }
       return null;
     });
@@ -972,7 +1008,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `小驴学习-报告-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `小驴考试-报告-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
@@ -1307,9 +1343,16 @@
       </div>
     {/if}
 
-    {#if trend30.some((p) => p.attempts > 0)}
+    {#if displayedTrend.some((p) => p.attempts > 0)}
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "overview"} style="margin-bottom:12px">
-        <b>{rangeDays ? t("report.trendWindow", "{range}作答趋势").replace("{range}", windowLabel()) : t("report.trend30")}</b>
+        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap;gap:8px">
+          <b>{rangeDays ? t("report.trendWindow", "{range}作答趋势").replace("{range}", windowLabel()) : (trendGrain === "week" ? "最近 12 周作答趋势" : trendGrain === "month" ? "最近 6 个月作答趋势" : t("report.trend30"))}</b>
+          <div class="lv-session-dock" role="tablist" style="margin:0">
+            <button type="button" role="tab" class="lv-chip sm" class:acc={trendGrain === "day"} aria-selected={trendGrain === "day"} onclick={() => trendGrain = "day"}>日趋势</button>
+            <button type="button" role="tab" class="lv-chip sm" class:acc={trendGrain === "week"} aria-selected={trendGrain === "week"} onclick={() => trendGrain = "week"}>周趋势</button>
+            <button type="button" role="tab" class="lv-chip sm" class:acc={trendGrain === "month"} aria-selected={trendGrain === "month"} onclick={() => trendGrain = "month"}>月趋势</button>
+          </div>
+        </div>
         <!-- 全宽柔和趋势图（粗圆头线条 + 柔和面积渐变 + 极淡参考轴） -->
         <svg viewBox="0 0 600 90" style="width:100%;display:block;overflow:visible" role="img" aria-label={t("report.trend30")}>
           <defs>
@@ -1321,12 +1364,12 @@
           </defs>
           <line x1="0" y1="88.5" x2="600" y2="88.5" stroke="var(--lv-border-subtle)" stroke-width="0.8" />
           {#if trendArea}<polygon points={trendArea} fill="url(#lv-trend-fill)" />{/if}
-          <polyline points={trend30.map((p, i) => `${(i / trendSpan) * 600},${86 - Math.round((p.attempts / maxTrend) * 78)}`).join(" ")} fill="none" stroke="var(--lv-data-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <polyline points={displayedTrend.map((p, i) => `${(i / trendSpan) * 600},${86 - Math.round((p.attempts / maxTrend) * 78)}`).join(" ")} fill="none" stroke="var(--lv-data-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
           {#if trendLastDot}<circle cx={trendLastDot.x} cy={trendLastDot.y} r="3.5" fill="var(--lv-data-accent)" stroke="var(--lv-surface)" stroke-width="2" />{/if}
           <!-- 55-04 lite：正确率曲线（有作答日连成段，0 题日断点；比例尺 0-100% 对满高） -->
           {#each trendAccLines as points (points)}<polyline {points} fill="none" stroke="var(--lv-green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3" opacity="0.9" />{/each}
           <!-- Anki hover-columns 灵感：逐日透明命中区 + SVG 原生 title（零 JS，悬浮看当日题量/正确率） -->
-          {#each trend30 as p, i (p.date)}
+          {#each displayedTrend as p, i (p.date)}
             {#if p.attempts > 0}
               <circle cx={(i / trendSpan) * 600} cy={86 - Math.round((p.attempts / maxTrend) * 78)} r="9" fill="transparent" style="cursor:default">
                 <title>{p.date} · {p.attempts} {t("browse.count")} · {t("report.accuracy")} {Math.round(((p.correct ?? 0) / p.attempts) * 100)}%</title>
@@ -1336,7 +1379,7 @@
         </svg>
         <div class="lv-row" style="margin:4px 0 0">
           <span class="lv-chip num">{t("report.trendMax")} {maxTrend}</span>
-          <span class="lv-chip num">{t("report.trendSum")} {trend30.reduce((n, p) => n + p.attempts, 0)}</span>
+          <span class="lv-chip num">{t("report.trendSum")} {displayedTrend.reduce((n, p) => n + p.attempts, 0)}</span>
           <!-- 双系列图例（legend-visible）：线样与图内描边一致（实线主色=题量，虚线绿=正确率），色弱用户依文本而非颜色区分 -->
           <span class="lv-chip">
             <i aria-hidden="true" style="display:inline-block;width:14px;border-top:3px solid var(--lv-data-accent);border-radius:2px"></i>
@@ -1348,13 +1391,13 @@
           </span>
           <!-- 45-08：SVG 图表的文本等价物 + CSV（同一数据快照，读屏/打印/导出数字一致） -->
           <button class="lv-btn sm lv-btn--ghost" aria-expanded={tableOpen === "trend"} onclick={() => tableOpen = tableOpen === "trend" ? "" : "trend"}><Icon name="table" size={13} /> {t("data.table")}</button>
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => downloadChartCsv(trendToCsv(trend30), "trend30")}><Icon name="export" size={13} /> CSV</button>
+          <button class="lv-btn sm lv-btn--ghost" onclick={() => downloadChartCsv(trendToCsv(displayedTrend), `trend-${trendGrain}`)}><Icon name="export" size={13} /> CSV</button>
         </div>
         {#if tableOpen === "trend"}
           <table class="lv-dtable">
-            <thead><tr><th>{t("report.trendDay")}</th><th>{t("report.attempts")}</th><th>{t("report.accuracy")}</th></tr></thead>
+            <thead><tr><th>时序周期</th><th>{t("report.attempts")}</th><th>{t("report.accuracy")}</th></tr></thead>
             <tbody>
-              {#each trend30.filter((p) => p.attempts > 0) as p, _i (_i)}
+              {#each displayedTrend.filter((p) => p.attempts > 0) as p, _i (_i)}
                 <tr><td class="num">{p.date}</td><td class="num">{p.attempts}</td><td class="num">{Math.round(((p.correct ?? 0) / p.attempts) * 100)}%</td></tr>
               {/each}
             </tbody>
@@ -1648,7 +1691,12 @@
 
     {#if weak.length}
       <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "knowledge"}>
-        <b>{t("report.weak")}</b>
+        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap;gap:8px">
+          <b>{t("report.weak")}</b>
+          <button class="lv-btn sm lv-btn--primary" onclick={exportWeakKnowledgeHandbook} disabled={weakHandbookBusy} title="将 Top5 薄弱考点的全部题目、答案与解析一键整理生成思源原生《薄弱专题手册》文档">
+            <Icon name="book" size={13} /> {weakHandbookBusy ? "正在生成手册…" : "整理为思源薄弱手册"}
+          </button>
+        </div>
         {#each weak.slice(0, 5) as w, i (i)}
           <div class="lv-row" style="margin:4px 0;align-items:center;gap:8px">
             <span class="lv-chip lv-chip--red num">{i + 1}</span>

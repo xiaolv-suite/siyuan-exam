@@ -7,6 +7,7 @@
   import { tick } from "svelte";
   import Icon from "./Icon.svelte";
   import type { PaletteCommand } from "./paletteTypes";
+  import { matchesQueryWithPinyin } from "./pinyinInitials";
 
   let {
     commands,
@@ -32,7 +33,10 @@
     const query = q.trim().toLowerCase();
     if (!query) return commands;
     return commands.filter(
-      (c) => c.label.toLowerCase().includes(query) || (c.keywords ?? "").toLowerCase().includes(query) || c.group.toLowerCase().includes(query),
+      (c) =>
+        matchesQueryWithPinyin(c.label, query, c.keywords) ||
+        matchesQueryWithPinyin(c.group, query) ||
+        (c.keywords ?? "").toLowerCase().includes(query),
     );
   });
 

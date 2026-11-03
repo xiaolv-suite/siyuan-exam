@@ -13,7 +13,7 @@
     importCheckpoint: ImportCheckpoint | null;
     importBusy: boolean;
     importDragOver: boolean;
-    importSubTab: "standard" | "cloze" | "siyuan" | "tag";
+    importSubTab: "standard" | "cloze" | "siyuan" | "tag" | "glean";
     docSearchQuery: string;
     siyuanDocBusy: boolean;
     siyuanDocCandidates: Array<{ id: string; title: string; hpath: string; box: string }>;
@@ -105,6 +105,17 @@
     onSegmentPaperText?: (text: string, name?: string) => void;
     onPaperImageUpload?: (file: File | Blob) => void;
     importDocProfile?: "all" | "paper" | "notes" | "cloze" | "table";
+    hasGleanPlugin?: boolean;
+    gleanClipsList?: Array<{ id: string; title: string; site?: string; url?: string; summary?: string }>;
+    gleanClipsLoading?: boolean;
+    selectedGleanIds?: Record<string, boolean>;
+    selectedGleanCount?: number;
+    onloadGleanClips?: () => void;
+    onextractSelectedGlean?: () => void;
+    ontoggleGleanId?: (id: string) => void;
+    ontoggleSelectAllGlean?: () => void;
+    onPickGleanClip?: (clip: { id: string; title: string }) => void;
+    onAiExtractGleanClip?: (clip: { id: string; title: string }) => void;
   }
 
   let {
@@ -205,6 +216,17 @@
     paperOcrBusy = false,
     onSegmentPaperText = () => {},
     onPaperImageUpload = () => {},
+    hasGleanPlugin = false,
+    gleanClipsList = [],
+    gleanClipsLoading = false,
+    selectedGleanIds = $bindable({}),
+    selectedGleanCount = 0,
+    onloadGleanClips = () => {},
+    onextractSelectedGlean = () => {},
+    ontoggleGleanId = () => {},
+    ontoggleSelectAllGlean = () => {},
+    onPickGleanClip = () => {},
+    onAiExtractGleanClip = () => {},
   }: Props = $props();
 
   let docSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -219,7 +241,7 @@
   let paperRawText = $state("");
   let paperFileInput = $state<HTMLInputElement | null>(null);
   let selectedImportQids = $state<Record<string, boolean>>({});
-  let confidenceFilter = $state<"all" | "high" | "need_review">("all");
+  let confidenceFilter = $state<"all" | "high" | "need_review" | "malformed">("all");
 
   const selectedImportCount = $derived(
     importReport?.ok?.filter((q, qi) => selectedImportQids[q.id || String(qi)] !== false).length ?? 0,
@@ -233,6 +255,14 @@
     (importReport?.ok?.length ?? 0) - highConfidenceCount,
   );
 
+  const malformedCount = $derived(
+    importReport?.ok?.filter((q) =>
+      (q.options?.length ?? 0) > 4 ||
+      (q.type === "fill" && !/_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|\{\{c\d+::/.test(q.stem)) ||
+      (q.lintIssues && q.lintIssues.some((i: string) => i.includes("多") || i.includes("空") || i.includes("越界")))
+    ).length ?? 0,
+  );
+
   const visibleImportQuestions = $derived.by(() => {
     if (!importReport?.ok) return [];
     if (confidenceFilter === "high") {
@@ -240,6 +270,13 @@
     }
     if (confidenceFilter === "need_review") {
       return importReport.ok.map((q, qi) => ({ q, qi })).filter(({ q }) => (q.confidence ?? 1) < 0.85 || (q.lintIssues && q.lintIssues.length > 0));
+    }
+    if (confidenceFilter === "malformed") {
+      return importReport.ok.map((q, qi) => ({ q, qi })).filter(({ q }) =>
+        (q.options?.length ?? 0) > 4 ||
+        (q.type === "fill" && !/_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|\{\{c\d+::/.test(q.stem)) ||
+        (q.lintIssues && q.lintIssues.some((i: string) => i.includes("多") || i.includes("空") || i.includes("越界")))
+      );
     }
     return importReport.ok.map((q, qi) => ({ q, qi }));
   });
@@ -265,6 +302,71 @@
       fixedQ.lintIssues = lint.issues.map((i) => i.message);
       return fixedQ;
     });
+  }
+
+  async function pruneAllExcessOptions() {
+    if (!importReport?.ok) return;
+    const { pruneQuestionOptions } = await import("@/core/questionLinter");
+    importReport.ok = importReport.ok.map((q) => {
+      if (q.options && q.options.length > 4) {
+        return pruneQuestionOptions(q, 4);
+      }
+      return q;
+    });
+  }
+
+  async function convertMalformedToShort() {
+    if (!importReport?.ok) return;
+    const { convertQuestionToShort, convertFillWithoutBlankToShort } = await import("@/core/questionLinter");
+    importReport.ok = importReport.ok.map((q) => {
+      if ((q.options && q.options.length > 6) || (q.type === "single" && (!q.options || q.options.length < 2))) {
+        return convertQuestionToShort(q);
+      }
+      if (q.type === "fill" && !/_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|\{\{c\d+::/.test(q.stem)) {
+        return convertFillWithoutBlankToShort(q);
+      }
+      return q;
+    });
+    importReport.ok = [...importReport.ok];
+  }
+
+  function dropLowConfidenceQuestions() {
+    if (!importReport?.ok) return;
+    importReport.ok = importReport.ok.filter((q) => (q.confidence ?? 0.5) >= 0.60 && (!q.lintIssues || !q.lintIssues.some((i: string) => i.includes("空"))));
+  }
+
+  async function pruneSingleQuestion(qi: number) {
+    if (!importReport?.ok?.[qi]) return;
+    const { pruneQuestionOptions } = await import("@/core/questionLinter");
+    importReport.ok[qi] = pruneQuestionOptions(importReport.ok[qi], 4);
+    importReport.ok = [...importReport.ok];
+  }
+
+  async function convertSingleQuestionToShort(qi: number) {
+    if (!importReport?.ok?.[qi]) return;
+    const { convertQuestionToShort } = await import("@/core/questionLinter");
+    importReport.ok[qi] = convertQuestionToShort(importReport.ok[qi]);
+    importReport.ok = [...importReport.ok];
+  }
+
+  function convertFillToShortSingle(qi: number) {
+    if (!importReport?.ok?.[qi]) return;
+    const q = importReport.ok[qi];
+    q.type = "short";
+    q.lintIssues = (q.lintIssues || []).filter((i: string) => !i.includes("挖空") && !i.includes("填空"));
+    importReport.ok = [...importReport.ok];
+  }
+
+  function addBlankToStemSingle(qi: number) {
+    if (!importReport?.ok?.[qi]) return;
+    const q = importReport.ok[qi];
+    if (!/_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|\{\{c\d+::/.test(q.stem)) {
+      q.stem = q.stem.trim().endsWith("？") || q.stem.trim().endsWith("?")
+        ? q.stem.replace(/[？?]$/, "（   ）？")
+        : `${q.stem.trim()}（   ）`;
+    }
+    q.lintIssues = (q.lintIssues || []).filter((i: string) => !i.includes("挖空"));
+    importReport.ok = [...importReport.ok];
   }
 
   function toggleSelectAllImportQuestions() {
@@ -353,6 +455,9 @@
         </button>
         <button type="button" role="tab" tabindex={importSubTab === "cloze" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "cloze"} aria-selected={importSubTab === "cloze"} onclick={() => importSubTab = "cloze"}>
           <Icon name="edit" size={12} /> {t("cloze.tab")}
+        </button>
+        <button type="button" role="tab" tabindex={importSubTab === "glean" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "glean"} aria-selected={importSubTab === "glean"} onclick={() => { importSubTab = "glean"; onloadGleanClips(); }}>
+          <Icon name="bookmark" size={12} /> 小驴拾遗剪藏提题
         </button>
       </div>
       {#if importSubTab === "siyuan"}
@@ -507,7 +612,7 @@
         <div class="stack-sm" style="margin-top:6px">
           <div class="lv-card" style="margin:2px 0 6px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
             <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 按思源标签与原生闪卡汇聚题库（全新题库来源）：</b>
-            支持扫描思源全库中带有 <code>#考点#</code>、<code>#必考#</code>、<code>#真题#</code>、<code>#错题#</code> 等标签的内容块，或思源原生闪卡包，一键将日常散落的重点笔记汇聚为独立研学题库，题目与思源原块原生双向绑定！
+            支持扫描思源全库中带有 <code>#考点#</code>、<code>#必考#</code>、<code>#真题#</code>、<code>#错题#</code> 等标签的内容块，或思源原生闪卡包，一键将日常散落的重点笔记汇聚为独立题库，题目与思源原块原生双向绑定！
           </div>
           <div class="lv-row" style="margin:4px 0 8px;gap:6px;align-items:center;flex-wrap:wrap">
             <span class="lv-muted" style="font-size:12px">常用标签与闪卡：</span>
@@ -543,6 +648,68 @@
               {/each}
             {/if}
           </div>
+        </div>
+      {:else if importSubTab === "glean"}
+        <!-- 从小驴拾遗剪藏直接提炼试题（跨插件生态联动） -->
+        <div class="stack-sm" style="margin-top:6px">
+          <div class="lv-card" style="margin:2px 0 6px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+            <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 从小驴拾遗（siyuan-glean）提炼试题：</b>
+            读取小驴拾遗精粹剪藏与稍后读，自动提取重点内容、定义句式与挖空卡片，试题自动与剪藏文档建立双向链接！
+          </div>
+          {#if !hasGleanPlugin}
+            <div class="lv-card" style="text-align:center;padding:32px 16px;border:1px dashed var(--lv-border);border-radius:var(--lv-r-2);background:var(--lv-surface)">
+              <Icon name="bookmark" size={28} />
+              <p style="margin:8px 0 4px;font-weight:600">未检测到小驴拾遗插件（siyuan-glean）</p>
+              <p class="lv-muted" style="font-size:12px">前往思源集市安装小驴拾遗后，即可直接将网页与图书稍后读剪藏一键提取为考题！</p>
+            </div>
+          {:else if gleanClipsLoading}
+            <div class="lv-muted" style="text-align:center;padding:24px"><Icon name="loader" size={18} /> 正在拉取拾遗剪藏素材…</div>
+          {:else if !gleanClipsList.length}
+            <div class="lv-card" style="text-align:center;padding:24px;border-radius:var(--lv-r-2);background:var(--lv-surface)">
+              <p class="lv-muted">暂无待处理的拾遗稍后读剪藏。</p>
+              <button class="lv-btn sm" onclick={onloadGleanClips}>刷新剪藏</button>
+            </div>
+          {:else}
+            <div class="lv-row" style="justify-content:space-between;align-items:center;padding:8px 12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border-subtle);flex-wrap:wrap;gap:6px">
+              <span class="lv-muted" style="font-size:12px">找到 <b>{gleanClipsList.length}</b> 条拾遗剪藏，已选 <b>{selectedGleanCount}</b> 条</span>
+              <div class="lv-row" style="margin:0;gap:6px">
+                <button class="lv-btn sm lv-btn--ghost" onclick={ontoggleSelectAllGlean}>全选/反选</button>
+                {#if selectedGleanCount > 0}
+                  <button class="lv-btn sm lv-btn--primary" onclick={onextractSelectedGlean}>
+                    <Icon name="import" size={12} /> 批量提炼已选 ({selectedGleanCount})
+                  </button>
+                {/if}
+              </div>
+            </div>
+            <div class="stack-sm" style="max-height:360px;overflow-y:auto;border:1px solid var(--lv-border);border-radius:var(--lv-r-2);padding:6px;background:var(--lv-surface)">
+              {#each gleanClipsList as c (c.id)}
+                <div class="lv-row" style="justify-content:space-between;align-items:flex-start;padding:8px 10px;border-bottom:1px solid var(--lv-border-subtle);gap:8px">
+                  <div class="lv-row" style="margin:0;gap:8px;align-items:flex-start;flex:1;min-width:0">
+                    <input type="checkbox" aria-label={`选择剪藏: ${c.title}`} checked={!!selectedGleanIds[c.id]} onchange={() => ontoggleGleanId(c.id)} style="margin-top:3px" />
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:12.5px;font-weight:600;color:var(--lv-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                        《{c.title || "无标题剪藏"}》
+                        {#if c.site}<span class="lv-chip sm num" style="font-size:10px;margin-left:4px">{c.site}</span>{/if}
+                      </div>
+                      {#if c.summary}
+                        <div class="lv-muted" style="font-size:11.5px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5">
+                          {c.summary}
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                  <div class="lv-row" style="margin:0;gap:6px;flex-shrink:0">
+                    <button class="lv-btn sm lv-btn--primary" onclick={() => onPickGleanClip(c)} title="直接提取文中文法题（选择题/高亮挖空/加粗术语定义）">
+                      <Icon name="import" size={12} /> 直接提取
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" onclick={() => onAiExtractGleanClip(c)} title="由 AI 自动阅读此篇剪藏正文提炼试题">
+                      <Icon name="sparkles" size={12} /> AI 提炼
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       {:else}
         <!-- 批量文件导入与纯文本 Aiken/GIFT 导入向导 -->
@@ -721,6 +888,11 @@
                         ⚠️ 待核验 ({needReviewCount})
                       </button>
                     {/if}
+                    {#if malformedCount > 0}
+                      <button type="button" class="lv-chip lv-chip--red sm" class:acc={confidenceFilter === "malformed"} onclick={() => confidenceFilter = "malformed"} title="选项异常偏多（>4个）或存在空干缺陷的题目">
+                        🚩 异常项 ({malformedCount})
+                      </button>
+                    {/if}
                   </div>
                 </div>
                 <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
@@ -731,6 +903,17 @@
                   {/if}
                   <button type="button" class="lv-btn sm lv-btn--ghost" onclick={autoFixImportQuestions} title="自动标准化多选题答案、修正大小写与标点瑕疵">
                     ⚡ 一键自愈修偏
+                  </button>
+                  {#if malformedCount > 0}
+                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={pruneAllExcessOptions} title="将所有超过 4 项的选择题自动收敛为标准 A-D 四项，多余选项存入解析">
+                      ✂️ 一键收敛选项 (至4项)
+                    </button>
+                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={convertMalformedToShort} title="将畸形选择题一键转为简答题">
+                      📄 异常题转简答
+                    </button>
+                  {/if}
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={dropLowConfidenceQuestions} title="一键丢弃置信度低于 60% 的残缺题目">
+                    🗑️ 丢弃低分残题
                   </button>
                   <button type="button" class="lv-btn sm lv-btn--ghost" onclick={toggleSelectAllImportQuestions}>
                     {selectedImportCount === importReport.ok.length ? "取消全选" : "全选所有题目"}
@@ -771,6 +954,30 @@
                         {#if q.kp}
                           <span class="lv-chip num sm" style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title={q.kp}>{q.kp}</span>
                         {/if}
+                        <!-- 快速行内缺失答案秒设与括号答案即时提取 -->
+                        {#if (q.type === "single" || q.type === "multiple") && (!q.answer || !q.answer.trim())}
+                          {@const stemAns = (q.stem.match(/[（(\[]\s*([A-D])\s*[)）\]]/i) || q.stem.match(/答案[：:]\s*([A-D])/i))?.[1]?.toUpperCase()}
+                          <div class="lv-row" style="margin:0;gap:3px;align-items:center;background:var(--lv-red-soft);padding:1px 6px;border-radius:4px" title="该题缺失答案，请点击字母秒设">
+                            <span style="font-size:11px;color:var(--lv-red);font-weight:600">设答案:</span>
+                            {#each q.options as _opt, oi (oi)}
+                              {@const letter = String.fromCharCode(65 + oi)}
+                              <button type="button" class="lv-chip sm" style="padding:0 5px;font-size:10px;cursor:pointer" onclick={() => { q.answer = letter; q.lintIssues = (q.lintIssues || []).filter(i => !i.includes("答案")); }}>
+                                {letter}
+                              </button>
+                            {/each}
+                            {#if stemAns}
+                              <button type="button" class="lv-chip sm lv-chip--grn" style="padding:0 5px;font-size:10px;cursor:pointer" onclick={() => { q.answer = stemAns; q.lintIssues = (q.lintIssues || []).filter(i => !i.includes("答案")); }}>
+                                识别为 {stemAns}
+                              </button>
+                            {/if}
+                          </div>
+                        {:else if q.type === "judge" && (!q.answer || !q.answer.trim())}
+                          <div class="lv-row" style="margin:0;gap:3px;align-items:center;background:var(--lv-red-soft);padding:1px 6px;border-radius:4px" title="该题缺失判断答案，请点击秒设">
+                            <span style="font-size:11px;color:var(--lv-red);font-weight:600">设答案:</span>
+                            <button type="button" class="lv-chip sm" style="padding:0 5px;font-size:10px;cursor:pointer" onclick={() => { q.answer = "对"; q.lintIssues = (q.lintIssues || []).filter(i => !i.includes("答案")); }}>✓对</button>
+                            <button type="button" class="lv-chip sm" style="padding:0 5px;font-size:10px;cursor:pointer" onclick={() => { q.answer = "错"; q.lintIssues = (q.lintIssues || []).filter(i => !i.includes("答案")); }}>✗错</button>
+                          </div>
+                        {/if}
                       </div>
                       <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => removeImportQuestion(q)} title="不导入此题" aria-label="删除此题" style="color:var(--lv-red);padding:2px 6px">
                         <Icon name="close" size={12} /> 不导入
@@ -783,6 +990,40 @@
                         {#each q.lintIssues as issue (issue)}
                           <span class="lv-chip lv-chip--red num sm" style="font-size:10px;padding:1px 6px">🚩 {issue}</span>
                         {/each}
+                      </div>
+                    {/if}
+
+                    <!-- 选项过多异常快捷处理条 -->
+                    {#if q.options && q.options.length > 4}
+                      <div class="lv-row" style="margin:2px 0 6px;padding:3px 8px;background:var(--lv-amber-soft);border-radius:4px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
+                        <span style="font-size:11px;color:var(--lv-amber-deep, var(--lv-amber));font-weight:600">
+                          ⚠️ 选项达 {q.options.length} 个（疑似列表误判）：
+                        </span>
+                        <div class="lv-row" style="margin:0;gap:4px">
+                          <button type="button" class="lv-chip sm lv-chip--amb" onclick={() => void pruneSingleQuestion(qi)} title="保留前4项A-D，其余选项文字自动存入解析">
+                            ✂️ 仅保留前4项
+                          </button>
+                          <button type="button" class="lv-chip sm" onclick={() => void convertSingleQuestionToShort(qi)} title="安全转为简答题，选项保留为参考答案">
+                            📄 转为简答题
+                          </button>
+                        </div>
+                      </div>
+                    {/if}
+
+                    <!-- 填空题干无挖空异常快捷处理条 -->
+                    {#if q.type === "fill" && !/_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|\{\{c\d+::/.test(q.stem)}
+                      <div class="lv-row" style="margin:2px 0 6px;padding:3px 8px;background:var(--lv-amber-soft);border-radius:4px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px">
+                        <span style="font-size:11px;color:var(--lv-amber-deep, var(--lv-amber));font-weight:600">
+                          ⚠️ 填空题干未发现挖空占位符（如 ____ 或 （ ））：
+                        </span>
+                        <div class="lv-row" style="margin:0;gap:4px">
+                          <button type="button" class="lv-chip sm lv-chip--amb" onclick={() => convertFillToShortSingle(qi)} title="安全转为简答题，支持自主回忆与要点自评">
+                            📄 转为简答题
+                          </button>
+                          <button type="button" class="lv-chip sm" onclick={() => addBlankToStemSingle(qi)} title="在题干末尾自动补充（   ）占位符">
+                            🪄 补全（ ）挖空
+                          </button>
+                        </div>
                       </div>
                     {/if}
 

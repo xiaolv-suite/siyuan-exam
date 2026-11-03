@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseNumeric, gradeNumeric, gradeWithSpec, gradeMultiBlank } from "../src/core/structuredAnswer";
+import { parseNumeric, gradeNumeric, gradeWithSpec, gradeMultiBlank, splitBlanks, formatDisplayAnswer } from "../src/core/structuredAnswer";
 import { grade } from "../src/core/answer";
 import type { Question } from "../src/core/types";
 
@@ -185,6 +185,19 @@ describe("54-03 多空题逐空判分", () => {
       expect(v.correctCount).toBe(1);
       expect(v.blanks[0].correct).toBe(true);
       expect(v.blanks[1].empty).toBe(true);
+    });
+
+    it("splitBlanks 支持中英文分号与换行容差切分", () => {
+      expect(splitBlanks("苹果；香蕉", 2)).toEqual(["苹果", "香蕉"]);
+      expect(splitBlanks("第一空\n第二空", 2)).toEqual(["第一空", "第二空"]);
+      expect(splitBlanks(" A ;; B ", 2)).toEqual(["A", "B"]);
+    });
+
+    it("formatDisplayAnswer 优雅格式化多空填空答案，彻底消除原始 ;; 符号", () => {
+      expect(formatDisplayAnswer("80 ;; 100")).toBe("空①: 80 · 空②: 100");
+      expect(formatDisplayAnswer("H2O；；氧；；2")).toBe("空①: H2O · 空②: 氧 · 空③: 2");
+      expect(formatDisplayAnswer("单一标准答案")).toBe("单一标准答案");
+      expect(formatDisplayAnswer(null)).toBe("");
     });
   });
 });

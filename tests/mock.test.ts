@@ -365,4 +365,45 @@ describe("模考会话", () => {
     expect(assembled.paper).toHaveLength(2);
     expect(assembled.shortages).toHaveLength(0);
   });
+
+  it("主观题考后采分自评闭环 (rateSubjectiveQuestion - ECO-02 / TODO-09)", () => {
+    const qShort: Question = {
+      id: "q-essay",
+      type: "short",
+      stem: "论述行政法的基本原则",
+      options: [],
+      answer: "合法行政、合理行政、程序正当、高效便民、诚实守信、权责统一",
+      score: 10,
+      hash: "h-essay",
+      origin: "manual",
+    };
+    const bp: Blueprint = {
+      id: "bp-essay",
+      name: "主观题特训卷",
+      durationM: 60,
+      passLine: 60,
+      sections: [{ name: "主观大题", count: 1, scoreEach: 10, source: "mixed", types: ["short"] }],
+    };
+    const s = new MockSession(bp, [qShort], {
+      sectionOf: new Map([[qShort.id, "主观大题"]]),
+      scoreOf: new Map([[qShort.id, 10]]),
+    }, 1000);
+
+    // 考生在考场作答
+    s.setAnswer(qShort.id, "合法行政与合理行政", 2000);
+    s.submit(3000);
+
+    // 刚交卷时尚未自评，factor=0
+    expect(s.score().total).toBe(0);
+
+    // 考后进入主观题自评通道，给出 80% 采分自评 (factor = 0.8)
+    s.rateSubjectiveQuestion(qShort.id, 0.8);
+
+    const updatedScore = s.score();
+    expect(updatedScore.total).toBe(8); // 10分 * 0.8 = 8分
+    expect(updatedScore.sections[0].score).toBe(8);
+    expect(updatedScore.sections[0].partial).toBe(1);
+    expect(updatedScore.percent).toBe(80);
+    expect(updatedScore.pass).toBe(true);
+  });
 });

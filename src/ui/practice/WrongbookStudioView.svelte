@@ -3,6 +3,8 @@
   import type { Question } from "../../core/types";
   import type { CbmSignal } from "../../core/cbm";
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
+  import PaperPresentationModal from "../shared/PaperPresentationModal.svelte";
+  import PaperAssembleModal from "./PaperAssembleModal.svelte";
 
   interface Props {
     wrongList: any[];
@@ -10,11 +12,13 @@
     clearPct: number;
     streakDays: number;
     reasonCounts: { unknown: number; careless: number; trap: number; unmarked: number };
-    wbTab: "active" | "archived" | "eliminated" | "highrisk" | "fragile";
+    wbTab: "active" | "archived" | "eliminated" | "highrisk" | "fragile" | "ebbinghaus";
     wbReasonFilter: "all" | "careless" | "unknown" | "trap";
     wbFilterStubborn: boolean;
     wbKpOptions: string[];
     wbKpFilter: string;
+    wbTagOptions?: string[];
+    wbTagFilter?: string;
     wbSortMode: "default" | "wrongCount" | "kp";
     filteredWrongQueue: any[];
     /** 渲染切片（ux §3 virtualize-lists 口径）：只渲染前 200 行，「加载更多」逐步放量；计数与操作按钮仍按全量 */
@@ -42,7 +46,7 @@
     getStubbornRemediation: (w: any) => { reasonText: string };
     onstartDrill: (mode: "quick" | "wrong" | "cram") => void;
     onbackToEntry: () => void;
-    onprintWrongSheet: (kind: "retest" | "question" | "answer") => void;
+    onprintWrongSheet: (kind: "retest" | "question" | "answer" | "interactive") => void;
     onexportCheatSheet: () => void;
     onsaveWrongbookAsDoc: () => void;
     onsyncWrongbookToCards: () => void;
@@ -62,6 +66,7 @@
     onbrowseWrongFilter: () => void;
     onchangeWbSortMode: (val: string) => void;
     onstartCbmDrill?: (kind: "highrisk" | "fragile") => void;
+    onstartCustomDrill?: (qids: string[]) => void;
     onopenInSiYuan?: (rootId: string, blockId?: string) => void;
     oneditReflection?: (qid: string) => void;
     reflections?: Record<string, { text: string; at: number }>;
@@ -79,6 +84,8 @@
     wbFilterStubborn = $bindable(),
     wbKpOptions,
     wbKpFilter = $bindable(),
+    wbTagOptions = [],
+    wbTagFilter = $bindable(""),
     wbSortMode = $bindable(),
     filteredWrongQueue,
     shownWrongQueue,
@@ -124,6 +131,7 @@
     onbrowseWrongFilter,
     onchangeWbSortMode,
     onstartCbmDrill,
+    onstartCustomDrill,
     onopenInSiYuan,
     oneditReflection,
     reflections = {},
@@ -139,6 +147,47 @@
     cbmHighrisk.length > 0 ||
     cbmFragile.length > 0,
   );
+
+  const now = Date.now();
+  const ebbinghausBuckets = $derived.by(() => {
+    const b1: any[] = [];
+    const b3: any[] = [];
+    const b7: any[] = [];
+    const b15: any[] = [];
+    for (const w of wrongQueue) {
+      const days = Math.max(0, (now - (w.lastWrongAt || now)) / 86400000);
+      if (days <= 1) b1.push(w);
+      else if (days <= 3) b3.push(w);
+      else if (days <= 7) b7.push(w);
+      else b15.push(w);
+    }
+    return [
+      { id: "1d", title: "急救挽回 (≤1天)", subtitle: "艾宾浩斯黄金抢救期", items: b1, tone: "red" },
+      { id: "3d", title: "临界拐点 (2-3天)", subtitle: "记忆断层衰减临界点", items: b3, tone: "amber" },
+      { id: "7d", title: "深层巩固 (4-7天)", subtitle: "中期记忆强化转折期", items: b7, tone: "accent" },
+      { id: "15d", title: "抗遗忘固化 (>7天)", subtitle: "长期记忆固化回炉期", items: b15, tone: "data" },
+    ];
+  });
+
+  let wrongPrintFormat = $state<"retest" | "question" | "answer" | "interactive" | "cheat">("retest");
+  let presentationOpen = $state(false);
+  let wbAssembleOpen = $state(false);
+  let wbAssembleQuestions = $state<Question[]>([]);
+
+  function openWrongbookAssemble() {
+    const qs = filteredWrongQueue.map((w) => questionMap.get(w.qid)).filter((q): q is Question => !!q);
+    if (!qs.length) return;
+    wbAssembleQuestions = qs;
+    wbAssembleOpen = true;
+  }
+
+  function handlePrintWrongFormat() {
+    if (wrongPrintFormat === "cheat") {
+      onexportCheatSheet();
+    } else {
+      onprintWrongSheet(wrongPrintFormat);
+    }
+  }
 </script>
 
 <div class="lv-pad">
@@ -259,12 +308,29 @@
               <button type="button" role="tab" tabindex={wbTab === "fragile" ? 0 : -1} class="lv-chip" class:acc={wbTab === "fragile"} class:lv-chip--amb={wbTab !== "fragile" && cbmFragile.length > 0} aria-selected={wbTab === "fragile"} title={t("cbm.fragile.tip", "自评「模糊/猜测」却蒙对：疑似运气分，建议重练验证真实掌握")} onclick={() => wbTab = "fragile"}>
                 {t("cbm.fragile", "脆弱伪掌握")} ({cbmFragile.length})
               </button>
+              <button type="button" role="tab" tabindex={wbTab === "ebbinghaus" ? 0 : -1} class="lv-chip" class:acc={wbTab === "ebbinghaus"} aria-selected={wbTab === "ebbinghaus"} title="按艾宾浩斯 1/3/7/15 天记忆周期自动归集错题，分列看板攻坚" onclick={() => wbTab = "ebbinghaus"}>
+                <Icon name="clock" size={12} /> 遗忘周期看板
+              </button>
             </div>
-            <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("retest")} disabled={printWrongBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy} title="导出纯净错题重测卷（含清零目标条与二次订正反思框，绝无答案泄露）"><Icon name="printer" size={13} /> 错题重测卷</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("question")} disabled={printWrongBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy} title="将当前筛选的错题导出或打印为 A4 双栏试卷（绝不泄题）"><Icon name="file" size={13} /> {t("mock.printCompact")}</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintWrongSheet("answer")} disabled={printWrongBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy} title="导出或打印配套答案册"><Icon name="book" size={13} /> 答案册</button>
-              <button class="lv-btn sm lv-btn--ghost" onclick={onexportCheatSheet} disabled={cheatSheetBusy || !filteredWrongQueue.length} aria-busy={cheatSheetBusy} title={t("cram.cheatSheetTip")}><Icon name="file-text" size={13} /> {t("cram.cheatSheet")}</button>
+            <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
+              <div class="lv-row" style="margin:0;gap:3px;align-items:center">
+                <select class="lv-select sm" style="font-size:12px;padding:2px 8px;height:28px;max-width:130px" bind:value={wrongPrintFormat} aria-label="选择错题导出排版格式" disabled={printWrongBusy || cheatSheetBusy || !filteredWrongQueue.length}>
+                  <option value="retest">📝 错题重测卷</option>
+                  <option value="question">📄 A4紧凑试卷</option>
+                  <option value="answer">📖 配套答案册</option>
+                  <option value="interactive">🌐 交互式讲题卷</option>
+                  <option value="cheat">📑 急救小抄手账</option>
+                </select>
+                <button class="lv-btn sm lv-btn--ghost" onclick={handlePrintWrongFormat} disabled={printWrongBusy || cheatSheetBusy || !filteredWrongQueue.length} aria-busy={printWrongBusy || cheatSheetBusy} title="按选定版式导出打印或生成纯净纸面卷">
+                  <Icon name="file" size={13} /> 快捷导出
+                </button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={openWrongbookAssemble} disabled={!filteredWrongQueue.length} title="进入专业组卷排版工坊，自定义 A4 双栏错题清零卷、总分表与答题留白并直接打印">
+                  <Icon name="printer" size={13} /> 🖨️ 组卷排版
+                </button>
+                <button class="lv-btn sm lv-btn--ghost" onclick={() => (presentationOpen = true)} disabled={!filteredWrongQueue.length} title="进入大屏放映模式逐题讲评与复盘错题">
+                  <Icon name="monitor" size={13} /> 错题放映
+                </button>
+              </div>
               <button class="lv-btn sm lv-btn--ghost" onclick={onsaveWrongbookAsDoc} disabled={!filteredWrongQueue.length} title="将当前筛选的错题组建排版为思源笔记文档，折叠答案，卸载插件永久保留"><Icon name="file" size={13} /> {t("wrongbook.saveAsSiyuanDoc")}</button>
               <button
                 class="lv-btn sm {wbFilterStubborn ? 'lv-btn--primary' : 'lv-btn--ghost'}"
@@ -310,6 +376,14 @@
                   <option value="">全部考点章节</option>
                   {#each wbKpOptions as kp (kp)}
                     <option value={kp}>{kp}</option>
+                  {/each}
+                </select>
+              {/if}
+              {#if wbTagOptions && wbTagOptions.length > 0}
+                <select class="lv-select sm" style="max-width:140px" bind:value={wbTagFilter} aria-label="筛选专属/模考标签">
+                  <option value="">全部题目标签</option>
+                  {#each wbTagOptions as tag (tag)}
+                    <option value={tag}>{tag}</option>
                   {/each}
                 </select>
               {/if}
@@ -534,6 +608,45 @@
                 <div class="lv-muted" style="padding:16px 0;text-align:center">暂无已消灭错题（连续做对 2 次的错题将自动归入此处）</div>
               {/each}
             </div>
+          {:else if wbTab === "ebbinghaus"}
+            <div class="lv-kanban-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:12px;margin-top:12px">
+              {#each ebbinghausBuckets as b (b.id)}
+                <div class="lv-card" style="padding:12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);display:flex;flex-direction:column;gap:8px">
+                  <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0">
+                    <div>
+                      <b style="font-size:13px;display:flex;align-items:center;gap:4px">
+                        <span class="lv-dot" style="background:var(--lv-{b.tone})"></span>
+                        <span>{b.title}</span>
+                      </b>
+                      <div class="lv-muted" style="font-size:10px;margin-top:2px">{b.subtitle}</div>
+                    </div>
+                    <span class="lv-chip sm num" class:lv-chip--red={b.tone === "red" && b.items.length > 0} class:lv-chip--amb={b.tone === "amber" && b.items.length > 0}>{b.items.length}</span>
+                  </div>
+                  <button class="lv-btn sm lv-btn--primary" style="width:100%;margin-top:2px" disabled={!b.items.length} onclick={() => onstartCustomDrill?.(b.items.map(it => it.qid))}>
+                    <Icon name="play" size={12} /> 本桶特训 ({b.items.length})
+                  </button>
+                  {#if b.id === "1d" && b.items.length > 0}
+                    <button class="lv-btn sm" style="width:100%;font-size:11px;border-color:var(--lv-red);color:var(--lv-red)" onclick={() => onstartCustomDrill?.(b.items.map(it => it.qid))} title="全键盘极速翻面消错：空格翻看答案，1消灭/2重试">
+                      ⚡ 极速消错盲练 ({b.items.length})
+                    </button>
+                  {/if}
+                  <div style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-top:4px">
+                    {#each b.items as it (it.qid)}
+                      {@const q = qOf(it.qid)}
+                      <div class="lv-card" style="padding:8px 10px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-1, 6px);font-size:12px">
+                        <div style="font-weight:600;line-height:1.4" title={q?.stem ?? it.qid}>{q?.stem.slice(0, 50) ?? it.qid}</div>
+                        <div class="lv-row" style="justify-content:space-between;align-items:center;margin:6px 0 0">
+                          <span class="lv-muted" style="font-size:10px">{it.wrongCount} 次错 · {Math.round(Math.max(0, (now - (it.lastWrongAt || now)) / 86400000))} 天前</span>
+                          <button class="lv-btn sm" style="padding:1px 6px;font-size:11px" onclick={() => onstartWrongFor(it.qid)} title="重练本题"><Icon name="play" size={10} /></button>
+                        </div>
+                      </div>
+                    {:else}
+                      <div class="lv-empty" style="padding:24px 0;font-size:11px">暂无该周期错题</div>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
           {:else}
             <div class="stack-sm" style="margin-top:8px">
               {#each archivedWrongList as w, wi (w.qid)}
@@ -587,4 +700,20 @@
       </div>
     </div>
   {/if}
+
+  <PaperPresentationModal
+    open={presentationOpen}
+    title="错题攻坚大屏放映"
+    questions={filteredWrongQueue.map((w) => questionMap.get(w.qid)).filter((q): q is Question => Boolean(q))}
+    {t}
+    onclose={() => (presentationOpen = false)}
+  />
+
+  <PaperAssembleModal
+    open={wbAssembleOpen}
+    bankName="错题攻坚清零重测卷"
+    questions={wbAssembleQuestions}
+    onclose={() => (wbAssembleOpen = false)}
+    showMessage={(msg) => console.log(msg)}
+  />
 </div>

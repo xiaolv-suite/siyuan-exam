@@ -6,12 +6,15 @@
   import MaterialGroupContextCard from "./MaterialGroupContextCard.svelte";
   import SpeechEvalCapsule from "./SpeechEvalCapsule.svelte";
   import type { Question } from "@/core/types";
+  import { formatDisplayAnswer } from "@/core/answer";
   import type { PracticeSession } from "@/core/session";
   import type { SpeechEvalResult } from "@/core/speechEval";
   import { countWordsAndCharacters, generatePaperGrid } from "@/core/wordCount";
   import type { SiblingItem, MaterialGroupContext } from "@/core/materialContext";
   import type { ScratchpadMode } from "@/core/scratchpad";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
+  import { shuffleAnswerChoices } from "@/core/answerChoices";
+  import { notifyInline } from "../../libs/notice";
 
   interface Props {
     session: PracticeSession;
@@ -76,6 +79,11 @@
     speechRecording?: boolean;
     reciteToggle: boolean;
     speedDrillEnabled: boolean;
+    autoNextOnCorrect?: boolean;
+    autoNextPending?: boolean;
+    autoNextRemainingS?: number;
+    shuffleOptions?: boolean;
+    oncancelAutoNext?: () => void;
     pureListen: boolean;
     soundEnabled: boolean;
     hotkeysHelpOpen: boolean;
@@ -164,6 +172,7 @@
     onnextQuestion: () => void;
     ondrillVariant: () => void;
     ontraceMother: () => void;
+    ondiagnosePrereqs?: (q: Question) => void;
     ontoCard: () => void;
     onopenInSiYuan?: (rootId: string, blockId?: string) => void;
     onexplainCurrent: (mode: "explain" | "socratic" | "dual-loop" | "storm") => void;
@@ -175,6 +184,7 @@
     ondismissReasonPrompt: () => void;
     ontouchStart: (e: TouchEvent) => void;
     ontouchEnd: (e: TouchEvent) => void;
+    trails?: Map<string, any>;
   }
 
   let {
@@ -230,6 +240,11 @@
     speechRecording = false,
     reciteToggle,
     speedDrillEnabled = $bindable(),
+    autoNextOnCorrect = $bindable(true),
+    autoNextPending = false,
+    autoNextRemainingS = 3.5,
+    shuffleOptions = $bindable(false),
+    oncancelAutoNext,
     pureListen,
     soundEnabled = $bindable(),
     hotkeysHelpOpen = $bindable(),
@@ -317,6 +332,7 @@
     onnextQuestion,
     ondrillVariant,
     ontraceMother,
+    ondiagnosePrereqs,
     ontoCard,
     onopenInSiYuan,
     onexplainCurrent,
@@ -328,6 +344,7 @@
     ondismissReasonPrompt,
     ontouchStart,
     ontouchEnd,
+    trails,
   }: Props = $props();
 
   // —— benchmark-fusion：解析 3 阶渐进折叠（Moodle Adaptive Hints + TextFold 标杆）——
@@ -339,12 +356,45 @@
   let stageHintOpen = $state(false);
   let stageAnalysisOpen = $state(true);
   let stageSourceOpen = $state(false);
+  let rubricDeductionsOnly = $state(false);
   $effect(() => {
     const qid = curQ?.id;
     stageHintOpen = Boolean(qid && session?.getExposures?.(qid).includes("hint"));
     stageAnalysisOpen = true;
     stageSourceOpen = false;
   });
+
+  let eliminatedChoices = $state<Record<string, boolean>>({});
+  $effect(() => {
+    if (curQ?.id) {
+      eliminatedChoices = {};
+    }
+  });
+
+  function toggleEliminate(choiceValue: string) {
+    if (feedback) return;
+    eliminatedChoices[choiceValue] = !eliminatedChoices[choiceValue];
+    if (eliminatedChoices[choiceValue]) {
+      if (curQ?.type === "multiple" && selected.includes(choiceValue)) {
+        onpickChoice(choiceValue);
+      } else if (curQ?.type === "single" && selected === choiceValue) {
+        onpickChoice("");
+      }
+    }
+  }
+
+  function handleBlankInputKeydown(e: KeyboardEvent, index: number) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const blanks = (e.target as HTMLElement)?.closest(".lv-question")?.querySelectorAll<HTMLInputElement>(".lv-answer-blank");
+      if (blanks && index < blanks.length - 1) {
+        blanks[index + 1]?.focus();
+        blanks[index + 1]?.select();
+      } else if (canSubmitAnswer) {
+        onsubmitAnswer();
+      }
+    }
+  }
 </script>
 
 {#if sessionDone}
@@ -382,6 +432,7 @@
     {onrunMisdiagnosis}
     {onadoptMisdiagnosis}
     {onopenInSiYuan}
+    {trails}
     onexitSession={onexitSession}
   />
 {:else}
@@ -424,21 +475,22 @@
           {#if q.blockId && onopenInSiYuan}
             <button type="button" class="lv-chip" title="在思源笔记中定位并高亮原题块" aria-label={t("session.stageSourceOpen", "打开思源原块")} onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> {t("recite.jumpSource", "定位原题")}</button>
           {/if}
-          <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={ontoggleFavCurrent}><Icon name="star" size={13} /></button>
+          <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={(e) => { notifyInline(e.currentTarget, !q.fav ? "已收藏" : "已取消收藏"); ontoggleFavCurrent(); }}><Icon name="star" size={13} /></button>
         </div>
         <div class="lv-session-dock" role="group" aria-label="辅助工具坞">
           <button class="lv-chip" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-label={t("scratchpad.tip")} aria-pressed={scratchpadOpen} onclick={ontoggleScratchpad}><Icon name="pencil" size={13} /></button>
-          <button class="lv-chip" class:acc={speedDrillEnabled} title={t("session.speedDrillTip")} aria-label={t("session.speedDrillTip")} aria-pressed={speedDrillEnabled} onclick={() => { speedDrillEnabled = !speedDrillEnabled; }}><Icon name="zap" size={13} /></button>
+          <button type="button" class="lv-chip" class:acc={autoNextOnCorrect} title="⚡ 答对自动翻题（单选/判断答对后 500ms 自动进入下一题，答错暂停看解析）" aria-label="答对自动翻题" onclick={() => { autoNextOnCorrect = !autoNextOnCorrect; }}><Icon name="zap" size={13} /> <span class="lv-dock-label">{autoNextOnCorrect ? "自动翻题" : "翻题关"}</span></button>
+          <button type="button" class="lv-chip" class:acc={shuffleOptions} title="🔀 选项随机乱序（打乱 ABCD 渲染次序，打破位置记忆）" aria-label="选项随机乱序" onclick={() => { shuffleOptions = !shuffleOptions; }}><Icon name="shuffle" size={13} /> <span class="lv-dock-label">{shuffleOptions ? "乱序" : "顺序"}</span></button>
           <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={ontogglePureListen}><Icon name="eyeoff" size={13} /></button>
           <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-label={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-pressed={soundEnabled} onclick={() => { soundEnabled = !soundEnabled; }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
           <button class="lv-chip" class:acc={hotkeysHelpOpen} title={t("hotkeys.tip")} aria-label={t("hotkeys.tip")} aria-pressed={hotkeysHelpOpen} onclick={() => (hotkeysHelpOpen = !hotkeysHelpOpen)}><Icon name="activity" size={13} /></button>
           <button type="button" class="lv-chip" onclick={onexitSession} disabled={exitBusy} title="结束做题并退出"><Icon name="close" size={13} /></button>
         </div>
         <span class="lv-chip" style="gap:2px;padding:2px 4px" role="group" aria-label="试题速记标记">
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("star")} title={t("session.tagStar")} aria-label={t("session.tagStar")} aria-pressed={(q.userTags || []).includes("star")} onclick={() => ontoggleUserTag("star")}><Icon name="star" size={12} /></button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("trap")} title={t("session.tagTrap")} aria-label={t("session.tagTrap")} aria-pressed={(q.userTags || []).includes("trap")} onclick={() => ontoggleUserTag("trap")}><Icon name="alert-triangle" size={12} /></button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} aria-label={t("session.tagDoubt")} aria-pressed={(q.userTags || []).includes("doubt")} onclick={() => ontoggleUserTag("doubt")}><Icon name="help" size={12} /></button>
-          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} aria-label={t("session.tagKey")} aria-pressed={(q.userTags || []).includes("key")} onclick={() => ontoggleUserTag("key")}><Icon name="bulb" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("star")} title={t("session.tagStar")} aria-label={t("session.tagStar")} aria-pressed={(q.userTags || []).includes("star")} onclick={(e) => { notifyInline(e.currentTarget); ontoggleUserTag("star"); }}><Icon name="star" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("trap")} title={t("session.tagTrap")} aria-label={t("session.tagTrap")} aria-pressed={(q.userTags || []).includes("trap")} onclick={(e) => { notifyInline(e.currentTarget); ontoggleUserTag("trap"); }}><Icon name="alert-triangle" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} aria-label={t("session.tagDoubt")} aria-pressed={(q.userTags || []).includes("doubt")} onclick={(e) => { notifyInline(e.currentTarget); ontoggleUserTag("doubt"); }}><Icon name="help" size={12} /></button>
+          <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} aria-label={t("session.tagKey")} aria-pressed={(q.userTags || []).includes("key")} onclick={(e) => { notifyInline(e.currentTarget); ontoggleUserTag("key"); }}><Icon name="bulb" size={12} /></button>
         </span>
       </div>
       <div class="lv-session-main">
@@ -446,6 +498,7 @@
           open={scratchpadOpen}
           mode={scratchpadMode}
           text={currentScratchpadText}
+          qid={curQ?.id}
           {t}
           onmodeChange={onscratchpadModeChange}
           oninput={onscratchpadInput}
@@ -491,10 +544,18 @@
           <p class="lv-muted" style="margin:8px 0 14px" role="note">{t("session.guide." + q.type)}</p>
           {#key session.id + ":" + curProgress.done}
           {#if isChoiceQuestion(q)}
-            {@const choices = answerChoices(q)}
+            {@const baseChoices = answerChoices(q)}
+            {@const choices = shuffleOptions && q.type !== "judge" ? shuffleAnswerChoices(baseChoices, q.id) : baseChoices}
             {#if !choices.length}
               <div class="lv-error" role="alert">{t("session.missingOptions")}</div>
             {:else}
+              {#if reciteToggle}
+                <div class="lv-row" style="margin:0 0 6px">
+                  <span class="lv-chip lv-chip--acc" style="font-weight:600;font-size:12px">
+                    <Icon name="eye" size={13} /> 📖 背题速记模式：直显参考答案与核心考点
+                  </span>
+                </div>
+              {/if}
               <div class="lv-row" style="margin:0 0 4px">
                 <button class="lv-chip" class:acc={hideOptions} aria-pressed={hideOptions} onclick={ontoggleHideOptions}>
                   {hideOptions ? t("session.recallOn") : t("session.recallOff")}
@@ -514,10 +575,27 @@
                     <button class="lv-opt" class:sel={q.type === "multiple" ? selected.includes(choice.value) : selected === choice.value}
                       role={q.type === "multiple" ? "checkbox" : "radio"}
                       aria-checked={q.type === "multiple" ? selected.includes(choice.value) : selected === choice.value}
-                      class:right={feedback && feedback.verdict !== "not_attempted" && (q.type === "multiple" ? q.answer.includes(choice.value) : q.answer === choice.value)}
+                      class:right={(feedback && feedback.verdict !== "not_attempted" && (q.type === "multiple" ? q.answer.includes(choice.value) : q.answer === choice.value)) || (reciteToggle && (q.type === "multiple" ? q.answer.includes(choice.value) : q.answer === choice.value))}
                       class:wrong={feedback?.verdict === "wrong" && (q.type === "multiple" ? (feedback.myAnswer ?? "").includes(choice.value) && !q.answer.includes(choice.value) : feedback.myAnswer === choice.value)}
-                      disabled={!!feedback}
-                      onclick={() => onpickChoice(choice.value)}>
+                      class:eliminated={!!eliminatedChoices[choice.value]}
+                      disabled={!!feedback && !reciteToggle}
+                      onclick={() => {
+                        if (eliminatedChoices[choice.value]) {
+                          toggleEliminate(choice.value);
+                        } else {
+                          onpickChoice(choice.value);
+                        }
+                      }}
+                      oncontextmenu={(e) => {
+                        e.preventDefault();
+                        toggleEliminate(choice.value);
+                      }}
+                      ondblclick={(e) => {
+                        e.preventDefault();
+                        toggleEliminate(choice.value);
+                      }}
+                      title={eliminatedChoices[choice.value] ? "已划线排除（点击或右键恢复）" : "左键选中，右键或双击可划线排除干扰项"}
+                    >
                       <span class="lv-opt-check" class:box={q.type === "multiple"} aria-hidden="true"></span>
                       <span class="key">{choice.letter}</span>
                       <span class="lv-opt-text">{@html renderInlineText(choice.text)}</span>
@@ -552,6 +630,7 @@
                   value={blankParts[i]}
                   oninput={(e) => onsetBlank(i, (e.target as HTMLInputElement).value)}
                   onchange={onblankChange}
+                  onkeydown={(e) => handleBlankInputKeydown(e, i)}
                   disabled={!!feedback} />
               {/each}
             {:else}
@@ -637,9 +716,12 @@
                   {q.type === "short" && feedback.myAnswer ? t("session.shortSaved") : feedback.verdict === "correct" ? t("session.correct") : feedback.verdict === "wrong" ? t("session.wrongAns") : t("session.skipped")}
                 </span>
                 {#if feedback.verdict === "wrong"}
-                  <span class="lv-chip lv-chip--acc num" style="font-weight:var(--lv-font-weight-bold);font-size:var(--lv-font-size-md)">{q.answer}</span>
+                  <span class="lv-chip lv-chip--acc num" style="font-weight:var(--lv-font-weight-bold);font-size:var(--lv-font-size-md)">{formatDisplayAnswer(q.answer)}</span>
                   {#if feedback.myAnswer}
-                    <span class="lv-muted" style="margin-left:4px">（{t("session.myAnswer")}: <b class="num" style="color:var(--lv-red)">{feedback.myAnswer}</b>）</span>
+                    <span class="lv-muted" style="margin-left:4px">（{t("session.myAnswer")}: <b class="num" style="color:var(--lv-red)">{formatDisplayAnswer(feedback.myAnswer)}</b>）</span>
+                  {/if}
+                  {#if (feedback.changes ?? 0) > 0}
+                    <span class="lv-chip lv-chip--amb num sm" title="作答过程曾修改过选项"><Icon name="rotate" size={11} /> 曾改选 {feedback.changes} 次</span>
                   {/if}
                 {/if}
                 <button type="button" class="lv-btn sm lv-btn--ghost" style="margin-left:auto" onclick={onundoRecentSubmit} title={t("session.undoTip")}>
@@ -648,12 +730,17 @@
                 {#if confidenceSel}<span class="lv-chip num">{t("confidence.recorded")}{t("confidence." + confidenceSel)}</span>{/if}
               </div>
             </div>
-            {#if q.type === "short"}<div class="lv-analysis"><b>{t("session.referenceAnswer")}</b><div>{q.answer}</div></div>{/if}
+            {#if q.type === "short"}<div class="lv-analysis"><b>{t("session.referenceAnswer")}</b><div>{formatDisplayAnswer(q.answer)}</div></div>{/if}
             {#if q.type === "short" && currentRubric && rubricScore}
               <div class="lv-card" style="margin:10px 0;padding:var(--lv-space-3) var(--lv-space-4);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle)">
                 <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap;gap:var(--lv-space-2)">
-                  <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="target" size={13} /> {t("rubric.title")}</b>
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onautoAlignRubric} title="比对学员输入内容智能识别采分点，一键预填自评分">
+                  <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+                    <b style="font-size:var(--lv-font-size-body-compact)"><Icon name="target" size={13} /> {t("rubric.title")}</b>
+                    <button type="button" class="lv-chip sm" class:acc={rubricDeductionsOnly} aria-pressed={rubricDeductionsOnly} onclick={() => rubricDeductionsOnly = !rubricDeductionsOnly} title="折叠已得满分（优秀）项，重点排查扣分项">
+                      {rubricDeductionsOnly ? "显示全部采分项" : "仅看扣分项"}
+                    </button>
+                  </div>
+                  <button type="button" class="lv-btn sm" onclick={onautoAlignRubric} title="比对学员输入内容智能识别采分点，一键预填自评分">
                     <Icon name="sparkles" size={12} /> {t("rubric.autoAlign")}
                   </button>
                   <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("rubric.notOfficial")}</span>
@@ -662,25 +749,27 @@
                   <p class="lv-chip lv-chip--amb num" role="status" style="margin:0 0 8px"><Icon name="pencil" size={11} /> {t("rubric.driftNote")}</p>
                 {/if}
                 {#each currentRubric.criteria as c (c.id)}
-                  <div class="lv-row" style="margin:6px 0;align-items:flex-start;flex-wrap:wrap;gap:var(--lv-space-2)">
-                    <span class="lv-chip lv-chip--data num" style="flex:0 0 auto">{Math.round(c.weight * 100)}%</span>
-                    <span style="flex:1;min-width:140px;font-size:var(--lv-font-size-sm)">{c.label}{#if c.example}<span class="lv-muted"> · {c.example}</span>{/if}</span>
-                    <div class="lv-row" style="margin:0;gap:var(--lv-space-1)">
-                      {#each DEFAULT_RUBRIC_LEVELS as lvl (lvl.key)}
-                        <button type="button" class="lv-chip" class:acc={rubricRatings[c.id] === lvl.key}
-                          aria-pressed={rubricRatings[c.id] === lvl.key}
-                          onclick={() => onrubricRatingChange(c.id, lvl.key)}>
-                          {t("rubric.level." + lvl.key)}
+                  {#if !rubricDeductionsOnly || rubricRatings[c.id] !== "full"}
+                    <div class="lv-row" style="margin:6px 0;align-items:flex-start;flex-wrap:wrap;gap:var(--lv-space-2)">
+                      <span class="lv-chip lv-chip--data num" style="flex:0 0 auto">{Math.round(c.weight * 100)}%</span>
+                      <span style="flex:1;min-width:140px;font-size:var(--lv-font-size-sm)">{c.label}{#if c.example}<span class="lv-muted"> · {c.example}</span>{/if}</span>
+                      <div class="lv-row" style="margin:0;gap:var(--lv-space-1)">
+                        {#each DEFAULT_RUBRIC_LEVELS as lvl (lvl.key)}
+                          <button type="button" class="lv-chip" class:acc={rubricRatings[c.id] === lvl.key}
+                            aria-pressed={rubricRatings[c.id] === lvl.key}
+                            onclick={() => onrubricRatingChange(c.id, lvl.key)}>
+                            {t("rubric.level." + lvl.key)}
+                          </button>
+                        {/each}
+                        <button type="button" class="lv-chip" class:amb={rubricRatings[c.id] === "unknown"}
+                          aria-pressed={rubricRatings[c.id] === "unknown"}
+                          title={t("rubric.unknownTip")}
+                          onclick={() => onrubricRatingChange(c.id, "unknown")}>
+                          {t("rubric.level.unknown")}
                         </button>
-                      {/each}
-                      <button type="button" class="lv-chip" class:amb={rubricRatings[c.id] === "unknown"}
-                        aria-pressed={rubricRatings[c.id] === "unknown"}
-                        title={t("rubric.unknownTip")}
-                        onclick={() => onrubricRatingChange(c.id, "unknown")}>
-                        {t("rubric.level.unknown")}
-                      </button>
+                      </div>
                     </div>
-                  </div>
+                  {/if}
                 {/each}
                 <div class="lv-row" style="margin:8px 0 0;align-items:center;gap:var(--lv-space-2);flex-wrap:wrap">
                   {#if rubricScore.complete}
@@ -712,6 +801,15 @@
                 {#if stageAnalysisOpen}
                   <div id="lv-stage-analysis" style="margin:8px 0 0;white-space:pre-wrap;font-size:var(--lv-font-size-body);color:var(--lv-text-2)">{q.analysis}</div>
                 {/if}
+              </div>
+            {/if}
+            {#if q.expansion}
+              <!-- 💡 思路拓展与秒杀技巧（AUTH-02） -->
+              <div class="lv-expansion-card" style="margin-top:8px;padding:10px 14px;border-radius:var(--lv-r-2);background:var(--lv-surface-2);border-left:4px solid var(--lv-accent);box-shadow:var(--lv-sh-1)">
+                <div style="font-weight:600;font-size:13px;color:var(--lv-accent);display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                  <Icon name="bulb" size={14} /> 💡 思路拓展与秒杀技巧
+                </div>
+                <div style="white-space:pre-wrap;font-size:var(--lv-font-size-body);line-height:1.6;color:var(--lv-text)">{q.expansion}</div>
               </div>
             {/if}
             {#if feedback && (q.source || q.blockId || q.sourceBlockId)}
@@ -776,14 +874,52 @@
                   </button>
                 {/each}
               </div>
-              <span class="lv-chip num" class:lv-chip--amb={qTimeoutS > 0 && qElapsedS >= qTimeoutS * 0.8 && qElapsedS < qTimeoutS} class:lv-chip--red={qTimeoutS > 0 && qElapsedS >= qTimeoutS} class:lv-pulse={qTimeoutS > 0 && qElapsedS >= qTimeoutS} title={qTimeoutS > 0 ? t("session.timeoutHint").replace("{n}", String(qTimeoutS)) : ""}>
+              <span class="lv-chip num"
+                class:lv-chip--amb={qTimeoutS > 0 ? (qElapsedS >= qTimeoutS * 0.8 && qElapsedS < qTimeoutS) : qElapsedS >= 90}
+                class:lv-chip--red={qTimeoutS > 0 && qElapsedS >= qTimeoutS}
+                class:lv-pulse={qTimeoutS > 0 ? qElapsedS >= qTimeoutS : qElapsedS >= 90}
+                title={qTimeoutS > 0 ? t("session.timeoutHint").replace("{n}", String(qTimeoutS)) : (qElapsedS >= 90 ? "单题作答已超 90 秒，若卡壳建议标记疑问先行推进，维持大考节奏" : "作答计时")}
+              >
                 <Icon name="clock" size={12} /> {qElapsedS}s
+                {#if qTimeoutS <= 0 && qElapsedS >= 90}
+                  <span style="font-size:10px;margin-left:2px">配速预警</span>
+                {/if}
               </span>
             </div>
           {/if}
 
-          <div class="lv-row lv-answer-actions">
-            {#if !feedback}
+          <div class="lv-row lv-answer-actions" style="align-items:center;flex-wrap:wrap;gap:8px">
+            {#if autoNextPending && oncancelAutoNext}
+              <div
+                class="lv-auto-next-capsule lv-pulse"
+                style="display:inline-flex;align-items:center;gap:8px;padding:3px 10px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-brand-soft);border:1px solid var(--lv-brand);box-shadow:var(--lv-sh-1)"
+                role="status"
+                aria-live="polite"
+              >
+                <span style="font-weight:600;font-size:12px;color:var(--lv-brand);display:inline-flex;align-items:center;gap:4px">
+                  <Icon name="clock" size={13} /> ⚡ 答对！{autoNextRemainingS.toFixed(1)}s 后自动切题
+                </span>
+                <button
+                  type="button"
+                  class="lv-btn sm lv-btn--primary"
+                  style="padding:2px 8px;font-size:11px;min-height:24px"
+                  onclick={onnextQuestion}
+                  title="立即进入下一题 (快捷键 Space / Enter / →)"
+                >
+                  立即翻题 ❯
+                </button>
+                <button
+                  type="button"
+                  class="lv-btn sm lv-btn--ghost"
+                  style="padding:2px 8px;font-size:11px;min-height:24px;color:var(--lv-text)"
+                  onclick={oncancelAutoNext}
+                  title="取消自动翻题，停留在此题细看考点与解析"
+                >
+                  停留看解析 ⏸
+                </button>
+              </div>
+            {/if}
+            {#if !feedback && !reciteToggle}
               <button class="lv-btn lv-btn--primary" onclick={onsubmitAnswer} disabled={!canSubmitAnswer}>
                 {q.type === "multiple" && selected.length > 0 ? t("session.submitSelected").replace("{n}", String(selected.length)) : t("session.submit")}
               </button>
@@ -793,12 +929,15 @@
               {/if}
             {:else}
               <button class="lv-btn lv-btn--primary" onclick={onnextQuestion} style="display:inline-flex;align-items:center;gap:4px">
-                <span>{t("session.next")}</span>
+                <span>{reciteToggle ? "已掌握，下一题 (Space / →)" : t("session.next")}</span>
                 <Icon name="chev-right" size={13} />
               </button>
               {#if feedback.verdict === "wrong"}
                 <button class="lv-btn" onclick={ondrillVariant} title={t("session.drillVariantTip")}><Icon name="layers" size={15} /> {t("session.drillVariant")}</button>
                 <button class="lv-btn" onclick={ontraceMother} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
+                {#if ondiagnosePrereqs}
+                  <button type="button" class="lv-btn" onclick={() => ondiagnosePrereqs(q)} title="🧭 自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径"><Icon name="compass" size={14} /> 🧭 溯源根因</button>
+                {/if}
                 <button class="lv-btn" onclick={ontoCard} disabled={cardResult === "…"}><Icon name="layers" size={16} /> {cardResult === "…" ? "制卡中…" : t("memory.toCard")}</button>
                 {#if cardResult}<span class="lv-muted">{cardResult}</span>{/if}
                 <div class="lv-explain-group" style="display:inline-flex;align-items:center;gap:6px">
@@ -930,6 +1069,9 @@
   .lv-opt.right .key { background: var(--lv-green); border-color: var(--lv-green); color: var(--lv-on-green, #fff); }
   .lv-opt.wrong { border-color: var(--lv-red); background: var(--lv-red-soft); box-shadow: 0 0 0 1px var(--lv-red), 0 4px 14px color-mix(in srgb, var(--lv-red) 18%, transparent); }
   .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, #fff); }
+  .lv-opt.eliminated { opacity: 0.45; background: var(--lv-surface-2) !important; border-style: dashed !important; }
+  .lv-opt.eliminated .lv-opt-text { text-decoration: line-through; }
+  .lv-opt.eliminated .key { opacity: 0.6; text-decoration: line-through; }
   .lv-feedback { margin: 16px 0 12px; padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--lv-red) 26%, var(--lv-border)); border-left: 3.5px solid var(--lv-red); border-radius: var(--lv-r-2); font-weight: var(--lv-font-weight-semibold); font-size: var(--lv-font-size-md); background: color-mix(in srgb, var(--lv-red-soft) 85%, var(--lv-surface)); color: var(--lv-red); box-shadow: var(--lv-sh-1); animation: lv-appear var(--lv-dur-view) var(--lv-ease-out); max-width: var(--lv-max-reading-width, 820px); }
   .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: var(--lv-sh-1); }
   /* —— 作答动作区（吸收小驴闪卡 Floating Dock 浮岛悬浮底座质感：圆角聚拢 + 毛玻璃 + 微微弹性） —— */

@@ -7,6 +7,7 @@ const ALLOW = [
   /^index\.js$/,
   /^index\.css$/,
   /^plugin\.json$/,
+  /^widget\.html$/,
   /^icon\.png$/,
   /^preview\.png$/,
   /^i18n\/[a-zA-Z_-]+\.json$/,

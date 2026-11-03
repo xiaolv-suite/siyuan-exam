@@ -52,4 +52,29 @@ describe("块材料合并", () => {
       phonetic: "m4 goi1",
     });
   });
+
+  it("Question 携带 expansion（思路拓展与秒杀技巧）时正确序列化为 IAL 并由 questionFromBlock 无损还原 (AUTH-02)", () => {
+    const q = makeQuestion({
+      type: "single",
+      stem: "已知函数 f(x) 为奇函数，f(2) = 3，则 f(-2) = ？",
+      options: ["3", "-3", "0", "无法确定"],
+      answer: "B",
+      analysis: "由奇函数性质 f(-x) = -f(x)，得 f(-2) = -f(2) = -3。",
+      expansion: "【秒杀技巧】奇函数在对称点处函数值互为相反数，直接取负号秒选 B！",
+    });
+
+    const md = questionToMarkdown(q);
+    expect(md).toContain('custom-exam-expansion="');
+    expect(md).toContain("秒杀技巧");
+
+    const ialString = md.slice(md.lastIndexOf("{: ") + 3).replace(/\}\s*$/, "");
+    const attrs = parseIal(ialString);
+    const restored = questionFromBlock({
+      attrs,
+      text: "已知函数 f(x) 为奇函数，f(2) = 3，则 f(-2) = ？\n- A. 3\n- B. -3\n- C. 0\n- D. 无法确定",
+    });
+
+    expect(restored).not.toBeNull();
+    expect(restored?.expansion).toBe("【秒杀技巧】奇函数在对称点处函数值互为相反数，直接取负号秒选 B！");
+  });
 });

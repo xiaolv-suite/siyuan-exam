@@ -106,7 +106,7 @@ export function higherSampleQuestions(): Question[] {
   ];
 
   return seeds.map((seed) => ({
-    ...makeQuestion({ ...seed, source: "小驴学习大学与硕博高等学术研学示范（高数/线代/考研）", difficulty: 3 }),
+    ...makeQuestion({ ...seed, source: "小驴考试大学与考研示范（高数/线代/考研）", difficulty: 3 }),
     sourceKind: "real",
   }));
 }

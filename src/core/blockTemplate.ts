@@ -47,6 +47,8 @@ export function ialOf(q: Question): string {
   if (q.status) attrs["exam-status"] = q.status;
   if (q.dispute) attrs["exam-dispute"] = JSON.stringify(q.dispute);
   if (q.analysis) attrs["exam-analysis"] = q.analysis;
+  if (q.expansion) attrs["exam-expansion"] = q.expansion;
+  if (q.prerequisites?.length) attrs["exam-prereqs"] = q.prerequisites.join(",");
   if (q.alt?.length) attrs["exam-alt"] = q.alt.join("|");
   if (q.userTags?.length) attrs["exam-tags"] = q.userTags.join(",");
   if (q.answerSpec) attrs["exam-answer-spec"] = JSON.stringify(q.answerSpec);
@@ -166,6 +168,7 @@ export function questionFromBlock(input: FromBlockInput): Question | null {
     options: denseOptions,
     answer: attrs["exam-answer"] ?? "",
     analysis: attrs["exam-analysis"] ?? (analysisLines.length ? analysisLines.join("\n") : undefined),
+    expansion: attrs["exam-expansion"],
     difficulty: attrs["exam-difficulty"] ? parseInt(attrs["exam-difficulty"], 10) : undefined,
     score: attrs["exam-score"] ? parseFloat(attrs["exam-score"]) : 1,
     source: attrs["exam-source"],
@@ -174,6 +177,9 @@ export function questionFromBlock(input: FromBlockInput): Question | null {
     kp: attrs["exam-kp"],
     secondaryKps: attrs["exam-secondary-kps"]
       ? attrs["exam-secondary-kps"].split(/[,，、;；]/).map((s) => s.trim()).filter(Boolean)
+      : undefined,
+    prerequisites: attrs["exam-prereqs"]
+      ? attrs["exam-prereqs"].split(/[,，、;；]/).map((s) => s.trim()).filter(Boolean)
       : undefined,
     group: attrs["exam-group"],
     origin: (attrs["exam-origin"] as Question["origin"]) ?? "imported",
@@ -334,7 +340,9 @@ export function makeQuestion(p: {
   options?: string[];
   answer: string;
   analysis?: string;
+  expansion?: string;
   kp?: string;
+  prerequisites?: string[];
   source?: string;
   year?: string;
   difficulty?: number;
@@ -363,11 +371,13 @@ export function makeQuestion(p: {
     options,
     answer,
     analysis: p.analysis,
+    expansion: p.expansion,
     difficulty: p.difficulty,
     score: 1,
     source: p.source,
     year: p.year,
     kp: p.kp,
+    prerequisites: p.prerequisites,
     origin: "manual",
     group: p.group || undefined,
     batch: newBatchId(),

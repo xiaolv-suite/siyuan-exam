@@ -13,12 +13,14 @@ import { newBatchId } from "./ids";
 import type { Question, QuestionType } from "./types";
 import { makeQuestion } from "./blockTemplate";
 import { questionHash } from "./answer";
-import { lintQuestion, autoFixQuestion } from "./questionLinter";
+import { lintQuestion, autoFixQuestion, hasBlankPlaceholder } from "./questionLinter";
 
 export type DocImportProfile = "all" | "paper" | "notes" | "cloze" | "table";
 
 export interface SiyuanImportOptions extends ImportOptions {
   profile?: DocImportProfile;
+  /** 巨型长文档分片切题进度回调 (ECO-01 / TODO-05) */
+  onProgress?: (p: { processed: number; total: number; percent: number }) => void;
 }
 
 export interface SiyuanDocMeta {
@@ -161,9 +163,14 @@ export function parseMarkdownTableToQuestions(
     if (optCIdx >= 0 && row[optCIdx]) options.push(row[optCIdx]);
     if (optDIdx >= 0 && row[optDIdx]) options.push(row[optDIdx]);
 
+    const isJudge = /^[对错正确错误√×vVxX]$/.test(answer);
     const type: QuestionType = options.length >= 2
       ? (answer.length > 1 ? "multiple" : "single")
-      : /^[对错正确错误]$/.test(answer) ? "judge" : "fill";
+      : isJudge
+      ? "judge"
+      : hasBlankPlaceholder(stem)
+      ? "fill"
+      : "short";
 
     const q = makeQuestion({
       type,
@@ -220,7 +227,7 @@ export function parseInlineFlashcards(
       if (term && def) {
         // 正向题：给出概念，回答释义
         const q1 = makeQuestion({
-          type: def.length > 50 ? "short" : "fill",
+          type: hasBlankPlaceholder(term) ? "fill" : "short",
           stem: `【正向考查】${term}`,
           options: [],
           answer: def,
@@ -231,7 +238,7 @@ export function parseInlineFlashcards(
 
         // 反向题：给出释义，回答概念
         const q2 = makeQuestion({
-          type: term.length > 50 ? "short" : "fill",
+          type: hasBlankPlaceholder(def) ? "fill" : "short",
           stem: `【逆向考查】根据以下描述写出对应概念或术语：\n${def}`,
           options: [],
           answer: term,
@@ -256,7 +263,7 @@ export function parseInlineFlashcards(
       const aText = singleMatch[2].trim();
       if (qText && aText) {
         const q = makeQuestion({
-          type: aText.length > 50 ? "short" : "fill",
+          type: hasBlankPlaceholder(qText) ? "fill" : "short",
           stem: qText,
           options: [],
           answer: aText,
@@ -283,7 +290,7 @@ export function parseInlineFlashcards(
     if (qText && aText) {
       const isBi = sep === "??";
       const q1 = makeQuestion({
-        type: aText.length > 60 ? "short" : "fill",
+        type: hasBlankPlaceholder(qText) ? "fill" : "short",
         stem: qText,
         options: [],
         answer: aText,
@@ -294,7 +301,7 @@ export function parseInlineFlashcards(
 
       if (isBi) {
         const q2 = makeQuestion({
-          type: qText.length > 60 ? "short" : "fill",
+          type: hasBlankPlaceholder(aText) ? "fill" : "short",
           stem: `【逆向回忆】${aText}`,
           options: [],
           answer: qText,
@@ -363,8 +370,9 @@ export function parseHeadingQaQuestions(rawText: string, docMeta: SiyuanDocMeta)
     if (heading.length >= 3 && body.length >= 4 && body.length <= 1500 && !body.startsWith("#")) {
       const isQuestion = /[？?]|^(?:什么是|简述|简答|解释|为什么|如何|请谈谈|请阐述)/.test(heading);
       if (isQuestion) {
+        const isFill = hasBlankPlaceholder(heading);
         const q = makeQuestion({
-          type: body.length > 50 ? "short" : "fill",
+          type: isFill ? "fill" : "short",
           stem: heading.endsWith("？") || heading.endsWith("?") ? heading : `${heading}？`,
           options: [],
           answer: body,
@@ -401,7 +409,7 @@ export function parseBulletDefinitions(rawText: string, docMeta: SiyuanDocMeta):
     if (/^(注意|提示|总结|比如|例如|时间|地点|人物|作者|日期|来源|备注|参考|链接)$/i.test(term)) continue;
     if (term.length >= 2 && def.length >= 6) {
       const q = makeQuestion({
-        type: def.length > 50 ? "short" : "fill",
+        type: "short",
         stem: `简述【${term}】的概念与核心定义。`,
         options: [],
         answer: def,
@@ -451,6 +459,123 @@ export function parseBoldSentenceDefinitions(rawText: string, docMeta: SiyuanDoc
  * - 题干内括号答案：下列说法正确的是 ( A )
  * - 各类中英文答案/解析关键字
  */
+/**
+ * 解析单道自然格式题目文本（单选、多选、判断、填空、简答）
+ */
+export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta): Question | null {
+  const trimmed = item.trim();
+  if (trimmed.length < 5) return null;
+
+  let body = trimmed;
+  // 剥离块首部的文档大标题/章节标题（如 "# 第一章 练习题" 或 "## 一、单项选择题"）
+  body = body.replace(/^(?:#{1,6}\s+[^\n\r]+\r?\n+)+/, "").trim();
+  // 剥离题目编号前缀（1. / 1、 / (1) / 【例题1】 / 第1题）
+  body = body.replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "").trim();
+
+  let analysis: string | undefined;
+  const analysisMatch = body.match(/(?:(?:【解析】|解析\s*[:：]|详解\s*[:：]|【详解】)\s*)([\s\S]+)$/i);
+  if (analysisMatch) {
+    analysis = analysisMatch[1].trim();
+    body = body.slice(0, analysisMatch.index).trim();
+  }
+
+  let answer = "";
+  const answerMatch = body.match(/(?:(?:【答案】|答案\s*[:：]|参考答案\s*[:：]|ANSWER\s*[:：]|KEY\s*[:：])\s*)([^\n\r]+)/i);
+  if (answerMatch) {
+    answer = answerMatch[1].replace(/["'`]/g, "").trim().toUpperCase();
+    body = body.slice(0, answerMatch.index).trim();
+  }
+
+  const stemAnsMatch = body.match(/[（(]\s*([A-Fa-f]{1,6}|[√×对错正确错误TFN]+)\s*[)）]/);
+  if (!answer && stemAnsMatch) {
+    const candidateAns = stemAnsMatch[1].trim().toUpperCase();
+    if (/^[A-F]{1,6}$/.test(candidateAns) || /^[√×对错正确错误TFN]+$/.test(candidateAns)) {
+      answer = candidateAns;
+      body = body.replace(stemAnsMatch[0], "（   ）");
+    }
+  }
+
+  const optSplitRegex = /(?:^|\s+)(?:[(（]?([A-Fa-f])[)）.]|([A-Fa-f])[.、:：])\s+/g;
+  const optPositions: Array<{ letter: string; index: number; fullLen: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = optSplitRegex.exec(body)) !== null) {
+    const letter = (m[1] || m[2]).toUpperCase();
+    const expectedCode = 65 + optPositions.length;
+    if (letter.charCodeAt(0) === expectedCode) {
+      optPositions.push({ letter, index: m.index, fullLen: m[0].length });
+      if (optPositions.length >= 6) break;
+    } else if (optPositions.length >= 2) {
+      break;
+    }
+  }
+
+  if (optPositions.length >= 2 && optPositions[0].letter === "A" && optPositions[1].letter === "B") {
+    const stem = body.slice(0, optPositions[0].index).trim().replace(/[-*+•\s]+$/, "").trim();
+    const options: string[] = [];
+    for (let i = 0; i < optPositions.length; i++) {
+      const start = optPositions[i].index + optPositions[i].fullLen;
+      const end = i < optPositions.length - 1 ? optPositions[i + 1].index : body.length;
+      options.push(body.slice(start, end).trim().replace(/[-*+•\s]+$/, "").trim());
+    }
+
+    if (stem && options.length >= 2) {
+      const type: QuestionType = answer.length > 1 ? "multiple" : "single";
+      const q = makeQuestion({
+        type,
+        stem,
+        options,
+        answer: answer || "A",
+        analysis,
+        kp: docMeta.title,
+        source: docMeta.title,
+      });
+      q.sourceKind = "real";
+      return q;
+    }
+  }
+
+  // 判断题：若题干尾部有括号对错标记，或提取出的答案为对错符号
+  const isJudgeAns = /^[√×对错vVxX正确错误TFN]+$/.test(answer);
+  const judgeMatch = body.match(/^(.*?)[（(]\s*([√×对错vVxX正确错误TFN]+)\s*[)）]\s*$/);
+  if (isJudgeAns || judgeMatch) {
+    const rawAns = (isJudgeAns ? answer : judgeMatch![2]).trim().toUpperCase();
+    const ans = /[√对vVT正确]/.test(rawAns) ? "对" : "错";
+    let stem = judgeMatch ? judgeMatch[1].trim() : body.replace(/（\s*）|[（(]\s*[)）]/g, "").trim();
+    stem = stem.replace(/^[.、\s]+|[.、\s]+$/g, "");
+    if (stem.length >= 2) {
+      const q = makeQuestion({
+        type: "judge",
+        stem,
+        options: [],
+        answer: ans,
+        analysis,
+        kp: docMeta.title,
+        source: docMeta.title,
+      });
+      q.sourceKind = "real";
+      return q;
+    }
+  }
+
+  const isFill = hasBlankPlaceholder(body);
+  const type: QuestionType = isFill ? "fill" : "short";
+  if (isFill || (answer && body.length < 1500)) {
+    const q = makeQuestion({
+      type,
+      stem: body,
+      options: [],
+      answer: answer || "待补充",
+      analysis,
+      kp: docMeta.title,
+      source: docMeta.title,
+    });
+    q.sourceKind = "real";
+    return q;
+  }
+
+  return null;
+}
+
 export function extractNaturalPaperQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
   const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
   const itemSplitRegex = /\n+(?=(?:#{1,6}\s*)?(?:\d+[.、\s]|[(（]\d+[)）]|第\s*\d+\s*题[:：]?|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】))/g;
@@ -458,108 +583,40 @@ export function extractNaturalPaperQuestions(rawText: string, docMeta: SiyuanDoc
   const questions: Question[] = [];
 
   for (const item of rawItems) {
-    const trimmed = item.trim();
-    if (trimmed.length < 5) continue;
+    const q = parseSingleNaturalQuestion(item, docMeta);
+    if (q) questions.push(q);
+  }
 
-    let body = trimmed;
-    // 剥离块首部的文档大标题/章节标题（如 "# 第一章 练习题" 或 "## 一、单项选择题"）
-    body = body.replace(/^(?:#{1,6}\s+[^\n\r]+\r?\n+)+/, "").trim();
-    // 剥离题目编号前缀（1. / 1、 / (1) / 【例题1】 / 第1题）
-    body = body.replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "").trim();
+  return questions;
+}
 
-    let analysis: string | undefined;
-    const analysisMatch = body.match(/(?:(?:【解析】|解析\s*[:：]|详解\s*[:：]|【详解】)\s*)([\s\S]+)$/i);
-    if (analysisMatch) {
-      analysis = analysisMatch[1].trim();
-      body = body.slice(0, analysisMatch.index).trim();
-    }
+/**
+ * 巨型长文档分片异步切题处理器 (ECO-01 / TODO-05)
+ * 对超过 30,000 字的超大文档进行任务分片切题，每批处理 50 题后 yield 宏任务，防主线程卡顿
+ */
+export async function extractNaturalPaperQuestionsAsync(
+  rawText: string,
+  docMeta: SiyuanDocMeta,
+  onProgress?: (p: { processed: number; total: number; percent: number }) => void,
+  batchSize = 50,
+): Promise<Question[]> {
+  const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
+  const itemSplitRegex = /\n+(?=(?:#{1,6}\s*)?(?:\d+[.、\s]|[(（]\d+[)）]|第\s*\d+\s*题[:：]?|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】))/g;
+  const rawItems = normalized.split(itemSplitRegex);
+  const questions: Question[] = [];
+  const total = rawItems.length;
 
-    let answer = "";
-    const answerMatch = body.match(/(?:(?:【答案】|答案\s*[:：]|参考答案\s*[:：]|ANSWER\s*[:：]|KEY\s*[:：])\s*)([^\n\r]+)/i);
-    if (answerMatch) {
-      answer = answerMatch[1].replace(/["'`]/g, "").trim().toUpperCase();
-      body = body.slice(0, answerMatch.index).trim();
-    }
+  for (let i = 0; i < total; i++) {
+    const q = parseSingleNaturalQuestion(rawItems[i], docMeta);
+    if (q) questions.push(q);
 
-    const stemAnsMatch = body.match(/[（(]\s*([A-Fa-f]{1,6}|[√×对错正确错误TFN]+)\s*[)）]/);
-    if (!answer && stemAnsMatch) {
-      const candidateAns = stemAnsMatch[1].trim().toUpperCase();
-      if (/^[A-F]{1,6}$/.test(candidateAns) || /^[√×对错正确错误TFN]+$/.test(candidateAns)) {
-        answer = candidateAns;
-        body = body.replace(stemAnsMatch[0], "（   ）");
-      }
-    }
-
-    const optSplitRegex = /(?:^|\s+)(?:[(（]?([A-Fa-f])[)）.]|([A-Fa-f])[.、:：])\s+/g;
-    const optPositions: Array<{ letter: string; index: number; fullLen: number }> = [];
-    let m: RegExpExecArray | null;
-    while ((m = optSplitRegex.exec(body)) !== null) {
-      const letter = (m[1] || m[2]).toUpperCase();
-      optPositions.push({ letter, index: m.index, fullLen: m[0].length });
-    }
-
-    if (optPositions.length >= 2 && optPositions[0].letter === "A" && optPositions[1].letter === "B") {
-      const stem = body.slice(0, optPositions[0].index).trim().replace(/[-*+•\s]+$/, "").trim();
-      const options: string[] = [];
-      for (let i = 0; i < optPositions.length; i++) {
-        const start = optPositions[i].index + optPositions[i].fullLen;
-        const end = i < optPositions.length - 1 ? optPositions[i + 1].index : body.length;
-        options.push(body.slice(start, end).trim().replace(/[-*+•\s]+$/, "").trim());
-      }
-
-      if (stem && options.length >= 2) {
-        const type: QuestionType = answer.length > 1 ? "multiple" : "single";
-        const q = makeQuestion({
-          type,
-          stem,
-          options,
-          answer: answer || "A",
-          analysis,
-          kp: docMeta.title,
-          source: docMeta.title,
-        });
-        q.sourceKind = "real";
-        questions.push(q);
-        continue;
-      }
-    }
-
-    // 判断题：若题干尾部有括号对错标记，或提取出的答案为对错符号
-    const isJudgeAns = /^[√×对错vVxX正确错误TFN]+$/.test(answer);
-    const judgeMatch = body.match(/^(.*?)[（(]\s*([√×对错vVxX正确错误TFN]+)\s*[)）]\s*$/);
-    if (isJudgeAns || judgeMatch) {
-      const rawAns = (isJudgeAns ? answer : judgeMatch![2]).trim().toUpperCase();
-      const ans = /[√对vVT正确]/.test(rawAns) ? "对" : "错";
-      let stem = judgeMatch ? judgeMatch[1].trim() : body.replace(/（\s*）|[（(]\s*[)）]/g, "").trim();
-      stem = stem.replace(/^[.、\s]+|[.、\s]+$/g, "");
-      if (stem.length >= 2) {
-        const q = makeQuestion({
-          type: "judge",
-          stem,
-          options: [],
-          answer: ans,
-          analysis,
-          kp: docMeta.title,
-          source: docMeta.title,
-        });
-        q.sourceKind = "real";
-        questions.push(q);
-        continue;
-      }
-    }
-
-    if (body.includes("____") || body.includes("（   ）") || (answer && body.length < 300)) {
-      const q = makeQuestion({
-        type: "fill",
-        stem: body,
-        options: [],
-        answer: answer || "待补充",
-        analysis,
-        kp: docMeta.title,
-        source: docMeta.title,
+    if (onProgress && (i % batchSize === 0 || i === total - 1)) {
+      onProgress({
+        processed: i + 1,
+        total,
+        percent: Math.round(((i + 1) / total) * 100),
       });
-      q.sourceKind = "real";
-      questions.push(q);
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }
 
@@ -620,7 +677,11 @@ export async function parseQuestionsFromSiyuanDoc(
 
   // 4. 思源自然试卷与自由排版考题识别（单行题号 1. / 1、 / (1)、一行多选项 A. xx B. yy、题干括号答案等）
   if (shouldRunPaper) {
-    allCandidates.push(...extractNaturalPaperQuestions(cleanedText, docMeta));
+    if (cleanedText.length > 25000) {
+      allCandidates.push(...(await extractNaturalPaperQuestionsAsync(cleanedText, docMeta, options.onProgress)));
+    } else {
+      allCandidates.push(...extractNaturalPaperQuestions(cleanedText, docMeta));
+    }
 
     // 4.1 整卷大题章节智能切分与答案回填（支持试卷专区）
     try {
@@ -901,7 +962,7 @@ export function convertTaggedBlockToQuestion(
     const term = colonMatch[1].trim();
     const def = colonMatch[2].trim();
     const q = makeQuestion({
-      type: def.length > 50 ? "short" : "fill",
+      type: "short",
       stem: `简述【${term}】的概念与核心定义。`,
       options: [],
       answer: def,
@@ -935,7 +996,7 @@ export function convertTaggedBlockToQuestion(
 
   // 5. 兜底为重点复述考点卡
   const q = makeQuestion({
-    type: cleanContent.length > 60 ? "short" : "fill",
+    type: "short",
     stem: cleanContent.length > 60
       ? `【考点阐述】请结合以下要点进行论述：\n${cleanContent.slice(0, 80)}…`
       : `【重点复述】根据《${docTitle}》，请写出以下考点的完整表述：`,

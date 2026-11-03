@@ -4,6 +4,9 @@
   import type { ExamApp } from "../../app";
   import BrowseMaintenanceDrawers from "./BrowseMaintenanceDrawers.svelte";
   import QuestionPeekDrawer from "./QuestionPeekDrawer.svelte";
+  import PaperPresentationModal from "../shared/PaperPresentationModal.svelte";
+  import MarketplacePublishModal from "./MarketplacePublishModal.svelte";
+  import PaperAssembleModal from "./PaperAssembleModal.svelte";
 
   type QuestionWithBlock = Question & { blockId: string };
 
@@ -26,6 +29,7 @@
     smartViewLoadFailed: boolean;
     smartViewError: string;
     activeBankId: string;
+    bankName?: string;
     shownQuestions: Question[];
     questions: Question[];
     sectionOpen: boolean;
@@ -175,6 +179,8 @@
     onexportGiftFormat: () => void;
     onexportAnkiFormat: () => void;
     onexportMdDocFormat: () => void;
+    onexportQCardsJson?: () => void;
+    onexportLvCardsPackage?: () => void;
     onclearSectionSel: () => void;
     onsearchKp: (kp: string) => void;
     onpreviewKpMerge: () => void;
@@ -239,6 +245,7 @@
     onsubmitClearDispute: (q: QuestionWithBlock) => void;
     onsubmitFlagDispute: (q: QuestionWithBlock) => void;
     onloadMore: () => void;
+    showMessage?: (msg: string, time?: number, type?: "info" | "error") => void;
   }
 
   let {
@@ -260,6 +267,7 @@
     smartViewLoadFailed,
     smartViewError,
     activeBankId,
+    bankName = "题库试题",
     shownQuestions,
     questions,
     sectionOpen,
@@ -409,6 +417,8 @@
     onexportGiftFormat,
     onexportAnkiFormat,
     onexportMdDocFormat,
+    onexportQCardsJson = () => {},
+    onexportLvCardsPackage = () => {},
     onclearSectionSel,
     onsearchKp,
     onpreviewKpMerge,
@@ -473,8 +483,23 @@
     onsubmitClearDispute,
     onsubmitFlagDispute,
     onloadMore,
+    showMessage = (msg: string) => { console.log(msg); },
   }: Props = $props();
 
+  let presentationOpen = $state(false);
+  let publishModalOpen = $state(false);
+  let assembleModalOpen = $state(false);
+  let assembleQuestions = $state<Question[]>([]);
+
+  function openAssembleStudio(qs?: Question[]) {
+    const target = qs && qs.length ? qs : (shownQuestions.length ? shownQuestions : questions);
+    if (!target.length) {
+      showMessage("暂无试题可供组卷排版", 2000, "error");
+      return;
+    }
+    assembleQuestions = [...target];
+    assembleModalOpen = true;
+  }
 </script>
 
 <div class="lv-pad">
@@ -559,6 +584,12 @@
       <button class="lv-btn sm lv-btn--primary" onclick={onstartFilteredFocusDrill} title="将当前筛选出的这批题目直接发起专注特训">
         <Icon name="play" size={13} /> {t("browse.drillFiltered").replace("{n}", String(shownQuestions.length))}
       </button>
+      <button class="lv-btn sm lv-btn--ghost" onclick={() => (presentationOpen = true)} title="进入试卷大屏放映模式，支持投屏演示与键盘翻页">
+        <Icon name="monitor" size={13} /> 投屏放映
+      </button>
+      <button class="lv-btn sm lv-btn--ghost" onclick={() => openAssembleStudio()} title="进入专业组卷排版工坊，自定义 A4 双栏/单栏、卷面大标题、密封线与答题留白并直接打印">
+        <Icon name="printer" size={13} /> 🖨️ 组卷排版打印
+      </button>
     {/if}
     <button class="lv-chip" class:acc={sectionOpen} aria-pressed={sectionOpen} onclick={ontoggleSectionTree}><Icon name="file-text" size={13} /> {t("browse.sectionTree")}</button>
     <button class="lv-chip" class:acc={batchMode} aria-pressed={batchMode} onclick={ontoggleBatchMode}>{t("batch.mode")}</button>
@@ -583,11 +614,16 @@
             <button role="menuitem" title="导出带参考答案、考点难度、采分点标准与解析的 A4 双栏授课讲义卷" onclick={() => { onprintFilteredByFormat("lecture"); moreOpen = false; }}><Icon name="book" size={14} /> 授课讲义卷</button>
             <button role="menuitem" title="导出带姓名班级栏、作答留白与订正栏的 A4 双栏作业单" onclick={() => { onprintFilteredByFormat("homework"); moreOpen = false; }}><Icon name="file-text" size={14} /> 留白作业单</button>
           {/if}
+          <button role="menuitem" title="进入专业组卷排版打印工坊 (支持 A4 拟真预览与五大版式实时定制)" onclick={() => { openAssembleStudio(); moreOpen = false; }}><Icon name="printer" size={14} /> 🖨️ 组卷排版打印工坊</button>
           <button role="menuitem" title="导出全库试题实测难度、区分度与死干扰项诊断报告" onclick={() => { onexportItemQualityReport(); moreOpen = false; }}><Icon name="chart" size={14} /> {t("health.itemQualityAudit")}</button>
           <div class="lv-more-sep" role="separator"></div>
           <button role="menuitem" title="导出为 Moodle/学习通标准试题格式" onclick={() => { onexportGiftFormat(); moreOpen = false; }}><Icon name="export" size={14} /> {t("format.exportGift")}</button>
           <button role="menuitem" title="导出为 Anki / FSRS 问答闪卡卡包" onclick={() => { onexportAnkiFormat(); moreOpen = false; }}><Icon name="layers" size={14} /> {t("format.exportAnki")}</button>
           <button role="menuitem" title="导出为标准排版 Markdown 试题手册" onclick={() => { onexportMdDocFormat(); moreOpen = false; }}><Icon name="file-text" size={14} /> {t("format.exportMdDoc")}</button>
+          <button role="menuitem" title="导出为小驴闪卡分享包 (.lvcards)，一键导入小驴闪卡进行间隔记忆与 FSRS 复习" onclick={() => { onexportLvCardsPackage(); moreOpen = false; }}><Icon name="sparkles" size={14} /> 小驴闪卡包 (.lvcards)</button>
+          <button role="menuitem" title="导出为标准 Agent 题卡 (QCard JSON)，供 AI 与外部工具无缝消费" onclick={() => { onexportQCardsJson(); moreOpen = false; }}><Icon name="code" size={14} /> Agent 题卡 (JSON)</button>
+          <div class="lv-more-sep" role="separator"></div>
+          <button role="menuitem" title="将当前题库打包并导出为公共集市订阅源 (含隐私与私有路径脱敏自检)" onclick={() => { publishModalOpen = true; moreOpen = false; }}><Icon name="package" size={14} /> 📦 打包为集市源</button>
         </div>
       {/if}
     </div>
@@ -711,12 +747,19 @@
       </div>
     {/if}
     {#each shownQuestions as q (q.id)}
-      <div class="lv-card lv-qrow" class:sel={batchMode && !!selectedIds[q.id]} class:active-peek={!batchMode && expandedId === q.id}>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="lv-card lv-qrow"
+        class:sel={batchMode && !!selectedIds[q.id]}
+        class:active-peek={!batchMode && expandedId === q.id}
+        onclick={() => ontoggleBrowseQuestion(q.id)}
+      >
         <button type="button" class="lv-qrow-head"
           aria-pressed={batchMode ? !!selectedIds[q.id] : undefined}
           aria-expanded={!batchMode ? expandedId === q.id : undefined}
           aria-describedby={`lv-qrow-stem-${q.id}`}
-          onclick={() => ontoggleBrowseQuestion(q.id)}>
+          onclick={(e) => { e.stopPropagation(); ontoggleBrowseQuestion(q.id); }}>
           {#if batchMode}
             <span class="lv-chip num" class:acc={!!selectedIds[q.id]} style="display:inline-flex;align-items:center;justify-content:center;min-width:26px;padding:2px 6px">
               {#if selectedIds[q.id]}
@@ -749,7 +792,15 @@
             {/if}
           {/if}
         </button>
-        <div class="lv-qrow-stem" id={`lv-qrow-stem-${q.id}`}>{q.stem}</div>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="lv-qrow-stem"
+          id={`lv-qrow-stem-${q.id}`}
+          onclick={(e) => { e.stopPropagation(); ontoggleBrowseQuestion(q.id); }}
+        >
+          {q.stem}
+        </div>
       </div>
     {/each}
     {#if activePeekQuestion && activePeekQuestion.blockId}
@@ -863,4 +914,29 @@
       </button>
     {/if}
   {/if}
+
+  <PaperPresentationModal
+    open={presentationOpen}
+    title={bankName || "题库试题"}
+    questions={shownQuestions}
+    {t}
+    onclose={() => (presentationOpen = false)}
+  />
+
+  <MarketplacePublishModal
+    open={publishModalOpen}
+    bankName={bankName || "题库试题"}
+    bankId={activeBankId}
+    questions={shownQuestions.length ? shownQuestions : questions}
+    onclose={() => (publishModalOpen = false)}
+    {showMessage}
+  />
+
+  <PaperAssembleModal
+    open={assembleModalOpen}
+    bankName={bankName || "题库试题"}
+    questions={assembleQuestions}
+    onclose={() => (assembleModalOpen = false)}
+    {showMessage}
+  />
 </div>

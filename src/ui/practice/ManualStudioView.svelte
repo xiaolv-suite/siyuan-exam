@@ -1,15 +1,20 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
-  import type { QuestionLifecycleStatus } from "../../core/types";
+  import { validateLatexSyntax } from "@/core/math";
+  import { computeStemSimilarity, splitRawOptionsText } from "@/core/textDiff";
+  import type { Question, QuestionLifecycleStatus } from "../../core/types";
   import StudioSubNav from "./StudioSubNav.svelte";
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
 
   interface Props {
+    existingQuestions?: Question[];
+    pinAttributes?: boolean;
     mType: "single" | "multiple" | "judge" | "fill" | "short";
     mStem: string;
     mOptions: string[];
     mAnswer: string;
     mAnalysis: string;
+    mExpansion?: string;
     mKp: string;
     mSecondaryKps?: string;
     mSource: string;
@@ -60,11 +65,14 @@
   }
 
   let {
+    existingQuestions = [],
+    pinAttributes = $bindable(false),
     mType = $bindable(),
     mStem = $bindable(),
     mOptions = $bindable(),
     mAnswer = $bindable(),
     mAnalysis = $bindable(),
+    mExpansion = $bindable(""),
     mKp = $bindable(),
     mSecondaryKps = $bindable(""),
     mSource = $bindable(),
@@ -114,6 +122,9 @@
     onsearchSiyuanDocs = async () => [],
   }: Props = $props();
 
+  const stemLatexIssue = $derived(validateLatexSyntax(mStem));
+  const analysisLatexIssue = $derived(validateLatexSyntax(mAnalysis));
+
   let docPickerOpen = $state(false);
   let docPickerSearch = $state("");
   let docPickerCandidates = $state<Array<{ id: string; title: string; hpath: string }>>([]);
@@ -136,10 +147,113 @@
     docPickerOpen = false;
   }
 
+  function swapOptions(from: number, to: number) {
+    if (from < 0 || to < 0 || from >= mOptions.length || to >= mOptions.length) return;
+    const fromLetter = String.fromCharCode(65 + from);
+    const toLetter = String.fromCharCode(65 + to);
+    const nextOpts = [...mOptions];
+    const temp = nextOpts[from];
+    nextOpts[from] = nextOpts[to];
+    nextOpts[to] = temp;
+    mOptions = nextOpts;
+
+    if (mAnswer.includes(fromLetter) || mAnswer.includes(toLetter)) {
+      const letters = mAnswer.split("");
+      const updated = letters.map((l) => {
+        if (l === fromLetter) return toLetter;
+        if (l === toLetter) return fromLetter;
+        return l;
+      });
+      mAnswer = updated.sort().join("");
+    }
+  }
+
   const hasStem = $derived(Boolean(mStem.trim()));
   const hasAnswer = $derived(Boolean(mAnswer.trim() || mType === "short"));
   const isReady = $derived(hasStem && hasAnswer);
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      if (!mSaving && hasStem) {
+        e.preventDefault();
+        if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
+          onsetCorrectOption(0);
+        }
+        void onsaveManual("published");
+      }
+    }
+  }
+
+  // 题干近重复查重预警
+  let nearDupeMatched = $state<Question | null>(null);
+  let nearDupeSimilarity = $state<number>(0);
+  let checkTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function runNearDupeCheck() {
+    if (checkTimer) clearTimeout(checkTimer);
+    checkTimer = setTimeout(() => {
+      const stem = mStem.trim();
+      if (stem.length < 5 || !existingQuestions || !existingQuestions.length) {
+        nearDupeMatched = null;
+        nearDupeSimilarity = 0;
+        return;
+      }
+      let bestQ: Question | null = null;
+      let maxSim = 0;
+      for (const eq of existingQuestions) {
+        const sim = computeStemSimilarity(stem, eq.stem);
+        if (sim > maxSim) {
+          maxSim = sim;
+          bestQ = eq;
+        }
+      }
+      if (maxSim >= 0.78 && bestQ) {
+        nearDupeMatched = bestQ;
+        nearDupeSimilarity = maxSim;
+      } else {
+        nearDupeMatched = null;
+        nearDupeSimilarity = 0;
+      }
+    }, 180);
+  }
+
+  $effect(() => {
+    if (mStem) {
+      runNearDupeCheck();
+    } else {
+      nearDupeMatched = null;
+    }
+  });
+
+  function applyNearDupeMetadata() {
+    if (!nearDupeMatched) return;
+    if (nearDupeMatched.kp && !mKp) mKp = nearDupeMatched.kp;
+    if (nearDupeMatched.analysis && !mAnalysis) mAnalysis = nearDupeMatched.analysis;
+    if (nearDupeMatched.options && nearDupeMatched.options.length && (!mOptions.length || mOptions.every((o) => !o.trim()))) {
+      mOptions = [...nearDupeMatched.options];
+    }
+    if (nearDupeMatched.answer && !mAnswer) mAnswer = nearDupeMatched.answer;
+  }
+
+  // 选项整段秒拆
+  let quickSplitOpen = $state(false);
+  let quickSplitInput = $state("");
+
+  function applyQuickSplit() {
+    if (!quickSplitInput.trim()) return;
+    const res = splitRawOptionsText(quickSplitInput);
+    if (res.options.length > 0) {
+      mOptions = res.options;
+      if (res.answer && !mAnswer) {
+        mAnswer = res.answer;
+      }
+      quickSplitOpen = false;
+      quickSplitInput = "";
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="lv-pad" onpaste={onmanualPaste}>
   <div class="lv-screen-head" style="margin:0 0 10px">
@@ -267,6 +381,16 @@
           {#each ["single", "multiple", "judge", "fill", "short"] as tt, _i (_i)}
             <button type="button" class="lv-chip" class:acc={mType === tt} aria-pressed={mType === tt} onclick={() => void onswitchManualType(tt)}>{t("qtype." + tt)}</button>
           {/each}
+          <button
+            type="button"
+            class="lv-chip"
+            class:acc={pinAttributes}
+            onclick={() => { pinAttributes = !pinAttributes; }}
+            title="📌 锁定属性：开启后录题入库自动锁定保留当前题型、考点与出处标签，清空题干与选项并聚焦首行，适合连续批量制题"
+            style="font-weight:600;display:inline-flex;align-items:center;gap:4px"
+          >
+            <Icon name="pin" size={12} /> {pinAttributes ? "属性已锁定" : "锁定属性"}
+          </button>
         </div>
         <div class="lv-row" style="margin:0;gap:6px">
           <button type="button" class="lv-chip sm lv-chip--acc" title="一键填充典型单选题示范，无需手动逐个敲字" onclick={() => {
@@ -356,6 +480,21 @@
           {/if}
         </div>
         <textarea id="lv-manual-stem" class="lv-input lv-textarea" style="min-height:90px;resize:vertical!important;width:100%" bind:value={mStem} oninput={onclearManualValidation} placeholder={t("manual.stemPlaceholder")} data-manual-field="stem" aria-invalid={manualErrorField === "stem" ? "true" : undefined} aria-describedby={manualErrorField === "stem" ? "manual-validation-error" : undefined}></textarea>
+        {#if !stemLatexIssue.valid}
+          <div class="lv-chip sm lv-chip--amb" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px">
+            <Icon name="alert-triangle" size={11} /> {stemLatexIssue.message}
+          </div>
+        {/if}
+        {#if nearDupeMatched}
+          <div class="lv-row" style="margin:6px 0;padding:6px 12px;background:color-mix(in srgb, var(--lv-amber-soft) 85%, var(--lv-surface));border-left:3.5px solid var(--lv-amber);border-radius:var(--lv-r-2);align-items:center;justify-content:space-between;gap:8px" role="alert">
+            <span style="font-size:12px;color:var(--lv-text);display:inline-flex;align-items:center;gap:6px">
+              <Icon name="alert-triangle" size={13} /> 题库中已存在高相似度题目（{Math.round(nearDupeSimilarity * 100)}%）：<b>《{nearDupeMatched.stem.slice(0, 24)}…》</b>
+            </span>
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={applyNearDupeMetadata} title="沿用该题的考点、解析与选项">
+              沿用考点/解析
+            </button>
+          </div>
+        {/if}
         {#if mStem.length > 15 && (/(?:^|\s+)[A-D][.、:：\s]/m.test(mStem) || /答案|解析|【答案】/i.test(mStem) || /[（(]\s*[A-D√×对错]\s*[)）]/.test(mStem))}
           <div class="lv-row" style="margin:4px 0;padding:6px 10px;background:color-mix(in srgb, var(--lv-accent-soft) 28%, var(--lv-surface));border-radius:var(--lv-r-2);align-items:center;justify-content:space-between">
             <span style="font-size:12px;color:var(--lv-text);display:inline-flex;align-items:center;gap:5px">
@@ -372,7 +511,24 @@
       </div>
       {#if mType === "single" || mType === "multiple"}
         <div class="lv-field" role="group" aria-label={t("manual.options")}>
-          <span class="lv-muted">{t("manual.options")}（点击字母圆圈设为正确答案）</span>
+          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+            <span class="lv-muted">{t("manual.options")}（点击字母圆圈设为正确答案）</span>
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (quickSplitOpen = !quickSplitOpen)} title="粘贴包含 A. B. C. D. 的整段选项，一键自动秒拆上槽">
+              <Icon name="sparkles" size={12} /> {quickSplitOpen ? "收起拆分" : "🪄 粘贴整段选项秒拆"}
+            </button>
+          </div>
+          {#if quickSplitOpen}
+            <div class="lv-card" style="margin-bottom:8px;padding:8px 12px;background:var(--lv-surface-2);border:1px dashed var(--lv-border);border-radius:var(--lv-r-2)">
+              <div class="lv-muted" style="font-size:11.5px;margin-bottom:4px">将试卷中复制的整行选项（如 “A. 红 B. 蓝 C. 绿 D. 黄 答案: B”）粘贴到下方：</div>
+              <input class="lv-input sm" style="width:100%" placeholder="在此粘贴整行或多行选项…" bind:value={quickSplitInput} onkeydown={(e) => { if (e.key === "Enter") applyQuickSplit(); }} />
+              <div class="lv-row" style="margin:6px 0 0;justify-content:flex-end;gap:6px">
+                <button type="button" class="lv-btn sm lv-btn--primary" onclick={applyQuickSplit} disabled={!quickSplitInput.trim()}>
+                  <Icon name="check" size={12} /> 一键秒拆到各选项槽
+                </button>
+                <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (quickSplitOpen = false)}>取消</button>
+              </div>
+            </div>
+          {/if}
           {#each mOptions as _opt, i (i)}
             {@const letter = String.fromCharCode(65 + i)}
             {@const isSelected = mAnswer.includes(letter)}
@@ -386,9 +542,17 @@
               {#if isSelected}
                 <span class="lv-chip lv-chip--grn num sm" style="font-size:11px;padding:2px 6px">正确项</span>
               {/if}
-              {#if mOptions.length > 2}
-                <button type="button" class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${letter}`} title={`${t("manual.removeOption", "删除选项")} ${letter}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }}><Icon name="close" size={12} /></button>
-              {/if}
+              <div class="lv-row" style="margin:0;gap:2px;align-items:center">
+                {#if i > 0}
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => swapOptions(i, i - 1)} title="上移此选项并联动调整答案" aria-label="上移" style="padding:2px 4px;min-width:20px"><Icon name="arrow-up" size={11} /></button>
+                {/if}
+                {#if i < mOptions.length - 1}
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => swapOptions(i, i + 1)} title="下移此选项并联动调整答案" aria-label="下移" style="padding:2px 4px;min-width:20px"><Icon name="arrow-down" size={11} /></button>
+                {/if}
+                {#if mOptions.length > 2}
+                  <button type="button" class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${letter}`} title={`${t("manual.removeOption", "删除选项")} ${letter}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }} style="padding:2px 4px;min-width:20px"><Icon name="close" size={12} /></button>
+                {/if}
+              </div>
             </div>
           {/each}
           {#if mOptions.length < 6}
@@ -472,6 +636,17 @@
       <div class="lv-field">
         <label class="lv-muted" for="lv-manual-analysis" style="font-weight:600;font-size:13px">{t("manual.analysis")}</label>
         <textarea id="lv-manual-analysis" class="lv-input lv-textarea" style="min-height:80px;resize:vertical!important;width:100%" bind:value={mAnalysis} placeholder="输入破题思路、考点解析或记忆技巧（可选）"></textarea>
+        {#if !analysisLatexIssue.valid}
+          <div class="lv-chip sm lv-chip--amb" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px">
+            <Icon name="alert-triangle" size={11} /> {analysisLatexIssue.message}
+          </div>
+        {/if}
+      </div>
+      <div class="lv-field">
+        <label class="lv-muted" for="lv-manual-expansion" style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px">
+          <Icon name="bulb" size={13} /> 💡 思路拓展与秒杀技巧（选填）
+        </label>
+        <textarea id="lv-manual-expansion" class="lv-input lv-textarea" style="min-height:64px;resize:vertical!important;width:100%" bind:value={mExpansion} placeholder="考点考法拓宽、命题陷阱分析、一题多解或秒杀技巧规律总结…"></textarea>
       </div>
       <div class="lv-row" style="flex-wrap:wrap">
         <label class="lv-chip" for="lv-manual-kp">{t("manual.kp")}</label><input id="lv-manual-kp" class="lv-input" style="max-width:180px" bind:value={mKp} placeholder={t("manual.kpHint")} />
@@ -578,8 +753,8 @@
             onsetCorrectOption(0);
           }
           onsaveManual("published");
-        }} disabled={mSaving || !hasStem} aria-busy={mSaving} title="保存题目并直接存为思源笔记题库块">
-          <Icon name="save" size={14} /> {mSaving ? "正在写入思源块…" : "入库并存为思源块"}
+        }} disabled={mSaving || !hasStem} aria-busy={mSaving} title="保存题目并直接存为思源笔记题库块 (Ctrl+Enter 连录)">
+          <Icon name="save" size={14} /> {mSaving ? "正在写入思源块…" : "入库并存为思源块 (Ctrl+Enter)"}
         </button>
         <button class="lv-btn" onclick={() => {
           if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
@@ -590,10 +765,16 @@
           mOptions = mType === "single" || mType === "multiple" ? ["", ""] : [];
           mAnswer = "";
           mAnalysis = "";
+          if (!pinAttributes) {
+            mKp = "";
+            mSecondaryKps = "";
+            mSource = "";
+            mGroup = "";
+          }
           const stemEl = document.getElementById("lv-manual-stem");
           if (stemEl) stemEl.focus();
-        }} disabled={mSaving || !hasStem} title="保存当前题后保留考点与出处，直接继续录入下一题">
-          <Icon name="plus" size={13} /> 入库并继续下一题
+        }} disabled={mSaving || !hasStem} title={pinAttributes ? "属性已锁定：入库并保留当前题型与考点，直接连续录入下一题" : "保存当前题后保留考点与出处，直接继续录入下一题"}>
+          <Icon name="plus" size={13} /> {pinAttributes ? "📌 连录下一题" : "入库并继续下一题"}
         </button>
         <button class="lv-btn" onclick={() => onsaveManual("draft")} disabled={mSaving || !hasStem} title="未填答案亦可保存为思源草稿块，方便随时暂存">
           存为草稿块
@@ -667,6 +848,11 @@
           <strong>{mType === "short" ? "参考要点" : "参考答案"}</strong>
           <p>{mType === "single" || mType === "multiple" ? mAnswer.split("").map((letter) => `${letter}. ${mOptions[letter.charCodeAt(0) - 65] ?? ""}`).join("；") || t("manual.answerHint") : mAnswer.trim() || t("manual.answerHint")}</p>
           {#if mAnalysis.trim()}<small>{mAnalysis}</small>{/if}
+          {#if mExpansion.trim()}
+            <div style="margin-top:6px;padding:4px 8px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);border-radius:2px;font-size:12px;color:var(--lv-text)">
+              <strong>💡 思路拓展：</strong> {mExpansion}
+            </div>
+          {/if}
         </div>
         {#if mKp.trim() || mSource.trim()}<div class="lv-preview-meta"><span>{mKp.trim() || t("manual.kp")}</span><span>{mSource.trim() || t("manual.source")}</span></div>{/if}
       </div>

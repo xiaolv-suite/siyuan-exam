@@ -259,7 +259,7 @@
             {#if hasBank}
               <span style="display:inline-flex;align-items:center;gap:5px">
                 <Icon name={getBankCategoryMeta(bankCategory).icon} size={13} />
-                <span>当前题库：{getBankCategoryMeta(bankCategory).label} · 研学空间</span>
+                <span>当前题库：{getBankCategoryMeta(bankCategory).label} · 考备专区</span>
               </span>
             {:else}
               {t("head.entry.eyebrow")}
@@ -538,7 +538,7 @@
               <Icon name="pencil" size={13} /> 手工录题 (带原文溯源)
             </button>
             <button class="lv-btn sm" onclick={() => { onnavView("materials"); onloadMaterials(); }}>
-              <Icon name="book" size={13} /> 研学大纲与资料库
+              <Icon name="book" size={13} /> 考纲与参考资料
             </button>
             <div class="lv-row" style="margin:4px 0 0;gap:6px;width:100%">
               <button class="lv-btn sm" style="flex:1" onclick={onsyncBankDocs} disabled={syncDocsBusy || offline || !hasBank} title={t("sync.docsTip")}>

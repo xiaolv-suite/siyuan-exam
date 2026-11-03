@@ -107,6 +107,7 @@ export interface WrongQueueFilterCriteria {
   kpFilter: string;
   sortMode: string;
   highriskQids?: ReadonlySet<string>;
+  tagFilter?: string;
 }
 
 /**
@@ -120,6 +121,23 @@ export function extractWrongQueueKpOptions(
   for (const w of wrongQueue) {
     const q = questionMap.get(w.qid);
     if (q?.kp) set.add(q.kp.split("/")[0]);
+  }
+  return Array.from(set).sort();
+}
+
+/**
+ * 提取错题队列中包含的所有标签（含模考专场标签 mock-run-* 与自定义速记标签）
+ */
+export function extractWrongQueueTagOptions(
+  wrongQueue: Array<{ qid: string }>,
+  questionMap: Map<string, Question>,
+): string[] {
+  const set = new Set<string>();
+  for (const w of wrongQueue) {
+    const q = questionMap.get(w.qid);
+    if (q?.userTags?.length) {
+      for (const t of q.userTags) set.add(t);
+    }
   }
   return Array.from(set).sort();
 }
@@ -142,6 +160,9 @@ export function filterAndSortWrongQueue<T extends { qid: string; wrongCount?: nu
   }
   if (criteria.kpFilter) {
     list = list.filter((w) => questionMap.get(w.qid)?.kp?.startsWith(criteria.kpFilter));
+  }
+  if (criteria.tagFilter) {
+    list = list.filter((w) => questionMap.get(w.qid)?.userTags?.includes(criteria.tagFilter!));
   }
   if (criteria.sortMode === "wrongCount") {
     list = [...list].sort((a, b) => (b.wrongCount || 0) - (a.wrongCount || 0));

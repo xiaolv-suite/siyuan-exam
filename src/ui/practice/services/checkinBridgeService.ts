@@ -8,6 +8,7 @@ import {
   type CheckinSyncStatus,
   type CheckinEventInput,
   type CheckinBridgeConfig,
+  type CheckinItemSummary,
 } from "@/core/checkinBridge";
 
 export const CHECKIN_PENDING_KEY = "checkin/bridge/pending";
@@ -46,7 +47,8 @@ export async function runCheckinSync(
   app: ExamApp,
   settings: CheckinPluginSettings,
   win: Window = typeof window !== "undefined" ? window : ({} as Window),
-): Promise<{ status: CheckinSyncStatus; note: string }> {
+  onAutoBound?: (item: CheckinItemSummary) => void,
+): Promise<{ status: CheckinSyncStatus; note: string; autoResolvedItem?: CheckinItemSummary }> {
   const cfg = getCheckinConfig(settings);
   const api = probeCheckinApi(win);
   const today = localDateKeyOf(Date.now());
@@ -57,10 +59,18 @@ export async function runCheckinSync(
 
   const st = await syncCheckin(api, cfg, attempts, Date.now(), goal);
   await app.saveAux(CHECKIN_PENDING_KEY, st.event ?? null);
+  if (st.autoResolvedItem && typeof onAutoBound === "function") {
+    try {
+      onAutoBound(st.autoResolvedItem);
+    } catch {
+      /* fail-soft */
+    }
+  }
 
   return {
     status: st.status,
     note: st.status === "pending" ? String(st.event?.externalRef ?? "") : "",
+    autoResolvedItem: st.autoResolvedItem,
   };
 }
 

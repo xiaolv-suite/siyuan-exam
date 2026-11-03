@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { lintQuestion, autoFixQuestion } from "@/core/questionLinter";
+import {
+  lintQuestion,
+  autoFixQuestion,
+  pruneQuestionOptions,
+  convertQuestionToShort,
+  convertFillWithoutBlankToShort,
+  hasBlankPlaceholder,
+} from "@/core/questionLinter";
 import { decodeCompactAnswerMatrix, autoHealExamText } from "@/importer/examSegmenter";
 import type { Question } from "@/core/types";
 
@@ -100,6 +107,92 @@ describe("试题质检巡检与置信度评分引擎 (questionLinter)", () => {
 
     const { question: fixedJudge } = autoFixQuestion(rawJudge);
     expect(fixedJudge.answer).toBe("对");
+  });
+
+  it("5. 异常超量选项（10+选项）质检降权与自动裁切", () => {
+    const rawExcess: Question = {
+      id: "q-excess",
+      type: "single",
+      stem: "这是一道误将12个列表项当成选项的题目：",
+      options: ["项1", "项2", "项3", "项4", "项5", "项6", "项7", "项8", "项9", "项10", "项11", "项12"],
+      answer: "B",
+      score: 1,
+      origin: "imported",
+      hash: "hash-excess",
+    };
+
+    const report = lintQuestion(rawExcess);
+    expect(report.issues.some((i) => i.code === "TOO_MANY_OPTIONS")).toBe(true);
+
+    const { question: fixedQ } = autoFixQuestion(rawExcess);
+    expect(fixedQ.options.length).toBeLessThanOrEqual(6);
+    expect(fixedQ.analysis).toContain("裁切的多余选项归档");
+
+    // 单独测试 pruneQuestionOptions
+    const pruned = pruneQuestionOptions(rawExcess, 4);
+    expect(pruned.options).toHaveLength(4);
+    expect(pruned.analysis).toContain("项5");
+  });
+
+  it("6. 无有效答案的超量选项题一键安全降级转为简答题", () => {
+    const malformed: Question = {
+      id: "q-malformed",
+      type: "single",
+      stem: "这是一份没有答案的大纲清单：",
+      options: ["条目1", "条目2", "条目3", "条目4", "条目5", "条目6", "条目7"],
+      answer: "",
+      score: 1,
+      origin: "imported",
+      hash: "hash-malformed",
+    };
+
+    const converted = convertQuestionToShort(malformed);
+    expect(converted.type).toBe("short");
+    expect(converted.options).toHaveLength(0);
+    expect(converted.answer).toContain("条目1");
+  });
+
+  it("7. 填空题题干缺失挖空占位符质检告警与自愈纠偏至简答题", () => {
+    // 问答句式无挖空
+    const pseudoFill: Question = {
+      id: "q-pseudo-fill-1",
+      type: "fill",
+      stem: "什么是死锁？",
+      options: [],
+      answer: "死锁是指多个进程因争夺资源造成的互相等待。",
+      score: 2,
+      origin: "imported",
+      hash: "hash-pseudo-1",
+    };
+
+    const report = lintQuestion(pseudoFill);
+    expect(report.issues.some((i) => i.code === "FILL_WITHOUT_BLANK")).toBe(true);
+    expect(report.score).toBeLessThanOrEqual(80);
+
+    // autoFixQuestion 自动纠偏为简答题
+    const { question: fixedQ, fixedIssues } = autoFixQuestion(pseudoFill);
+    expect(fixedQ.type).toBe("short");
+    expect(fixedIssues.some((m) => m.includes("简答题"))).toBe(true);
+    expect(fixedQ.confidence).toBeGreaterThanOrEqual(0.85);
+
+    // convertFillWithoutBlankToShort 显式转换
+    const explicitConverted = convertFillWithoutBlankToShort(pseudoFill);
+    expect(explicitConverted.type).toBe("short");
+
+    // 真正带挖空的填空题不应告警
+    const genuineFill: Question = {
+      id: "q-genuine-fill",
+      type: "fill",
+      stem: "死锁是指多个进程因争夺资源造成的（   ）。",
+      options: [],
+      answer: "互相等待",
+      score: 2,
+      origin: "imported",
+      hash: "hash-genuine",
+    };
+    const genuineReport = lintQuestion(genuineFill);
+    expect(genuineReport.issues.some((i) => i.code === "FILL_WITHOUT_BLANK")).toBe(false);
+    expect(genuineReport.score).toBe(100);
   });
 });
 

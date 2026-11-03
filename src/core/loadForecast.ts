@@ -219,7 +219,7 @@ export function forecastFutureLoad(
 export function exportLoadForecastCsv(forecast: LoadForecastResult): string {
   if (!forecast || typeof forecast !== "object") return "\uFEFF";
   const rows: string[] = [];
-  rows.push("小驴学习(原小驴考试) 未来复习到期负荷预测与建议量");
+  rows.push("小驴考试 未来复习到期负荷预测与建议量");
   rows.push(`预测窗口,近 ${forecast.windowDays ?? 0} 天`);
   rows.push(`题库总题数,${forecast.calibers?.totalQuestions ?? 0}`);
   rows.push(`已练题数,${forecast.calibers?.practicedQuestions ?? 0}`);

@@ -91,6 +91,7 @@ export interface ManualQuestionFormData {
   options: string[];
   answer: string;
   analysis: string;
+  expansion?: string;
   kp: string;
   secondaryKps?: string[];
   source: string;
@@ -143,6 +144,7 @@ export async function saveManualQuestion(
     options: data.type === "single" || data.type === "multiple" ? data.options.map((o) => o.trim()) : [],
     answer: data.answer,
     analysis: data.analysis,
+    expansion: data.expansion?.trim() || undefined,
     kp: data.kp,
     source: data.source,
     ...(resolvedSourceBlock ? { sourceBlockId: resolvedSourceBlock } : {}),
@@ -206,6 +208,7 @@ export async function processAndSaveManualQuestion(
     options: data.type === "single" || data.type === "multiple" ? data.options.map((o) => o.trim()) : [],
     answer: data.answer,
     analysis: data.analysis,
+    expansion: data.expansion?.trim() || undefined,
     kp: data.kp,
     source: data.source,
     ...(resolvedSourceBlock ? { sourceBlockId: resolvedSourceBlock } : {}),
@@ -354,6 +357,7 @@ export interface BlankManualFormState {
   options: string[];
   answer: string;
   analysis: string;
+  expansion?: string;
   kp: string;
   secondaryKps?: string;
   source: string;
@@ -383,6 +387,7 @@ export function createBlankManualFormState(): BlankManualFormState {
     options: ["", ""],
     answer: "",
     analysis: "",
+    expansion: "",
     kp: "",
     secondaryKps: "",
     source: "",
@@ -443,6 +448,7 @@ export function assembleManualFormData(
     options: string[];
     answer: string;
     analysis: string;
+    expansion?: string;
     kp: string;
     secondaryKps?: string;
     source: string;
@@ -472,6 +478,7 @@ export function assembleManualFormData(
     options: state.options,
     answer: state.answer,
     analysis: state.analysis,
+    expansion: state.expansion?.trim() || undefined,
     kp: state.kp,
     secondaryKps: secondaryKpsList,
     source: state.source,

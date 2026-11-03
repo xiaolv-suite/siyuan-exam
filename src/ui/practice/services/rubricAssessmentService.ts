@@ -91,7 +91,7 @@ export function exportRubricBreakdownCsvFile(rubricScore: RubricScoreResult): vo
   const a = document.createElement("a");
   const url = URL.createObjectURL(blob);
   a.href = url;
-  a.download = `小驴学习-主观题自评-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `小驴考试-主观题自评-${new Date().toISOString().slice(0, 10)}.csv`;
   a.hidden = true;
   document.body.appendChild(a);
   a.click();

@@ -76,6 +76,11 @@ export function calculateItemScore(
     return scoreEach;
   }
 
+  // 主观题考后采分自评（ECO-02 / TODO-09）：主观简答题按考生自评 factor 比例给分
+  if (type === "short" && typeof factor === "number" && factor > 0) {
+    return Math.round(scoreEach * factor * 100) / 100;
+  }
+
   // 答错情况判定
   if (policy.kind === "penalty") {
     const ratio = policy.penaltyRatio ?? 0.5;

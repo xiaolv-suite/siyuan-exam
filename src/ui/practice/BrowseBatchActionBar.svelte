@@ -9,6 +9,7 @@
     onclearSelection: () => void;
     onstartFocusDrill: () => void;
     onprintSelectedQuestions: (format?: PrintPaperFormat) => void;
+    onopenAssembleStudio?: () => void;
     onbatchConvertToCards: () => void;
   }
 
@@ -19,6 +20,7 @@
     onclearSelection,
     onstartFocusDrill,
     onprintSelectedQuestions,
+    onopenAssembleStudio,
     onbatchConvertToCards,
   }: Props = $props();
 
@@ -41,8 +43,14 @@
           <option value="answer">独立答案册</option>
           <option value="lecture">授课讲义卷</option>
           <option value="homework">留白作业单</option>
+          <option value="interactive">🌐 交互式讲题自测卷</option>
         </select>
-        <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintSelectedQuestions(printFormat)} title="按所选版式导出 A4 双栏打印卷">
+        {#if onopenAssembleStudio}
+          <button class="lv-btn sm lv-btn--ghost" onclick={onopenAssembleStudio} title="进入专业组卷排版打印工坊，实时 A4 纸张拟真预览与参数定制">
+            <Icon name="printer" size={13} /> 🖨️ 组卷排版
+          </button>
+        {/if}
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => onprintSelectedQuestions(printFormat)} title="按所选版式直接导出 A4 双栏打印卷">
           <Icon name="file" size={13} /> 打印试卷
         </button>
         <button class="lv-btn sm lv-btn--ghost" onclick={onbatchConvertToCards} disabled={batchCardBusy || !kernelOnline} aria-busy={batchCardBusy} title="批量制成闪卡">

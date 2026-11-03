@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { weeklyAggregates, weekCompare, dailyDocPath } from "../src/core/weekly";
+import { weeklyAggregates, weekCompare, dailyDocPath, weeklyTrend, monthlyTrend } from "../src/core/weekly";
 import type { ReplayResult } from "../src/core/types";
 
 const NOW = new Date(2026, 9, 2); // 2026-10-02 周五
@@ -35,5 +35,21 @@ describe("每日笔记路径", () => {
   });
   it("无 token → 追加 ymd", () => {
     expect(dailyDocPath("/Diary", NOW)).toBe("/Diary/2026-10-02");
+  });
+});
+
+describe("多周期趋势聚合 (CAND-11)", () => {
+  it("weeklyTrend：按 7 天周分桶聚合做题量与正确数", () => {
+    const trend = weeklyTrend(days, NOW, 4);
+    expect(trend).toHaveLength(4);
+    const sumAttempts = trend.reduce((acc, p) => acc + p.attempts, 0);
+    expect(sumAttempts).toBe(35);
+  });
+
+  it("monthlyTrend：按自然月分桶聚合", () => {
+    const mTrend = monthlyTrend(days, NOW, 3);
+    expect(mTrend).toHaveLength(3);
+    expect(mTrend[1].attempts).toBe(20); // 2026.09 (7天前)
+    expect(mTrend[2].attempts).toBe(15); // 2026.10 (本月)
   });
 });

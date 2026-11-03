@@ -33,6 +33,8 @@ export interface Question {
   options: string[]; // 选项文本数组（下标=0 对应 A）；judge/fill/short 为空
   answer: string; // 规范化答案（见 answer.ts）
   analysis?: string; // 解析（markdown）
+  /** 💡 思路拓展与秒杀技巧（AUTH-02）：考点考法拓宽、一题多解、命题陷阱与秒杀规律 */
+  expansion?: string;
   difficulty?: number; // 1-5
   score: number; // 分值，默认 1
   source?: string; // 出处（"2023 国考 115 题"）
@@ -41,6 +43,8 @@ export interface Question {
   kp?: string; // 考点（"资料分析/比重计算"，/ 分层）
   /** 辅助考查知识点（MathBank / 中学教研多考点解耦规范，可参与精准检索与图谱关联） */
   secondaryKps?: string[];
+  /** 先修依赖前置考点/先修试题（DIAG-01，吸收 cn-math-taxonomy 先修边规范） */
+  prerequisites?: string[];
   /** 题目标签（可选，支持多维分类与筛选） */
   tags?: string[];
   origin: "imported" | "ai" | "manual";

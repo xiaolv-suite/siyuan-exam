@@ -14,6 +14,34 @@ export function answerChoices(q: Pick<Question, "type" | "options">) {
   });
 }
 
+/**
+ * 选项随机打乱算法（Fisher-Yates）：基于题目特征种子实现稳定洗牌
+ * 保留每个选项真实的原始值 (value: A, B, C...)，仅变更渲染显示字母 (letter: A, B, C...)
+ * 从而在不改变题目存储答案和判分数据的前提下，彻底打破考生的“位置记忆/选项死记硬背”
+ */
+export function shuffleAnswerChoices<T extends { letter: string; value: string; text: string }>(
+  choices: T[],
+  seedStr?: string,
+): T[] {
+  if (choices.length <= 1 || !seedStr) return choices;
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+    hash |= 0;
+  }
+  const result = [...choices];
+  for (let i = result.length - 1; i > 0; i--) {
+    hash = (hash * 9301 + 49297) % 233280;
+    const rnd = Math.abs(hash) / 233280;
+    const j = Math.floor(rnd * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result.map((c, idx) => ({
+    ...c,
+    letter: String.fromCharCode(65 + idx),
+  }));
+}
+
 export function toggleChoice(type: Question["type"], selected: string, value: string): string {
   if (type !== "multiple") return value;
   const values = new Set(selected.split(""));

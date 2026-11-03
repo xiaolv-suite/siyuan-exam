@@ -313,6 +313,10 @@ export class MockSession {
     return this.sectionOf.get(qid) ?? "";
   }
 
+  scoreOfQ(qid: string): number {
+    return this.scoreOf.get(qid) ?? 1;
+  }
+
   /** 40-01：当前题是否作为不定项题型计分（支持少选部分分、错选得零分） */
   isIndefinite(qid: string): boolean {
     return this.indefinite.has(qid);
@@ -451,6 +455,31 @@ export class MockSession {
     this.submitted = true;
   }
 
+  /**
+   * 考后主观题采分自评 (ECO-02 / TODO-09)
+   * 支持考生在交卷后为简答/主观题评定采分点得分比例 (factor: 0.0 ~ 1.0)
+   * 自动将评分写入答题记录并重新计算总成绩
+   */
+  rateSubjectiveQuestion(qid: string, factor: number): void {
+    const safeFactor = Math.max(0, Math.min(1, Number(factor) || 0));
+    let ans = this.answers.get(qid);
+    if (!ans) {
+      ans = {
+        qid,
+        answer: null,
+        verdict: safeFactor >= 1 ? "correct" : "wrong",
+        factor: safeFactor,
+        timeMs: 0,
+        answeredAt: 0,
+        changes: 0,
+      };
+      this.answers.set(qid, ans);
+    } else {
+      ans.factor = safeFactor;
+      ans.verdict = safeFactor >= 1 ? "correct" : "wrong";
+    }
+  }
+
   /** 结算（docs/11 S7 四维）：未作答按 not_attempted 计 0 分。
    *  40-02 逐段满分标注：full 按实际卷面题数计（短缺段不再虚高），required/short 如实标注短缺。 */
   score(): MockScore {
@@ -520,7 +549,7 @@ export class MockSession {
         },
         policy,
       );
-      sec.score += itemScore;
+      sec.score = Math.round((sec.score + itemScore) * 100) / 100;
     }
     // 模块最低保底 0 分检查
     const policy = this.bp.scoringPolicy ?? DEFAULT_SCORING_POLICY;

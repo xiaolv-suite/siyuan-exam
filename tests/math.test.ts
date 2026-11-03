@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeLatexFormula,
+  validateLatexSyntax,
   renderLatex,
   renderSemanticLatex,
   renderMathInText,
@@ -180,6 +181,30 @@ describe("数学公式处理引擎 (math)", () => {
 
       const ansHtml = buildCompactAnswerSheetPro("2026 高等数学全真模拟卷", [q]);
       expect(ansHtml).toContain('data-latex="(x-2)(x+2)=0"');
+    });
+  });
+
+  describe("6. 公式括号栈即时校验 (validateLatexSyntax - CAND-03)", () => {
+    it("正确闭合的公式返回 valid: true", () => {
+      expect(validateLatexSyntax("已知 $f(x) = \\frac{a+1}{b-1}$，求值").valid).toBe(true);
+      expect(validateLatexSyntax("常数项公式 $$(x+1)^2 = x^2 + 2x + 1$$").valid).toBe(true);
+      expect(validateLatexSyntax("无公式普通文本").valid).toBe(true);
+    });
+
+    it("检测未闭合的 $ 定界符", () => {
+      const res = validateLatexSyntax("已知 $f(x) = x^2 且无闭合");
+      expect(res.valid).toBe(false);
+      expect(res.message).toContain("定界符 $ 未成对闭合");
+    });
+
+    it("检测未闭合的大括号与不匹配的括号", () => {
+      const res1 = validateLatexSyntax("计算 $\\frac{a+1}{b$");
+      expect(res1.valid).toBe(false);
+      expect(res1.message).toContain("未闭合");
+
+      const res2 = validateLatexSyntax("计算 $[a + b)$");
+      expect(res2.valid).toBe(false);
+      expect(res2.message).toContain("括号不匹配");
     });
   });
 });
