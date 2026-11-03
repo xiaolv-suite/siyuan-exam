@@ -28,6 +28,8 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
     delete (window as any).__LV_ACTIVITY_STREAM__;
     delete (window as any).__LV_BACKUP_HUB__;
     delete (window as any).__LV_LAUNCHPAD__;
+    delete (window as any).__LV_OMNISEARCH__;
+    delete (window as any).__LV_AUTOMATION__;
     localStorage.clear();
   });
 
@@ -451,6 +453,92 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
       unreg();
       const afterUnreg = lvLaunchpad.getItems();
       expect(afterUnreg.find((i) => i.id === "siyuan-exam")).toBeUndefined();
+    });
+  });
+
+  describe("Epoch 7 Phase 7: 穿透搜索 (lvOmnisearch) 与跨插件自动化联动 (lvAutomation)", () => {
+    it("lvOmnisearch 能够检索已注册插件的试题与错题，并按匹配度排序", async () => {
+      const { lvOmnisearch } = await import("../src/libs/lv-notice-kit");
+
+      let clicked = false;
+      const unreg = lvOmnisearch.registerProvider("siyuan-exam", async (kw) => {
+        if (kw.includes("极限") || kw.includes("微积分")) {
+          return [
+            {
+              id: "exam-q1",
+              source: "考试",
+              category: "错题本",
+              badge: "错题",
+              title: "高等数学极限计算典型题",
+              snippet: "【解析】利用洛必达法则求未定式极限",
+              linkBlockId: "block-q1-doc",
+              onClick: () => {
+                clicked = true;
+              },
+            },
+          ];
+        }
+        return [];
+      });
+
+      const results = await lvOmnisearch.search("极限");
+      expect(results.length).toBe(1);
+      expect(results[0].title).toBe("高等数学极限计算典型题");
+      expect(results[0].category).toBe("错题本");
+      expect(results[0].badge).toBe("错题");
+
+      results[0].onClick();
+      expect(clicked).toBe(true);
+
+      const emptyResults = await lvOmnisearch.search("无匹配关键字");
+      expect(emptyResults.length).toBe(0);
+
+      unreg();
+      const afterUnreg = await lvOmnisearch.search("极限");
+      expect(afterUnreg.length).toBe(0);
+    });
+
+    it("lvAutomation 能够触发 wrong-question 事件并通知跨插件联动规则", async () => {
+      const { lvAutomation } = await import("../src/libs/lv-notice-kit");
+      const { ExamApp } = await import("../src/app");
+      const { MemoryStorage } = await import("../src/core/attemptLog");
+
+      let receivedPayload: any = null;
+
+      const unregRule = lvAutomation.registerRule({
+        id: "rule-auto-card-on-wrong",
+        name: "错题自动推送到闪卡复习",
+        desc: "当考试插件判错时，自动制卡推送到闪卡库",
+        enabled: true,
+        triggerSource: "siyuan-exam",
+        triggerType: "wrong-question",
+        actionPlugin: "siyuan-lv-cards",
+        actionName: "create-card",
+        execute: (payload) => {
+          receivedPayload = payload;
+          return true;
+        },
+      });
+
+      const storage = new MemoryStorage();
+      const app = new ExamApp({ client: {} as any, storage });
+
+      const res = await app.triggerWrongQuestionAutomation({
+        id: "q-101",
+        stem: "下列关于洛必达法则的描述正确的是？",
+        analysis: "需满足 0/0 或 inf/inf 且导数商存在",
+        docId: "doc-math-101",
+      });
+
+      expect(res.triggered).toBe(1);
+      expect(res.success).toBe(1);
+      expect(receivedPayload).not.toBeNull();
+      expect(receivedPayload.questionId).toBe("q-101");
+      expect(receivedPayload.title).toContain("洛必达法则");
+      expect(receivedPayload.analysis).toContain("需满足 0/0");
+      expect(receivedPayload.docId).toBe("doc-math-101");
+
+      unregRule();
     });
   });
 });

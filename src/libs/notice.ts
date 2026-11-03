@@ -194,3 +194,29 @@ export function notifyDailyReviewCard(opts: DailyReviewReminderOptions): string 
     },
   });
 }
+
+/**
+ * 触发跨插件联动 (lvAutomation)：用户答错题加入错题本时广播联动事件
+ */
+export async function triggerWrongQuestionAutomation(q: {
+  id: string;
+  title?: string;
+  stem?: string;
+  analysis?: string;
+  docId?: string;
+  blockId?: string;
+  rootId?: string;
+}): Promise<{ triggered: number; success: number }> {
+  try {
+    const { lvAutomation } = await import("./lv-notice-kit");
+    return await lvAutomation.trigger("siyuan-exam", "wrong-question", {
+      questionId: q.id,
+      title: q.title || (q.stem ? q.stem.slice(0, 50).trim() : ""),
+      analysis: q.analysis || "",
+      docId: q.docId || q.blockId || q.rootId || "",
+    });
+  } catch (e) {
+    console.warn("[LvExam] trigger wrong-question automation failed:", e);
+    return { triggered: 0, success: 0 };
+  }
+}

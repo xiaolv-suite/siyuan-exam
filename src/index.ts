@@ -17,7 +17,7 @@ import { registerExamDailySummary } from "./ecosystem/speedSwitch";
 import { TabAppRegistry } from "./core/tabAppRegistry";
 import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
-import { lvNotify, lvBackup, lvLaunchpad } from "./libs/lv-notice-kit";
+import { lvNotify, lvBackup, lvLaunchpad, lvOmnisearch, type LvSearchResultItem } from "./libs/lv-notice-kit";
 import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
 
 const TAB_PRACTICE = "exam-practice";
@@ -87,6 +87,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private backupCleaner?: () => void;
   /** Epoch 7 Phase 5：小驴罗盘注册注销句柄 */
   private launchpadCleaner?: () => void;
+  /** Epoch 7 Phase 7：全生态穿透搜索提供者注销句柄 */
+  private omnisearchCleaner?: () => void;
 
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
@@ -113,6 +115,12 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       onClick: () => this.openExamHome(),
       onAction: (action) => this.handleQuickAction(action),
     });
+
+    // Epoch 7 Phase 7：注册全生态穿透搜索提供者 (lvOmnisearch)
+    this.omnisearchCleaner = lvOmnisearch.registerProvider(
+      "siyuan-exam",
+      (kw) => this.searchOmni(kw),
+    );
 
     this.addIcons(`
 <symbol id="icon-lv-exam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
@@ -593,6 +601,10 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onunload() {
+    // Epoch 7 Phase 7：注销全生态穿透搜索提供者
+    this.omnisearchCleaner?.();
+    this.omnisearchCleaner = undefined;
+
     // Epoch 7 Phase 5：注销小驴罗盘注册入口
     this.launchpadCleaner?.();
     this.launchpadCleaner = undefined;
@@ -1439,6 +1451,66 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       this.openPractice();
       return false;
     }
+  }
+
+  /** 全生态穿透搜索：检索题库与错题本试题 */
+  async searchOmni(keyword: string): Promise<LvSearchResultItem[]> {
+    if (!this.examApp || !keyword.trim()) return [];
+    const kw = keyword.trim().toLowerCase();
+    const banks = this.examApp.listBanks();
+    if (!banks.length) return [];
+
+    const derived = this.examApp.derived();
+    const results: LvSearchResultItem[] = [];
+
+    for (const bank of banks) {
+      try {
+        const questions = await this.examApp.listQuestions(bank.id);
+        for (const q of questions) {
+          const stem = q.stem || "";
+          const analysis = q.analysis || "";
+          const kp = q.kp || "";
+          if (
+            stem.toLowerCase().includes(kw) ||
+            analysis.toLowerCase().includes(kw) ||
+            kp.toLowerCase().includes(kw)
+          ) {
+            const isWrong = derived.wrongbook.get(q.id)?.status === "active";
+            const category = isWrong ? "错题本" : "题库试题";
+            const badge = isWrong ? "错题" : bank.name;
+            const title = stem.slice(0, 60).replace(/\n/g, " ");
+            const snippet = analysis
+              ? `【解析】${analysis.slice(0, 80).replace(/\n/g, " ")}`
+              : kp
+              ? `【考点】${kp}`
+              : stem.slice(60, 120).replace(/\n/g, " ");
+
+            results.push({
+              id: `exam-${q.id}`,
+              source: "考试",
+              category,
+              badge,
+              title,
+              snippet,
+              linkBlockId: q.blockId || (q as unknown as { docId?: string }).docId || (q as unknown as { rootId?: string }).rootId,
+              onClick: () => {
+                if (isWrong) {
+                  this.openWrongbook();
+                } else {
+                  emitExamEvent("open-in-browse", { qid: q.id, bank: bank.id });
+                  this.openPractice();
+                }
+              },
+            });
+            if (results.length >= 30) break;
+          }
+        }
+        if (results.length >= 30) break;
+      } catch (e) {
+        console.warn(`[LvExam] searchOmni bank ${bank.id} failed:`, e);
+      }
+    }
+    return results;
   }
 }
 

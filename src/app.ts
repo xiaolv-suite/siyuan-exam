@@ -2258,6 +2258,30 @@ export class ExamApp {
     }
   }
 
+  /** 触发跨插件联动 (lvAutomation)：用户答错题加入错题本时广播联动事件 */
+  async triggerWrongQuestionAutomation(q: {
+    id: string;
+    title?: string;
+    stem?: string;
+    analysis?: string;
+    docId?: string;
+    blockId?: string;
+    rootId?: string;
+  }): Promise<{ triggered: number; success: number }> {
+    try {
+      const { lvAutomation } = await import("./libs/lv-notice-kit");
+      return await lvAutomation.trigger("siyuan-exam", "wrong-question", {
+        questionId: q.id,
+        title: q.title || (q.stem ? q.stem.slice(0, 50).trim() : ""),
+        analysis: q.analysis || "",
+        docId: q.docId || q.blockId || q.rootId || "",
+      });
+    } catch (e) {
+      console.warn("[LvExam] trigger wrong-question automation failed:", e);
+      return { triggered: 0, success: 0 };
+    }
+  }
+
   // ---------- 学习资料（120-01/02/06 lite：登记 / assets 拷贝 / 最低查看） ----------
 
   listMaterials(): MaterialDoc[] {

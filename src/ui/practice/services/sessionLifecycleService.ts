@@ -44,6 +44,10 @@ export function recordSessionAttempt(options: RecordAttemptOptions): void {
     exposure: exposures && exposures.length ? [...exposures] : undefined,
     ...(trail && trailChanged(trail) ? { firstAnswer: trail.first, edits: trail.edits } : {}),
   });
+
+  if (g.verdict === "wrong") {
+    void app.triggerWrongQuestionAutomation(q);
+  }
 }
 
 export interface SessionDoneSummary {

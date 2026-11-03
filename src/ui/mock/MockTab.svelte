@@ -1215,6 +1215,9 @@
               queue: "normal", changes: a.changes,
               qVersion: q ? createQuestionVersionSnapshot(q) : (frozen ? { hash: frozen.hash, answer: frozen.answer } : undefined),
             });
+            if (a.verdict === "wrong" && q) {
+              void app.triggerWrongQuestionAutomation(q);
+            }
           }
           // 未答题落 not_attempted 审计轨（40-03：进考试分母但不冒充已答；replayer 跳过不计统计分母）
           for (const qid of session.state.qids) {
