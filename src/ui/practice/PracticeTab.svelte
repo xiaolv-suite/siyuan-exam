@@ -1689,6 +1689,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         onExamEvent("open-view", onOpenView),
         onExamEvent("session-ended", onDataChanged),
         onExamEvent("wrongbook-changed", onDataChanged),
+        onExamEvent("date-crossed", () => { onDataChanged(); rebuildPlan(); }),
       ];
 
       // 思源编辑器原位改题热回流：当用户在思源文档中修改了题面/答案再切回插件页签时，自动刷新题库

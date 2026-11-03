@@ -6,6 +6,7 @@
 import type { ExamApp } from "@/app";
 import type { WrongItem } from "@/core/types";
 import { notifyDailyReviewCard, lvNotify, CATEGORY_DAILY_REVIEW } from "@/libs/notice";
+import { lvTicker } from "@/libs/lv-notice-kit";
 
 export interface ReviewReminderStats {
   totalActiveWrongs: number;
@@ -46,18 +47,16 @@ export interface ReviewReminderController {
 }
 
 /**
- * 启动每日错题复习提醒周期调度器
+ * 启动每日错题复习提醒周期调度器 (Epoch 7 Phase 2: lvTicker 统一心跳与零点跨日)
  * @param app 考试应用实例
  * @param onStartReview 用户点击【立即攻坚】时的回调
- * @param intervalMs 巡检周期，默认每小时检查一次
+ * @param onDateCross 可选零点跨日回调，用于更新今日待复习错题集
  */
 export function startReviewReminderScheduler(
   app: ExamApp,
   onStartReview: () => void,
-  intervalMs: number = 3600_000,
+  onDateCross?: (todayKey: string) => void,
 ): ReviewReminderController {
-  let timer: number | null = null;
-
   const checkAndNotify = (): string | null => {
     if (!app || lvNotify.isMutedToday(CATEGORY_DAILY_REVIEW)) {
       return null;
@@ -79,17 +78,27 @@ export function startReviewReminderScheduler(
     checkAndNotify();
   }, 5000);
 
-  // 启动周期性巡检
-  timer = window.setInterval(() => {
+  // 接入 lvTicker.onMinute：对齐全局主心跳，彻底拔除分散的 setInterval
+  const unsubMinute = lvTicker.onMinute("siyuan-exam", () => {
     checkAndNotify();
-  }, intervalMs);
+  });
+
+  // 接入 lvTicker.onDateCross：零点自动跨日更新今日待复习错题集并重新触发巡检
+  const unsubDateCross = lvTicker.onDateCross("siyuan-exam", (todayKey) => {
+    try {
+      onDateCross?.(todayKey);
+    } catch (e) {
+      console.warn("[LvExam] onDateCross handler error:", e);
+    }
+    checkAndNotify();
+  });
 
   return {
     checkAndNotify,
     dispose: () => {
       if (initialTimeout) clearTimeout(initialTimeout);
-      if (timer) clearInterval(timer);
-      timer = null;
+      unsubMinute?.();
+      unsubDateCross?.();
     },
   };
 }

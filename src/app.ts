@@ -23,6 +23,7 @@ import {
 import { SaveGate } from "./core/saveGate";
 import { normalizeAnswer, questionHash, sha1like } from "./core/answer";
 import { questionToMarkdown } from "./core/blockTemplate";
+import { withDocLock } from "./libs/lv-notice-kit";
 import { SAMPLE_BANK_NAME, SAMPLE_BANK_INTRO, sampleQuestions } from "./core/sampleBank";
 import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_BANK_INTRO, cantoneseSampleQuestions } from "./core/cantoneseSample";
 import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_BANK_INTRO, englishSampleQuestions } from "./core/englishSample";
@@ -2735,19 +2736,21 @@ export class ExamApp {
     await clear;
   }
 
-  /** 模考成绩单写入题库"导出"文档（与错题册导出同通道） */
+  /** 模考成绩单写入题库"导出"文档（与错题册导出同通道，使用 withDocLock 串行保护） */
   async writeScoreDoc(bankId: string, md: string): Promise<string> {
-    await this.ensureDoc(bankId, "/导出");
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const ymd = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-    const hms = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const hpath = `/导出/模考成绩单 ${ymd}-${hms}`;
-    return (await this.deps.client.createDocWithMd(bankId, hpath, md)) || (await this.ensureDoc(bankId, hpath, md));
+    return withDocLock(`${bankId}:export-score`, async () => {
+      await this.ensureDoc(bankId, "/导出");
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const ymd = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+      const hms = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+      const hpath = `/导出/模考成绩单 ${ymd}-${hms}`;
+      return (await this.deps.client.createDocWithMd(bankId, hpath, md)) || (await this.ensureDoc(bankId, hpath, md));
+    });
   }
 
   /**
-   * 将模考成绩/学习进度卡片追加写入思源今日日记文档文末（CAND-09）
+   * 将模考成绩/学习进度卡片追加写入思源今日日记文档文末（CAND-09，使用 withDocLock 防锁保护）
    */
   async appendScoreToDailyNote(
     markdown: string,
@@ -2762,7 +2765,9 @@ export class ExamApp {
     }
     if (!targetNotebook) throw new Error("未找到可写入日记的笔记本");
     const docId = await this.deps.client.createDailyNote(targetNotebook);
-    await this.deps.client.appendBlock(docId, markdown);
+    await withDocLock(docId, async () => {
+      await this.deps.client.appendBlock(docId, markdown);
+    });
     return { docId };
   }
 
@@ -3831,7 +3836,9 @@ export class ExamApp {
     await this.ensureDoc(targetBank, "/小驴考试");
     await this.ensureDoc(targetBank, "/小驴考试/试卷与复盘");
     const hpath = `/小驴考试/试卷与复盘/${title}`;
-    const docId = await this.upsertDocWithMd(targetBank, hpath, markdown);
+    const docId = await withDocLock(`${targetBank}:doc:${title}`, async () => {
+      return await this.upsertDocWithMd(targetBank, hpath, markdown);
+    });
     return { docId, title, hpath };
   }
 

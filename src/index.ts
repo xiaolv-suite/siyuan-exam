@@ -358,10 +358,16 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         dailyGoal: () => Math.max(1, Number(this.settingUtils?.get?.("dailyGoal") ?? 10) || 10),
         findPlugin: (name) => (this.app as unknown as { plugins?: Array<{ name: string }> })?.plugins?.find?.((p) => p.name === name),
       });
-      // Epoch 7：启动每日错题复习提醒巡检（支持稍后提醒与今日免打扰）
-      this.reviewReminderCtrl = startReviewReminderScheduler(this.examApp, () => {
-        this.openWrongbook();
-      });
+      // Epoch 7 Phase 2：启动每日错题复习提醒巡检与零点跨日刷新 (lvTicker.onDateCross)
+      this.reviewReminderCtrl = startReviewReminderScheduler(
+        this.examApp,
+        () => {
+          this.openWrongbook();
+        },
+        (todayKey) => {
+          emitExamEvent("date-crossed", { today: todayKey });
+        },
+      );
     }
     // 47-04/48-06/Epoch 6：挂载考试服务桥公开 API（多别名 + 稳定命令入口 + 按需脱敏统计快照 + 概览）
     this.disposeLvExamBridge = mountLvExamBridge({

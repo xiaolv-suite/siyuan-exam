@@ -117,4 +117,55 @@ describe("ReviewReminder 每日定时错题复习提醒引擎单元测试", () =
     scheduler.dispose();
     vi.useRealTimers();
   });
+
+  it("lvTicker.onDateCross 能够成功触发跨日回调并重新计算复习集", () => {
+    vi.useFakeTimers();
+    let crossedDate = "";
+    const items: WrongItem[] = [
+      { qid: "q-1", status: "active", wrongCount: 1, firstWrongAt: Date.now() - 86400000, lastWrongAt: Date.now() - 86400000 },
+    ];
+    const app = createMockApp(items);
+
+    const scheduler = startReviewReminderScheduler(
+      app,
+      () => {},
+      (dateKey) => {
+        crossedDate = dateKey;
+      },
+    );
+
+    // 将虚拟时间前进 25 小时（触发跨日零点 tick 广播）
+    vi.advanceTimersByTime(25 * 3600 * 1000);
+
+    expect(crossedDate).not.toBe("");
+    scheduler.dispose();
+    vi.useRealTimers();
+  });
+
+  it("withDocLock 能够将针对同一文档的并发写入任务严格排队串行化", async () => {
+    const { withDocLock } = await import("../src/libs/lv-notice-kit");
+    const docId = "doc-test-concurrent-lock";
+    const log: string[] = [];
+
+    const task1 = withDocLock(docId, async () => {
+      log.push("start-1");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      log.push("end-1");
+      return "res-1";
+    });
+
+    const task2 = withDocLock(docId, async () => {
+      log.push("start-2");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      log.push("end-2");
+      return "res-2";
+    });
+
+    const [r1, r2] = await Promise.all([task1, task2]);
+
+    expect(r1).toBe("res-1");
+    expect(r2).toBe("res-2");
+    // 任务 1 必须完整结束后，任务 2 才能开始（串行排队）
+    expect(log).toEqual(["start-1", "end-1", "start-2", "end-2"]);
+  });
 });

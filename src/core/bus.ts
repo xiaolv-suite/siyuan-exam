@@ -34,6 +34,7 @@ export type BusEventType =
   | "stats" // {…} publicStats 快照（48-02 lite：信封双发；legacy 裸 detail 兼容保留）
   | "kernel-connection" // {online} 内核连接状态翻转（离线横幅/降级提示依据）
   | "apply-blueprint" // {blueprint, bankId?} 错题特训卷/外部蓝图注入模考场
+  | "date-crossed" // {today} 零点跨日广播，通知已打开的标签页重新计算今日待复习错题集与计划
   | "app-ready"; // {ready} 应用层初始化完毕，通知已打开的标签页重新加载数据
 
 export function busEventName(type: BusEventType): string {

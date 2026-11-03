@@ -24,6 +24,7 @@
       notifyMockFinishCard,
       showExamNotice,
     } from "../../libs/notice";
+    import { withDocLock } from "../../libs/lv-notice-kit";
     const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
       showExamNotice(msg, timeout, type);
     };
@@ -958,9 +959,11 @@
         const wrongIds = wrongList.map((w) => w.qid);
         const wrongQuestions = questions.filter((q) => wrongIds.includes(q.id));
         const title = `${bp.name || "模拟考"} · 错题攻坚手册（${wrongQuestions.length}题）`;
-        const res = await app.saveQuestionsToSiyuanDoc(title, wrongQuestions, {
-          bankId: activeBankId,
-          isMock: false,
+        const res = await withDocLock(`doc-wrongs:${activeBankId}`, async () => {
+          return await app.saveQuestionsToSiyuanDoc(title, wrongQuestions, {
+            bankId: activeBankId,
+            isMock: false,
+          });
         });
         if (res.docId) lastSavedMockDoc = { docId: res.docId, title: res.title };
         showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
@@ -1365,7 +1368,9 @@
       const details = buildScoreDetailsSnapshot();
       try {
         const { scoreToMarkdown } = await import("@/core/exportScore");
-        const docId = await app.writeScoreDoc(targetBankId, scoreToMarkdown(blueprint, result, resultStartedAt, details));
+        const docId = await withDocLock(`doc-score:${targetBankId}`, async () => {
+          return await app.writeScoreDoc(targetBankId, scoreToMarkdown(blueprint, result, resultStartedAt, details));
+        });
         if (docId) lastSavedMockDoc = { docId, title: `模考成绩单 · ${blueprint.name}` };
         showMessage(t("mock.scoreWritten", "成绩单已写入本题库的「导出」文档。"), 3200, "info");
       } catch (e) {
@@ -1390,7 +1395,9 @@
           `> - **题量统计**：共 ${totalCount} 题（正确 ${correctCount} 题，错题 ${wrongList.length} 题）`,
           `> - **分卷明细**：${secSummary}`,
         ].join("\n");
-        await app.appendScoreToDailyNote(md);
+        await withDocLock("daily-note-archive", async () => {
+          await app.appendScoreToDailyNote(md);
+        });
         showMessage("模考战绩已成功追加写入今日日记文档！✓", 3200, "info");
       } catch (e) {
         showMessage(`写入日记失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
