@@ -216,6 +216,25 @@ export class AttemptLog {
     return count;
   }
 
+  /** 灾备恢复/跨端合并：批量合并历史作答事件（按 eid 去重），返回新增事件数 */
+  mergeEvents(events: AttemptEvent[]): number {
+    let added = 0;
+    for (const e of events) {
+      if (this.isValid(e) && !this.seen.has(e.eid)) {
+        this.detectClockAnomaly(e.ts);
+        this.seen.add(e.eid);
+        this.events.push(e);
+        this.seq = Math.max(this.seq, e.seq ?? 0);
+        added++;
+      }
+    }
+    if (added > 0) {
+      this.generation++;
+      this.dirty = true;
+    }
+    return added;
+  }
+
   /** 立即落盘（会话结束/面板切走时调用）。37-03 在途协调：
    * - 快照写入：保存的是触发时刻的事件副本，写入期间新增事件不受影响
    * - 串行化：已在途时直接返回（新增事件由代次检查触发在途完成后的补写）

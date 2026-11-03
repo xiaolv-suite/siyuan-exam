@@ -17,7 +17,7 @@ import { registerExamDailySummary } from "./ecosystem/speedSwitch";
 import { TabAppRegistry } from "./core/tabAppRegistry";
 import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
-import { lvNotify } from "./libs/lv-notice-kit";
+import { lvNotify, lvBackup } from "./libs/lv-notice-kit";
 import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
 
 const TAB_PRACTICE = "exam-practice";
@@ -83,9 +83,18 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private noticeHubCleaner?: () => void;
   /** Epoch 7：每日错题复习巡检控制器 */
   private reviewReminderCtrl?: ReviewReminderController;
+  /** Epoch 7 Phase 4：全生态一键灾备切面注销句柄 */
+  private backupCleaner?: () => void;
 
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
+
+    // Epoch 7 Phase 4：注册全生态一键联合灾备切面 (lvBackup)
+    this.backupCleaner = lvBackup.register(
+      "siyuan-exam",
+      async () => this.dumpData(),
+      async (data) => this.restoreData(data),
+    );
 
     this.addIcons(`
 <symbol id="iconExam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -535,7 +544,37 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     }
   }
 
+  /** 全生态联合灾备切面：导出本插件核心学习资产（题库索引、错题本数据与模拟考试历史记录） */
+  async dumpData(): Promise<Record<string, unknown>> {
+    if (this.examApp) {
+      return this.examApp.dumpData();
+    }
+    return {
+      schema: "lv-exam.backup/1",
+      exportedAt: new Date().toISOString(),
+      banks: [],
+      attempts: { v: 2, events: [] },
+      mockResults: [],
+    };
+  }
+
+  /** 全生态联合灾备切面：恢复本插件数据 */
+  async restoreData(data: Record<string, unknown>): Promise<boolean> {
+    if (this.examApp) {
+      const ok = await this.examApp.restoreData(data);
+      if (ok) {
+        this.dispatchPublicStats();
+      }
+      return ok;
+    }
+    return false;
+  }
+
   async onunload() {
+    // Epoch 7 Phase 4：注销全生态一键灾备切面
+    this.backupCleaner?.();
+    this.backupCleaner = undefined;
+
     // Epoch 7：去中心化统一通知系统生命周期交棒与复习定时器清理
     this.reviewReminderCtrl?.dispose();
     this.reviewReminderCtrl = undefined;

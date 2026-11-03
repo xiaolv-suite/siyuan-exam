@@ -4,6 +4,7 @@
   import type { BankInfo } from "../../app";
   import type { BankCategory, BankCategoryMeta } from "@/core/bankCategory";
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
+  import { lvEcosystem } from "@/libs/lv-notice-kit";
 
   interface Props {
     open: boolean;
@@ -250,6 +251,11 @@
           </button>
         </div>
       </details>
+      <div class="lv-ecosystem-badge-wrap" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--lv-border-subtle);display:flex;align-items:center;justify-content:center">
+        <span class="lv-ecosystem-badge" style="font-size:11.5px;color:var(--lv-text-3);background:var(--lv-surface-2);padding:4px 12px;border-radius:12px;border:1px solid var(--lv-border-subtle);letter-spacing:0.2px">
+          {lvEcosystem.getStatusBadgeText()}
+        </span>
+      </div>
     </div>
   </div>
 {/if}

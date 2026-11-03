@@ -26,6 +26,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
     if (hub) hub.destroy();
     delete (window as any).__LV_AI_GATEWAY__;
     delete (window as any).__LV_ACTIVITY_STREAM__;
+    delete (window as any).__LV_BACKUP_HUB__;
     localStorage.clear();
   });
 
@@ -300,6 +301,100 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
       expect(md).toContain("[考试]");
       expect(md).toContain("完成模拟试卷交卷 (得分: 92/100)");
       expect(md).toContain("siyuan://blocks/doc-20261103-mock-exam");
+    });
+  });
+
+  describe("Epoch 7 Phase 4: 全生态联合灾备 (lvBackup) 与健康自省 (lvEcosystem)", () => {
+    it("lvBackup 能够注册备份切面、导出全家桶总包并一键恢复", async () => {
+      const { lvBackup } = await import("../src/libs/lv-notice-kit");
+
+      let restored = false;
+      const unreg = lvBackup.register(
+        "siyuan-test-plugin",
+        async () => ({ mockKey: "mockVal", count: 42 }),
+        async (data) => {
+          if (data.mockKey === "mockVal") {
+            restored = true;
+            return true;
+          }
+          return false;
+        },
+      );
+
+      const bundle = await lvBackup.exportFull();
+      expect(bundle.ecosystem).toBe("xiaolv");
+      expect(bundle.plugins["siyuan-test-plugin"]).toBeDefined();
+      expect(bundle.plugins["siyuan-test-plugin"].data.mockKey).toBe("mockVal");
+      expect(bundle.plugins["siyuan-test-plugin"].data.count).toBe(42);
+
+      const restoreResult = await lvBackup.restoreFull(bundle);
+      expect(restoreResult.success).toContain("siyuan-test-plugin");
+      expect(restored).toBe(true);
+
+      unreg();
+    });
+
+    it("lvEcosystem 能够返回运行态诊断与胶囊徽章文本", async () => {
+      const { lvEcosystem, lvBackup } = await import("../src/libs/lv-notice-kit");
+
+      const unreg = lvBackup.register(
+        "siyuan-exam",
+        async () => ({}),
+        async () => true,
+      );
+
+      const diag = lvEcosystem.getDiagnostics();
+      expect(diag.registeredPlugins).toContain("siyuan-exam");
+      expect(diag.version).toBe(130);
+
+      const badgeText = lvEcosystem.getStatusBadgeText();
+      expect(badgeText).toContain("🐴 小驴全家桶协同正常");
+      expect(badgeText).toContain("插件已联结");
+      expect(badgeText).toContain("今日活动");
+
+      unreg();
+    });
+
+    it("ExamApp.dumpData 与 restoreData 支持题库、答题流水、错题本与模考记录的完整灾备恢复", async () => {
+      const { ExamApp } = await import("../src/app");
+      const { MemoryStorage } = await import("../src/core/attemptLog");
+
+      const storage = new MemoryStorage();
+      const app = new ExamApp({ client: { getRiffDecks: async () => [] } as any, storage });
+      await app.init("test-device");
+
+      // 准备初始数据：模考记录
+      await app.saveMockResult({
+        id: "mock-1",
+        name: "全真模拟试卷一",
+        startedAt: Date.now(),
+        total: 85,
+        full: 100,
+        percent: 85,
+        pass: true,
+      });
+
+      // 备份
+      const backupData = await app.dumpData();
+      expect(backupData.schema).toBe("lv-exam.backup/1");
+      expect(Array.isArray(backupData.mockResults)).toBe(true);
+      expect((backupData.mockResults as any[]).length).toBe(1);
+      expect((backupData.mockResults as any[])[0].name).toBe("全真模拟试卷一");
+
+      // 在新的空 App 实例中恢复
+      const storage2 = new MemoryStorage();
+      const app2 = new ExamApp({ client: { getRiffDecks: async () => [] } as any, storage: storage2 });
+      await app2.init("test-device-2");
+
+      expect((await app2.listMockResults()).length).toBe(0);
+
+      const ok = await app2.restoreData(backupData);
+      expect(ok).toBe(true);
+
+      const restoredMocks = await app2.listMockResults();
+      expect(restoredMocks.length).toBe(1);
+      expect(restoredMocks[0].name).toBe("全真模拟试卷一");
+      expect(restoredMocks[0].total).toBe(85);
     });
   });
 });

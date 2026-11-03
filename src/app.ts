@@ -2117,6 +2117,147 @@ export class ExamApp {
     );
   }
 
+  /** 全生态联合灾备 (lvBackup) 导出切面：题库索引、错题本数据与模拟考试历史记录 */
+  async dumpData(): Promise<Record<string, unknown>> {
+    const [overlays, reasons, reflections, actions, mockResults, mockBlueprint, misdiagnoses, syllabus, kpRelations] =
+      await Promise.all([
+        this.loadAux("wrongbook/overlays"),
+        this.loadAux(WRONG_REASON_KEY),
+        this.loadAux("wrongbook/reflections"),
+        this.loadAux(ACTIONS_KEY),
+        this.listMockResults(),
+        this.loadAux("mock/blueprint"),
+        this.loadAux(MISDIAGNOSIS_KEY),
+        this.loadAux(SYLLABUS_KEY),
+        this.loadAux(KP_RELATIONS_KEY),
+      ]);
+
+    return {
+      schema: "lv-exam.backup/1",
+      exportedAt: new Date().toISOString(),
+      banks: this.banks,
+      attempts: { v: 2, events: this.attempts.all() },
+      wrongbookOverlays: overlays ?? {},
+      wrongReasons: reasons ?? {},
+      wrongReflections: reflections ?? {},
+      actions: actions ?? [],
+      mockResults: mockResults ?? [],
+      mockBlueprint: mockBlueprint ?? null,
+      misdiagnoses: misdiagnoses ?? serializeMisdiagnosis(this.misdiagnosisStore),
+      syllabus: syllabus ?? serializeSyllabus(this.syllabus),
+      kpRelations: kpRelations ?? serializeRelations(this.kpRelations),
+      materials: serializeRegistry(this.materialsRegistry),
+      materialNotes: serializeNoteStore(this.materialNoteStore),
+      materialLinks: serializeLinkStore(this.materialLinkStore),
+    };
+  }
+
+  /** 全生态联合灾备 (lvBackup) 恢复切面：按模块幂等合并恢复题库、错题与模考数据 */
+  async restoreData(data: Record<string, unknown>): Promise<boolean> {
+    if (!data || typeof data !== "object") return false;
+    this.assertStorageWritable();
+
+    try {
+      // 1. 恢复题库索引
+      if (Array.isArray(data.banks)) {
+        const bankMap = new Map(this.banks.map((b) => [b.id, b]));
+        for (const b of data.banks as BankInfo[]) {
+          if (b && typeof b.id === "string") {
+            bankMap.set(b.id, b);
+          }
+        }
+        this.banks = Array.from(bankMap.values());
+        await this.saveBankRegistry();
+      }
+
+      // 2. 恢复答题流水
+      let attemptEvents: AttemptEvent[] = [];
+      if (data.attempts && typeof data.attempts === "object") {
+        const att = data.attempts as { events?: AttemptEvent[] } | AttemptEvent[];
+        if (Array.isArray(att)) {
+          attemptEvents = att;
+        } else if (Array.isArray(att.events)) {
+          attemptEvents = att.events;
+        }
+      }
+      if (attemptEvents.length > 0) {
+        this.attempts.mergeEvents(attemptEvents);
+        await this.attempts.flush();
+      }
+
+      // 3. 恢复错题本数据 (overlays, reasons, reflections, actions, misdiagnoses)
+      if (data.wrongbookOverlays && typeof data.wrongbookOverlays === "object") {
+        const existing = (await this.loadAux<Record<string, unknown>>("wrongbook/overlays")) ?? {};
+        const merged = { ...existing, ...(data.wrongbookOverlays as Record<string, unknown>) };
+        await this.saveAux("wrongbook/overlays", merged);
+      }
+
+      if (data.wrongReasons && typeof data.wrongReasons === "object") {
+        const existing = (await this.loadAux<Record<string, unknown>>(WRONG_REASON_KEY)) ?? {};
+        const merged = { ...existing, ...(data.wrongReasons as Record<string, unknown>) };
+        await this.saveAux(WRONG_REASON_KEY, merged);
+      }
+
+      if (data.wrongReflections && typeof data.wrongReflections === "object") {
+        const existing = (await this.loadAux<Record<string, unknown>>("wrongbook/reflections")) ?? {};
+        const merged = { ...existing, ...(data.wrongReflections as Record<string, unknown>) };
+        await this.saveAux("wrongbook/reflections", merged);
+      }
+
+      if (Array.isArray(data.actions)) {
+        const existing = (await this.loadAux<ActionItem[]>(ACTIONS_KEY)) ?? [];
+        const existingIds = new Set(existing.map((a) => a.id));
+        const merged = [...existing];
+        for (const a of data.actions as ActionItem[]) {
+          if (a && a.id && !existingIds.has(a.id)) {
+            merged.push(a);
+            existingIds.add(a.id);
+          }
+        }
+        await this.saveAux(ACTIONS_KEY, merged);
+      }
+
+      // 4. 恢复模拟考试历史 (mockResults, mockBlueprint)
+      if (Array.isArray(data.mockResults)) {
+        const existing = await this.listMockResults();
+        const existingRunIds = new Set(existing.map((m) => m.runId).filter(Boolean));
+        const merged = [...existing];
+        for (const m of data.mockResults as MockRecord[]) {
+          if (m && (!m.runId || !existingRunIds.has(m.runId))) {
+            merged.push(m);
+            if (m.runId) existingRunIds.add(m.runId);
+          }
+        }
+        while (merged.length > 200) merged.shift();
+        await this.saveAux(MOCK_RESULTS_KEY, merged);
+      }
+
+      if (data.mockBlueprint && typeof data.mockBlueprint === "object") {
+        await this.saveAux("mock/blueprint", data.mockBlueprint);
+      }
+
+      // 5. 补充资产 (misdiagnoses, syllabus, kpRelations)
+      if (data.misdiagnoses && typeof data.misdiagnoses === "object") {
+        await this.saveAux(MISDIAGNOSIS_KEY, data.misdiagnoses);
+        this.misdiagnosisStore = parseMisdiagnosis(data.misdiagnoses).store;
+      }
+      if (data.syllabus && typeof data.syllabus === "object") {
+        await this.saveAux(SYLLABUS_KEY, data.syllabus);
+        this.syllabus = parseSyllabusDoc(data.syllabus).doc;
+      }
+      if (data.kpRelations && typeof data.kpRelations === "object") {
+        await this.saveAux(KP_RELATIONS_KEY, data.kpRelations);
+        this.kpRelations = parseRelations(data.kpRelations).doc;
+      }
+
+      this.invalidate();
+      return true;
+    } catch (err) {
+      console.error("[LvExam] restoreData 异常:", err);
+      return false;
+    }
+  }
+
   // ---------- 学习资料（120-01/02/06 lite：登记 / assets 拷贝 / 最低查看） ----------
 
   listMaterials(): MaterialDoc[] {

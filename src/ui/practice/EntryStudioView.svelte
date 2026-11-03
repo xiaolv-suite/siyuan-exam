@@ -5,6 +5,7 @@
   import type { BankCategory } from "@/core/bankCategory";
   import { getBankCategoryMeta } from "@/core/bankCategory";
   import { localDate } from "@/core/replayer";
+  import { lvEcosystem } from "@/libs/lv-notice-kit";
 
   interface Props {
     hasBank: boolean;
@@ -621,6 +622,11 @@
         </div>
       {/if}
     {/if}
+    <div class="lv-ecosystem-footer" style="margin-top:20px;padding-top:12px;border-top:1px solid var(--lv-border-subtle);display:flex;align-items:center;justify-content:center">
+      <span class="lv-ecosystem-badge" style="font-size:11.5px;color:var(--lv-text-3);background:var(--lv-surface-2);padding:4px 12px;border-radius:12px;border:1px solid var(--lv-border-subtle);letter-spacing:0.2px">
+        {lvEcosystem.getStatusBadgeText()}
+      </span>
+    </div>
   </div>
 {/if}
 
