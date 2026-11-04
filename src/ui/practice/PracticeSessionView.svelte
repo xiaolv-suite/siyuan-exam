@@ -15,6 +15,7 @@
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
   import { shuffleAnswerChoices } from "@/core/answerChoices";
   import { notifyInline, notifyCapsule } from "../../libs/notice";
+  import { lvLaunchpad } from "@/libs/lv-notice-kit";
 
   interface Props {
     session: PracticeSession;
@@ -78,7 +79,7 @@
     speechEvalResult?: SpeechEvalResult | null;
     speechRecording?: boolean;
     reciteToggle: boolean;
-    speedDrillEnabled: boolean;
+    speedDrillEnabled?: boolean;
     autoNextOnCorrect?: boolean;
     autoNextPending?: boolean;
     autoNextRemainingS?: number;
@@ -239,7 +240,7 @@
     speechEvalResult = null,
     speechRecording = false,
     reciteToggle,
-    speedDrillEnabled = $bindable(),
+    speedDrillEnabled = $bindable(false),
     autoNextOnCorrect = $bindable(true),
     autoNextPending = false,
     autoNextRemainingS = 3.5,
@@ -389,6 +390,59 @@
     }
   }
 
+  let optionLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+  let optionLongPressFired = false;
+
+  function triggerCbmGuess(choiceValue: string, targetEl?: HTMLElement | null) {
+    if (feedback || reciteToggle) return;
+    if (curQ?.type === "multiple") {
+      if (!selected.includes(choiceValue)) {
+        onpickChoice(choiceValue);
+      }
+    } else {
+      onpickChoice(choiceValue);
+    }
+    onconfidenceSelect("guess");
+    lvLaunchpad.haptic(10);
+    if (targetEl) {
+      notifyInline(targetEl, "确定度：蒙的/猜测 🎲");
+    } else {
+      notifyCapsule("已标记确定度：蒙的/猜测 (CBM Guess) 🎲", 1500);
+    }
+  }
+
+  function handleOptionTouchStart(choiceValue: string, targetEl?: HTMLElement | null) {
+    optionLongPressFired = false;
+    if (optionLongPressTimer) clearTimeout(optionLongPressTimer);
+    optionLongPressTimer = setTimeout(() => {
+      optionLongPressFired = true;
+      triggerCbmGuess(choiceValue, targetEl);
+    }, 600);
+  }
+
+  function handleOptionTouchEnd(e: TouchEvent) {
+    if (optionLongPressTimer) {
+      clearTimeout(optionLongPressTimer);
+      optionLongPressTimer = null;
+    }
+    if (optionLongPressFired) {
+      e.preventDefault();
+    }
+  }
+
+  function handleOptionTouchCancel() {
+    if (optionLongPressTimer) {
+      clearTimeout(optionLongPressTimer);
+      optionLongPressTimer = null;
+    }
+    optionLongPressFired = false;
+  }
+
+  function handleOptionDblClick(choiceValue: string, targetEl?: HTMLElement | null, e?: MouseEvent) {
+    e?.preventDefault();
+    triggerCbmGuess(choiceValue, targetEl);
+  }
+
   function handleBlankInputKeydown(e: KeyboardEvent, index: number) {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -486,6 +540,7 @@
         <div class="lv-session-dock" role="group" aria-label="辅助工具坞">
           <button class="lv-chip" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-label={t("scratchpad.tip")} aria-pressed={scratchpadOpen} onclick={ontoggleScratchpad}><Icon name="pencil" size={13} /></button>
           <button type="button" class="lv-chip" class:acc={autoNextOnCorrect} title="⚡ 答对自动翻题（单选/判断答对后 500ms 自动进入下一题，答错暂停看解析）" aria-label="答对自动翻题" onclick={() => { autoNextOnCorrect = !autoNextOnCorrect; }}><Icon name="zap" size={13} /> <span class="lv-dock-label">{autoNextOnCorrect ? "自动翻题" : "翻题关"}</span></button>
+          <button type="button" class="lv-chip" class:acc={speedDrillEnabled} title="🚀 极速答题模式（答对后1.5s极速翻题，适合快节奏刷词与熟题巩固）" aria-label="极速答题模式" onclick={() => { speedDrillEnabled = !speedDrillEnabled; }}><Icon name="compass" size={13} /> <span class="lv-dock-label">{speedDrillEnabled ? "极速" : "标准"}</span></button>
           <button type="button" class="lv-chip" class:acc={shuffleOptions} title="🔀 选项随机乱序（打乱 ABCD 渲染次序，打破位置记忆）" aria-label="选项随机乱序" onclick={() => { shuffleOptions = !shuffleOptions; }}><Icon name="shuffle" size={13} /> <span class="lv-dock-label">{shuffleOptions ? "乱序" : "顺序"}</span></button>
           <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={ontogglePureListen}><Icon name="eyeoff" size={13} /></button>
           <button class="lv-chip" class:acc={soundEnabled} title={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-label={soundEnabled ? t("sound.disable") : t("sound.enable")} aria-pressed={soundEnabled} onclick={() => { soundEnabled = !soundEnabled; }}><Icon name={soundEnabled ? "volume" : "volume-x"} size={13} /></button>
@@ -586,21 +641,28 @@
                       class:eliminated={!!eliminatedChoices[choice.value]}
                       disabled={!!feedback && !reciteToggle}
                       onclick={(e) => {
+                        if (optionLongPressFired) {
+                          optionLongPressFired = false;
+                          return;
+                        }
                         if (eliminatedChoices[choice.value]) {
                           toggleEliminate(choice.value, e.currentTarget);
                         } else {
                           onpickChoice(choice.value);
+                          lvLaunchpad.haptic(10);
                         }
                       }}
+                      ontouchstart={(e) => handleOptionTouchStart(choice.value, e.currentTarget)}
+                      ontouchend={handleOptionTouchEnd}
+                      ontouchcancel={handleOptionTouchCancel}
                       oncontextmenu={(e) => {
                         e.preventDefault();
                         toggleEliminate(choice.value, e.currentTarget);
                       }}
                       ondblclick={(e) => {
-                        e.preventDefault();
-                        toggleEliminate(choice.value, e.currentTarget);
+                        handleOptionDblClick(choice.value, e.currentTarget, e);
                       }}
-                      title={eliminatedChoices[choice.value] ? "已划线排除（点击或右键恢复）" : "左键选中，右键或双击可划线排除干扰项"}
+                      title={eliminatedChoices[choice.value] ? "已划线排除（点击或右键恢复）" : "单击选中，双击或长按600ms标为猜测/不确定，右键划线排除"}
                     >
                       <span class="lv-opt-check" class:box={q.type === "multiple"} aria-hidden="true"></span>
                       <span class="key">{choice.letter}</span>
@@ -926,15 +988,15 @@
               </div>
             {/if}
             {#if !feedback && !reciteToggle}
-              <button class="lv-btn lv-btn--primary" onclick={onsubmitAnswer} disabled={!canSubmitAnswer}>
+              <button class="lv-btn lv-btn--primary" onclick={() => { lvLaunchpad.haptic(10); onsubmitAnswer(); }} disabled={!canSubmitAnswer}>
                 {q.type === "multiple" && selected.length > 0 ? t("session.submitSelected").replace("{n}", String(selected.length)) : t("session.submit")}
               </button>
               <button class="lv-btn lv-btn--ghost" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
               {#if q.type === "fill" || q.type === "short"}
-                <button class="lv-btn lv-btn--ghost" onclick={onsubmitAnswer}>{t("session.skip")}</button>
+                <button class="lv-btn lv-btn--ghost" onclick={() => { lvLaunchpad.haptic(10); onsubmitAnswer(); }}>{t("session.skip")}</button>
               {/if}
             {:else}
-              <button class="lv-btn lv-btn--primary" onclick={onnextQuestion} style="display:inline-flex;align-items:center;gap:4px">
+              <button class="lv-btn lv-btn--primary" onclick={() => { lvLaunchpad.haptic(10); onnextQuestion(); }} style="display:inline-flex;align-items:center;gap:4px">
                 <span>{reciteToggle ? "已掌握，下一题 (Space / →)" : t("session.next")}</span>
                 <Icon name="chev-right" size={13} />
               </button>
@@ -1043,19 +1105,40 @@
   @container lv-exam (max-width: 960px) { .lv-session-grid { grid-template-columns: minmax(0, 1fr); } .lv-session-side { order: 2; } }
   .lv-session-head { justify-content: flex-start; }
   @container lv-exam (max-width: 600px) {
-    .lv-pad { padding: 12px 14px 36px; }
+    .lv-pad { padding: 12px 14px calc(24px + env(safe-area-inset-bottom, 0px)); }
+    .lv-session-grid {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    .lv-session-main {
+      width: 100%;
+      min-width: 0;
+      overflow-y: visible;
+    }
     .lv-session-head { gap: var(--lv-space-compact); align-items: center; }
     .lv-session-head .lv-progress { min-width: 56px; }
     .lv-session-head > .lv-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lv-answer-actions { align-items: stretch; }
     .lv-answer-actions > .lv-btn { flex: 1 1 auto; min-width: 0; }
+    .lv-opt {
+      min-height: 52px;
+      padding: 14px 16px;
+    }
+    .lv-opt .key {
+      width: 36px;
+      height: 36px;
+      font-size: 14px;
+    }
   }
   .lv-pure .lv-stem, .lv-pure .lv-opt > span:not(.key) { display: none; }
   .lv-pure .lv-opt .key { filter: none; }
   .lv-pure .lv-opt { justify-content: center; }
   .lv-question { margin-top: 10px; }
   .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; max-width: var(--lv-max-stem-width, 780px); }
-  .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; max-width: var(--lv-max-reading-width, 820px); text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
+  .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; min-height: 52px; box-sizing: border-box; max-width: var(--lv-max-reading-width, 820px); text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); touch-action: manipulation; user-select: none; -webkit-user-select: none; transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
   .lv-opt:hover:not([disabled]) { border-color: var(--lv-border-hover, var(--lv-accent)); background: color-mix(in srgb, var(--lv-accent) 4.5%, var(--lv-surface)); transform: translateY(-1px); box-shadow: var(--lv-sh-2); }
   .lv-opt:active:not([disabled]) { transform: scale(0.985); }
   .lv-opt .key { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 13px; font-weight: var(--lv-font-weight-bold, 700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--lv-surface-2); color: var(--lv-text-2); border: 1px solid var(--lv-border); box-shadow: var(--lv-keycap-shadow); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }

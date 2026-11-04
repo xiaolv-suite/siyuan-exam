@@ -2197,9 +2197,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       sortMode: wbSortMode,
       highriskQids: cbmHighriskQids,
     }));
-    /** 错题本队列渲染上限（ux §3 virtualize-lists）：错题行是重 DOM（每行 ~7 个操作按钮），
-     *  错题数百题级时全量渲染拖慢滚动。与浏览页 200/+=200 同口径；计数徽标/打印/特训等操作仍按全量筛选口径。 */
-    let wbQueueLimit = $state(200);
+    /** 错题本队列渲染上限（ux §3 virtualize-lists / Mobile Spec v1 性能纪律）：
+     *  首屏 ≤50 条，避免数百重 DOM 拖慢移动端与窄屏滚动。计数徽标/打印/特训等操作仍按全量筛选口径。 */
+    let wbQueueLimit = $state(50);
     const shownWrongQueue = $derived(filteredWrongQueue.slice(0, wbQueueLimit));
     const wbQueueHasMore = $derived(filteredWrongQueue.length > wbQueueLimit);
 
@@ -4400,6 +4400,21 @@ import { confirmDialogSync } from "@/libs/dialog";
             showMessage(`已识别标准 Agent 题卡（QCard），成功载入 ${qres.count} 道试题 ✓`, 3500, "info");
             return;
           }
+
+          // 逆向桥接：支持从小驴闪卡（.lvcards）或集市闪卡包导入试题
+          const { parseLvCardsJsonToQuestions } = await import("@/core/lvcardsBridge");
+          const lvres = parseLvCardsJsonToQuestions(trimmed);
+          if (lvres.valid && lvres.questions.length > 0) {
+            importReport = {
+              ok: lvres.questions,
+              errors: [],
+              duplicates: 0,
+              batch: `batch_${Date.now()}`,
+            };
+            importPreviewBankId = targetBankId;
+            showMessage(`已识别小驴闪卡包（.lvcards - 《${lvres.deckName || "未命名卡包"}》），成功载入 ${lvres.count} 道试题 ✓`, 3500, "info");
+            return;
+          }
         }
 
         // parseText 按内容特征分流（廿五批）：GIFT / TSV(Anki) / Aiken；
@@ -4423,8 +4438,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!file) return;
 
       const fileName = file.name.toLowerCase();
-      // 1. 如果是纯文本试题文件（.txt / .gift / .aiken / .md / .json / .qcard）：直接读入文本输入框并自动触发解析预览
-      if (/\.(txt|gift|aiken|md|text|json|qcard)$/i.test(fileName)) {
+      // 1. 如果是纯文本试题文件（.txt / .gift / .aiken / .md / .json / .qcard / .lvcards）：直接读入文本输入框并自动触发解析预览
+      if (/\.(txt|gift|aiken|md|text|json|qcard|lvcards)$/i.test(fileName)) {
         input.value = "";
         importParsing = true;
         try {
@@ -4914,7 +4929,8 @@ import { confirmDialogSync } from "@/libs/dialog";
         }, 0); // 焦点入菜单，Esc/Tab 语义成立
       }
     }
-    let browseLimit = $state(200);
+    /** 题库浏览渲染上限（Mobile Spec v1 性能纪律：首屏 ≤50 条） */
+    let browseLimit = $state(50);
     let searchText = $state("");
     /** 搜索防抖（体验/perf）：大题库逐键全量过滤掉帧；180ms 尾随，编程赋值走 setSearch 即时生效 */
     let searchDebounced = $state("");
@@ -6183,7 +6199,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {filteredWrongQueue}
       {shownWrongQueue}
       {wbQueueHasMore}
-      onloadMoreWbQueue={() => (wbQueueLimit += 200)}
+      onloadMoreWbQueue={() => (wbQueueLimit += 50)}
       {archivedWrongList}
       {eliminatedWrongList}
       {cbmHighrisk}
@@ -6565,7 +6581,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {summarizeLoad}
       {getQuestionLifecycle}
       {hasMore}
-      onbrowseLimit200={() => (browseLimit = 200)}
+      onbrowseLimit200={() => (browseLimit = 50)}
       onapplyNamedView={(v) => void applyNamedView(v)}
       ondeleteNamedView={() => void deleteNamedView()}
       onsaveCurrentView={() => void saveCurrentView()}
@@ -6666,7 +6682,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onsubmitResolveDispute={(q) => void submitResolveDispute(q)}
       onsubmitClearDispute={(q) => void submitClearDispute(q)}
       onsubmitFlagDispute={(q) => void submitFlagDispute(q)}
-      onloadMore={() => (browseLimit += 200)}
+      onloadMore={() => (browseLimit += 50)}
     />
   {:else if view === "import"}
     <ImportStudioView

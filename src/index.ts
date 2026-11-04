@@ -1,4 +1,4 @@
-import { Plugin, openTab, showMessage, getFrontend, adaptHotkey, type Menu } from "siyuan";
+import { Plugin, openTab, showMessage, getFrontend, adaptHotkey, Dialog, type Menu } from "siyuan";
 import "./index.scss";
 
 import { SettingUtils } from "./libs/setting-utils";
@@ -17,7 +17,7 @@ import { registerExamDailySummary } from "./ecosystem/speedSwitch";
 import { TabAppRegistry } from "./core/tabAppRegistry";
 import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
-import { lvNotify, lvBackup, lvLaunchpad, lvOmnisearch, type LvSearchResultItem } from "./libs/lv-notice-kit";
+import { lvNotify, lvBackup, lvLaunchpad, lvOmnisearch, lvSurfaceStack, type LvSearchResultItem } from "./libs/lv-notice-kit";
 import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
 
 const TAB_PRACTICE = "exam-practice";
@@ -87,11 +87,21 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private backupCleaner?: () => void;
   /** Epoch 7 Phase 5：小驴罗盘注册注销句柄 */
   private launchpadCleaner?: () => void;
+  /** Epoch 7 Phase 5 Mobile：手机端小驴罗盘入口注销句柄 */
+  private launchpadMobileCleaner?: () => void;
   /** Epoch 7 Phase 7：全生态穿透搜索提供者注销句柄 */
   private omnisearchCleaner?: () => void;
+  /** Mobile Dialog 承载实例（移动端降级形态） */
+  private mobileDialog: Dialog | null = null;
+  private mobileComponent: any = null;
+  private currentMobileTabType: string | null = null;
+  private mobileSurfaceCleaner?: () => void;
 
   async onload() {
-    this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile";
+    this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile" || lvLaunchpad.isMobileFrontend();
+
+    // 补手机入口（Protocol v1.6.0 Mobile）：挂载 lvLaunchpad.ensureMobileEntry()（桌面保留原 topBar）
+    this.launchpadMobileCleaner = lvLaunchpad.ensureMobileEntry();
 
     // Epoch 7 Phase 4：注册全生态一键联合灾备切面 (lvBackup)
     this.backupCleaner = lvBackup.register(
@@ -100,7 +110,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       async (data) => this.restoreData(data),
     );
 
-    // Epoch 7 Phase 5：注册到小驴罗盘（顶栏收敛与极速二级行动直达）
+    // Epoch 7 Phase 5：注册到小驴罗盘（顶栏收敛与极速二级行动直达，手机端直办）
     this.launchpadCleaner = lvLaunchpad.register({
       id: "siyuan-exam",
       name: "考试",
@@ -111,7 +121,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       digit: 5,
       badge: "今日待测",
       badgeType: "primary",
-      actions: ["开启薄弱知识点10题特训", "打开今日错题本复习", "开启全真计时模拟考试", "导入新试卷与Markdown题库"],
+      actions: ["继续上次练习", "错题复仇特训", "每日一练", "全真计时模拟考试"],
       onClick: () => this.openExamHome(),
       onAction: (action) => this.handleQuickAction(action),
     });
@@ -601,13 +611,18 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onunload() {
+    // 移动端宿主全屏 Dialog 清理
+    this.closeMobileDialog();
+
     // Epoch 7 Phase 7：注销全生态穿透搜索提供者
     this.omnisearchCleaner?.();
     this.omnisearchCleaner = undefined;
 
-    // Epoch 7 Phase 5：注销小驴罗盘注册入口
+    // Epoch 7 Phase 5：注销小驴罗盘注册入口与手机端入口
     this.launchpadCleaner?.();
     this.launchpadCleaner = undefined;
+    this.launchpadMobileCleaner?.();
+    this.launchpadMobileCleaner = undefined;
 
     // Epoch 7 Phase 4：注销全生态一键灾备切面
     this.backupCleaner?.();
@@ -812,6 +827,12 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       showMessage(this.i18n["state.initializing"] ?? "正在初始化小驴考试，完成后自动打开…", 2400, "info");
       return false;
     }
+
+    // 移动端宿主降级（阻断级修复）：思源手机端不支持 custom tab，降级为全屏 Dialog 承载
+    if (this.isMobile) {
+      return this.openMobileDialog(type, title);
+    }
+
     // 单例聚焦（26.2）：同类型 Tab 已开则切换过去，避免 tabApps 覆盖引用
     // Layout restoration may expose getOpenedTab under either the short tab
     // type or the persisted custom id. Search both forms before opening a new
@@ -856,6 +877,130 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       },
     );
     return false;
+  }
+
+  /**
+   * 移动端宿主降级：全屏 Dialog 承载练习台/模考/报告（参照管家 mobile-controller 模式）
+   * 100vw / 100dvh + safe-area + touch-action + 统一浮层栈 Esc / Android 返回键与下滑关闭
+   */
+  private openMobileDialog(type: string, title: string): boolean {
+    if (this.mobileDialog?.element && document.body.contains(this.mobileDialog.element)) {
+      if (this.currentMobileTabType === type) {
+        rememberOpenTab(type);
+        return true;
+      }
+      this.closeMobileDialog();
+    }
+
+    const componentMap: Record<string, Component<any>> = {
+      [TAB_PRACTICE]: PracticeTab,
+      [TAB_MOCK]: MockTab,
+      [TAB_REPORT]: ReportTab,
+    };
+    const ComponentClass = componentMap[type] || PracticeTab;
+
+    const dialog = new Dialog({
+      title: title || manifest.displayName["zh-CN"] || "小驴考试",
+      content: `<div class="lv-exam-mobile-dialog-host" style="width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:contain;"></div>`,
+      width: "100vw",
+      height: "100dvh",
+      destroyCallback: () => {
+        this.cleanupMobileDialog();
+      },
+    });
+
+    dialog.element.classList.add("lv-exam-mobile-dialog");
+    const hostEl = dialog.element.querySelector(".lv-exam-mobile-dialog-host");
+    if (hostEl) {
+      const el = document.createElement("div");
+      el.classList.add("fn__flex-1", "lv-exam-tab");
+      el.style.width = "100%";
+      el.style.height = "100%";
+      el.style.display = "flex";
+      el.style.flexDirection = "column";
+      el.style.overflow = "hidden";
+      hostEl.appendChild(el);
+
+      this.mobileComponent = mount(ComponentClass, {
+        target: el,
+        props: { plugin: this, examApp: this.examApp },
+      });
+    }
+
+    // 交互统一：顶部弹层下滑手势关闭 (Pull down to dismiss)
+    const headerEl = dialog.element.querySelector(".b3-dialog__header") as HTMLElement | null;
+    if (headerEl) {
+      let touchStartY = 0;
+      let touchStartX = 0;
+      headerEl.addEventListener(
+        "touchstart",
+        (e: TouchEvent) => {
+          if (e.touches.length > 0) {
+            touchStartY = e.touches[0].clientY;
+            touchStartX = e.touches[0].clientX;
+          }
+        },
+        { passive: true },
+      );
+      headerEl.addEventListener(
+        "touchend",
+        (e: TouchEvent) => {
+          if (e.changedTouches.length > 0) {
+            const deltaY = e.changedTouches[0].clientY - touchStartY;
+            const deltaX = Math.abs(e.changedTouches[0].clientX - touchStartX);
+            if (deltaY > 70 && deltaX < 60) {
+              lvLaunchpad.haptic(10);
+              this.closeMobileDialog();
+            }
+          }
+        },
+        { passive: true },
+      );
+    }
+
+    this.mobileDialog = dialog;
+    this.currentMobileTabType = type;
+    rememberOpenTab(type);
+
+    // 统一浮层栈 Esc 与 Android 原生返回键秒关
+    this.mobileSurfaceCleaner?.();
+    this.mobileSurfaceCleaner = lvSurfaceStack.push({
+      id: "lv-exam-mobile-dialog",
+      type: "card",
+      dismiss: () => {
+        this.closeMobileDialog();
+        return true;
+      },
+    });
+
+    return false;
+  }
+
+  closeMobileDialog(): void {
+    if (this.mobileDialog) {
+      const d = this.mobileDialog;
+      this.mobileDialog = null;
+      try {
+        d.destroy();
+      } catch (err) {
+        console.warn("[LvExam] closeMobileDialog error:", err);
+      }
+    }
+  }
+
+  private cleanupMobileDialog(): void {
+    this.mobileSurfaceCleaner?.();
+    this.mobileSurfaceCleaner = undefined;
+    if (this.mobileComponent) {
+      try {
+        unmount(this.mobileComponent);
+      } catch (err) {
+        console.error("[LvExam] failed to unmount mobile dialog component:", err);
+      }
+      this.mobileComponent = null;
+    }
+    this.mobileDialog = null;
+    this.currentMobileTabType = null;
   }
 
   private onBlockIconClick({ detail }: { detail?: { menu?: Menu; blockElements?: HTMLElement[] } }) {
@@ -1379,14 +1524,22 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   /** 小驴罗盘极速二级行动派发 */
   handleQuickAction(action: string): void {
     switch (action) {
+      case "继续上次练习":
+        this.resumeLastPractice();
+        break;
+      case "错题复仇特训":
+        void this.startWrongQuestionsDrill();
+        break;
+      case "每日一练":
       case "开启薄弱知识点10题特训":
         void this.startWeakSpotTraining(10);
         break;
-      case "打开今日错题本复习":
-        this.openWrongbook();
-        break;
+      case "全真计时模拟考试":
       case "开启全真计时模拟考试":
         this.openMock();
+        break;
+      case "打开今日错题本复习":
+        this.openWrongbook();
         break;
       case "导入新试卷与Markdown题库":
         openPracticeView(this, "import");
@@ -1394,6 +1547,60 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       default:
         this.openExamHome();
         break;
+    }
+  }
+
+  /** 继续上次练习：如果存在中断未完成的做题会话，直接恢复做题；否则进入练习台 */
+  resumeLastPractice(): void {
+    this.openPractice();
+    emitExamEvent("resume-session", {});
+  }
+
+  /** 错题复仇特训：筛选在册活跃错题直接发起特训 */
+  async startWrongQuestionsDrill(): Promise<boolean> {
+    if (!this.examApp || !this.examApp.kernelOnline) {
+      this.openWrongbook();
+      return false;
+    }
+    try {
+      const banks = this.examApp.listBanks();
+      if (!banks.length) {
+        this.openWrongbook();
+        return false;
+      }
+      const prefBank = (typeof window !== "undefined" && window.localStorage?.getItem("lv-exam/activeBank")) || "";
+      const activeBankId = prefBank && banks.some((b) => b.id === prefBank) ? prefBank : banks[0].id;
+      const questions = await this.examApp.listQuestions(activeBankId);
+      const derived = this.examApp.derived();
+      const wrongQids = new Set(
+        [...derived.wrongbook.values()].filter((w) => w.status === "active").map((w) => w.qid),
+      );
+      let wrongQuestions = questions.filter((q) => wrongQids.has(q.id));
+      if (!wrongQuestions.length) {
+        for (const b of banks) {
+          if (b.id === activeBankId) continue;
+          const bQuestions = await this.examApp.listQuestions(b.id);
+          const bWrong = bQuestions.filter((q) => wrongQids.has(q.id));
+          if (bWrong.length) {
+            wrongQuestions = bWrong;
+            break;
+          }
+        }
+      }
+      if (wrongQuestions.length) {
+        const picked = wrongQuestions.slice(0, 20);
+        this.pendingPractice = picked;
+        this.pendingPracticeBankId = activeBankId;
+        emitExamEvent("open-practice-questions", { qids: picked.map((q) => q.id), bank: activeBankId });
+        this.openPractice();
+        return true;
+      }
+      this.openWrongbook();
+      return true;
+    } catch (err) {
+      console.warn("[LvExam] startWrongQuestionsDrill error:", err);
+      this.openWrongbook();
+      return false;
     }
   }
 
@@ -1409,7 +1616,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         this.openPractice();
         return false;
       }
-      const activeBankId = banks[0].id;
+      const prefBank = (typeof window !== "undefined" && window.localStorage?.getItem("lv-exam/activeBank")) || "";
+      const activeBankId = prefBank && banks.some((b) => b.id === prefBank) ? prefBank : banks[0].id;
       const questions = await this.examApp.listQuestions(activeBankId);
       if (!questions.length) {
         this.openPractice();
@@ -1453,7 +1661,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     }
   }
 
-  /** 全生态穿透搜索：检索题库与错题本试题 */
+  /** 全生态穿透搜索：检索题库、错题本与高频实体 */
   async searchOmni(keyword: string): Promise<LvSearchResultItem[]> {
     if (!this.examApp || !keyword.trim()) return [];
     const kw = keyword.trim().toLowerCase();
@@ -1463,6 +1671,30 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     const derived = this.examApp.derived();
     const results: LvSearchResultItem[] = [];
 
+    // 1. 匹配题库高频实体
+    for (const bank of banks) {
+      if (bank.name.toLowerCase().includes(kw)) {
+        results.push({
+          id: `bank-${bank.id}`,
+          source: "考试",
+          category: "题库",
+          badge: "题库",
+          title: `题库：${bank.name}`,
+          snippet: bank.category ? `【分类: ${bank.category}】包含本库试题与错题，点击直达` : `包含试题与专项分类，点击切换至此题库`,
+          onClick: () => {
+            try {
+              if (typeof window !== "undefined" && window.localStorage) {
+                window.localStorage.setItem("lv-exam/activeBank", bank.id);
+              }
+            } catch { /* ignore */ }
+            this.openPractice();
+          },
+        });
+        if (results.length >= 30) break;
+      }
+    }
+
+    // 2. 匹配试题与错题实体
     for (const bank of banks) {
       try {
         const questions = await this.examApp.listQuestions(bank.id);
@@ -1470,10 +1702,12 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           const stem = q.stem || "";
           const analysis = q.analysis || "";
           const kp = q.kp || "";
+          const optionsText = (q.options || []).join(" ");
           if (
             stem.toLowerCase().includes(kw) ||
             analysis.toLowerCase().includes(kw) ||
-            kp.toLowerCase().includes(kw)
+            kp.toLowerCase().includes(kw) ||
+            optionsText.toLowerCase().includes(kw)
           ) {
             const isWrong = derived.wrongbook.get(q.id)?.status === "active";
             const category = isWrong ? "错题本" : "题库试题";

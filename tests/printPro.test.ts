@@ -335,6 +335,23 @@ describe("PrintPro A4 双栏紧凑打印与分页防断引擎 (68-04 / 79-02)", 
       expect(varB[0].options[newAnsIndex]).toBe("第二项");
     });
 
+    it("generatePaperVariant 能够为连写多选题 (multiple: 'AC') 打乱选项并精准重映射多答案字母", () => {
+      const q = mkQ("q-var-multi", {
+        type: "multiple",
+        options: ["第一项", "第二项", "第三项", "第四项"],
+        answer: "AC",
+      });
+
+      const varB = generatePaperVariant([q], "B");
+      expect(varB.length).toBe(1);
+      const newLetters = varB[0].answer.split("");
+      expect(newLetters.length).toBe(2);
+      // 新答案字母列表映射的选项必须是“第一项”和“第三项”
+      const mappedOpts = newLetters.map((l) => varB[0].options[l.charCodeAt(0) - 65]);
+      expect(mappedOpts).toContain("第一项");
+      expect(mappedOpts).toContain("第三项");
+    });
+
     it("auditPaperBeforePrint 印刷前排版质检与总分统计", () => {
       const qOk = mkQ("q-ok", { score: 5, answer: "A", options: ["A", "B", "C", "D"] });
       const qErr = mkQ("q-err", { score: 0, answer: "Z", options: ["A", "B"] });

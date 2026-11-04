@@ -8,7 +8,6 @@ import {
   clearSketchFromStorage,
   HIGHLIGHTER_PRESETS,
   getHighlighterStrokeStyle,
-  SKETCH_STORAGE_PREFIX,
 } from "../src/ui/practice/services/sketchpadService";
 
 describe("数理草图演练画板服务 (sketchpadService)", () => {

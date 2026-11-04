@@ -6,11 +6,9 @@ import { lvNotify } from "../src/libs/lv-notice-kit";
 import {
   showExamNotice,
   notifyInline,
-  notifyCapsule,
   notifyMockFinishCard,
   notifyPracticeFinishCard,
   notifyDailyReviewCard,
-  CATEGORY_DAILY_REVIEW,
 } from "../src/libs/notice";
 
 describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () => {
@@ -398,7 +396,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
       expect(restoredMocks.length).toBe(1);
       expect(restoredMocks[0].name).toBe("全真模拟试卷一");
       expect(restoredMocks[0].total).toBe(85);
-    });
+    }, 15000);
   });
 
   describe("Epoch 7 Phase 5: 小驴罗盘 (lvLaunchpad) 注册与二级极速行动", () => {

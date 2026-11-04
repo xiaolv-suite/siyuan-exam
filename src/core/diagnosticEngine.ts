@@ -185,14 +185,12 @@ export function diagnoseQuestionRootCauses(
   });
 
   // 5. 诊断总结建议
-  let summaryText = "";
-  if (rootCauses.length > 0) {
-    summaryText = `经自适应前置诊断，定位到 ${rootCauses.length} 个薄弱根因考点（${rootCauses.map((r) => r.kp).join("、")}），建议暂缓盲目刷难题，从根因筑基开始按路线图逐级突破。`;
-  } else if (shakyNodes.length > 0) {
-    summaryText = `本题前置知识基础较完备，主要失分原因在于「${shakyNodes[0].kp}」考点掌握不够牢固，重点巩固细节即可突破。`;
-  } else {
-    summaryText = `未检测到直接的前置知识短板，该题可能属于计算失误或题型不熟练，建议重做原题并查看【思路拓展与秒杀技巧】。`;
-  }
+  const summaryText =
+    rootCauses.length > 0
+      ? `经自适应前置诊断，定位到 ${rootCauses.length} 个薄弱根因考点（${rootCauses.map((r) => r.kp).join("、")}），建议暂缓盲目刷难题，从根因筑基开始按路线图逐级突破。`
+      : shakyNodes.length > 0
+        ? `本题前置知识基础较完备，主要失分原因在于「${shakyNodes[0].kp}」考点掌握不够牢固，重点巩固细节即可突破。`
+        : `未检测到直接的前置知识短板，该题可能属于计算失误或题型不熟练，建议重做原题并查看【思路拓展与秒杀技巧】。`;
 
   return {
     targetQid: targetQ.id,

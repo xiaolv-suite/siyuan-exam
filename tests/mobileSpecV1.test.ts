@@ -1,0 +1,247 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("siyuan", () => {
+  class MockDialog {
+    element: HTMLElement;
+    options: any;
+    constructor(options: any) {
+      this.options = options;
+      this.element = document.createElement("div");
+      this.element.className = "b3-dialog";
+      this.element.innerHTML = `
+        <div class="b3-dialog__container">
+          <div class="b3-dialog__header"><span class="b3-dialog__title">${options.title || ""}</span></div>
+          <div class="b3-dialog__content">${options.content || ""}</div>
+        </div>
+      `;
+      document.body.appendChild(this.element);
+    }
+    destroy() {
+      if (this.options?.destroyCallback) {
+        this.options.destroyCallback();
+      }
+      this.element.remove();
+    }
+  }
+
+  class MockPlugin {
+    name = "siyuan-exam";
+    eventBus = { on: vi.fn(), off: vi.fn() };
+    protyleSlash: any[] = [];
+    addIcons = vi.fn();
+    addTopBar = vi.fn();
+    addTab = vi.fn();
+    addCommand = vi.fn();
+    getOpenedTab = vi.fn().mockReturnValue([]);
+    openSetting = vi.fn();
+  }
+
+  class MockSetting {
+    constructor() {}
+    addItem() {}
+  }
+
+  return {
+    Dialog: MockDialog,
+    Plugin: MockPlugin,
+    Setting: MockSetting,
+    openTab: vi.fn(),
+    showMessage: vi.fn(),
+    getFrontend: vi.fn().mockReturnValue("mobile"),
+    adaptHotkey: vi.fn((k) => k),
+  };
+});
+
+vi.mock("svelte", async (importOriginal) => {
+  const actual = await importOriginal<any>();
+  return {
+    ...actual,
+    mount: vi.fn().mockReturnValue({}),
+    unmount: vi.fn(),
+  };
+});
+
+import LvExamPlugin from "../src/index";
+import { lvLaunchpad, lvSurfaceStack } from "../src/libs/lv-notice-kit";
+
+describe("小驴生态 · 手机端完整开发 · Mobile Spec v1 规范测试", () => {
+  let plugin: LvExamPlugin;
+
+  beforeEach(() => {
+    localStorage.clear();
+    delete (window as any).__LV_LAUNCHPAD__;
+    delete (window as any).__LV_OMNISEARCH__;
+    delete (window as any).__LV_SURFACE_STACK__;
+
+    plugin = new LvExamPlugin({} as any);
+    plugin.i18n = {
+      "tab.practice": "练习",
+      "tab.mock": "模考",
+      "tab.report": "复盘",
+      "state.initializing": "初始化中…",
+      settingSaved: "保存成功",
+    };
+    plugin.name = "siyuan-exam";
+  });
+
+  afterEach(async () => {
+    try {
+      await plugin.onunload();
+    } catch {
+      /* ignore */
+    }
+    delete (window as any).__LV_LAUNCHPAD__;
+    delete (window as any).__LV_OMNISEARCH__;
+    delete (window as any).__LV_SURFACE_STACK__;
+    document.body.innerHTML = "";
+  });
+
+  it("1. 手机端检测与入口统一：挂载 ensureMobileEntry，onload 自动注册小驴罗盘", async () => {
+    const mobileDiv = document.createElement("div");
+    mobileDiv.id = "mobileTopBar";
+    document.body.appendChild(mobileDiv);
+
+    await plugin.onload();
+
+    // 验证罗盘注册项
+    const items = lvLaunchpad.getItems();
+    const examItem = items.find((i) => i.id === "siyuan-exam");
+    expect(examItem).toBeDefined();
+    expect(examItem?.fullName).toBe("小驴考试");
+
+    // 验证二级直办动作重写为 4 个手机动作
+    expect(examItem?.actions).toEqual([
+      "继续上次练习",
+      "错题复仇特训",
+      "每日一练",
+      "全真计时模拟考试",
+    ]);
+
+    mobileDiv.remove();
+  });
+
+  it("2. 阻断级宿主降级：移动端 openTabByType 降级为全屏 Dialog 承载", async () => {
+    (plugin as any).isMobile = true;
+    (plugin as any).appInitializing = false;
+
+    // 打开练习台
+    const opened = plugin.openPractice();
+    expect(opened).toBe(false); // 首次打开新 Dialog 返回 false
+
+    const mobileDialogEl = document.querySelector(".lv-exam-mobile-dialog");
+    expect(mobileDialogEl).not.toBeNull();
+    expect(mobileDialogEl?.querySelector(".lv-exam-mobile-dialog-host")).not.toBeNull();
+
+    // 再次调用时，若已处于打开状态则返回 true（单例聚焦）
+    const secondOpen = plugin.openPractice();
+    expect(secondOpen).toBe(true);
+
+    // 验证统一浮层栈 Esc / Android 返回键联动已登记
+    expect(lvSurfaceStack.top()?.id).toBe("lv-exam-mobile-dialog");
+
+    // 关闭对话框
+    plugin.closeMobileDialog();
+    expect(document.querySelector(".lv-exam-mobile-dialog")).toBeNull();
+  });
+
+  it("3. 小驴罗盘二级行动派发：覆盖继续上次、错题特训、每日一练与模拟考试", async () => {
+    await plugin.onload();
+
+    let resumeCalled = false;
+    let wrongDrillCalled = false;
+    let weakSpotCalled = false;
+    let mockCalled = false;
+
+    plugin.resumeLastPractice = () => {
+      resumeCalled = true;
+    };
+    plugin.startWrongQuestionsDrill = async () => {
+      wrongDrillCalled = true;
+      return true;
+    };
+    plugin.startWeakSpotTraining = async () => {
+      weakSpotCalled = true;
+      return true;
+    };
+    plugin.openMock = () => {
+      mockCalled = true;
+    };
+
+    plugin.handleQuickAction("继续上次练习");
+    expect(resumeCalled).toBe(true);
+
+    plugin.handleQuickAction("错题复仇特训");
+    expect(wrongDrillCalled).toBe(true);
+
+    plugin.handleQuickAction("每日一练");
+    expect(weakSpotCalled).toBe(true);
+
+    plugin.handleQuickAction("全真计时模拟考试");
+    expect(mockCalled).toBe(true);
+  });
+
+  it("4. 全生态穿透搜索：覆盖题库高频实体与试题实体", async () => {
+    // 模拟 ExamApp 与题库
+    (plugin as any).examApp = {
+      listBanks: () => [
+        { id: "bank-xingce", name: "公务员行测题库", category: "exam" },
+      ],
+      listQuestions: async (bankId: string) => [
+        {
+          id: "q-101",
+          stem: "关于我国宪法规定的公民基本权利，下列哪一说法是正确的？",
+          analysis: "宪法规定了广泛的公民权利体系，包括政治权利与自由。",
+          kp: "宪法学/公民权利",
+          options: ["A", "B", "C", "D"],
+        },
+      ],
+      derived: () => ({
+        wrongbook: new Map(),
+      }),
+    };
+
+    // 搜索题库名称
+    const bankResults = await plugin.searchOmni("行测");
+    expect(bankResults.length).toBeGreaterThan(0);
+    expect(bankResults[0].category).toBe("题库");
+    expect(bankResults[0].title).toContain("题库：公务员行测题库");
+
+    // 搜索试题题干关键词
+    const qResults = await plugin.searchOmni("宪法");
+    expect(qResults.length).toBeGreaterThan(0);
+    expect(qResults.some((r) => r.title.includes("公民基本权利"))).toBe(true);
+  });
+
+  it("5. 触感振动反馈：lvLaunchpad.haptic 存在且桌面端安全降级", () => {
+    expect(typeof lvLaunchpad.haptic).toBe("function");
+    // 调用不抛异常
+    expect(() => lvLaunchpad.haptic(10)).not.toThrow();
+  });
+
+  it("6. 移动端全屏弹层支持下滑关闭手势", () => {
+    (plugin as any).isMobile = true;
+    (plugin as any).appInitializing = false;
+
+    plugin.openPractice();
+    const dialogEl = document.querySelector(".lv-exam-mobile-dialog");
+    expect(dialogEl).not.toBeNull();
+
+    const header = dialogEl?.querySelector(".b3-dialog__header") as HTMLElement;
+    expect(header).not.toBeNull();
+
+    // 模拟下滑手势 > 70px
+    const touchStart = new Event("touchstart", { bubbles: true }) as any;
+    touchStart.touches = [{ clientY: 100, clientX: 100 }];
+    header.dispatchEvent(touchStart);
+
+    const touchEnd = new Event("touchend", { bubbles: true }) as any;
+    touchEnd.changedTouches = [{ clientY: 180, clientX: 105 }];
+    header.dispatchEvent(touchEnd);
+
+    // 应该触发 closeMobileDialog 关闭弹窗
+    expect(document.querySelector(".lv-exam-mobile-dialog")).toBeNull();
+  });
+});

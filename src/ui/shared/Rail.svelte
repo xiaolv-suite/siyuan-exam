@@ -6,6 +6,7 @@
   import { tick } from "svelte";
   import Icon from "./Icon.svelte";
   import { openPracticeView, type ExamPluginLike } from "../../core/pluginTab";
+  import { lvLaunchpad } from "@/libs/lv-notice-kit";
 
   type TaskTarget = "today" | "bank" | "marketplace" | "create" | "mock" | "report";
 
@@ -311,6 +312,14 @@
     { target: "mock" as const, icon: "clock", label: t("task.mock", "模考") },
     { target: "report" as const, icon: "chart", label: t("task.report", "复盘") },
   ];
+  // 移动端底部任务导航（Mobile Spec v1 规范：严格 ≤5 项，触感 haptic）
+  const mobileGlobals = [
+    { target: "today" as const, icon: "home", label: t("task.today", "今日") },
+    { target: "bank" as const, icon: "book", label: t("task.bank", "题库") },
+    { target: "create" as const, icon: "create", label: t("task.create", "出题") },
+    { target: "mock" as const, icon: "clock", label: t("task.mock", "模考") },
+    { target: "report" as const, icon: "chart", label: t("task.report", "复盘") },
+  ];
   const activeTask = $derived(taskactive ?? (active === "practice" ? "today" : active));
 </script>
 
@@ -438,8 +447,8 @@
     {/if}
 </aside>
 <nav class="lv-mobile-tasknav" class:focus={tasknavhidden} aria-label={t("rail.tasks", "主要功能")}>
-  {#each globals as g (g.target)}
-    <button class="lv-mobile-task" class:on={activeTask === g.target} aria-current={activeTask === g.target ? "page" : undefined} onclick={() => goTask(g.target)}>
+  {#each mobileGlobals as g (g.target)}
+    <button class="lv-mobile-task" class:on={activeTask === g.target} aria-current={activeTask === g.target ? "page" : undefined} onclick={() => { lvLaunchpad.haptic(10); goTask(g.target); }}>
       <Icon name={g.icon} size={18} />
       <span>{g.label}</span>
     </button>

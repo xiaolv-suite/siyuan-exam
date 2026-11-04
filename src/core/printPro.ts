@@ -1824,9 +1824,12 @@ export function generatePaperVariant(
       }
 
       const newOptions = optsWithIdx.map((o) => o.opt);
-      const origAnswerLetters = (orig.answer || "").toUpperCase().split(/[,，\s]+/);
+      const cleanUpper = (orig.answer || "").toUpperCase();
+      const origAnswerLetters = cleanUpper.includes(",") || cleanUpper.includes(" ") || cleanUpper.includes("、")
+        ? cleanUpper.split(/[,，、\s]+/).map((l) => l.trim()).filter(Boolean)
+        : cleanUpper.replace(/[^A-H]/g, "").split("");
       const origAnswerIndices = origAnswerLetters
-        .map((l) => letters.indexOf(l.trim()))
+        .map((l) => letters.indexOf(l))
         .filter((idx) => idx >= 0);
 
       const newAnswerIndices: number[] = [];

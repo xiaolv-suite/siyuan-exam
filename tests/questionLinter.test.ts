@@ -5,7 +5,6 @@ import {
   pruneQuestionOptions,
   convertQuestionToShort,
   convertFillWithoutBlankToShort,
-  hasBlankPlaceholder,
 } from "@/core/questionLinter";
 import { decodeCompactAnswerMatrix, autoHealExamText } from "@/importer/examSegmenter";
 import type { Question } from "@/core/types";

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   extractNaturalPaperQuestionsAsync,
-  extractNaturalPaperQuestions,
   parseSingleNaturalQuestion,
 } from "../src/core/siyuanDocImporter";
 

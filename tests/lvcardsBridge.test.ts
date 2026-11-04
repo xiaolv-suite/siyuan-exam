@@ -6,6 +6,9 @@ import {
   marketplaceItemToLvCardsPackage,
   serializeLvCardsPackage,
   parseLvCardsPackage,
+  lvPackageCardToQuestion,
+  lvCardsPackageToQuestions,
+  parseLvCardsJsonToQuestions,
   LVCARDS_FORMAT_VERSION,
 } from "../src/core/lvcardsBridge";
 import { DEFAULT_MARKETPLACE_CATALOG } from "../src/core/marketplace";
@@ -109,4 +112,40 @@ describe("小驴考试与小驴闪卡跨插件桥接器 (lvcardsBridge)", () => 
     expect(parseLvCardsPackage(JSON.stringify({ format: "lvcards.v1" })).valid).toBe(false);
     expect(parseLvCardsPackage(JSON.stringify({ format: "lvcards.v1", deck: { name: "无卡" }, cards: "not-array" })).valid).toBe(false);
   });
+
+  it("7. lvPackageCardToQuestion 与 lvCardsPackageToQuestions 逆向保真还原为试题", () => {
+    const card = questionToLvPackageCard(sampleQuestion);
+    const restored = lvPackageCardToQuestion(card, "考研数学基础");
+
+    expect(restored.id).toBe("q-math-101");
+    expect(restored.type).toBe("single");
+    expect(restored.stem).toBe(sampleQuestion.stem);
+    expect(restored.options).toEqual(sampleQuestion.options);
+    expect(restored.answer).toBe("A");
+    expect(restored.analysis).toContain("基本初等函数求导公式");
+    expect(restored.expansion).toContain("奇变偶不变");
+    expect(restored.tags).toContain("微积分");
+    expect(restored.tags).toContain("考研数学");
+
+    const pkg = questionsToLvCardsPackage({ id: "deck-1", name: "微积分精选" }, [sampleQuestion]);
+    const qs = lvCardsPackageToQuestions(pkg);
+    expect(qs.length).toBe(1);
+    expect(qs[0].stem).toBe(sampleQuestion.stem);
+  });
+
+  it("8. parseLvCardsJsonToQuestions 支持直接将 .lvcards 分享包文本还原为试题列表", () => {
+    const pkg = questionsToLvCardsPackage(
+      { id: "deck-cs", name: "计算机网络精要" },
+      [sampleQuestion],
+    );
+    const json = serializeLvCardsPackage(pkg);
+    const res = parseLvCardsJsonToQuestions(json);
+
+    expect(res.valid).toBe(true);
+    expect(res.count).toBe(1);
+    expect(res.deckName).toBe("计算机网络精要");
+    expect(res.questions[0].stem).toBe(sampleQuestion.stem);
+    expect(res.questions[0].type).toBe("single");
+  });
 });
+

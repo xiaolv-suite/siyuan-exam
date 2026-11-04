@@ -114,6 +114,8 @@
   }
 </script>
 
+<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") onclose(); }} />
+
 {#if open}
   <div
     class="lv-modal-mask"
@@ -208,7 +210,7 @@
             <div style="flex:1">
               <label class="lv-label" for="pub-cat" style="font-size:12px;font-weight:700">学科领域分类</label>
               <select id="pub-cat" class="lv-select" style="width:100%" bind:value={pubCategory}>
-                {#each categories as cat}
+                {#each categories as cat (cat.id)}
                   <option value={cat.id}>{cat.label}</option>
                 {/each}
               </select>
@@ -258,7 +260,7 @@
                 以下题目包含本地绝对磁盘路径或内部块 ID，建议在思源正文中清理或使用相对资源：
               </p>
               <div style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto">
-                {#each warnings as w}
+                {#each warnings as w, wi (wi)}
                   <div style="padding:8px 10px;background:var(--lv-surface);border-radius:4px;border:1px solid var(--lv-border-subtle);font-size:12px">
                     <div class="lv-row" style="margin:0 0 4px;gap:6px;align-items:center">
                       <span class="lv-chip sm lv-chip--red num">{w.type === "absolute_path" ? "绝对路径" : "私有块链接"}</span>

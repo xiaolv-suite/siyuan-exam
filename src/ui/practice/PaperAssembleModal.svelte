@@ -280,6 +280,8 @@
   }
 </script>
 
+<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") onclose(); }} />
+
 {#if open}
   <div
     class="lv-modal-mask"
@@ -358,7 +360,7 @@
           </span>
           <span style="color:var(--lv-border)">|</span>
           <div class="lv-row" style="margin:0;gap:6px">
-            {#each preflightReport.typeDistribution as td}
+            {#each preflightReport.typeDistribution as td (td.label)}
               <span class="lv-chip sm num" style="font-size:11px">{td.label}: {td.count}题/{td.score}分</span>
             {/each}
           </div>
@@ -391,19 +393,19 @@
 
       {#if preflightOpen && (preflightReport.errors.length > 0 || preflightReport.warnings.length > 0)}
         <div style="padding:10px 20px;background:var(--lv-surface-2);border-bottom:1px solid var(--lv-border);font-size:12px;max-height:120px;overflow-y:auto">
-          {#each preflightReport.errors as err}
+          {#each preflightReport.errors as err, ei (ei)}
             <div style="color:var(--lv-accent-seal, #ef4444);margin-bottom:2px">✕ {err}</div>
           {/each}
-          {#each preflightReport.warnings as warn}
+          {#each preflightReport.warnings as warn, wi (wi)}
             <div style="color:var(--lv-accent, #f59e0b);margin-bottom:2px">⚠️ {warn}</div>
           {/each}
         </div>
       {/if}
 
       <!-- 主体分栏：左侧配置面板 + 右侧纸张拟真渲染预览 -->
-      <div style="flex:1;display:flex;overflow:hidden">
+      <div class="lv-assemble-body" style="flex:1;display:flex;overflow:hidden">
         <!-- 左侧排版参数调节面板 -->
-        <div style="width:390px;min-width:320px;border-right:1px solid var(--lv-border);background:var(--lv-surface);display:flex;flex-direction:column;overflow-y:auto;padding:16px;gap:14px">
+        <div class="lv-assemble-sidebar" style="width:390px;min-width:320px;border-right:1px solid var(--lv-border);background:var(--lv-surface);display:flex;flex-direction:column;overflow-y:auto;padding:16px;gap:14px">
           <!-- 快速排版风格预设条 -->
           <div class="lv-card" style="padding:10px 12px;background:var(--lv-surface-2);border-radius:6px;border:1px solid var(--lv-border-subtle)">
             <div class="lv-muted" style="font-size:11px;font-weight:700;margin-bottom:6px">⚡ 快速套用排版预设:</div>
@@ -675,5 +677,22 @@
   }
   .selected-format {
     box-shadow: 0 0 0 1px var(--lv-brand);
+  }
+  @media (max-width: 840px) {
+    .lv-assemble-card {
+      width: 100vw !important;
+      height: 100vh !important;
+      border-radius: 0 !important;
+    }
+    .lv-assemble-body {
+      flex-direction: column !important;
+    }
+    .lv-assemble-sidebar {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-height: 42vh !important;
+      border-right: none !important;
+      border-bottom: 1px solid var(--lv-border) !important;
+    }
   }
 </style>

@@ -647,7 +647,7 @@
                 </div>
               {/each}
             </div>
-          {:else}
+          {:else if wbTab === "archived"}
             <div class="stack-sm" style="margin-top:8px">
               {#each archivedWrongList as w, wi (w.qid)}
                 {@const q = qOf(w.qid)}

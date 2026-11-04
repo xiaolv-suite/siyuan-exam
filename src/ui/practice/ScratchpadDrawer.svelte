@@ -36,6 +36,7 @@
   }: Props = $props();
 
   let padType = $state<"text" | "sketch">("text");
+  let isExpanded = $state<boolean>(false);
 
   // 手绘画板交互状态
   let canvasEl = $state<HTMLCanvasElement | null>(null);
@@ -56,10 +57,10 @@
     const ctx = canvasEl.getContext("2d");
     if (!ctx) return;
 
-    // 根据 DOM 实际渲染宽度自适应画布分辨率
+    // 根据 DOM 实际渲染宽度与放大状态自适应画布分辨率
     const rect = canvasEl.getBoundingClientRect();
     const w = Math.max(300, Math.floor(rect.width));
-    const h = 240;
+    const h = isExpanded ? Math.max(380, Math.floor(window.innerHeight * 0.55)) : 240;
 
     if (canvasEl.width !== w || canvasEl.height !== h) {
       canvasEl.width = w;
@@ -200,7 +201,7 @@
 </script>
 
 {#if open}
-  <div class="lv-card lv-pad-card" style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-brand);padding:10px 14px">
+  <div class="lv-card lv-pad-card" class:lv-pad-expanded={isExpanded} style="margin-bottom:12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-brand);padding:10px 14px">
     <div class="lv-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px">
       <div class="lv-row" role="group" aria-label={t("scratchpad.title")} style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
         <b style="color:var(--lv-text);display:inline-flex;align-items:center;gap:4px">
@@ -237,6 +238,19 @@
         </button>
       </div>
       <div class="lv-row" style="margin:0;gap:4px">
+        <button
+          type="button"
+          class="lv-btn sm lv-btn--ghost"
+          class:acc={isExpanded}
+          onclick={() => {
+            isExpanded = !isExpanded;
+            setTimeout(() => { if (padType === "sketch") initCanvas(); }, 60);
+          }}
+          title={isExpanded ? "还原草稿纸大小" : "放大草稿纸（全屏视图）"}
+          style="display:inline-flex;align-items:center;gap:4px"
+        >
+          <Icon name={isExpanded ? "shrink" : "expand"} size={12} /> {isExpanded ? "还原" : "放大"}
+        </button>
         {#if padType === "text"}
           <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncopy} title={t("scratchpad.copy")}>
             <Icon name="copy" size={11} /> {t("scratchpad.copy")}
@@ -258,8 +272,8 @@
     {#if padType === "text"}
       <textarea
         class="lv-input lv-textarea num"
-        rows="8"
-        style="font-family:monospace;font-size:var(--lv-font-size-sm);line-height:1.5;min-height:180px!important;resize:both!important;width:100%!important;box-sizing:border-box"
+        rows={isExpanded ? 16 : 8}
+        style="font-family:monospace;font-size:var(--lv-font-size-sm);line-height:1.5;min-height:{isExpanded ? '380px' : '180px'}!important;resize:both!important;width:100%!important;box-sizing:border-box"
         placeholder={t("scratchpad.placeholder")}
         aria-label={t("scratchpad.title")}
         value={text}
@@ -355,7 +369,7 @@
       <div style="border:1.5px solid var(--lv-border);border-radius:var(--lv-r-2);overflow:hidden;background:var(--lv-surface, #ffffff);touch-action:none;box-shadow:var(--lv-sh-1)">
         <canvas
           bind:this={canvasEl}
-          style="display:block;width:100%;height:240px;cursor:crosshair"
+          style="display:block;width:100%;height:{isExpanded ? '460px' : '240px'};cursor:crosshair"
           onpointerdown={handlePointerDown}
           onpointermove={handlePointerMove}
           onpointerup={handlePointerUp}
@@ -379,3 +393,20 @@
     </details>
   </div>
 {/if}
+
+<style>
+  :global(.lv-pad-card.lv-pad-expanded) {
+    position: fixed !important;
+    inset: 12px !important;
+    z-index: 990 !important;
+    max-height: calc(100dvh - 24px) !important;
+    height: calc(100dvh - 24px) !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: var(--lv-sh-pop) !important;
+    border-radius: var(--lv-r-card, 16px) !important;
+    background: var(--lv-surface) !important;
+    overflow-y: auto !important;
+  }
+</style>

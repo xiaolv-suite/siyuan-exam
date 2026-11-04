@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SvelteSet } from "svelte/reactivity";
   import Icon from "../shared/Icon.svelte";
   import {
     type MarketplaceCatalog,
@@ -42,7 +43,7 @@
   let previewItemId = $state<string | null>(null);
   let previewTabs = $state<Record<string, "question" | "flashcard">>({});
   let installingId = $state<string | null>(null);
-  let installedIds = $state<Set<string>>(new Set());
+  let installedIds = new SvelteSet<string>();
 
   // 自定义订阅源管理
   let customSources = $state<CustomMarketplaceSource[]>([]);
@@ -87,7 +88,6 @@
       const res = await installMarketplaceItem(item, app);
       if (res.success) {
         installedIds.add(item.id);
-        installedIds = new Set(installedIds);
         showMessage(`已成功获取《${item.title}》并入库（共 ${res.count} 题）✓`, 3200, "info");
         onbankCreated?.(res.bankId);
       } else {
@@ -165,6 +165,8 @@
     }
   }
 </script>
+
+<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") onclose(); }} />
 
 {#if open}
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭集市" onclick={onclose}></button>
@@ -321,7 +323,7 @@
                   </p>
                 {/if}
                 <div class="lv-row" style="gap:4px;margin:6px 0;flex-wrap:wrap">
-                  {#each item.tags.slice(0, 3) as tag}
+                  {#each item.tags.slice(0, 3) as tag (tag)}
                     <span class="lv-chip sm" style="font-size:10px;padding:1px 6px">#{tag}</span>
                   {/each}
                 </div>
@@ -366,7 +368,7 @@
                             🗂️ 闪卡形态
                           </button>
                         </div>
-                        {#each item.previewItems.slice(0, 2) as prev, pi}
+                        {#each item.previewItems.slice(0, 2) as prev, pi (pi)}
                           <div style="margin-bottom:6px;padding-bottom:4px;border-bottom:1px dashed var(--lv-border-subtle)">
                             {#if previewTabs[item.id] === "flashcard"}
                               <div style="font-weight:600;color:var(--lv-text)">正面：{prev.stem}</div>

@@ -10,6 +10,7 @@
 
 import type { Question, QuestionType } from "./types";
 import type { MarketplaceItem } from "./marketplace";
+import { makeQuestion } from "./blockTemplate";
 
 export type LvCardKind = "qa" | "cloze" | "code" | "list";
 
@@ -95,7 +96,7 @@ export function questionToLvPackageCard(q: Question): LvPackageCard {
   const questionPart = optionsBlock ? `${q.stem}\n\n${optionsBlock}` : q.stem;
 
   // 提炼答案呈现
-  let answerPart = "";
+  let answerPart: string;
   if (q.type === "judge") {
     const isTrue = q.answer === "T" || q.answer === "true" || q.answer === "正确" || q.answer === "1";
     answerPart = `**判断结果**：${isTrue ? "正确 ✓" : "错误 ✕"}`;
@@ -299,3 +300,156 @@ export function parseLvCardsPackage(rawJson: string): {
     return { valid: false, error: String(e instanceof Error ? e.message : e) };
   }
 }
+
+/**
+ * 将单个小驴闪卡卡片 (LvPackageCard) 还原为小驴考试试题 (Question)
+ */
+export function lvPackageCardToQuestion(card: LvPackageCard, defaultDeckName?: string): Question {
+  let stem = card.question?.trim() || "";
+  let answer = "";
+  let analysis: string | undefined;
+  let expansion: string | undefined;
+  const options: string[] = [];
+
+  // 如果没有单独的 question 字段，尝试从 markdown 解析
+  if (!stem && card.markdown) {
+    const qMatch = card.markdown.match(/## 题目\s*([\s\S]*?)(?:\n\s*---\s*\n|## 答案|$)/i);
+    if (qMatch) {
+      stem = qMatch[1].trim();
+    } else {
+      stem = card.markdown.trim();
+    }
+  }
+
+  // 尝试从 markdown 提取答案与解析（如果 card.answer 未显式给出或需进一步拆分）
+  if (card.markdown) {
+    const ansMatch = card.markdown.match(/## 答案\s*([\s\S]*?)(?:\n\s*> 💡|$)/i);
+    if (ansMatch) {
+      const ansSection = ansMatch[1].trim();
+      const directAnsMatch = ansSection.match(/\*\*(?:正确答案|参考答案|判断结果)\*\*\s*[:：]\s*([^\n\r]+)/);
+      if (directAnsMatch) {
+        answer = directAnsMatch[1].trim();
+      }
+      const anaMatch = ansSection.match(/\*\*解析\*\*\s*[:：]\s*([\s\S]*)$/);
+      if (anaMatch) {
+        analysis = anaMatch[1].trim();
+      }
+    }
+    const expMatch = card.markdown.match(/> 💡\s*\*\*思路拓展与秒杀技巧\*\*\s*[:：]\s*([\s\S]*?)(?:\n\n|$)/);
+    if (expMatch) {
+      expansion = expMatch[1].replace(/^>\s*/gm, "").trim();
+    }
+  }
+
+  if (!answer && card.answer) {
+    const directAnsMatch = card.answer.match(/\*\*(?:正确答案|参考答案|判断结果)\*\*\s*[:：]\s*([^\n\r]+)/);
+    if (directAnsMatch) {
+      answer = directAnsMatch[1].trim();
+      const anaMatch = card.answer.match(/\*\*解析\*\*\s*[:：]\s*([\s\S]*)$/);
+      if (anaMatch && !analysis) {
+        analysis = anaMatch[1].trim();
+      }
+    } else {
+      answer = card.answer.trim();
+    }
+  }
+
+  // 如果仍未解析到 expansion，但 card.memo 存在且不同于 analysis，则 memo 作为 expansion 或 analysis
+  if (card.memo) {
+    const memoTrimmed = card.memo.trim();
+    if (!analysis) {
+      analysis = memoTrimmed;
+    } else if (!expansion && memoTrimmed !== analysis) {
+      expansion = memoTrimmed;
+    }
+  }
+
+  // 答案清洗：如果是判断题
+  if (answer.includes("正确") || answer === "T" || answer === "true" || answer === "1" || answer.includes("✓")) {
+    answer = "对";
+  } else if (answer.includes("错误") || answer === "F" || answer === "false" || answer === "0" || answer.includes("✕")) {
+    answer = "错";
+  }
+
+  // 从 stem 中分离选项（A. / B. / C. / D.）
+  const optRegex = /(?:^|\n)\s*([A-J])[.、:：]\s*([^\n]+)/g;
+  let optMatch: RegExpExecArray | null;
+  const parsedOptions: Array<{ letter: string; text: string; fullMatch: string; index: number }> = [];
+  while ((optMatch = optRegex.exec(stem)) !== null) {
+    parsedOptions.push({
+      letter: optMatch[1].toUpperCase(),
+      text: optMatch[2].trim(),
+      fullMatch: optMatch[0],
+      index: optMatch.index,
+    });
+  }
+
+  if (parsedOptions.length >= 2 && parsedOptions[0].letter === "A" && parsedOptions[1].letter === "B") {
+    // 成功匹配到连续选项
+    const firstOptIdx = parsedOptions[0].index;
+    for (const po of parsedOptions) {
+      options.push(po.text);
+    }
+    stem = stem.slice(0, firstOptIdx).trim();
+  }
+
+  // 判定题型
+  let type: QuestionType = "short";
+  if (answer === "对" || answer === "错") {
+    type = "judge";
+  } else if (options.length >= 2) {
+    type = answer.length > 1 ? "multiple" : "single";
+  } else if (/_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|==.*?==/.test(stem)) {
+    type = "fill";
+  }
+
+  const q = makeQuestion({
+    type,
+    stem: stem || "题目内容待补充",
+    options,
+    answer: answer || (type === "single" ? "A" : type === "judge" ? "对" : "参考答案见解析"),
+    analysis,
+    expansion,
+    kp: card.tags?.[0] || defaultDeckName || "导入卡片",
+    difficulty: card.fsrsParams?.difficulty ? Math.min(5, Math.max(1, Math.round(card.fsrsParams.difficulty / 2))) : 3,
+  });
+
+  if (card.id) q.id = card.id;
+  if (Array.isArray(card.tags)) q.tags = card.tags;
+  q.origin = "imported";
+  q.sourceKind = "real";
+
+  return q;
+}
+
+/**
+ * 将整包小驴闪卡转换为小驴考试试题列表
+ */
+export function lvCardsPackageToQuestions(pkg: LvCardsPackage): Question[] {
+  if (!pkg || !Array.isArray(pkg.cards)) return [];
+  return pkg.cards.map((card) => lvPackageCardToQuestion(card, pkg.deck?.name));
+}
+
+/**
+ * 从 JSON 文本解析小驴闪卡包并转换为试题列表
+ */
+export function parseLvCardsJsonToQuestions(rawJson: string): {
+  valid: boolean;
+  questions: Question[];
+  count: number;
+  deckName?: string;
+  error?: string;
+} {
+  const parsed = parseLvCardsPackage(rawJson);
+  if (!parsed.valid || !parsed.package) {
+    return { valid: false, questions: [], count: 0, error: parsed.error };
+  }
+  const questions = lvCardsPackageToQuestions(parsed.package);
+  return {
+    valid: true,
+    questions,
+    count: questions.length,
+    deckName: parsed.package.deck.name,
+  };
+}
+

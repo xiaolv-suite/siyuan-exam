@@ -720,7 +720,7 @@
         </div>
         <div class="lv-row" style="flex-wrap:wrap;gap:8px;align-items:center">
           <button type="button" class="lv-btn" disabled={importBusy} onclick={() => { if (importFileInput) importFileInput.click(); else onPickExcel(); }}><Icon name="folder" size={15} /> {t("import.pickExcel")}</button>
-          <input type="file" bind:this={importFileInput} accept=".xlsx,.xls,.csv,.tsv,.txt,.gift,.docx,.md" hidden onchange={onExcelFile} disabled={importBusy} />
+          <input type="file" bind:this={importFileInput} accept=".xlsx,.xls,.csv,.tsv,.txt,.gift,.docx,.md,.json,.qcard,.lvcards" hidden onchange={onExcelFile} disabled={importBusy} />
           <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => paperOcrModalOpen = !paperOcrModalOpen} title="上传整张纸质试卷扫描件或照片，一键整卷切题并反向缝合参考答案">
             <Icon name="camera" size={13} /> 📄 纸质试卷整卷 OCR 导入
           </button>
@@ -956,7 +956,7 @@
                         {/if}
                         <!-- 快速行内缺失答案秒设与括号答案即时提取 -->
                         {#if (q.type === "single" || q.type === "multiple") && (!q.answer || !q.answer.trim())}
-                          {@const stemAns = (q.stem.match(/[（(\[]\s*([A-D])\s*[)）\]]/i) || q.stem.match(/答案[：:]\s*([A-D])/i))?.[1]?.toUpperCase()}
+                          {@const stemAns = (q.stem.match(/[（([【]\s*([A-D])\s*[)）\]】]/i) || q.stem.match(/答案[：:]\s*([A-D])/i))?.[1]?.toUpperCase()}
                           <div class="lv-row" style="margin:0;gap:3px;align-items:center;background:var(--lv-red-soft);padding:1px 6px;border-radius:4px" title="该题缺失答案，请点击字母秒设">
                             <span style="font-size:11px;color:var(--lv-red);font-weight:600">设答案:</span>
                             {#each q.options as _opt, oi (oi)}

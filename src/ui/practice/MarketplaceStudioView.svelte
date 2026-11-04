@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SvelteSet } from "svelte/reactivity";
   import type { Question } from "@/core/types";
   import Icon from "../shared/Icon.svelte";
   import {
@@ -63,7 +64,7 @@
   let previewItemId = $state<string | null>(null);
   let previewTabs = $state<Record<string, "question" | "flashcard" | "tree">>({});
   let installingId = $state<string | null>(null);
-  let installedIds = $state<Set<string>>(new Set());
+  let installedIds = new SvelteSet<string>();
   let localBanks = $state<Array<{ id: string; name: string }>>([]);
   let deltaMap = $state<Record<string, import("@/core/marketplaceSync").QuestionDeltaReport | null>>({});
   let checkingDeltaId = $state<string | null>(null);
@@ -134,7 +135,6 @@
       const res = await installMarketplaceItem(item, app);
       if (res.success) {
         installedIds.add(item.id);
-        installedIds = new Set(installedIds);
         showMessage(`已成功获取《${item.title}》并入库（共 ${res.count} 题）✓`, 3200, "info");
         onbankCreated?.(res.bankId);
       } else {
@@ -643,7 +643,7 @@
                 <div style="margin:8px 0;padding:6px 10px;background:var(--lv-surface-2);border-radius:6px;border:1px solid var(--lv-border-subtle);font-size:11px;display:flex;flex-direction:column;gap:5px">
                   <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
                     <span class="lv-muted" style="font-weight:600">题型构成:</span>
-                    {#each metrics.typeDistribution as td}
+                    {#each metrics.typeDistribution as td (td.label)}
                       <span style="color:{td.color};font-weight:700">{td.label} {td.pct}%</span>
                     {/each}
                     {#if metrics.expansionRatio > 0}
@@ -655,12 +655,12 @@
                   <div style="display:flex;align-items:center;gap:6px">
                     <span class="lv-muted" style="font-weight:600;white-space:nowrap">难度梯度:</span>
                     <div style="flex:1;height:5px;border-radius:3px;background:var(--lv-border);display:flex;overflow:hidden">
-                      {#each metrics.difficultyDistribution as dd}
+                      {#each metrics.difficultyDistribution as dd (dd.label)}
                         <div style="width:{dd.pct}%;background:{dd.color};height:100%" title="{dd.label}: {dd.pct}%"></div>
                       {/each}
                     </div>
                     <div class="lv-muted num" style="font-size:10px;white-space:nowrap">
-                      {#each metrics.difficultyDistribution as dd, ddi}
+                      {#each metrics.difficultyDistribution as dd, ddi (ddi)}
                         <span style="color:{dd.color};font-weight:600">{dd.label.split(' ')[0]}</span>{#if ddi < metrics.difficultyDistribution.length - 1} · {/if}
                       {/each}
                     </div>
@@ -670,7 +670,7 @@
             {/if}
 
             <div class="lv-row" style="gap:5px;margin:8px 0;flex-wrap:wrap">
-              {#each item.tags.slice(0, 4) as tag}
+              {#each item.tags.slice(0, 4) as tag (tag)}
                 <span class="lv-chip sm" style="font-size:11px;padding:2px 7px">#{tag}</span>
               {/each}
             </div>
@@ -742,7 +742,7 @@
                       <!-- 考点全景树渲染 -->
                       {@const kpTree = buildMarketplaceKpTree(itemQuestions)}
                       <div style="display:flex;flex-direction:column;gap:6px">
-                        {#each kpTree as node}
+                        {#each kpTree as node (node.name)}
                           <div style="padding:6px 8px;background:var(--lv-surface);border-radius:4px;border:1px solid var(--lv-border-subtle)">
                             <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center">
                               <span style="font-weight:700;font-size:12px;color:var(--lv-text)">
@@ -765,7 +765,7 @@
                             </div>
                             {#if node.children.length > 0}
                               <div style="margin-top:4px;padding-left:12px;display:flex;flex-direction:column;gap:3px;border-left:2px solid var(--lv-border-subtle)">
-                                {#each node.children as subNode}
+                                {#each node.children as subNode (subNode.name)}
                                   <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;font-size:11px">
                                     <span class="lv-muted">└ {subNode.name} ({subNode.count} 题)</span>
                                     <button
@@ -789,7 +789,7 @@
                         {/each}
                       </div>
                     {:else}
-                      {#each itemQuestions.slice(0, 3) as prev, pi}
+                      {#each itemQuestions.slice(0, 3) as prev, pi (pi)}
                         <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed var(--lv-border-subtle)">
                           <div class="lv-row" style="margin:0 0 4px;justify-content:space-between;align-items:center">
                             <span class="lv-muted" style="font-weight:700;font-size:11px">第 {pi + 1} 题 ({prev.type})</span>
