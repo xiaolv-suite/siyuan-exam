@@ -40,7 +40,7 @@ export function exportSyllabusGapsCsv(
   a.href = URL.createObjectURL(blob);
   a.download = `考纲缺口清单 ${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 0);
 }
 
 /**
@@ -53,7 +53,7 @@ export function exportErrataTemplateCsv(questions: Question[], bankName: string)
   a.href = URL.createObjectURL(blob);
   a.download = `勘误模板 ${bankName || "题库"} ${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 0);
 }
 
 /**
