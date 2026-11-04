@@ -1592,6 +1592,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         this.pendingPractice = picked;
         this.pendingPracticeBankId = activeBankId;
         emitExamEvent("open-practice-questions", { qids: picked.map((q) => q.id), bank: activeBankId });
+        lvLaunchpad.haptic(10);
         this.openPractice();
         return true;
       }
@@ -1651,6 +1652,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         this.pendingPractice = picked;
         this.pendingPracticeBankId = activeBankId;
         emitExamEvent("open-practice-questions", { qids: picked.map((q) => q.id), bank: activeBankId });
+        lvLaunchpad.haptic(10);
       }
       this.openPractice();
       return true;

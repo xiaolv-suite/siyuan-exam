@@ -3,7 +3,7 @@
  * 统一出口智能分流、答题轻量化 (inline/capsule)、交卷成绩单与复习提醒卡片 (card)
  */
 
-import { lvNotify, type LvNoticeLevel, type LvNoticeAction } from "./lv-notice-kit";
+import { lvNotify, lvLaunchpad, type LvNoticeLevel, type LvNoticeAction } from "./lv-notice-kit";
 export { lvNotify, type LvNoticeLevel, type LvNoticeAction };
 
 export const EXAM_NOTICE_SOURCE = "小驴考试";
@@ -78,6 +78,7 @@ export interface MockFinishCardOptions {
  * 展示得分与【查看错题本】、【全卷复盘】操作按钮
  */
 export function notifyMockFinishCard(opts: MockFinishCardOptions): string {
+  lvLaunchpad.haptic(10);
   const actions: LvNoticeAction[] = [];
 
   if (opts.wrongCount > 0 && opts.onViewWrongbook) {
@@ -124,6 +125,7 @@ export interface PracticeFinishCardOptions {
  * 展示得分与【查看错题本】、【错题消灭特训】操作按钮
  */
 export function notifyPracticeFinishCard(opts: PracticeFinishCardOptions): string {
+  lvLaunchpad.haptic(10);
   const actions: LvNoticeAction[] = [];
 
   if (opts.wrong > 0) {

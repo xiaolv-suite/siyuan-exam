@@ -6,7 +6,7 @@ import {
   notifyPracticeFinishCard,
   showExamNotice,
 } from "@/libs/notice";
-import { lvActivity } from "@/libs/lv-notice-kit";
+import { lvActivity, lvLaunchpad } from "@/libs/lv-notice-kit";
 const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
   showExamNotice(msg, timeout, type);
 };
@@ -3219,6 +3219,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           showMessage(t("weakspot.empty", "薄弱标签下暂无可练题目（当前题库无对应考点题）"), 3400, "error");
           return;
         }
+        lvLaunchpad.haptic(10);
         await safeStart(picked, "special", () => {
           enterSessionView();
         });

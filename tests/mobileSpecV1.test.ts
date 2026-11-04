@@ -244,4 +244,45 @@ describe("小驴生态 · 手机端完整开发 · Mobile Spec v1 规范测试",
     // 应该触发 closeMobileDialog 关闭弹窗
     expect(document.querySelector(".lv-exam-mobile-dialog")).toBeNull();
   });
+
+  it("7. 手机端触感补齐：交卷成功与特训组卷完成时调用 lvLaunchpad.haptic(10)", async () => {
+    const hapticSpy = vi.spyOn(lvLaunchpad, "haptic");
+
+    // 1. 交卷成功触发 haptic(10)
+    const { notifyMockFinishCard } = await import("../src/libs/notice");
+    notifyMockFinishCard({
+      paperName: "测试模拟卷",
+      totalScore: 90,
+      fullScore: 100,
+      percent: 90,
+      pass: true,
+      wrongCount: 1,
+    });
+    expect(hapticSpy).toHaveBeenCalledWith(10);
+
+    hapticSpy.mockClear();
+
+    // 2. 特训组卷完成触发 haptic(10)
+    (plugin as any).examApp = {
+      kernelOnline: true,
+      listBanks: () => [{ id: "bank-1", name: "数学专练" }],
+      listQuestions: async () => [
+        { id: "q-1", stem: "题1", kp: "函数/导数" },
+        { id: "q-2", stem: "题2", kp: "函数/导数" },
+      ],
+      derived: () => ({
+        byQuestion: new Map(),
+        wrongbook: new Map(),
+      }),
+      attempts: {
+        all: () => [],
+      },
+      cramDrill: (qs: any[]) => qs,
+    };
+
+    await plugin.startWeakSpotTraining(2);
+    expect(hapticSpy).toHaveBeenCalledWith(10);
+
+    hapticSpy.mockRestore();
+  });
 });

@@ -24,7 +24,7 @@
       notifyMockFinishCard,
       showExamNotice,
     } from "../../libs/notice";
-    import { withDocLock, lvActivity } from "../../libs/lv-notice-kit";
+    import { withDocLock, lvActivity, lvLaunchpad } from "../../libs/lv-notice-kit";
     const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
       showExamNotice(msg, timeout, type);
     };
@@ -1250,6 +1250,7 @@
         view = "report";
 
         if (score) {
+          lvLaunchpad.haptic(10);
           const details = buildScoreDetailsSnapshot();
           const wrongCount = details.wrongItems?.length ?? 0;
           notifyMockFinishCard({
@@ -1306,6 +1307,7 @@
         view = "report";
 
         if (score) {
+          lvLaunchpad.haptic(10);
           const details = buildScoreDetailsSnapshot();
           const wrongCount = details.wrongItems?.length ?? 0;
           notifyMockFinishCard({

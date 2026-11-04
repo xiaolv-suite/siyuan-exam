@@ -44,12 +44,15 @@
 7. `src/ui/practice/PracticeTab.svelte`：
    - 题库浏览与错题本列表分页上限由 200 调整为 `50`，严格执行首屏 `<= 50` 条性能纪律。
 8. `tests/mobileSpecV1.test.ts`：
-   - 补充 6 项 Mobile Spec v1 自动化单元测试，覆盖移动端检测、全屏 Dialog 降级、单例聚焦、二级行动、穿透搜索及下拉关闭手势。
+   - 补充 7 项 Mobile Spec v1 自动化单元测试，覆盖移动端检测、全屏 Dialog 降级、单例聚焦、二级行动、穿透搜索、下拉关闭手势以及交卷成功/特训组卷完成的触感震动反馈。
+9. 触感全面补齐：
+   - 模考与练习“交卷成功”（`notifyMockFinishCard`、`notifyPracticeFinishCard`、`MockTab.svelte` finishExam）时调用 `lvLaunchpad.haptic(10)`；
+   - “特训组卷完成”（`weakSpotDrill`、`startWeakSpotTraining`、`startWrongQuestionsDrill`）时调用 `lvLaunchpad.haptic(10)`。
 
 ---
 
 ## 三、 质量门禁与验收
 
 - `pnpm run check`: 0 errors, 0 warnings (types, svelte, i18n, arch, styles 100% 通过)；
-- `pnpm test`: 242 passed (1915 unit tests 全部绿灯通过)；
+- `pnpm test`: 242 passed (1916 unit tests 全部绿灯通过)；
 - `pnpm run build`: 生产打包成功。
