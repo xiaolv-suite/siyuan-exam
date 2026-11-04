@@ -19,6 +19,7 @@ import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
 import { lvNotify, lvBackup, lvLaunchpad, lvOmnisearch, lvSurfaceStack, type LvSearchResultItem } from "./libs/lv-notice-kit";
 import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
+import { isExamHistoryArmed, requestExitExamWithConfirm } from "./core/examHistoryGuard";
 
 const TAB_PRACTICE = "exam-practice";
 const TAB_MOCK = "exam-mock";
@@ -950,7 +951,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
             const deltaX = Math.abs(e.changedTouches[0].clientX - touchStartX);
             if (deltaY > 70 && deltaX < 60) {
               lvLaunchpad.haptic(10);
-              this.closeMobileDialog();
+              void this.closeMobileDialog();
             }
           }
         },
@@ -968,7 +969,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       id: "lv-exam-mobile-dialog",
       type: "card",
       dismiss: () => {
-        this.closeMobileDialog();
+        void this.closeMobileDialog();
         return true;
       },
     });
@@ -976,7 +977,11 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     return false;
   }
 
-  closeMobileDialog(): void {
+  async closeMobileDialog(): Promise<void> {
+    if (isExamHistoryArmed()) {
+      const ok = await requestExitExamWithConfirm();
+      if (!ok) return; // 用户取消退出，保持弹窗继续考试
+    }
     if (this.mobileDialog) {
       const d = this.mobileDialog;
       this.mobileDialog = null;

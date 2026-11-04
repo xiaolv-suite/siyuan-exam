@@ -2,6 +2,7 @@
     // 模考场（v0.3）：蓝图配置器 → 全真考试（计时/答题卡/标旗）→ 成绩单
     // 规格见 docs/11 S5/S6/S7；引擎见 src/core/mock.ts（53 项单测覆盖）
     import { onDestroy, onMount } from "svelte";
+    import { armExamHistory, disarmExamHistory } from "../../core/examHistoryGuard";
 
     /** 切屏计数（docs/11 S6：失焦与后台切屏计次进报告，不阻断） */
     function recordScreenSwitch() {
@@ -13,6 +14,30 @@
     function onVisibilityChange() {
       if (document.visibilityState === "hidden") {
         recordScreenSwitch();
+      } else if (document.visibilityState === "visible") {
+        recomputeTimeCompensation();
+      }
+    }
+
+    /** 手机锁屏/切后台绝对时间戳补偿（回前台时基于绝对时间差重算剩余） */
+    function recomputeTimeCompensation() {
+      nowTick = Date.now();
+      if (view === "exam" && session && !session.submitted) {
+        if (session.shouldAutoSubmit(nowTick)) {
+          void finishExam(true);
+          return;
+        }
+        if (bp.sectionTimed && currentSection) {
+          const sr = session.sectionRemaining(currentSection, nowTick);
+          if (sr !== null && sr <= 0) {
+            const secIdx = bp.sections.findIndex((s) => s.name === currentSection);
+            const nextSec = bp.sections[secIdx + 1];
+            if (nextSec) {
+              const nextQ = session.state.qids.findIndex((id) => session.sectionOfQ(id) === nextSec.name);
+              if (nextQ >= 0) { session.navigateTo(nextQ, nowTick); cursor = nextQ; }
+            }
+          }
+        }
       }
     }
     import type { ExamApp } from "../../app";
@@ -295,14 +320,32 @@
     );
 
     onDestroy(() => {
+      disarmExamHistory();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       if (timer) { clearInterval(timer); timer = null; }
-      // Ensure answers entered during the 3s throttle window survive leaving this tab.
+      // 保证 500ms 窗口内的答案也能在退出前保存
       if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
       runSaveQueued = false;
       persistRun(true);
     });
 
-    /** 快照节流保存（3s）：关页/休眠后按 wall clock 恢复同一 run */
+    function armMockExamHistory() {
+      armExamHistory({
+        isActive: () => view === "exam" && !!session && !session.submitted,
+        onSaveDraft: () => {
+          persistRun(true);
+        },
+        onExit: () => {
+          if (timer) { clearInterval(timer); timer = null; }
+          persistRun(true);
+          view = "config";
+        },
+        confirmTitle: "模考退出确认",
+        confirmPrompt: "考试进行中，确认退出？（进度将保存至草稿）",
+      });
+    }
+
+    /** 快照节流保存（500ms 防抖）：每答一题防抖落盘，关页/休眠后按 wall clock 恢复同一 run */
     function buildRunSnapshot(now: number) {
       const snap = session!.toSnapshot(runId, now);
       if (Object.keys(scratchpadStore).length > 0 || scratchpadShared || scratchpadMode !== "per_question") {
@@ -314,14 +357,14 @@
     function persistRun(force = false) {
       if (!session || session.submitted || !runId) return;
       const now = Date.now();
-      if (!force && now - lastSnapAt < 3000) {
+      if (!force && now - lastSnapAt < 500) {
         runSaveConfirmed = false;
         runSaveQueued = true;
         if (!snapshotTimer) {
           snapshotTimer = setTimeout(() => {
             snapshotTimer = null;
             persistRun(true);
-          }, 3000 - (now - lastSnapAt));
+          }, 500 - (now - lastSnapAt));
         }
         return;
       }
@@ -1028,6 +1071,7 @@
         lastSnapAt = 0;
         persistRun();
         view = "exam";
+        armMockExamHistory();
         startTimer();
       } catch (e) {
         errorMsg = String(e instanceof Error ? e.message : e);
@@ -1089,6 +1133,7 @@
           await reloadMockHistory();
           await app.clearMockRun();
           view = "report";
+        disarmExamHistory();
           return;
         }
         if (session.shouldAutoSubmit(Date.now())) {
@@ -1102,6 +1147,7 @@
         lastSnapAt = 0;
         persistRun();
         view = "exam";
+        armMockExamHistory();
         startTimer();
       } catch (e) {
         errorMsg = t("mock.restoreEmpty") + " " + String(e instanceof Error ? e.message : e);
@@ -1122,6 +1168,7 @@
           content: t("mock.discardConfirm", "将删除本机恢复快照和未提交答案，无法恢复；不会生成成绩或作答记录。"),
         }))) return;
         await app.clearMockRun();
+        disarmExamHistory();
         resumable = null;
         errorMsg = "";
       } catch (e) {
@@ -1248,6 +1295,7 @@
         await app.clearMockRun();   // 交卷回执落定后清除运行快照
         emitMockSessionEnded();
         view = "report";
+        disarmExamHistory();
 
         if (score) {
           lvLaunchpad.haptic(10);
@@ -1264,9 +1312,11 @@
               mockReviewFilter = "wrong";
               showWrongDetail = true;
               view = "report";
+        disarmExamHistory();
             },
             onViewReport: () => {
               view = "report";
+        disarmExamHistory();
             },
           });
 
@@ -1305,6 +1355,7 @@
         submitError = "";
         emitMockSessionEnded();
         view = "report";
+        disarmExamHistory();
 
         if (score) {
           lvLaunchpad.haptic(10);
@@ -1321,9 +1372,11 @@
               mockReviewFilter = "wrong";
               showWrongDetail = true;
               view = "report";
+        disarmExamHistory();
             },
             onViewReport: () => {
               view = "report";
+        disarmExamHistory();
             },
           });
 
@@ -1934,7 +1987,7 @@
     }
 </script>
 
-<svelte:window onblur={onBlur} onkeydown={onExamKey} />
+<svelte:window onblur={onBlur} onfocus={recomputeTimeCompensation} onpageshow={recomputeTimeCompensation} onkeydown={onExamKey} />
 
 <div class="fn__flex-1 lv-exam-tab" bind:this={tabRoot}>
   <div class="block__icons" class:lv-focus-toolbar={view === "exam"}>

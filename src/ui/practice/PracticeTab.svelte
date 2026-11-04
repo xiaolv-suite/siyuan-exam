@@ -1,12 +1,13 @@
 <script lang="ts">
     // 练习台：入口(S1) / 会话(S2) / 浏览(S3) / 导入(S9) 四视图
     // 状态设计（docs/11）：loading/empty(守卫)/error/normal 四态可达
-    import { onMount, tick } from "svelte";
+    import { onMount, onDestroy, tick } from "svelte";
 import {
   notifyPracticeFinishCard,
   showExamNotice,
 } from "@/libs/notice";
 import { lvActivity, lvLaunchpad } from "@/libs/lv-notice-kit";
+import { armExamHistory, disarmExamHistory } from "@/core/examHistoryGuard";
 const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
   showExamNotice(msg, timeout, type);
 };
@@ -584,6 +585,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       reciteCardStart = Date.now();
       persistReciteSnapshot();
       view = "recite";
+      armPracticeExamHistory();
       if (reciteAutoTts && reciteQueue[0]) {
         ttsSpeak(reciteQueue[0].stem, { lang: reciteQueue[0].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
       }
@@ -849,9 +851,56 @@ import { confirmDialogSync } from "@/libs/dialog";
       sessionDone = null;
     }
 
+    let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
+    function scheduleDebouncedDraftSave() {
+      if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      draftSaveTimer = setTimeout(() => {
+        draftSaveTimer = null;
+        if (app && session && session.phase === "running") {
+          void app.saveSession().catch(() => undefined);
+        }
+      }, 500);
+    }
+
+    function armPracticeExamHistory() {
+      armExamHistory({
+        isActive: () => (view === "session" && !sessionDone && !!session) || (view === "recite" && !reciteDone && !!reciteQueue.length),
+        onSaveDraft: async () => {
+          if (draftSaveTimer) { clearTimeout(draftSaveTimer); draftSaveTimer = null; }
+          if (app && session) {
+            await app.saveSession();
+            await app.flush();
+          }
+        },
+        onExit: async () => {
+          if (session) {
+            flushAbandonedSessionExposures(app, session, session.exposureMap());
+            await app.saveSession();
+            await app.flush();
+          }
+          session = null;
+          view = "entry";
+        },
+        confirmTitle: "退出确认",
+        confirmPrompt: "考试进行中，确认退出？（进度将保存至草稿）",
+      });
+    }
+
+    onDestroy(() => {
+      disarmExamHistory();
+      if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+        draftSaveTimer = null;
+        if (app && session && session.phase === "running") {
+          void app.saveSession().catch(() => undefined);
+        }
+      }
+    });
+
     function enterSessionView() {
       resetSessionViewState();
       view = "session";
+      armPracticeExamHistory();
     }
 
     // ---------- 55-05 主观题逐采分点自评 ----------
@@ -1031,6 +1080,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       blankParts[i] = v;
       draftLive = joinBlanks(blankParts);
       session.setDraft(q.id, draftLive);
+      scheduleDebouncedDraftSave();
     }
     const qTimeoutS = $derived(Math.max(0, Number(plugin.settingUtils?.get?.("perQuestionTimeoutS") ?? 0) || 0));
     /** 44-01：反馈时机策略（逐题即时 / 小组延迟复盘 / 会话末尾集中复盘。作答事件完全一致） */
@@ -2688,6 +2738,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       reciteCardStart = Date.now();
       await persistReciteSnapshot();
       view = "recite";
+      armPracticeExamHistory();
       if (reciteAutoTts) {
         const payload = getReciteTtsPayload(reciteQueue[0], "stem", ttsSlowRate);
         if (payload) ttsSpeak(payload.text, payload.options);
@@ -2731,6 +2782,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         speechEvalResult = null; speechRecording = false;
         reciteCardStart = Date.now();
         if (adv.done) {
+          disarmExamHistory();
           await clearReciteSnapshot(app).catch(() => undefined);
           await app.flush().catch(() => undefined);
           dataRev++;
@@ -2767,6 +2819,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         });
         if (!ok) return;
       }
+      disarmExamHistory();
       await clearReciteSnapshot(app).catch(() => undefined);
       await app?.flush().catch(() => undefined);
       view = "entry"; reciteQueue = []; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
@@ -3406,6 +3459,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       selected = toggleChoice(q.type, selected, value);
       session.setDraft(q.id, selected);
       trailInput(q.id, selected);
+      scheduleDebouncedDraftSave();
 
       // 答对自动翻题 (FLOW-01) 与极速刷题：单选或判断题选定后自动提交判分
       if ((speedDrillEnabled || autoNextOnCorrect) && (q.type === "single" || q.type === "judge") && selected) {
@@ -3485,6 +3539,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         trail: trails.get(q.id),
       });
       void app.saveSession().catch(() => undefined);
+      scheduleDebouncedDraftSave();
       if (feedbackMode === "end") {
         // 44-01：会话末复盘——作答事件完全一致，仅对错不在逐题显示，结算页统一回看
         showMessage(t("session.recordedSilent"), 1500, "info");
@@ -3539,6 +3594,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       restoreQuestionControls();
       sessionRev++; // 类实例非响应式：切题后刷新题面
       void app.saveSession().catch(() => undefined);   // 游标推进随答随存
+      scheduleDebouncedDraftSave();
       if (reciteToggle) scheduleReciteSubmit(); // 背题模式：切题后自动揭示答案
     }
 
@@ -3556,6 +3612,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       clearReciteSubmitTimer();
       const res = await executeSessionFinish(app, session, questions, window);
       sessionDone = res.summary;
+      disarmExamHistory();
       settleMode = res.settleMode;
       rebuildPlan();
 
@@ -3647,6 +3704,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         const { confirmDialogSync } = await import("../../libs/dialog");
         const ok = await executeSessionExit(app, session, session.exposureMap(), !!sessionDone, confirmDialogSync, t);
         if (!ok) return;
+        disarmExamHistory();
         session = null;
         resetSessionViewState();
         groupBatchModal = null; groupBatchStart = 1;
@@ -6101,7 +6159,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onrecallDraftInput={(val) => { recallDraft = val; }}
       onrevealOptions={() => { if (curQ && session) { session.markRecalled(curQ.id); void app?.saveSession().catch(() => undefined); } hideOptions = false; }}
       onpickChoice={pickPracticeChoice}
-      ondraftInput={(val) => { draftLive = val; if (curQ) session.setDraft(curQ.id, draftLive); }}
+      ondraftInput={(val) => { draftLive = val; if (curQ) { session.setDraft(curQ.id, draftLive); scheduleDebouncedDraftSave(); } }}
       ondraftChange={(val) => { if (curQ) trailInput(curQ.id, val); }}
       onsetBlank={(idx, val) => setBlank(idx, val)}
       onblankChange={() => { if (curQ) trailInput(curQ.id, joinBlanks(blankParts)); }}

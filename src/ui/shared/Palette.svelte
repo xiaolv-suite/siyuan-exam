@@ -183,7 +183,10 @@
         {#if q}
           <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { q = ""; sel = 0; inputEl?.focus(); }} title="清空输入" aria-label="清空输入" style="min-width:28px;min-height:28px;padding:2px 6px"><Icon name="close" size={12} /></button>
         {/if}
-        <span class="lv-kbd">Esc</span>
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { open = false; }} title="关闭命令面板" aria-label="关闭命令面板" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;margin-left:4px;touch-action:manipulation">
+          <Icon name="close" size={13} />
+          <span class="lv-kbd">Esc</span>
+        </button>
       </div>
       <div class="lv-palette-list" role="listbox" id={"lv-palette-list-" + uid}>
         {#if !shown.length}

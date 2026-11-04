@@ -48,11 +48,18 @@
 9. 触感全面补齐：
    - 模考与练习“交卷成功”（`notifyMockFinishCard`、`notifyPracticeFinishCard`、`MockTab.svelte` finishExam）时调用 `lvLaunchpad.haptic(10)`；
    - “特训组卷完成”（`weakSpotDrill`、`startWeakSpotTraining`、`startWrongQuestionsDrill`）时调用 `lvLaunchpad.haptic(10)`。
+10. 第二轮真机教训审计与深化：
+   - **Esc-only 关闭面补全**：在 `Palette.svelte`（命令面板）、`MaterialsView.svelte`（划词工具栏）、`BrowseStudioView.svelte`（更多操作下拉项）等全面补充可见关闭按钮 ✕，避免手机无 Esc 键导致卡死；
+   - **焦点移除卡死审计**：所有模态抽屉（`BankGalleryModal`、`ShortcutsHelpModal`、`SessionSheetModal`、`QuestionPeekDrawer`、`Palette`、`Rail`）焦点归还增加 `isConnected` 保护，销毁重算；
+   - **svgIcon 一致性**：确认 `lvLaunchpad.register` 注册的 `icon-lv-exam` 与 `addIcons` 注入的真实 `<symbol id="icon-lv-exam">` 逐字完全一致；
+   - **长会话进度保护（armExamHistory / disarmExamHistory）**：答题与模考进入时压入 `{ lvExam: true }`，监听 `popstate`，Android 返回手势触发时弹出思源确认框「考试进行中，确认退出？（进度将保存至草稿）」，取消则重压恢复占位，确认则存草稿后退出，交卷后回退清理；
+   - **500ms 防抖落盘草稿**：答题与填空选定后 500ms 防抖持久化会话草稿，退出后重新进入随时可恢复「上次未交卷」；
+   - **模考锁屏/切后台绝对时间戳补偿**：基于 `visibilitychange`、`onfocus` 与 `onpageshow` 在回前台时基于 `Date.now()` 绝对时间差补偿重算剩余时间，不依赖休眠时被冻结的 `setInterval`。
 
 ---
 
 ## 三、 质量门禁与验收
 
 - `pnpm run check`: 0 errors, 0 warnings (types, svelte, i18n, arch, styles 100% 通过)；
-- `pnpm test`: 242 passed (1916 unit tests 全部绿灯通过)；
+- `pnpm test`: 242 passed (1918 unit tests 全部绿灯通过)；
 - `pnpm run build`: 生产打包成功。

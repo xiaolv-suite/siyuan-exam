@@ -77,8 +77,8 @@ interface IConfirmDialogArgs {
   height?: string;
 }
 
-export const confirmDialog = (args: IConfirmDialogArgs) => {
-  const { title, content, confirm, cancel, width, height } = args;
+export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () => void }) => {
+  const { title, content, confirm, cancel, width, height, destroyCallback } = args;
 
   const dialog = new Dialog({
     title,
@@ -92,6 +92,10 @@ export const confirmDialog = (args: IConfirmDialogArgs) => {
 </div>`,
     width: width,
     height: height,
+    destroyCallback: () => {
+      if (destroyCallback) destroyCallback();
+      else if (cancel) cancel(target);
+    },
   });
 
   const target: HTMLElement = dialog.element.querySelector(".b3-dialog__content>div.ft__breakword");
@@ -121,13 +125,26 @@ export const confirmDialog = (args: IConfirmDialogArgs) => {
 export const confirmDialogSync = async (args: IConfirmDialogArgs) => {
   // 返回布尔：confirm=true / cancel=false（原实现两路都 resolve 元素，调用方无法区分）
   return new Promise<boolean>((resolve) => {
+    let settled = false;
     const newargs = {
       ...args,
       confirm: () => {
-        resolve(true);
+        if (!settled) {
+          settled = true;
+          resolve(true);
+        }
       },
       cancel: () => {
-        resolve(false);
+        if (!settled) {
+          settled = true;
+          resolve(false);
+        }
+      },
+      destroyCallback: () => {
+        if (!settled) {
+          settled = true;
+          resolve(false);
+        }
       },
     };
     confirmDialog(newargs);

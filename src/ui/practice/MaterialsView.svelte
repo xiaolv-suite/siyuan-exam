@@ -345,6 +345,9 @@
         <button class="lv-btn sm lv-btn--ghost" onclick={() => handleAction(4)} title="[4] 带入 AI 追问" aria-label="4 询问 AI">
           <span class="num" style="opacity:0.6;font-size:10px;margin-right:2px">4</span> <Icon name="sparkles" size={12} /> 询问
         </button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => (selectionToolbar = null)} title="关闭操作栏" aria-label="关闭操作栏" style="padding:2px 5px">
+          <Icon name="close" size={11} />
+        </button>
       </div>
     </div>
   {/if}

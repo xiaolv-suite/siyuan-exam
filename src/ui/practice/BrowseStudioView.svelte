@@ -601,6 +601,10 @@
       {#if moreOpen}
         <div class="lv-more-pop" role="menu" tabindex="-1" bind:this={morePop}
           onkeydown={(e) => { if (e.key === "Escape") { e.stopPropagation(); moreOpen = false; } }}>
+          <div class="lv-row" style="justify-content:space-between;align-items:center;padding:2px 8px 6px;margin:0 0 4px;border-bottom:1px solid var(--lv-border-subtle)">
+            <span style="font-size:11.5px;font-weight:600;color:var(--lv-text-3)">功能选项</span>
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (moreOpen = false)} aria-label="关闭菜单" style="padding:1px 5px"><Icon name="close" size={11} /></button>
+          </div>
           <button role="menuitemcheckbox" aria-checked={kpOpen} onclick={() => { kpOpen = !kpOpen; moreOpen = false; }}><Icon name="compass" size={14} /> {t("kp.title")}</button>
           <button role="menuitemcheckbox" aria-checked={healthOpen} onclick={() => { healthOpen = !healthOpen; moreOpen = false; }}><Icon name="activity" size={14} /> {t("health.title")}</button>
           <button role="menuitemcheckbox" aria-checked={errataOpen} onclick={() => { errataOpen = !errataOpen; moreOpen = false; }}><Icon name="file-text" size={14} /> {t("errata.title")}</button>

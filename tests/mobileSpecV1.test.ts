@@ -285,4 +285,71 @@ describe("小驴生态 · 手机端完整开发 · Mobile Spec v1 规范测试",
 
     hapticSpy.mockRestore();
   });
+
+  it("8. 长会话进度保护：armExamHistory 拦截 Android popstate 并弹出退出草稿确认框", async () => {
+    const { armExamHistory, disarmExamHistory, isExamHistoryArmed } = await import("../src/core/examHistoryGuard");
+
+    let savedDraft = false;
+    let exited = false;
+    let allowExit = false;
+
+    // 模拟确认框：动态控制用户点取消还是确认
+    const dialogMod = await import("../src/libs/dialog");
+    vi.spyOn(dialogMod, "confirmDialogSync").mockImplementation(async (opts) => {
+      expect(opts.content).toContain("考试进行中，确认退出？（进度将保存至草稿）");
+      return allowExit;
+    });
+
+    const pushSpy = vi.spyOn(window.history, "pushState");
+
+    // 1. 启动进度保护
+    armExamHistory({
+      isActive: () => true,
+      onSaveDraft: () => {
+        savedDraft = true;
+      },
+      onExit: () => {
+        exited = true;
+      },
+    });
+
+    expect(isExamHistoryArmed()).toBe(true);
+    expect(pushSpy).toHaveBeenCalledWith({ lvExam: true }, "");
+
+    // 2. 模拟用户按 Android 返回键（触发 popstate），此时用户点击「取消」
+    allowExit = false;
+    pushSpy.mockClear();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(savedDraft).toBe(false);
+    expect(exited).toBe(false);
+    // 用户取消退出，应重新压入占位态
+    expect(pushSpy).toHaveBeenCalledWith({ lvExam: true }, "");
+    expect(isExamHistoryArmed()).toBe(true);
+
+    // 3. 用户再次按 Android 返回键，此时点击「确认退出」
+    allowExit = true;
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(savedDraft).toBe(true);
+    expect(exited).toBe(true);
+    expect(isExamHistoryArmed()).toBe(false);
+
+    disarmExamHistory();
+    vi.restoreAllMocks();
+  });
+
+  it("9. 审计一致性：lvLaunchpad 的 svgIcon 与 symbol id 逐字完全一致", async () => {
+    await plugin.onload();
+    const items = lvLaunchpad.getItems();
+    const examItem = items.find((i) => i.id === "siyuan-exam");
+    expect(examItem?.svgIcon).toBe("icon-lv-exam");
+
+    // 检查 addIcons 是否传入了对应 symbol id
+    const addIconsCalls = (plugin.addIcons as any).mock.calls;
+    const injectedSvg = addIconsCalls.map((c: any[]) => c[0]).join("\n");
+    expect(injectedSvg).toContain('id="icon-lv-exam"');
+  });
 });
