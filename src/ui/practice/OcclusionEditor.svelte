@@ -251,13 +251,13 @@
             <label class="lv-chip" for={`lv-occl-hint-${m.id}`}>提示</label>
             <input id={`lv-occl-hint-${m.id}`} class="lv-input" style="flex:1;min-width:100px" bind:value={m.hint} placeholder="可选提示" />
             <label class="lv-chip num" for={`lv-occl-x-${m.id}`} title="遮罩几何（键盘可编辑，百分比）">X</label>
-            <input id={`lv-occl-x-${m.id}`} class="lv-input num" type="number" min="0" max="100" step="0.5" style="width:64px" value={pct(m.x)} oninput={(e) => onMaskGeoInput(m, "x", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 横坐标百分比`} />
+            <input id={`lv-occl-x-${m.id}`} class="lv-input num" type="number" inputMode="numeric" min="0" max="100" step="0.5" style="width:64px" value={pct(m.x)} oninput={(e) => onMaskGeoInput(m, "x", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 横坐标百分比`} />
             <label class="lv-chip num" for={`lv-occl-y-${m.id}`}>Y</label>
-            <input id={`lv-occl-y-${m.id}`} class="lv-input num" type="number" min="0" max="100" step="0.5" style="width:64px" value={pct(m.y)} oninput={(e) => onMaskGeoInput(m, "y", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 纵坐标百分比`} />
+            <input id={`lv-occl-y-${m.id}`} class="lv-input num" type="number" inputMode="numeric" min="0" max="100" step="0.5" style="width:64px" value={pct(m.y)} oninput={(e) => onMaskGeoInput(m, "y", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 纵坐标百分比`} />
             <label class="lv-chip num" for={`lv-occl-w-${m.id}`}>宽</label>
-            <input id={`lv-occl-w-${m.id}`} class="lv-input num" type="number" min="1.5" max="100" step="0.5" style="width:64px" value={pct(m.w)} oninput={(e) => onMaskGeoInput(m, "w", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 宽度百分比`} />
+            <input id={`lv-occl-w-${m.id}`} class="lv-input num" type="number" inputMode="numeric" min="1.5" max="100" step="0.5" style="width:64px" value={pct(m.w)} oninput={(e) => onMaskGeoInput(m, "w", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 宽度百分比`} />
             <label class="lv-chip num" for={`lv-occl-h-${m.id}`}>高</label>
-            <input id={`lv-occl-h-${m.id}`} class="lv-input num" type="number" min="1.5" max="100" step="0.5" style="width:64px" value={pct(m.h)} oninput={(e) => onMaskGeoInput(m, "h", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 高度百分比`} />
+            <input id={`lv-occl-h-${m.id}`} class="lv-input num" type="number" inputMode="numeric" min="1.5" max="100" step="0.5" style="width:64px" value={pct(m.h)} oninput={(e) => onMaskGeoInput(m, "h", (e.target as HTMLInputElement).value)} aria-label={`遮罩 ${mi + 1} 高度百分比`} />
             <button class="lv-btn sm lv-btn--ghost" onclick={() => removeMask(m.id)} aria-label={`删除遮罩 ${mi + 1}`} title="删除该遮罩">
               <Icon name="close" size={13} />
             </button>

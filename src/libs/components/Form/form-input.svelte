@@ -87,7 +87,7 @@
 {:else if type === "textarea"}
     <textarea class="b3-text-field fn__block" id={key} {placeholder} spellcheck={spellcheck} aria-labelledby={fieldA11y?.labelId} aria-describedby={fieldA11y?.descriptionId} style={`resize: vertical; height: 10em; white-space: pre-wrap; overflow-wrap: anywhere; ${style}`} bind:value={value} onchange={handleChanged}></textarea>
 {:else if type === "number"}
-    <input class="b3-text-field fn__flex-center" class:fn__size200={fnSize} id={key} type="number" min={number?.min} max={number?.max} step={number?.step} aria-labelledby={fieldA11y?.labelId} aria-describedby={fieldA11y?.descriptionId} bind:value={value} onchange={handleChanged} style={style} />
+    <input class="b3-text-field fn__flex-center" class:fn__size200={fnSize} id={key} type="number" inputMode="numeric" min={number?.min} max={number?.max} step={number?.step} aria-labelledby={fieldA11y?.labelId} aria-describedby={fieldA11y?.descriptionId} bind:value={value} onchange={handleChanged} style={style} />
 {:else if type === "button"}
     <button class="b3-button b3-button--outline fn__flex-center" class:fn__size200={fnSize} id={key} type="button" aria-labelledby={fieldA11y?.labelId} aria-describedby={fieldA11y?.descriptionId} onclick={handleClick} style={style}>{button?.label ?? value}</button>
 {:else if type === "select"}

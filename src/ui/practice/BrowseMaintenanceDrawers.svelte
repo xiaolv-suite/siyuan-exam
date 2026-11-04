@@ -472,7 +472,7 @@
           {#each [1, 2, 3, 4, 5] as d, _i (_i)}<option value={String(d)}>{d}</option>{/each}
         </select>
       {:else if batchField === "score"}
-        <input class="lv-input" style="max-width:120px" type="number" min="0.5" step="0.5" bind:value={batchValue} placeholder={t("batch.scorePlaceholder")} aria-label={t("batch.scorePlaceholder")} />
+        <input class="lv-input" style="max-width:120px" type="number" inputMode="numeric" min="0.5" step="0.5" bind:value={batchValue} placeholder={t("batch.scorePlaceholder")} aria-label={t("batch.scorePlaceholder")} />
       {:else}
         <input class="lv-input" style="max-width:200px" bind:value={batchValue}
           placeholder={batchField === "kp" ? t("batch.kpPlaceholder") : batchField === "year" ? t("batch.yearPlaceholder") : t("batch.sourcePlaceholder")} aria-label="修改为目标值" />

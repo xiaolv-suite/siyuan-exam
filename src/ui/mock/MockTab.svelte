@@ -2171,8 +2171,8 @@
       {#each bp.sections as s, i (i)}
         <div class="lv-bp-row">
           <input class="lv-input" bind:value={s.name} oninput={() => updateSection(i, { name: s.name })} aria-label={t("mock.sec")} />
-          <input class="lv-input num" type="number" min="0" value={s.count} aria-label={t("mock.count")} oninput={(e) => updateSection(i, { count: Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0) })} />
-          <input class="lv-input num" type="number" min="0" step="0.1" value={s.scoreEach} aria-label={t("mock.each")} oninput={(e) => updateSection(i, { scoreEach: Math.max(0, parseFloat((e.target as HTMLInputElement).value) || 0) })} />
+          <input class="lv-input num" type="number" inputMode="numeric" min="0" value={s.count} aria-label={t("mock.count")} oninput={(e) => updateSection(i, { count: Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0) })} />
+          <input class="lv-input num" type="number" inputMode="numeric" min="0" step="0.1" value={s.scoreEach} aria-label={t("mock.each")} oninput={(e) => updateSection(i, { scoreEach: Math.max(0, parseFloat((e.target as HTMLInputElement).value) || 0) })} />
           <select class="lv-select" value={s.source} aria-label={t("mock.source")} onchange={(e) => updateSection(i, { source: (e.target as HTMLSelectElement).value as SectionSource })}>
             <option value="mixed">{t("mock.sourceMixed", "不限来源")}</option><option value="real">{t("mock.sourceReal")}</option><option value="mock">{t("mock.sourceMock")}</option>
           </select>
@@ -2220,11 +2220,11 @@
       </div>
     {/if}
     <div class="lv-row">
-      <label class="lv-row" style="margin:0">{t("mock.durationMinutes", "考试时长（分钟）")} <input class="lv-input num" type="number" min="1" step="1" value={bp.durationS / 60} oninput={(e) => bp.durationS = Number((e.target as HTMLInputElement).value) * 60} /></label>
+      <label class="lv-row" style="margin:0">{t("mock.durationMinutes", "考试时长（分钟）")} <input class="lv-input num" type="number" inputMode="numeric" min="1" step="1" value={bp.durationS / 60} oninput={(e) => bp.durationS = Number((e.target as HTMLInputElement).value) * 60} /></label>
       <label class="lv-row" style="margin:0"><input type="checkbox" bind:checked={bp.sectionTimed} /> {t("mock.sectionTimed")}</label>
       <span class="lv-chip" title={t("mock.shuffleUnavailable", "选项乱序暂未开放")}>{t("mock.keepOptionOrder", "选项保持原顺序")}</span>
       <label class="lv-row" style="margin:0"><input type="checkbox" bind:checked={bp.lockout} /> {t("mock.lockout")}</label>
-      <span class="lv-chip">{t("mock.passLine")} <input class="lv-input num" style="width:64px" type="number" min="0" max="100" bind:value={bp.passLine} aria-label={t("mock.passLine")} />%</span>
+      <span class="lv-chip">{t("mock.passLine")} <input class="lv-input num" style="width:64px" type="number" inputMode="numeric" min="0" max="100" bind:value={bp.passLine} aria-label={t("mock.passLine")} />%</span>
     </div>
     <!-- 55-04 版本化评分政策与样例验算 -->
     <div class="lv-row" style="margin:8px 0;align-items:center;flex-wrap:wrap;gap:8px">

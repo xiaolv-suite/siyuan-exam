@@ -409,6 +409,7 @@ export class SettingUtils {
       case "number": {
         const numberElement: HTMLInputElement = document.createElement("input");
         numberElement.type = "number";
+        numberElement.inputMode = "numeric";
         numberElement.className = "b3-text-field fn__flex-center fn__size200";
         numberElement.value = item.value;
         if (item.number?.min !== undefined) numberElement.min = String(item.number.min);
