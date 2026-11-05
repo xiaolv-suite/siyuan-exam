@@ -54,6 +54,8 @@ export async function copyChallengeCode(
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(encodeChallengeCopy(paper));
       showMessage(t("challenge.copied"), 3600, "info");
+    } else {
+      showMessage(t("mock.summaryCopyFailed"), 3600, "error");
     }
   } catch (e) {
     showMessage(String(e instanceof Error ? e.message : e), 4200, "error");

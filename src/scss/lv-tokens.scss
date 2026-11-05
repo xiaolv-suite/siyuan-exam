@@ -40,7 +40,7 @@
   --lv-accent-grad: linear-gradient(135deg, #4f46e5, #6366f1);
   --lv-accent-deep: #4338ca;
   --lv-btn-primary-bg: #4f46e5;
-  --lv-on-accent: #ffffff;
+  --lv-on-accent: var(--b3-theme-on-primary, #ffffff);
 
   /* [数据语义色]：由主题色逆时针偏移 28° 派生，专属负责正确率、连续天数、掌握度 KPI 与正向数据 */
   --lv-data-accent: #0284c7;
@@ -249,7 +249,7 @@ html[data-theme-mode="dark"] {
   --lv-accent-soft: rgba(129, 140, 248, 0.14);
   --lv-accent-deep: #6366f1;
   --lv-btn-primary-bg: #6366f1;
-  --lv-on-accent: #ffffff;
+  --lv-on-accent: var(--b3-theme-on-primary, #ffffff);
   --lv-green: #34d399;
   --lv-green-soft: rgba(52, 211, 153, 0.15);
   --lv-on-green: #090d16;

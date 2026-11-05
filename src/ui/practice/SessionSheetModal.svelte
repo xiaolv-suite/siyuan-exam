@@ -22,6 +22,8 @@
     onjump,
   }: Props = $props();
 
+  const answeredMap = $derived(new Map((session?.answered ?? []).map((a) => [a.qid, a])));
+
   let dialogEl = $state<HTMLDivElement | null>(null);
   let returnFocusEl: HTMLElement | null = null;
   let wasOpen = false;
@@ -67,7 +69,7 @@
       <div class="lv-grid-nav" role="group" aria-label="答题卡题目导航矩阵" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(38px, 1fr));gap:6px">
         {#each session.state.qids as qid, i (qid)}
           {@const isCur = i === session.state.cursor}
-          {@const myA = session.answered.find((a) => a.qid === qid)}
+          {@const myA = answeredMap.get(qid)}
           {@const isDone = Boolean(myA)}
           {@const isWrong = myA && myA.grade.verdict === "wrong"}
           {@const isCorrect = myA && myA.grade.verdict === "correct"}

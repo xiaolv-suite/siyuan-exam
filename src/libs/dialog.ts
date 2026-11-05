@@ -25,8 +25,8 @@ export const inputDialog = (args: {
     <div class="ft__breakword"><textarea class="b3-text-field fn__block" style="height: 100%;" placeholder="${escapeHtml(args?.placeholder ?? "")}" aria-label="${escapeHtml(args.title)}">${escapeHtml(args?.defaultText ?? "")}</textarea></div>
 </div>
 <div class="b3-dialog__action">
-    <button class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button><div class="fn__space"></div>
-    <button class="b3-button b3-button--text" id="confirmDialogConfirmBtn">${window.siyuan.languages.confirm}</button>
+    <button type="button" class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button><div class="fn__space"></div>
+    <button type="button" class="b3-button b3-button--text" id="confirmDialogConfirmBtn">${window.siyuan.languages.confirm}</button>
 </div>`,
     width: args.width ?? "520px",
     height: args.height,
@@ -87,8 +87,8 @@ export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () 
     </div>
 </div>
 <div class="b3-dialog__action">
-    <button class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button><div class="fn__space"></div>
-    <button class="b3-button b3-button--text" id="confirmDialogConfirmBtn">${window.siyuan.languages.confirm}</button>
+    <button type="button" class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button><div class="fn__space"></div>
+    <button type="button" class="b3-button b3-button--text" id="confirmDialogConfirmBtn">${window.siyuan.languages.confirm}</button>
 </div>`,
     width: width,
     height: height,

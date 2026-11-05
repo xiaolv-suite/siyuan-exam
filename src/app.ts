@@ -193,6 +193,8 @@ export interface MockRecord {
   runId?: string;
   name: string;
   startedAt: number;
+  /** 交卷完成时刻（支持跨日场次时间审计与日期归属，旧记录可选容错） */
+  submittedAt?: number;
   total: number;
   full: number;
   percent: number;

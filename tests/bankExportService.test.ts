@@ -42,11 +42,14 @@ describe("题库数据与试卷导出服务 (bankExportService)", () => {
   });
 
   it("1. downloadBlobFile：模拟创建 ObjectURL 与 a.click 下载", () => {
+    vi.useFakeTimers();
     downloadBlobFile("hello world", "test.txt", "text/plain");
 
     expect(createObjectURLMock).toHaveBeenCalled();
     expect(createdElement.click).toHaveBeenCalled();
+    vi.runAllTimers();
     expect(revokeObjectURLMock).toHaveBeenCalledWith("blob:mock-url");
+    vi.useRealTimers();
   });
 
   it("2. exportCheatSheet 与 exportItemQualityReport 正常导出并提示成功", async () => {

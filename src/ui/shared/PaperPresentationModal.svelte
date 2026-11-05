@@ -5,6 +5,7 @@
   import { renderMathDiagramsInText } from "@/core/mathDiagram";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
   import { formatDisplayAnswer } from "@/core/structuredAnswer";
+  import { sanitizeRichHtml, renderInlineText } from "../../libs/sanitize";
   import ScratchpadDrawer from "../practice/ScratchpadDrawer.svelte";
 
   interface Props {
@@ -149,7 +150,7 @@
       <!-- 试题卡片主体 -->
       <article class="lv-card lv-present-card">
         <div class="lv-present-stem b3-typography">
-          {@html renderMathInText(renderMathDiagramsInText(currentQ.stem))}
+          {@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(currentQ.stem)))}
         </div>
 
         {#if currentQ.occlusion}
@@ -164,7 +165,7 @@
             {#each currentQ.options as opt, oi (oi)}
               <div class="lv-present-opt-item">
                 <span class="lv-opt-badge num">{LETTERS[oi]}</span>
-                <span class="lv-opt-text">{@html renderMathInText(opt)}</span>
+                <span class="lv-opt-text">{@html renderInlineText(opt)}</span>
               </div>
             {/each}
           </div>
@@ -180,13 +181,13 @@
             {#if currentQ.analysis}
               <div class="lv-present-analysis b3-typography">
                 <b>【思路解析】</b>
-                {@html renderMathInText(renderMathDiagramsInText(currentQ.analysis))}
+                {@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(currentQ.analysis)))}
               </div>
             {/if}
             {#if currentQ.expansion}
               <div class="lv-present-expansion b3-typography" style="margin-top:10px;padding:8px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);border-radius:4px">
                 <b style="color:var(--lv-accent)">【💡 思路拓展与秒杀技巧】</b>
-                {@html renderMathInText(renderMathDiagramsInText(currentQ.expansion))}
+                {@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(currentQ.expansion)))}
               </div>
             {/if}
             {#if currentQ.rubric && typeof currentQ.rubric === "object"}

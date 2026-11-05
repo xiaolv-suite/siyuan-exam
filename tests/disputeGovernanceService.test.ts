@@ -79,6 +79,7 @@ describe("题目生命周期与争议处置单服务 (disputeGovernanceService)"
   });
 
   it("3. exportItemAnalysisReportCsv：生成单题 CTT 分析 CSV", () => {
+    vi.useFakeTimers();
     const createObjectURLMock = vi.fn().mockReturnValue("blob:csv");
     const revokeObjectURLMock = vi.fn();
     const clickMock = vi.fn();
@@ -114,8 +115,10 @@ describe("题目生命周期与争议处置单服务 (disputeGovernanceService)"
     exportItemAnalysisReportCsv(fakeReport);
     expect(createObjectURLMock).toHaveBeenCalled();
     expect(clickMock).toHaveBeenCalled();
+    vi.runAllTimers();
     expect(revokeObjectURLMock).toHaveBeenCalled();
 
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 

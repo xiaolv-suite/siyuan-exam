@@ -102,6 +102,8 @@ export async function copyTodayStudyReport(
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(md);
       showMessage(t("entry.reportCopied"), 3200, "info");
+    } else {
+      showMessage(t("mock.summaryCopyFailed"), 3200, "error");
     }
   } catch {
     showMessage(t("mock.summaryCopyFailed"), 3200, "error");

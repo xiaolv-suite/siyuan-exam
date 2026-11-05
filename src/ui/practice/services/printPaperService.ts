@@ -96,7 +96,7 @@ export function openOrDownloadHtml(
     a.href = URL.createObjectURL(blob);
     a.download = downloadFilename;
     a.click();
-    URL.revokeObjectURL(a.href);
+    setTimeout(() => URL.revokeObjectURL(a.href), 0);
     showMessage(fallbackMsg, 3000, "info");
   }
 }

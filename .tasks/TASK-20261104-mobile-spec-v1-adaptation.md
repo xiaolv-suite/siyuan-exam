@@ -55,11 +55,26 @@
    - **长会话进度保护（armExamHistory / disarmExamHistory）**：答题与模考进入时压入 `{ lvExam: true }`，监听 `popstate`，Android 返回手势触发时弹出思源确认框「考试进行中，确认退出？（进度将保存至草稿）」，取消则重压恢复占位，确认则存草稿后退出，交卷后回退清理；
    - **500ms 防抖落盘草稿**：答题与填空选定后 500ms 防抖持久化会话草稿，退出后重新进入随时可恢复「上次未交卷」；
    - **模考锁屏/切后台绝对时间戳补偿**：基于 `visibilitychange`、`onfocus` 与 `onpageshow` 在回前台时基于 `Date.now()` 绝对时间差补偿重算剩余时间，不依赖休眠时被冻结的 `setInterval`。
+11. 手机端与全量细节自查打磨轮（12 类通用自查 + 2 项专项疑点）：
+   - **资源生命周期**：复核并修正 `bankExportService.ts`、`PaperAssembleModal.svelte`、`printPaperService.ts`、`ReportTab.svelte` 中全部 8 处 `createObjectURL`，统一采用 `setTimeout(..., 0)` / `window.setTimeout(..., 1000)` 异步延迟销毁；
+   - **竞态时序**：确认 `PracticeTab`（`questionLoadSeq`、`activeBankId`）与 `MockTab`（`runSaveRevision`）异步回调代际校验完备，布局测量均由 `requestAnimationFrame` 驱动；
+   - **剪贴板反馈**：补齐 `bankDocSyncService.ts`、`challengeService.ts`、`PracticeTab.svelte` 外链复制等剪贴板失败分支及不可用 fallback 提示；
+   - **焦点管理**：所有弹窗与抽屉均集成焦点陷阱，关闭时校验 `target?.isConnected` 安全回退；
+   - **对比度令牌**：`--lv-on-accent` 升级为 `var(--b3-theme-on-primary, #ffffff)`，完美适应明亮/暗黑及第三方主题；
+   - **移动端输入**：所有数字输入均带 `inputMode="numeric"`，框架层 `form-input.svelte` 已统一透传；
+   - **时序边界**：`MockRecord` 增加 `submittedAt` 记录，模考跨日场次开考时刻（`startedAt`）与交卷时刻（`submittedAt`）双锚定无歧义；
+   - **i18n 对齐**：1572 个键全量对齐（0 漂移、0 缺失）；
+   - **HTML 规范**：通用弹窗按钮补齐 `type="button"` 显式声明；
+   - **XSS 防御**：`PaperPresentationModal.svelte` 中所有试题题干、选项、解析插值补齐 `sanitizeRichHtml` 与 `renderInlineText` 消毒防护；
+   - **渲染粒度**：`SessionSheetModal.svelte` 答题卡查题由 O(N²) 优化为 `Map` O(1) 瞬时查询；
+   - **状态时效**：全量异步操作均在 `try...finally` 中按次可靠重置 busy/error 状态；
+   - **专项疑点 1**：选项 `.lv-opt` 及其所有子节点全面配置 `-webkit-touch-callout: none !important; user-select: none !important;`，彻底杜绝 iOS Safari / Android Chrome 长按弹出系统菜单；
+   - **专项疑点 2**：意外退出（进程被杀）后，通过 `resumeSession`、`loadMockRun` 与首页横幅三级联动，草稿完整可恢复。
 
 ---
 
 ## 三、 质量门禁与验收
 
 - `pnpm run check`: 0 errors, 0 warnings (types, svelte, i18n, arch, styles 100% 通过)；
-- `pnpm test`: 242 passed (1918 unit tests 全部绿灯通过)；
+- `pnpm test`: 242 passed (1919 unit tests 全部绿灯通过)；
 - `pnpm run build`: 生产打包成功。

@@ -352,4 +352,25 @@ describe("小驴生态 · 手机端完整开发 · Mobile Spec v1 规范测试",
     const injectedSvg = addIconsCalls.map((c: any[]) => c[0]).join("\n");
     expect(injectedSvg).toContain('id="icon-lv-exam"');
   });
+
+  it("10. 资源生命周期：downloadBlobFile 延迟调用 revokeObjectURL 避免过早注销", async () => {
+    vi.useFakeTimers();
+    const createObjectURLMock = vi.fn().mockReturnValue("blob:mock-url");
+    const revokeObjectURLMock = vi.fn();
+    (window as any).URL.createObjectURL = createObjectURLMock;
+    (window as any).URL.revokeObjectURL = revokeObjectURLMock;
+
+    const { downloadBlobFile } = await import("../src/ui/practice/services/bankExportService");
+    downloadBlobFile("test csv", "test.csv", "text/csv");
+
+    expect(createObjectURLMock).toHaveBeenCalled();
+    // 同步时刻尚未被 revoke
+    expect(revokeObjectURLMock).not.toHaveBeenCalled();
+
+    // 定时器触发后完成 revoke
+    vi.advanceTimersByTime(10);
+    expect(revokeObjectURLMock).toHaveBeenCalledWith("blob:mock-url");
+
+    vi.useRealTimers();
+  });
 });

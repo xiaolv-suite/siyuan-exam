@@ -4784,7 +4784,12 @@ import { confirmDialogSync } from "@/libs/dialog";
           "</div><p class='lv-hint' style='text-align:left'>" + t("gate.linkDesc") + "</p>",
       });
       if (ok) { window.open(link.href, "_blank", "noopener,noreferrer"); return; }
-      try { await navigator.clipboard.writeText(link.href); showMessage(t("gate.linkCopied"), 2400, "info"); } catch { /* 剪贴板不可用则静默 */ }
+      try {
+        await navigator.clipboard.writeText(link.href);
+        showMessage(t("gate.linkCopied"), 2400, "info");
+      } catch {
+        showMessage("复制链接失败，请手动长按链接复制", 2400, "error");
+      }
     }
 
     /** 73-02：题面富文本链接只能经外链闸打开，避免 {@html} 中的 href 直达网络。 */

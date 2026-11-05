@@ -32,10 +32,13 @@ describe("试卷印刷与排版导出服务 (printPaperService)", () => {
       static revokeObjectURL = revokeObjectURLMock;
     });
 
+    vi.useFakeTimers();
     openOrDownloadHtml("<html></html>", "paper.html", "下载已就绪", showMessage);
     expect(showMessage).toHaveBeenCalledWith("下载已就绪", 3000, "info");
     expect(createObjectURLMock).toHaveBeenCalled();
+    vi.runAllTimers();
     expect(revokeObjectURLMock).toHaveBeenCalled();
+    vi.useRealTimers();
 
     vi.unstubAllGlobals();
   });

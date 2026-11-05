@@ -99,7 +99,7 @@
       a.href = url;
       a.download = `radar-dimensions-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       showMessage(t("report.exportRadarCsv") + " ✓", 3000, "info");
     }
     let readinessExportBusy = $state(false);
@@ -114,7 +114,7 @@
         a.href = url;
         a.download = `备考完备度体检报告-${new Date().toISOString().slice(0, 10)}.md`;
         a.click();
-        URL.revokeObjectURL(url);
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         showMessage("备考完备度体检报告已导出 ✓", 3000, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
@@ -134,7 +134,7 @@
         a.href = url;
         a.download = `考点通关路径与图谱导学案-${new Date().toISOString().slice(0, 10)}.md`;
         a.click();
-        URL.revokeObjectURL(url);
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         showMessage("考点通关导学案已导出 ✓", 3000, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
@@ -154,7 +154,7 @@
         a.href = url;
         a.download = `备考个人荣誉勋章墙-${new Date().toISOString().slice(0, 10)}.md`;
         a.click();
-        URL.revokeObjectURL(url);
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         showMessage("荣誉勋章墙已导出 ✓", 3000, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
@@ -215,7 +215,7 @@
           a.href = url;
           a.download = `${curBankName}-全景学情诊断报告-${new Date().toISOString().slice(0, 10)}.html`;
           a.click();
-          URL.revokeObjectURL(url);
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
           showMessage("全景学情诊断报告已生成 ✓", 3000, "info");
         }
       } catch (e) {
@@ -239,7 +239,7 @@
       a.href = url;
       a.download = `艾宾浩斯遗忘风险预警报告-${new Date().toISOString().slice(0, 10)}.md`;
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       showMessage("遗忘风险预警报告已导出 ✓", 3000, "info");
     }
 

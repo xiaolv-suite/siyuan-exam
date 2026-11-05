@@ -262,7 +262,7 @@
       a.href = URL.createObjectURL(blob);
       a.download = `${mainTitle || "试卷"}.doc`;
       a.click();
-      URL.revokeObjectURL(a.href);
+      setTimeout(() => URL.revokeObjectURL(a.href), 0);
       showMessage("已成功导出 Word 兼容排版文档 (.doc) ✓", 2800, "info");
     } catch (e) {
       showMessage(`导出 Word 失败：${String(e instanceof Error ? e.message : e)}`, 3000, "error");

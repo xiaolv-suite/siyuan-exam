@@ -1138,7 +1138,13 @@
   .lv-pure .lv-opt { justify-content: center; }
   .lv-question { margin-top: 10px; }
   .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; max-width: var(--lv-max-stem-width, 780px); }
-  .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; min-height: 52px; box-sizing: border-box; max-width: var(--lv-max-reading-width, 820px); text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
+  .lv-opt,
+  .lv-opt * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
+  }
+  .lv-opt { display: flex; gap: 14px; align-items: center; width: 100%; min-height: 52px; box-sizing: border-box; max-width: var(--lv-max-reading-width, 820px); text-align: left; padding: 16px 20px; border-radius: var(--lv-r-3); border: 1.5px solid var(--lv-ctl-border); margin-bottom: 12px; cursor: pointer; background: var(--lv-surface); font: inherit; color: inherit; box-shadow: var(--lv-sh-1), var(--lv-inset-card); touch-action: manipulation; transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
   .lv-opt:hover:not([disabled]) { border-color: var(--lv-border-hover, var(--lv-accent)); background: color-mix(in srgb, var(--lv-accent) 4.5%, var(--lv-surface)); transform: translateY(-1px); box-shadow: var(--lv-sh-2); }
   .lv-opt:active:not([disabled]) { transform: scale(0.985); }
   .lv-opt .key { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 13px; font-weight: var(--lv-font-weight-bold, 700); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--lv-surface-2); color: var(--lv-text-2); border: 1px solid var(--lv-border); box-shadow: var(--lv-keycap-shadow); transition: background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, transform var(--lv-dur-micro) ease; }
