@@ -25,6 +25,7 @@ export type PracticeViewPlugin = {
 
 export interface ExamPluginLike extends PracticeViewPlugin, AiKeyHost {
   app?: unknown;
+  isMobile?: boolean;
   i18n?: Record<string, string>;
   settingUtils?: {
     get?<T = unknown>(key: string): T;

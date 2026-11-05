@@ -54,7 +54,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   pendingPracticeView?: PracticeViewRequest;
   practiceViewRequestId?: string;
   pendingMockBlueprint?: import("./core/mock").Blueprint;
-  private isMobile: boolean;
+  isMobile = false;
   settingUtils: SettingUtils;
   isUnloaded = false;
   /** 每个宿主 Custom 模型独立持有实例；同 type 不是唯一页签身份。 */

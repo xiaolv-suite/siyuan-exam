@@ -19,6 +19,8 @@
     wbKpFilter: string;
     wbTagOptions?: string[];
     wbTagFilter?: string;
+    wbDocOptions?: Array<{ docId: string; label: string; count: number }>;
+    wbDocFilter?: string;
     wbSortMode: "default" | "wrongCount" | "kp";
     filteredWrongQueue: any[];
     /** 渲染切片（ux §3 virtualize-lists 口径）：只渲染前 200 行，「加载更多」逐步放量；计数与操作按钮仍按全量 */
@@ -68,6 +70,7 @@
     onstartCbmDrill?: (kind: "highrisk" | "fragile") => void;
     onstartCustomDrill?: (qids: string[]) => void;
     onopenInSiYuan?: (rootId: string, blockId?: string) => void;
+    ontracebackBlock?: (blockId: string, rootId?: string) => void;
     oneditReflection?: (qid: string) => void;
     reflections?: Record<string, { text: string; at: number }>;
     lastSavedWrongbookDoc?: { docId: string; title: string } | null;
@@ -86,6 +89,8 @@
     wbKpFilter = $bindable(),
     wbTagOptions = [],
     wbTagFilter = $bindable(""),
+    wbDocOptions = [],
+    wbDocFilter = $bindable(""),
     wbSortMode = $bindable(),
     filteredWrongQueue,
     shownWrongQueue,
@@ -133,6 +138,7 @@
     onstartCbmDrill,
     onstartCustomDrill,
     onopenInSiYuan,
+    ontracebackBlock,
     oneditReflection,
     reflections = {},
     lastSavedWrongbookDoc = null,
@@ -387,6 +393,14 @@
                   {/each}
                 </select>
               {/if}
+              {#if wbDocOptions && wbDocOptions.length > 0}
+                <select class="lv-select sm" style="max-width:160px" bind:value={wbDocFilter} aria-label="筛选来源文档">
+                  <option value="">全部来源文档 ({wbDocOptions.length})</option>
+                  {#each wbDocOptions as doc (doc.docId)}
+                    <option value={doc.docId}>{doc.label} ({doc.count})</option>
+                  {/each}
+                </select>
+              {/if}
               <div class="lv-row" style="margin:0 0 0 auto;gap:6px;align-items:center">
                 <span class="lv-muted" style="font-size:11px">排序:</span>
                 <select
@@ -442,6 +456,17 @@
                           onclick={() => { wbKpFilter = q.kp.split("/")[0]; }}
                         >
                           {q.kp}
+                        </button>
+                      {/if}
+                      {#if q?.blockId}
+                        <button
+                          type="button"
+                          class="lv-chip lv-traceback-btn"
+                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                        >
+                          📍 笔记原块上下文
                         </button>
                       {/if}
                     </div>
@@ -531,6 +556,17 @@
                       {#if s.myAnswer}<span class="lv-muted num">{t("session.myAnswer")}: {s.myAnswer}</span>{/if}
                       <span>{new Date(s.ts).toLocaleDateString()}</span>
                       {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                      {#if q?.blockId}
+                        <button
+                          type="button"
+                          class="lv-chip lv-traceback-btn"
+                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                        >
+                          📍 笔记原块上下文
+                        </button>
+                      {/if}
                     </div>
                   </div>
                   <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
@@ -567,6 +603,17 @@
                       <span class="lv-chip num">{t("confidence." + s.confidence)} ✓</span>
                       <span>{new Date(s.ts).toLocaleDateString()}</span>
                       {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                      {#if q?.blockId}
+                        <button
+                          type="button"
+                          class="lv-chip lv-traceback-btn"
+                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                        >
+                          📍 笔记原块上下文
+                        </button>
+                      {/if}
                     </div>
                   </div>
                   <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
@@ -592,6 +639,17 @@
                       <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
                       <span>消灭于 {new Date(w.lastWrongAt).toLocaleDateString()}</span>
                       {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                      {#if q?.blockId}
+                        <button
+                          type="button"
+                          class="lv-chip lv-traceback-btn"
+                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                        >
+                          📍 笔记原块上下文
+                        </button>
+                      {/if}
                     </div>
                   </div>
                   {#if q?.blockId && onopenInSiYuan}
@@ -659,6 +717,17 @@
                       <span class="lv-chip sm">{t("wrongbook.tabArchived")}</span>
                       <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
                       {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                      {#if q?.blockId}
+                        <button
+                          type="button"
+                          class="lv-chip lv-traceback-btn"
+                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                        >
+                          📍 笔记原块上下文
+                        </button>
+                      {/if}
                     </div>
                   </div>
                   {#if q?.blockId && onopenInSiYuan}

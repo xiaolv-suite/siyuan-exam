@@ -175,6 +175,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       filterAndSortWrongQueue,
     } from "./services/wrongbookDispositionService";
     import {
+      tracebackToSourceBlock,
+      extractWrongQueueDocOptions,
+    } from "./services/tracebackService";
+    import {
       buildPracticePaletteCommands,
       resolveTaskNavigation,
     } from "./services/practicePaletteService";
@@ -2239,14 +2243,20 @@ import { confirmDialogSync } from "@/libs/dialog";
     );
     const wbKpOptions = $derived(extractWrongQueueKpOptions(wrongQueue, questionMap));
     const wbTagOptions = $derived(extractWrongQueueTagOptions(wrongQueue, questionMap));
+    let wbDocFilter = $state("");
+    const wbDocOptions = $derived(extractWrongQueueDocOptions(wrongQueue, questionMap));
     const filteredWrongQueue = $derived(filterAndSortWrongQueue(wrongQueue, questionMap, reasonOf, {
       reasonFilter: wbReasonFilter,
       filterStubborn: wbFilterStubborn,
       kpFilter: wbKpFilter,
       tagFilter: wbTagFilter,
+      docFilter: wbDocFilter,
       sortMode: wbSortMode,
       highriskQids: cbmHighriskQids,
     }));
+    const tracebackBlock = (blockId: string, rootId?: string) => {
+      void tracebackToSourceBlock({ plugin, blockId, rootId, isMobile: plugin.isMobile });
+    };
     /** 错题本队列渲染上限（ux §3 virtualize-lists / Mobile Spec v1 性能纪律）：
      *  首屏 ≤50 条，避免数百重 DOM 拖慢移动端与窄屏滚动。计数徽标/打印/特训等操作仍按全量筛选口径。 */
     let wbQueueLimit = $state(50);
@@ -6259,7 +6269,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:wbKpFilter
       {wbTagOptions}
       bind:wbTagFilter
+      {wbDocOptions}
+      bind:wbDocFilter
       bind:wbSortMode
+      ontracebackBlock={tracebackBlock}
       {filteredWrongQueue}
       {shownWrongQueue}
       {wbQueueHasMore}

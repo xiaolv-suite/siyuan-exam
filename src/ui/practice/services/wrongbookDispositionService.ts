@@ -108,6 +108,7 @@ export interface WrongQueueFilterCriteria {
   sortMode: string;
   highriskQids?: ReadonlySet<string>;
   tagFilter?: string;
+  docFilter?: string;
 }
 
 /**
@@ -163,6 +164,13 @@ export function filterAndSortWrongQueue<T extends { qid: string; wrongCount?: nu
   }
   if (criteria.tagFilter) {
     list = list.filter((w) => questionMap.get(w.qid)?.userTags?.includes(criteria.tagFilter!));
+  }
+  if (criteria.docFilter) {
+    list = list.filter((w) => {
+      const q = questionMap.get(w.qid);
+      const docId = q?.rootId || (q as any)?.docId;
+      return docId === criteria.docFilter;
+    });
   }
   if (criteria.sortMode === "wrongCount") {
     list = [...list].sort((a, b) => (b.wrongCount || 0) - (a.wrongCount || 0));
