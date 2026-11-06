@@ -31,6 +31,11 @@ export const inputDialog = (args: {
     width: args.width ?? "520px",
     height: args.height,
   });
+  dialog.element.addEventListener("click", (e) => {
+    if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
+      dialog.destroy();
+    }
+  });
   const target: HTMLTextAreaElement = dialog.element.querySelector(".b3-dialog__content>div.ft__breakword>textarea");
   const btnsElement = dialog.element.querySelectorAll(".b3-button");
   btnsElement[0].addEventListener("click", () => {
@@ -96,6 +101,11 @@ export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () 
       if (destroyCallback) destroyCallback();
       else if (cancel) cancel(target);
     },
+  });
+  dialog.element.addEventListener("click", (e) => {
+    if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
+      dialog.destroy();
+    }
   });
 
   const target: HTMLElement = dialog.element.querySelector(".b3-dialog__content>div.ft__breakword");
@@ -164,6 +174,11 @@ export const simpleDialog = (args: {
     width: args.width,
     height: args.height,
     destroyCallback: args.callback,
+  });
+  dialog.element.addEventListener("click", (e) => {
+    if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
+      dialog.destroy();
+    }
   });
   dialog.element.querySelector(".dialog-content").appendChild(args.ele);
   return {
