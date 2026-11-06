@@ -131,10 +131,11 @@ export function autoResolveCheckinItem(api: CheckinApiV5 | null): CheckinItemSum
 export function probeCheckinApi(w: unknown): CheckinApiV5 | null {
   const host = w as {
     siyuanCheckin?: CheckinApiV5;
+    LvCheckin?: CheckinApiV5;
     xiaolvCheckin?: CheckinApiV5;
     lvCheckin?: CheckinApiV5;
   } | undefined;
-  const api = host?.siyuanCheckin || host?.xiaolvCheckin || host?.lvCheckin;
+  const api = host?.siyuanCheckin || host?.LvCheckin || host?.xiaolvCheckin || host?.lvCheckin;
   if (!api || api.protocol !== "siyuan-checkin") return null;
   return api;
 }
