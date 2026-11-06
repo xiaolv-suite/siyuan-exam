@@ -178,6 +178,7 @@ export interface LvExamBridgeApi {
   mock: () => void;
   report: () => void;
   extractToQuiz: (options: ExtractToQuizOptions) => Promise<boolean>;
+  quickGenerateQuestion?: (options: any) => Promise<boolean>;
   queryQuestions: (options: QueryQuestionsOptions) => Promise<QueryQuestionsResult>;
   stats: () => unknown;
   statsRead: () => Promise<unknown>;
@@ -236,6 +237,16 @@ export function buildLvExamBridge(host: ExamBridgeHost): LvExamBridgeApi {
         // 忽略异常保证调用安全
       }
       return true;
+    },
+    async quickGenerateQuestion(options: any) {
+      const opts: ExtractToQuizOptions = {
+        text: options?.text || "",
+        sourceBlockId: options?.blockId || options?.sourceBlockId || options?.docId,
+        sourceTitle: options?.title || options?.sourceTitle,
+        type: options?.type || "qa",
+        bankId: options?.bankId,
+      };
+      return this.extractToQuiz(opts);
     },
     async queryQuestions(options: QueryQuestionsOptions) {
       if (typeof host.queryQuestions === "function") {
