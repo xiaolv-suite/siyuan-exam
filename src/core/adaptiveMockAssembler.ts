@@ -683,7 +683,11 @@ export function exportSprintPaperCsv(paper: AdaptiveSprintPaper): string {
 
   const escapeCsv = (val: string | number | undefined | null) => {
     if (val === undefined || val === null) return '""';
-    const s = String(val).replace(/"/g, '""');
+    let s = String(val);
+    if (/^\s*[=@\t]/.test(s) || (/^\s*[+\-]/.test(s) && !/^\s*[+\-]?\d+(\.\d+)?\s*$/.test(s))) {
+      s = `'${s}`;
+    }
+    s = s.replace(/"/g, '""');
     return `"${s}"`;
   };
 
@@ -703,5 +707,5 @@ export function exportSprintPaperCsv(paper: AdaptiveSprintPaper): string {
     rows.push(row.join(","));
   }
 
-  return rows.join("\r\n");
+  return "\uFEFF" + rows.join("\r\n");
 }
