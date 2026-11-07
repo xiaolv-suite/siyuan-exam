@@ -126,7 +126,7 @@ export async function postSessionCheckinSafely(
   if (!checkinItemId || total <= 0) return;
   const { logCheckinEventSafely } = await import("@/libs/ecosystem-bridge-kit");
   const accuracy = Math.round((correct / total) * 100);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKeyOf(Date.now());
   try {
     await logCheckinEventSafely({
       itemId: checkinItemId,
