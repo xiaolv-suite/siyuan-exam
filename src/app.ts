@@ -4089,7 +4089,7 @@ export class ExamApp {
     if (!docId) {
       try {
         const rows = await this.deps.client.sql<{ id: string }>(
-          `SELECT id FROM blocks WHERE box='${targetBank}' AND hpath='/小驴考试/03 备考行动与复盘日志' AND type='d' LIMIT 1`,
+          `SELECT id FROM blocks WHERE box='${targetBank.replace(/'/g, "''")}' AND hpath='/小驴考试/03 备考行动与复盘日志' AND type='d' LIMIT 1`,
         );
         if (Array.isArray(rows) && rows[0]?.id) {
           docId = rows[0].id;
@@ -4104,7 +4104,7 @@ export class ExamApp {
     let taskBlocks: Array<{ id: string; root_id: string; markdown?: string; content?: string; ial?: string; subtype?: string }>;
     try {
       taskBlocks = await this.deps.client.sql(
-        `SELECT id, root_id, markdown, content, ial, subtype FROM blocks WHERE root_id='${docId}' AND ial LIKE '%custom-exam-act-id=%'`,
+        `SELECT id, root_id, markdown, content, ial, subtype FROM blocks WHERE root_id='${docId.replace(/'/g, "''")}' AND ial LIKE '%custom-exam-act-id=%'`,
       );
     } catch {
       return { syncedCount: 0 };
