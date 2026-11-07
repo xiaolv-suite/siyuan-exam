@@ -437,83 +437,83 @@ export class ExamApp {
       this.kernelOnline = false;
       this.probeMessage = "内核不可达：离线降级";
     }
-    try {
-      await this.attempts.load(deviceId);
-    } catch (e) {
-      this.noteStorageReadError("attempts/log", e);
-    }
-    try {
-      await this.loadWrongOverlay();
-    } catch (e) {
-      this.noteStorageReadError("wrongbook/overlays", e);
-    }
-    try {
-      await this.loadWrongReasons();
-    } catch (e) {
-      this.noteStorageReadError(WRONG_REASON_KEY, e);
-    }
-    try {
-      await this.loadWrongReflections();
-    } catch (e) {
-      this.noteStorageReadError("wrongbook/reflections", e);
-    }
-    try {
-      await this.loadDiagnosisDoc();
-    } catch (e) {
-      this.noteStorageReadError("wrongbook/diagnosis", e);
-    }
+    await Promise.allSettled([
+      (async () => {
+        try { await this.attempts.load(deviceId); } catch (e) { this.noteStorageReadError("attempts/log", e); }
+      })(),
+      (async () => {
+        try { await this.loadWrongOverlay(); } catch (e) { this.noteStorageReadError("wrongbook/overlays", e); }
+      })(),
+      (async () => {
+        try { await this.loadWrongReasons(); } catch (e) { this.noteStorageReadError(WRONG_REASON_KEY, e); }
+      })(),
+      (async () => {
+        try { await this.loadWrongReflections(); } catch (e) { this.noteStorageReadError("wrongbook/reflections", e); }
+      })(),
+      (async () => {
+        try { await this.loadDiagnosisDoc(); } catch (e) { this.noteStorageReadError("wrongbook/diagnosis", e); }
+      })(),
+      (async () => {
+        try {
+          const banks = await this.deps.storage.load(BANK_REGISTRY_KEY);
+          if (Array.isArray(banks)) this.banks = banks as BankInfo[];
+        } catch (e) {
+          this.noteStorageReadError(BANK_REGISTRY_KEY, e);
+        }
+      })(),
+      (async () => {
+        try {
+          const parsed = parseRegistry(await this.deps.storage.load(MATERIALS_KEY));
+          this.materialsRegistry = parsed.registry;
+          this.materialsVersionTooNew = parsed.versionTooNew;
+        } catch (e) {
+          this.noteStorageReadError(MATERIALS_KEY, e);
+        }
+      })(),
+      (async () => {
+        try {
+          const parsedNotes = parseNoteStore(await this.deps.storage.load(MATERIAL_NOTES_KEY));
+          this.materialNoteStore = parsedNotes.store;
+        } catch (e) {
+          this.noteStorageReadError(MATERIAL_NOTES_KEY, e);
+        }
+      })(),
+      (async () => {
+        try {
+          const parsedLinks = parseLinkStore(await this.deps.storage.load(MATERIAL_QREFS_KEY));
+          this.materialLinkStore = parsedLinks.store;
+        } catch (e) {
+          this.noteStorageReadError(MATERIAL_QREFS_KEY, e);
+        }
+      })(),
+      (async () => {
+        try {
+          const parsedMis = parseMisdiagnosis(await this.deps.storage.load(MISDIAGNOSIS_KEY));
+          this.misdiagnosisStore = parsedMis.store;
+        } catch (e) {
+          this.noteStorageReadError(MISDIAGNOSIS_KEY, e);
+        }
+      })(),
+      (async () => {
+        try {
+          const parsedSyl = parseSyllabusDoc(await this.deps.storage.load(SYLLABUS_KEY));
+          this.syllabus = parsedSyl.doc;
+          this.syllabusTooNew = parsedSyl.versionTooNew;
+        } catch (e) {
+          this.noteStorageReadError(SYLLABUS_KEY, e);
+        }
+      })(),
+      (async () => {
+        try {
+          const parsedKpRel = parseRelations(await this.deps.storage.load(KP_RELATIONS_KEY));
+          this.kpRelations = parsedKpRel.doc;
+          this.kpRelationsTooNew = parsedKpRel.versionTooNew;
+        } catch (e) {
+          this.noteStorageReadError(KP_RELATIONS_KEY, e);
+        }
+      })(),
+    ]);
     this.invalidate();
-    try {
-      const banks = await this.deps.storage.load(BANK_REGISTRY_KEY);
-      if (Array.isArray(banks)) this.banks = banks as BankInfo[];
-    } catch (e) {
-      this.noteStorageReadError(BANK_REGISTRY_KEY, e);
-    }
-    // 学习资料注册表（120-01）：损坏/过版本时以空表继续（versionTooNew 标记如实显示，不回写覆盖）
-    try {
-      const parsed = parseRegistry(await this.deps.storage.load(MATERIALS_KEY));
-      this.materialsRegistry = parsed.registry;
-      this.materialsVersionTooNew = parsed.versionTooNew;
-    } catch (e) {
-      this.noteStorageReadError(MATERIALS_KEY, e);
-    }
-    // 资料笔记（121-03/122-03）：同口径容错
-    try {
-      const parsedNotes = parseNoteStore(await this.deps.storage.load(MATERIAL_NOTES_KEY));
-      this.materialNoteStore = parsedNotes.store;
-    } catch (e) {
-      this.noteStorageReadError(MATERIAL_NOTES_KEY, e);
-    }
-    // 题目↔资料关联（120-05 lite）
-    try {
-      const parsedLinks = parseLinkStore(await this.deps.storage.load(MATERIAL_QREFS_KEY));
-      this.materialLinkStore = parsedLinks.store;
-    } catch (e) {
-      this.noteStorageReadError(MATERIAL_QREFS_KEY, e);
-    }
-    // AI 错因假设（116-01/U14：与用户复盘分层独立保存）
-    try {
-      const parsedMis = parseMisdiagnosis(await this.deps.storage.load(MISDIAGNOSIS_KEY));
-      this.misdiagnosisStore = parsedMis.store;
-    } catch (e) {
-      this.noteStorageReadError(MISDIAGNOSIS_KEY, e);
-    }
-    // 考纲对照（51-01/03 lite）
-    try {
-      const parsedSyl = parseSyllabusDoc(await this.deps.storage.load(SYLLABUS_KEY));
-      this.syllabus = parsedSyl.doc;
-      this.syllabusTooNew = parsedSyl.versionTooNew;
-    } catch (e) {
-      this.noteStorageReadError(SYLLABUS_KEY, e);
-    }
-    // 考点先修图谱与关系网络（51-04）
-    try {
-      const parsedKpRel = parseRelations(await this.deps.storage.load(KP_RELATIONS_KEY));
-      this.kpRelations = parsedKpRel.doc;
-      this.kpRelationsTooNew = parsedKpRel.versionTooNew;
-    } catch (e) {
-      this.noteStorageReadError(KP_RELATIONS_KEY, e);
-    }
   }
 
   // ---------- 题库 ----------
