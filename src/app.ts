@@ -3106,7 +3106,7 @@ export class ExamApp {
       let docId: string | undefined;
       try {
         const rows = await this.deps.client.sql<{ id: string }>(
-          `SELECT id FROM blocks WHERE box = '${bankId}' AND hpath = '${hpath}' AND type = 'p' LIMIT 1`,
+          `SELECT id FROM blocks WHERE box = '${bankId.replace(/'/g, "''")}' AND hpath = '${hpath}' AND type = 'd' LIMIT 1`,
         );
         docId = rows[0]?.id;
       } catch {
@@ -3160,7 +3160,7 @@ export class ExamApp {
     let docId: string | undefined;
     try {
       const rows = await this.deps.client.sql<{ id: string }>(
-        `SELECT id FROM blocks WHERE box = '${bankId}' AND hpath = '${hpath}' AND type = 'p' LIMIT 1`,
+        `SELECT id FROM blocks WHERE box = '${bankId.replace(/'/g, "''")}' AND hpath = '${hpath}' AND type = 'd' LIMIT 1`,
       );
       docId = rows[0]?.id;
     } catch { /* 查询失败走新建路径 */ }
