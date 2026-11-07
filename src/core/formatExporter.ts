@@ -101,13 +101,13 @@ export function exportQuestionsToAnkiTsv(questions: readonly Question[]): string
     }
 
     // 反面：正确答案 + 解析 + 采分点
-    let back = `<div><b>✔ 正确答案</b>：<span style='color:#2e7d32;font-weight:bold'>${normalizeLatexFormula(q.answer ?? "")}</span></div>`;
+    let back = `<div><b>✔ 正确答案</b>：<span style='color:var(--b3-theme-success, #2e7d32);font-weight:bold'>${normalizeLatexFormula(q.answer ?? "")}</span></div>`;
     if (q.analysis) {
-      back += `<div style='margin-top:6px;color:#555'><b>💡 详解</b>：${normalizeLatexFormula(q.analysis)}</div>`;
+      back += `<div style='margin-top:6px;color:var(--b3-theme-on-surface, #555)'><b>💡 详解</b>：${normalizeLatexFormula(q.analysis)}</div>`;
     }
     if (q.rubric?.criteria?.length) {
       const rubricText = q.rubric.criteria.map((c) => `${c.label}(${Math.round(c.weight * 100)}%)`).join(" · ");
-      back += `<div style='margin-top:4px;color:#0277bd'><b>📋 采分点</b>：${rubricText}</div>`;
+      back += `<div style='margin-top:4px;color:var(--b3-theme-primary, #0284c7)'><b>📋 采分点</b>：${rubricText}</div>`;
     }
 
     // 标签：考点路径转换为 tag
