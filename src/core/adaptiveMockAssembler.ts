@@ -499,6 +499,11 @@ function smoothQuestionsForPacing<T extends { question: Question; tier: SprintQu
         score += 10;
       }
 
+      // 峰终体验加分（Peak-End Pacing）：当剩余最后 2 道题时，若候选为常考巩固题，优先保留作为收尾试题沉淀信心
+      if (pool.length === 2 && candidate.tier === "reinforce_common") {
+        score -= 20;
+      }
+
       if (score > bestScore) {
         bestScore = score;
         bestIdx = i;
