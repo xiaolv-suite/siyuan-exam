@@ -934,6 +934,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     });
 
     dialog.element.classList.add("lv-exam-mobile-dialog");
+    dialog.element.querySelector?.(".b3-dialog")?.classList.add("lv-exam-mobile-dialog");
     const hostEl = dialog.element.querySelector(".lv-exam-mobile-dialog-host");
     if (hostEl) {
       const el = document.createElement("div");

@@ -291,7 +291,9 @@
 
 // ── 移动端全屏宿主 Dialog 样式 (Mobile Spec v1: 100vw/100dvh + safe-area) ──────────
 .lv-exam-mobile-dialog {
-  &.b3-dialog {
+  &,
+  &.b3-dialog,
+  .b3-dialog {
     align-items: flex-start !important;
     padding: 0 !important;
     background: transparent !important;
@@ -345,7 +347,7 @@
 }
 
 /* ══════════ 小驴考试主权弹窗外壳防护 (Sovereign Modal Shell Defense) ══════════ */
-.b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog) {
+.b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);

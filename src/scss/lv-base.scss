@@ -2168,8 +2168,21 @@ input[type="range"] {
 .stack > *, .stack-sm > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
 
 @media (max-width: 680px) {
-  .lv-studio-nav + .lv-row:has(.lv-mobile-back) {
+  .lv-studio-nav + .lv-card {
     display: none !important;
+  }
+
+  .lv-studio-nav ~ .lv-row .lv-mobile-back {
+    display: none !important;
+  }
+
+  .lv-studio-nav + .lv-row:has(.lv-mobile-back):not(:has(.lv-btn--primary)) {
+    display: none !important;
+  }
+
+  .lv-studio-nav ~ .lv-row .lv-input {
+    min-width: 120px !important;
+    max-width: 100% !important;
   }
 
   .lv-studio-nav {
