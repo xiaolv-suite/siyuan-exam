@@ -208,6 +208,7 @@
           win.document.write(html);
           win.document.close();
           win.focus();
+          showMessage("全景学情诊断报告已在新窗口打开 ✓", 3000, "info");
         } else {
           const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
           const url = URL.createObjectURL(blob);
@@ -279,7 +280,7 @@
     let lastOverviewDocId = $state("");
     let lastJournalDocId = $state("");
     let syncReportDocsBusy = $state(false);
-    const openInSiYuan = (rootId: string, blockId?: string) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
+    const openInSiYuan = (rootId: string, blockId?: string, opt?: any) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t, opt);
 
     /** 每日战报写入思源日记（联动小驴复盘预留通道） */
     async function writeDaily() {
@@ -1832,7 +1833,7 @@
             <span class="lv-chip num">{t("action.kind." + a.kind)}</span>
             <span style="flex:1;min-width:140px">{a.detail}</span>
             {#if aq?.blockId}
-              <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => openInSiYuan(aq.rootId || "", aq.blockId)}>
+              <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => openInSiYuan(aq.rootId || "", aq.blockId, { event: e })}>
                 <Icon name="pin" size={12} /> 原题 ↗
               </button>
             {/if}

@@ -38,6 +38,8 @@
     "setting.aiEndpoint.desc": "OpenAI 兼容端点（https://.../v1/chat/completions）。仅在你主动发起 AI 任务时发送该任务说明中列出的内容。",
     "setting.aiKey.title": "AI API Key",
     "setting.aiKey.desc": "仅保存在本地插件数据中，用于 AI 出题与讲解。",
+    "setting.aiCustomHint.title": "自定义出题提示词",
+    "setting.aiCustomHint.desc": "追加到 AI 出题系统提示末尾的自定义要求，如题型偏好、难度侧重与语言风格。",
     "setting.ttsLang.title": "默认朗读语言",
     "setting.ttsLang.desc": "伴学语音、背诵朗读与口语发音的默认语种。",
     "setting.ttsLang.mandarin": "普通话 (zh-CN)",

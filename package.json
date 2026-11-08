@@ -1,6 +1,6 @@
 {
   "name": "siyuan-exam",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "type": "module",
   "description": "小驴考试 (Lv Exam (Beta)) — Local-first question bank & exam prep workspace in SiYuan: import, active-recall practice, wrongbook, mock exam, FSRS flashcards, AI. 思源笔记本地题库与备考工作台",
   "repository": "https://github.com/ai68298100/siyuan-exam",

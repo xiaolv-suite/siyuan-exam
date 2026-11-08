@@ -101,6 +101,9 @@
         <span class="lv-present-idx num">{currentIndex + 1} / {total}</span>
         {#if currentQ.score}<span class="lv-chip sm num">{currentQ.score} 分</span>{/if}
         {#if currentQ.kp}<span class="lv-chip sm">{currentQ.kp}</span>{/if}
+        {#if currentQ.prerequisites && currentQ.prerequisites.length > 0}
+          <span class="lv-chip sm" title="先修依赖考点"><Icon name="compass" size={11} /> 先修: {currentQ.prerequisites.join("、")}</span>
+        {/if}
       </div>
       <div class="lv-present-title" title={title}>
         <Icon name="monitor" size={15} /> {title}
@@ -197,7 +200,11 @@
                   <div class="rubric-header">🎯 采分点标准：</div>
                   <ul>
                     {#each criteria as c, ci (ci)}
-                      <li><b>{c.name || "采分点"}</b>（{c.points ?? 1}分）：{c.desc || ""}</li>
+                      <li>
+                        <b>{c.label || `采分点 ${ci + 1}`}</b>
+                        <span class="num">（权重 {Math.round((c.weight ?? 0) * 100)}%）</span>
+                        {#if c.example}<span>：{c.example}</span>{/if}
+                      </li>
                     {/each}
                   </ul>
                 </div>

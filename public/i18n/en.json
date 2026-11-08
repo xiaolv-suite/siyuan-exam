@@ -38,6 +38,8 @@
     "setting.aiEndpoint.desc": "OpenAI-compatible endpoint (https://.../v1/chat/completions). Content listed in each task notice is sent only when you start that AI task.",
     "setting.aiKey.title": "AI API key",
     "setting.aiKey.desc": "Stored only in local plugin data, used for AI question generation and explanation.",
+    "setting.aiCustomHint.title": "Custom question prompt",
+    "setting.aiCustomHint.desc": "Appended to the AI question-generation system prompt: preferred question types, difficulty focus and wording style.",
     "setting.ttsLang.title": "Default Speech Language",
     "setting.ttsLang.desc": "Default language for reading aloud, recite companion, and speech evaluation.",
     "setting.ttsLang.mandarin": "Mandarin (zh-CN)",
