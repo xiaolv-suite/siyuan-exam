@@ -622,7 +622,8 @@
   }
   /* 原型 .project-switch：当前题库上下文卡 */
   .lv-project {
-    display: block;
+    display: flex;
+    flex-direction: column;
     width: 100%;
     text-align: left;
     padding: 10px 12px;
@@ -642,6 +643,9 @@
     transform: translateY(-1px);
     border-color: var(--lv-accent);
     box-shadow: 0 3px 8px color-mix(in srgb, var(--lv-accent) 18%, transparent);
+  }
+  .lv-project:active {
+    transform: scale(0.98);
   }
   .lv-quick-launcher-wrap {
     position: relative;
