@@ -443,13 +443,14 @@ export function assembleAdaptiveSprintPaper(
 }
 
 /**
- * 认知波浪与防疲劳打散算法：
+ * 认知波浪与防疲劳打散算法（公开核心引擎）：
  * 1. 尝试错开相邻相同根考点（Root KP）以及同一题族（Family Key）
  * 2. 平滑难度：若存在巩固题，优先取 1 道作为开局第一题以建立答题信心
+ * 3. 峰终体验：尾部优先保留巩固题收官，沉淀掌控感
  */
-function smoothQuestionsForPacing<T extends { question: Question; tier: SprintQuestionTier; reason: string }>(
+export function orchestrateCognitivePacingWave<T extends { question: Question; tier: SprintQuestionTier; reason: string }>(
   items: T[],
-  spacing: number,
+  spacing: number = 2,
 ): T[] {
   if (items.length <= 2) return [...items];
 
@@ -480,7 +481,7 @@ function smoothQuestionsForPacing<T extends { question: Question; tier: SprintQu
     // 评分指标：
     // - 根考点重复：惩罚 50 分
     // - 题族重复：惩罚 100 分
-    // - 题型/层级交错加分：与上一题不同 tier + 5 分
+    // - 题型/层级交错加分：与上一题不同 tier + 10 分
     let bestIdx = 0;
     let bestScore = -Infinity;
 
@@ -514,6 +515,44 @@ function smoothQuestionsForPacing<T extends { question: Question; tier: SprintQu
   }
 
   return result;
+}
+
+/** 内部兼容别名 */
+function smoothQuestionsForPacing<T extends { question: Question; tier: SprintQuestionTier; reason: string }>(
+  items: T[],
+  spacing: number,
+): T[] {
+  return orchestrateCognitivePacingWave(items, spacing);
+}
+
+/**
+ * 度量一组试题在考点与题族上的平滑度与相邻冲突指标
+ */
+export function measurePacingRhythm(
+  items: readonly { question: Question; tier?: SprintQuestionTier }[],
+): { clashKps: number; clashFamilies: number; rhythmScore: number } {
+  let clashKps = 0;
+  let clashFamilies = 0;
+
+  for (let i = 0; i < items.length - 1; i++) {
+    const q1 = items[i].question;
+    const q2 = items[i + 1].question;
+
+    const kp1 = extractRootKp(q1.kp);
+    const kp2 = extractRootKp(q2.kp);
+    if (kp1 && kp2 && kp1 === kp2 && kp1 !== "综合与未分类") {
+      clashKps++;
+    }
+
+    const fam1 = getQuestionFamilyKey(q1);
+    const fam2 = getQuestionFamilyKey(q2);
+    if (fam1 && fam2 && fam1 === fam2) {
+      clashFamilies++;
+    }
+  }
+
+  const rhythmScore = Math.max(0, 100 - clashKps * 15 - clashFamilies * 30);
+  return { clashKps, clashFamilies, rhythmScore };
 }
 
 /**

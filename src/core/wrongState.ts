@@ -142,3 +142,147 @@ export function nextStreakCorrect(
   }
   return { streak: prevStreak, eliminated: prevStreak >= threshold, threshold };
 }
+
+export type MistakeUrgencyTier =
+  | "critical_spaced"   // 遗忘临界窗口 (1天 / 3天 / 7天左右，急需巩固)
+  | "persistent_leech"  // 顽疾重难点 (累计做错 >= 3 次)
+  | "recent_wrong"      // 近期新错题 (24小时内)
+  | "normal_backlog";   // 常规积压错题
+
+export interface MistakePriorityScoreResult {
+  score: number;
+  tier: MistakeUrgencyTier;
+  urgencyReason: string;
+  daysSinceLastWrong: number;
+}
+
+export interface MistakePracticeWeights {
+  frequencyWeight?: number; // 默认 1.5
+  spacingWeight?: number;   // 默认 2.0
+  consecutiveDiscount?: number; // 默认 20 (连续对1次轻微降权让路)
+}
+
+export interface SelectedMistakeItem {
+  item: WrongItem;
+  priorityScore: number;
+  tier: MistakeUrgencyTier;
+  urgencyReason: string;
+}
+
+/**
+ * 计算错题攻坚优先级权重（结合艾宾浩斯遗忘临界期与错误频次模型）
+ */
+export function calculateMistakePriorityScore(
+  item: WrongItem,
+  now: number = Date.now(),
+  weights: MistakePracticeWeights = {}
+): MistakePriorityScoreResult {
+  const freqWeight = weights.frequencyWeight ?? 1.5;
+  const spacingWeight = weights.spacingWeight ?? 2.0;
+  const consecutiveDiscount = weights.consecutiveDiscount ?? 20;
+
+  const msDiff = Math.max(0, now - (item.lastWrongAt || now));
+  const days = msDiff / 86400000;
+
+  const baseScore = 50;
+  let tier: MistakeUrgencyTier = "normal_backlog";
+  let reason = "常规在册错题";
+
+  // 1. 遗忘临界窗口判定（Ebbinghaus Spaced Intervals: 1天 / 3天 / 7天）
+  let spacingScore = 0;
+  if (days >= 0.8 && days <= 1.6) {
+    spacingScore = 40 * spacingWeight;
+    tier = "critical_spaced";
+    reason = "遗忘第1临界期 (做错约1天，急需打铁巩固)";
+  } else if (days >= 2.5 && days <= 4.0) {
+    spacingScore = 30 * spacingWeight;
+    tier = "critical_spaced";
+    reason = "遗忘第2临界期 (做错约3天，需及时抗遗忘)";
+  } else if (days >= 6.0 && days <= 8.5) {
+    spacingScore = 25 * spacingWeight;
+    tier = "critical_spaced";
+    reason = "遗忘第3临界期 (做错约1周，需周期强化)";
+  } else if (days < 0.8) {
+    tier = "recent_wrong";
+    reason = "今日/近期新错题";
+  }
+
+  // 2. 顽疾重难点加权 (错次 >= 3)
+  const wrongCount = Math.max(1, item.wrongCount || 1);
+  const freqScore = Math.min(60, (wrongCount - 1) * 15) * freqWeight;
+  if (wrongCount >= 3) {
+    tier = "persistent_leech";
+    reason = `顽疾重难点 (累计做错 ${wrongCount} 次)`;
+  }
+
+  // 3. 连续答对降权保护（如果上次练习已答对1次，稍许降权给其他更急迫的题目让路）
+  const streak = item.streakCorrect || 0;
+  const discount = streak * consecutiveDiscount;
+
+  const totalScore = Math.max(1, Math.round(baseScore + spacingScore + freqScore - discount));
+
+  return {
+    score: totalScore,
+    tier,
+    urgencyReason: reason,
+    daysSinceLastWrong: Math.round(days * 10) / 10,
+  };
+}
+
+/**
+ * 筛选并排序错题攻坚复练批次（支持按考点隔离打散与题量预算截取）
+ */
+export function selectWeightedMistakesForPractice(
+  activeWrongs: readonly WrongItem[],
+  batchLimit: number = 15,
+  options: {
+    now?: number;
+    weights?: MistakePracticeWeights;
+    targetKps?: readonly string[];
+  } = {}
+): SelectedMistakeItem[] {
+  if (!activeWrongs || activeWrongs.length === 0) return [];
+  const now = options.now ?? Date.now();
+
+  // 过滤考点（若指定了 targetKps）
+  let candidates = [...activeWrongs];
+  if (options.targetKps && options.targetKps.length > 0) {
+    const kpSet = new Set(options.targetKps);
+    candidates = candidates.filter((item) => !item.kp || kpSet.has(item.kp));
+  }
+
+  // 计算每道错题的优先级
+  const scoredList = candidates.map((item) => {
+    const res = calculateMistakePriorityScore(item, now, options.weights);
+    return {
+      item,
+      priorityScore: res.score,
+      tier: res.tier,
+      urgencyReason: res.urgencyReason,
+    };
+  });
+
+  // 按得分降序排列
+  scoredList.sort((a, b) => b.priorityScore - a.priorityScore || a.item.qid.localeCompare(b.item.qid));
+
+  // 考点离散化打散（同一个细分考点尽量不连续紧挨）
+  const result: SelectedMistakeItem[] = [];
+  const pool = [...scoredList];
+
+  while (pool.length > 0 && result.length < batchLimit) {
+    const lastKp = result[result.length - 1]?.item.kp;
+    let pickedIdx = 0;
+
+    if (lastKp) {
+      // 优先找不同考点的最高分题
+      const diffKpIdx = pool.findIndex((it) => it.item.kp && it.item.kp !== lastKp);
+      if (diffKpIdx >= 0) {
+        pickedIdx = diffKpIdx;
+      }
+    }
+
+    result.push(pool.splice(pickedIdx, 1)[0]);
+  }
+
+  return result;
+}
