@@ -30,7 +30,7 @@
     onexit: () => void;
     oncycleStudyFontSize: () => void;
     onstartSpeech?: (target: string, lang: string) => void;
-    onjumpSource: () => void;
+    onjumpSource: (e?: MouseEvent | KeyboardEvent) => void;
     onttsSpeak: (text: string, opt?: any) => void;
     onretryForgot: () => void;
     onforgotToCard: () => void;
@@ -109,11 +109,14 @@
           <Icon name="mic" size={12} /> {speechRecording ? "跟读中…" : "跟读"}
         </button>
       {/if}
+      {#if reciteQueue[reciteCursor]?.prerequisites && reciteQueue[reciteCursor].prerequisites!.length > 0}
+        <span class="lv-chip sm" title="先修依赖考点"><Icon name="compass" size={11} /> 先修: {reciteQueue[reciteCursor].prerequisites!.join("、")}</span>
+      {/if}
       {#if reciteQueue[reciteCursor]?.group}
         <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
       {/if}
       {#if reciteQueue[reciteCursor]?.blockId && reciteQueue[reciteCursor]?.rootId}
-        <button class="lv-chip" title={t("recite.jumpSource")} onclick={onjumpSource}><Icon name="pin" size={12} /> {t("recite.jumpSource")}</button>
+        <button class="lv-chip" title="在思源笔记中定位并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onjumpSource(e)}><Icon name="pin" size={12} /> {t("recite.jumpSource")}</button>
       {/if}
       {#if reciteQueue[reciteCursor]}
         <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => onttsSpeak(reciteQueue[reciteCursor].stem, reciteQueue[reciteCursor].studyMeta?.lang ? { lang: reciteQueue[reciteCursor].studyMeta.lang } : 1)}><Icon name="volume" size={13} /></button>
@@ -199,6 +202,12 @@
             <div class="lv-analysis"><b>{t("recite.answer")}:</b> {formatDisplayAnswer(q.answer)}</div>
           {/if}
           {#if q.analysis}<div class="lv-analysis">{q.analysis}</div>{/if}
+          {#if q.expansion}
+            <div class="lv-analysis" style="margin-top:8px;padding:8px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);border-radius:4px">
+              <b style="color:var(--lv-accent)">💡 思路拓展与秒杀技巧：</b>
+              <div style="margin-top:2px">{q.expansion}</div>
+            </div>
+          {/if}
           <div class="lv-rate" role="group" aria-label="自评掌握程度">
             <button class="lv-btn r1" disabled={reciteSaving} onclick={() => onrateSelf(1)}><span class="lv-rate-key">1</span> {reciteSaving ? "…" : t("rate.1")}</button>
             <button class="lv-btn r2" disabled={reciteSaving} onclick={() => onrateSelf(2)}><span class="lv-rate-key">2</span> {reciteSaving ? "…" : t("rate.2")}</button>

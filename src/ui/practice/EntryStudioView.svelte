@@ -82,7 +82,7 @@
       wrongbookDocId?: string;
       actionJournalDocId?: string;
     } | null;
-    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
+    onopenInSiYuan?: (rootId: string, blockId?: string, opt?: any) => void;
   }
 
   let {

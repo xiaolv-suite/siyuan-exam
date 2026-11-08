@@ -17,6 +17,7 @@
     mExpansion?: string;
     mKp: string;
     mSecondaryKps?: string;
+    mPrerequisites?: string;
     mSource: string;
     mGroup: string;
     mSpecOpen: boolean;
@@ -60,7 +61,7 @@
     onblankManualDraft: () => void;
     onshowChartMessage: () => void;
     mSourceBlockId?: string;
-    onopenInSiYuan?: (rootId?: string, blockId?: string) => void;
+    onopenInSiYuan?: (rootId?: string, blockId?: string, opt?: any) => void;
     onsearchSiyuanDocs?: (query: string) => Promise<Array<{ id: string; title: string; hpath: string }>>;
   }
 
@@ -75,6 +76,7 @@
     mExpansion = $bindable(""),
     mKp = $bindable(),
     mSecondaryKps = $bindable(""),
+    mPrerequisites = $bindable(""),
     mSource = $bindable(),
     mGroup = $bindable(),
     mSpecOpen = $bindable(),
@@ -651,6 +653,7 @@
       <div class="lv-row" style="flex-wrap:wrap">
         <label class="lv-chip" for="lv-manual-kp">{t("manual.kp")}</label><input id="lv-manual-kp" class="lv-input" style="max-width:180px" bind:value={mKp} placeholder={t("manual.kpHint")} />
         <label class="lv-chip" for="lv-manual-sec-kp">辅助考点</label><input id="lv-manual-sec-kp" class="lv-input" style="max-width:180px" bind:value={mSecondaryKps} placeholder="考点1, 考点2 (逗号分隔)" />
+        <label class="lv-chip lv-chip--acc" for="lv-manual-prereqs" title="先修前置概念，用于自适应错题根因溯源诊断"><Icon name="compass" size={11} /> 先修依赖</label><input id="lv-manual-prereqs" class="lv-input" style="max-width:180px" bind:value={mPrerequisites} placeholder="前置概念1, 前置概念2" />
         <label class="lv-chip" for="lv-manual-source">{t("manual.source")}</label><input id="lv-manual-source" class="lv-input" style="max-width:160px" bind:value={mSource} placeholder={t("manual.sourceHint")} />
         <label class="lv-chip" for="lv-manual-group">{t("manual.group")}</label><input id="lv-manual-group" class="lv-input num" style="max-width:200px" bind:value={mGroup} placeholder="grp-…" />
       </div>
@@ -768,6 +771,7 @@
           if (!pinAttributes) {
             mKp = "";
             mSecondaryKps = "";
+            mPrerequisites = "";
             mSource = "";
             mGroup = "";
           }
@@ -851,6 +855,11 @@
           {#if mExpansion.trim()}
             <div style="margin-top:6px;padding:4px 8px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);border-radius:2px;font-size:12px;color:var(--lv-text)">
               <strong>💡 思路拓展：</strong> {mExpansion}
+            </div>
+          {/if}
+          {#if mPrerequisites.trim()}
+            <div style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--lv-brand)">
+              <Icon name="compass" size={11} /> <span>先修依赖：{mPrerequisites.trim()}</span>
             </div>
           {/if}
         </div>

@@ -208,6 +208,12 @@
   margin-bottom: 12px;
   max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 .lv-studio-tab {
   display: inline-flex;
@@ -285,6 +291,14 @@ button.lv-chip {
     opacity: 0.62;
     cursor: not-allowed;
   }
+}
+
+/* —— 选项卡片基线：防移动端长按选词呼出系统菜单，保障 CBM 600ms 确定度手势纯净 —— */
+.lv-opt,
+.lv-opt * {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* —— 按钮外观基线（对齐原型 .btn/.primary/.quiet；

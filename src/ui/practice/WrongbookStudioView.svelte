@@ -69,8 +69,9 @@
     onchangeWbSortMode: (val: string) => void;
     onstartCbmDrill?: (kind: "highrisk" | "fragile") => void;
     onstartCustomDrill?: (qids: string[]) => void;
-    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
+    onopenInSiYuan?: (rootId: string, blockId?: string, opt?: any) => void;
     ontracebackBlock?: (blockId: string, rootId?: string) => void;
+    ondiagnosePrereqs?: (q: Question) => void;
     oneditReflection?: (qid: string) => void;
     reflections?: Record<string, { text: string; at: number }>;
     lastSavedWrongbookDoc?: { docId: string; title: string } | null;
@@ -139,6 +140,7 @@
     onstartCustomDrill,
     onopenInSiYuan,
     ontracebackBlock,
+    ondiagnosePrereqs,
     oneditReflection,
     reflections = {},
     lastSavedWrongbookDoc = null,
@@ -484,7 +486,7 @@
                       <Icon name="play" size={13} /> {t("wrongbook.retry")}
                     </button>
                     {#if q?.blockId && onopenInSiYuan}
-                      <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}>
+                      <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}>
                         <Icon name="pin" size={12} /> 原题 ↗
                       </button>
                     {/if}
@@ -506,6 +508,11 @@
                     <button class="lv-btn sm lv-btn--ghost" title={t("session.drillVariantTip")} onclick={() => { const q = qOf(w.qid); if (q) ondrillVariantFor(q); }}>
                       <Icon name="layers" size={12} /> 变式
                     </button>
+                    {#if ondiagnosePrereqs}
+                      <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(w.qid); if (q) ondiagnosePrereqs(q); }}>
+                        <Icon name="compass" size={12} /> 根因
+                      </button>
+                    {/if}
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.snooze7")} onclick={() => onsnoozeWrong(w.qid, 7)}>
                       <Icon name="clock" size={12} /> 暂缓7天
                     </button>
@@ -571,9 +578,14 @@
                   </div>
                   <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
                   {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
                   {/if}
                   <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
+                  {#if ondiagnosePrereqs}
+                    <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(s.qid); if (q) ondiagnosePrereqs(q); }}>
+                      <Icon name="compass" size={12} /> 根因
+                    </button>
+                  {/if}
                 </div>
               {:else}
                 <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.highrisk.empty", "暂无高危盲区——作答时按 1/2/3 自评确定度即可积累 CBM 信号")}</div>
@@ -618,9 +630,14 @@
                   </div>
                   <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
                   {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
                   {/if}
                   <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
+                  {#if ondiagnosePrereqs}
+                    <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(s.qid); if (q) ondiagnosePrereqs(q); }}>
+                      <Icon name="compass" size={12} /> 根因
+                    </button>
+                  {/if}
                 </div>
               {:else}
                 <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.fragile.empty", "暂无脆弱伪掌握——没有蒙对题，掌握很扎实")}</div>
@@ -653,7 +670,7 @@
                     </div>
                   </div>
                   {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
                   {/if}
                   <button class="lv-btn sm lv-btn--ghost" onclick={() => onstartWrongFor(w.qid)}>
                     <Icon name="play" size={13} /> {t("wrongbook.retry")}
@@ -731,7 +748,7 @@
                     </div>
                   </div>
                   {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> 原题 ↗</button>
+                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
                   {/if}
                   <button class="lv-btn sm lv-btn--primary" onclick={() => onunarchiveWrong(w.qid)}>
                     <Icon name="rotate" size={12} /> {t("wrongbook.unarchive")}

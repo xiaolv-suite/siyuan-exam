@@ -588,6 +588,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       reciteSessionId = `s-recite-rescue-${Date.now().toString(36)}`;
       reciteCardStart = Date.now();
       persistReciteSnapshot();
+      if (view !== "session" && view !== "recite") sessionSourceView = view;
       view = "recite";
       armPracticeExamHistory();
       if (reciteAutoTts && reciteQueue[0]) {
@@ -901,7 +902,12 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     });
 
+    let sessionSourceView = $state<View>("entry");
+
     function enterSessionView() {
+      if (view !== "session" && view !== "recite") {
+        sessionSourceView = view;
+      }
       resetSessionViewState();
       view = "session";
       armPracticeExamHistory();
@@ -1530,7 +1536,7 @@ import { confirmDialogSync } from "@/libs/dialog";
               mType = (d.type as typeof mType) ?? "single";
               mStem = d.stem; mOptions = d.options?.length ? d.options : ["", ""];
               mAnswer = d.answer ?? ""; mAnalysis = d.analysis ?? "";
-              mKp = d.kp ?? ""; mSecondaryKps = d.secondaryKps ?? ""; mSource = d.source ?? ""; mGroup = d.group ?? "";
+              mKp = d.kp ?? ""; mSecondaryKps = d.secondaryKps ?? ""; mPrerequisites = d.prerequisites ?? ""; mSource = d.source ?? ""; mGroup = d.group ?? "";
               mSpecOpen = d.specOpen ?? false; mSpecUnit = d.specUnit ?? ""; mSpecAbsTol = d.specAbsTol ?? ""; mSpecRelPct = d.specRelPct ?? ""; mSpecAltUnits = d.specAltUnits ?? "";
               mSpecOrderIndependent = d.orderIndependent ?? false;
               mRubricOpen = d.rubricOpen ?? false; mRubricText = d.rubricText ?? "";
@@ -2716,10 +2722,10 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     // ---------- 背诵（S4 lite） ----------
-    /** 跳回源笔记精确位置（iDoRecall 范式 lite：doc zoomIn 到题目块） */
-    function jumpToSource() {
+    /** 跳回源笔记精确位置（iDoRecall 范式 lite：doc zoomIn 到题目块，支持分屏） */
+    function jumpToSource(e?: MouseEvent | KeyboardEvent) {
       const q = reciteQueue[reciteCursor] as Question & { blockId?: string; rootId?: string };
-      if (q?.rootId) openSiYuanTarget(plugin, q.rootId, q.blockId, showMessage, t);
+      if (q?.rootId) openSiYuanTarget(plugin, q.rootId, q.blockId, showMessage, t, { event: e });
     }
     function persistReciteSnapshot(): Promise<void> {
       return saveReciteSnapshot(app, activeBankId, {
@@ -2747,6 +2753,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       reciteDone = s.done; reciteHint = s.hint; reciteRatings = s.ratings; reciteSessionId = s.sessionId;
       reciteCardStart = Date.now();
       await persistReciteSnapshot();
+      if (view !== "session" && view !== "recite") sessionSourceView = view;
       view = "recite";
       armPracticeExamHistory();
       if (reciteAutoTts) {
@@ -2832,7 +2839,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       disarmExamHistory();
       await clearReciteSnapshot(app).catch(() => undefined);
       await app?.flush().catch(() => undefined);
-      view = "entry"; reciteQueue = []; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
+      const fallbackTarget = sessionSourceView && sessionSourceView !== "session" && sessionSourceView !== "recite" ? sessionSourceView : "entry";
+      view = fallbackTarget;
+      sessionSourceView = "entry";
+      reciteQueue = []; reciteRevealed = false; reciteDone = false; reciteHint = 0; reciteRatings = [];
       reciteCardStart = 0;
       reciteGuard.clear(); reciteOutcome = null;
     }
@@ -3509,6 +3519,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       rubricSaved = false;
       rubricEvalResult = null;
     }
+    let lastSubmitAt = 0;
+    let lastNextAt = 0;
     function submitAnswer() {
       clearReciteSubmitTimer();
       clearAutoNext();
@@ -3519,6 +3531,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       // 📖 考前背题速记模式 (FLOW-02)：直接揭示参考答案与解析，不判错、不污染统计与错题本
       if (reciteToggle && !selected && !session.getDraft(q.id)) {
         feedback = { verdict: "recite", myAnswer: q.answer };
+        lastSubmitAt = Date.now();
         if (q.analysis) addExposure(q.id, "analysis", false);
         sessionRev++;
         return;
@@ -3570,6 +3583,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
       feedback = { verdict: g.verdict, myAnswer: g.myAnswer };
+      lastSubmitAt = Date.now();
       if (g.verdict === "correct") {
         if (soundEnabled) playSuccessChime();
         // ⚡ 答对自动翻题：给出倒计时供考生扫读考点与核心解析，期间可立即翻题或停留看解析
@@ -3596,6 +3610,9 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     function nextQuestion() {
+      const now = Date.now();
+      if (now - lastNextAt < 80) return;
+      lastNextAt = now;
       clearReciteSubmitTimer();
       clearAutoNext();
       feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
@@ -3719,7 +3736,12 @@ import { confirmDialogSync } from "@/libs/dialog";
         resetSessionViewState();
         groupBatchModal = null; groupBatchStart = 1;
         scratchpadOpen = false; scratchpadStore = {}; scratchpadShared = "";
-        view = "entry";
+        const fallbackTarget = sessionSourceView && sessionSourceView !== "session" && sessionSourceView !== "recite" ? sessionSourceView : "entry";
+        view = fallbackTarget;
+        sessionSourceView = "entry";
+        if (fallbackTarget === "wrongbook") {
+          void loadQuestions();
+        }
       } catch (e) {
         showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4200, "error");
       } finally {
@@ -3736,6 +3758,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let mExpansion = $state("");
     let mKp = $state("");
     let mSecondaryKps = $state("");
+    let mPrerequisites = $state("");
     let mSource = $state("");
     let mSourceBlockId = $state("");
     let mGroup = $state("");
@@ -3948,7 +3971,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       // 读取全部草稿字段建立依赖；防抖 800ms 落盘（切视图/崩溃后可恢复）
       const snap = createManualDraftSnapshot({
         type: mType, stem: mStem, options: mOptions, answer: mAnswer,
-        analysis: mAnalysis, kp: mKp, secondaryKps: mSecondaryKps, source: mSource, group: mGroup,
+        analysis: mAnalysis, kp: mKp, secondaryKps: mSecondaryKps, prerequisites: mPrerequisites, source: mSource, group: mGroup,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
         orderIndependent: mSpecOrderIndependent,
         rubricOpen: mRubricOpen, rubricText: mRubricText,
@@ -3970,7 +3993,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     function currentManualFormData(statusToSave?: QuestionLifecycleStatus) {
       const form = assembleManualFormData({
         type: mType, stem: mStem, options: mOptions, answer: mAnswer,
-        analysis: mAnalysis, expansion: mExpansion, kp: mKp, secondaryKps: mSecondaryKps, source: mSource, group: mGroup, status: mStatus,
+        analysis: mAnalysis, expansion: mExpansion, kp: mKp, secondaryKps: mSecondaryKps, prerequisites: mPrerequisites, source: mSource, group: mGroup, status: mStatus,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
         orderIndependent: mSpecOrderIndependent,
         rubricOpen: mRubricOpen, rubricText: mRubricText, studyLang: mStudyLang, studyPhonetic: mStudyPhonetic,
@@ -4030,6 +4053,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       mStem = b.stem; mOptions = b.options; mAnswer = b.answer; mAnalysis = b.analysis;
       mExpansion = "";
       mSecondaryKps = "";
+      mPrerequisites = "";
       mSpecOpen = b.specOpen; mSpecUnit = b.specUnit; mSpecAbsTol = b.specAbsTol; mSpecRelPct = b.specRelPct; mSpecAltUnits = b.specAltUnits;
       mSpecOrderIndependent = false;
       mRubricOpen = b.rubricOpen; mRubricText = b.rubricText; mRubricRevision = b.rubricRevision;
@@ -5200,7 +5224,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     function cloneToManualStudio(q: Question) {
       const d = cloneQuestionToManualDraft(q);
       mType = d.type; mStem = d.stem; mOptions = d.options; mAnswer = d.answer;
-      mAnalysis = d.analysis; mKp = d.kp; mSecondaryKps = d.secondaryKps; mSource = d.source; mStatus = d.status;
+      mAnalysis = d.analysis; mKp = d.kp; mSecondaryKps = d.secondaryKps; mPrerequisites = (q.prerequisites || []).join(", "); mSource = d.source; mStatus = d.status;
       mSpecOpen = d.specOpen; mSpecUnit = d.specUnit; mSpecAbsTol = d.specAbsTol; mSpecRelPct = d.specRelPct; mSpecAltUnits = d.specAltUnits;
       mSpecOrderIndependent = d.orderIndependent;
       mRubricOpen = d.rubricOpen; mRubricText = d.rubricText;
@@ -5282,7 +5306,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       } finally { backlinkBusyFor = ""; }
     }
 
-    const openInSiYuan = (rootId: string, blockId?: string) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
+    const openInSiYuan = (rootId: string, blockId?: string, opt?: any) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t, opt);
 
     // ---------- 题面富文本（md2html；离线回退纯文本） ----------
     let stemHtml = $state("");
@@ -5359,6 +5383,8 @@ import { confirmDialogSync } from "@/libs/dialog";
           void undoRecentSubmit();
           break;
         case "next_question":
+          // 防抖冷却：提交答案后的 220ms 内忽略按键直接跳题，避免双击/连击 Enter 意外穿透
+          if (Date.now() - lastSubmitAt < 220) break;
           nextQuestion();
           break;
         case "prev_question":
@@ -6044,7 +6070,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onexportWrong={exportWrong}
       onloadMaterials={() => void loadMaterials()}
       {lastSyncedDocs}
-      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+      onopenInSiYuan={(rid, bid, opt) => openInSiYuan(rid, bid, opt)}
     />
   {:else if view === "session" && session}
     <PracticeSessionView
@@ -6241,7 +6267,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onexit={exitRecite}
       oncycleStudyFontSize={cycleStudyFontSize}
       onstartSpeech={(target, lang) => startSpeechRecognition(target, lang)}
-      onjumpSource={jumpToSource}
+      onjumpSource={(e) => jumpToSource(e)}
       onttsSpeak={handleTtsSpeak}
       onretryForgot={retryForgotRecite}
       onforgotToCard={reciteForgotToCard}
@@ -6318,7 +6344,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       onchangeWbSortMode={(val) => writeLocal("lv-exam/wrong-sort", val)}
       onstartCbmDrill={(k) => void startCbmDrill(k)}
       onstartCustomDrill={(qids) => void startCustomDrill(qids)}
-      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+      onopenInSiYuan={(rid, bid, opt) => openInSiYuan(rid, bid, opt)}
+      ondiagnosePrereqs={(q) => handleDiagnosePrereqs(q)}
       oneditReflection={(qid) => void editReflection(qid)}
       {reflections}
       {lastSavedWrongbookDoc}
@@ -6335,6 +6362,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:mExpansion
       bind:mKp
       bind:mSecondaryKps
+      bind:mPrerequisites
       bind:mSource
       bind:mGroup
       bind:mSpecOpen
@@ -6378,7 +6406,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onblankManualDraft={blankManualDraft}
       onshowChartMessage={() => showMessage("已在题干插入图表模板", 2500, "info")}
       bind:mSourceBlockId
-      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+      onopenInSiYuan={(rid, bid, opt) => openInSiYuan(rid, bid, opt)}
       onsearchSiyuanDocs={async (q) => app ? (q.trim() ? await searchSiyuanDocCandidates(app, q.trim()) : await app.searchSiyuanDocs("")) : []}
     />
     <!-- 图片遮挡填图可视化编辑器：拖拽框选 → 填答案 → 裂变同族题（遮挡题唯一创作入口） -->
@@ -6729,7 +6757,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onprevPeek={prevPeekQuestion}
       onnextPeek={nextPeekQuestion}
       ontoggleFavQuestion={(q) => void toggleFavQuestion(q)}
-      onopenInSiYuan={(rid, bid) => openInSiYuan(rid, bid)}
+      onopenInSiYuan={(rid, bid, opt) => openInSiYuan(rid, bid, opt)}
       onttsSpeak={handleTtsSpeak}
       onsaveEdit={(q) => void saveEdit(q)}
       oncloseEditForm={closeEditForm}
@@ -7067,8 +7095,22 @@ import { confirmDialogSync } from "@/libs/dialog";
                   <span class="lv-chip sm">{stage.status === 'root_cause' ? '薄弱根因' : (stage.status === 'shaky' ? '掌握不稳' : '冲刺目标')}</span>
                 </div>
                 {#if stage.recommendedQuestions.length > 0}
-                  <div style="font-size:12px;color:var(--lv-text-3);margin-top:6px">
-                    推荐强化题量：共 {stage.recommendedQuestions.length} 题
+                  <div class="lv-row" style="margin:6px 0 0;justify-content:space-between;align-items:center">
+                    <span style="font-size:12px;color:var(--lv-text-3)">
+                      推荐强化题量：共 {stage.recommendedQuestions.length} 题
+                    </span>
+                    <button
+                      type="button"
+                      class="lv-btn sm lv-btn--primary"
+                      style="font-size:11px;padding:2px 8px;display:inline-flex;align-items:center;gap:3px"
+                      onclick={() => {
+                        const qs = stage.recommendedQuestions;
+                        diagnosisModal = null;
+                        void startQuickPractice(qs, `已开启阶段【${stage.title}】针对性攻坚特训（共 ${qs.length} 题）`);
+                      }}
+                    >
+                      <Icon name="play" size={11} /> 攻坚此阶段
+                    </button>
                   </div>
                 {/if}
               </div>

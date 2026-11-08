@@ -177,6 +177,7 @@ export interface AttemptEvent {
 /** 错题派生条目（可随时从流水重建的物化视图） */
 export interface WrongItem {
   qid: string;
+  kp?: string;
   firstWrongAt: number;
   lastWrongAt: number; // 最近一次答错时间（手动覆盖层时效判断依据）
   wrongCount: number;

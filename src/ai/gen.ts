@@ -110,7 +110,7 @@ export function buildPrompt(chunk: string, opt: GenOptions): AiMessage[] {
       presetHint ? `命题风格：${presetHint}` : "",
       "硬性规则：",
       "1) 只输出一个 JSON 数组，不要任何解释文字或代码围栏；",
-      '2) 每题字段：type(stem 的题型：single/multiple/judge/fill/short)、stem(题干，禁止"以下说法正确的是"式空泛句)、options(字符串数组，judge/fill/short 为空数组)、answer(单选=字母；多选=字母连写如 ABD；判断=对/错；填空/简答=文本)、analysis(解析 ≥30 字，必须含因果解释)、kp(知识点标签，可为空)；',
+      '2) 每题字段：type(stem 的题型：single/multiple/judge/fill/short)、stem(题干，禁止"以下说法正确的是"式空泛句)、options(字符串数组，judge/fill/short 为空数组)、answer(单选=字母；多选=字母连写如 ABD；判断=对/错；填空/简答=文本)、analysis(解析 ≥30 字，必须含因果解释)、kp(知识点标签，可为空)、expansion(思路拓展与秒杀技巧，选填)、prerequisites(先修依赖前置概念，字符串数组，选填，供自适应错题溯源)；',
       '3) 干扰项应为常见误解；禁止"以上都对/都不是"类选项；',
       "4) 难度目标：" +
         (opt.difficulty === "mixed"
@@ -186,6 +186,13 @@ function toQuestion(o: Record<string, unknown>, opt: GenOptions, batch: string):
   const analysis = String(o.analysis ?? "").trim();
   if (foldText(analysis).length < MIN_ANALYSIS) return { reason: "解析过短（缺少因果解释）" };
   if (/以上都[是对]|以上选项都/.test(stem + options.join(""))) return { reason: '含"以上都对"类禁用选项' };
+  const expansion = typeof o.expansion === "string" && o.expansion.trim() ? o.expansion.trim() : undefined;
+  const prerequisites = Array.isArray(o.prerequisites)
+    ? (o.prerequisites as unknown[]).map((p) => String(p).trim()).filter(Boolean)
+    : typeof o.prerequisites === "string" && o.prerequisites.trim()
+      ? o.prerequisites.split(/[,，、;；]/).map((p) => p.trim()).filter(Boolean)
+      : undefined;
+
   const q: Question = {
     id: newQuestionId(),
     type,
@@ -193,6 +200,8 @@ function toQuestion(o: Record<string, unknown>, opt: GenOptions, batch: string):
     options,
     answer,
     analysis,
+    expansion,
+    prerequisites: prerequisites && prerequisites.length > 0 ? prerequisites : undefined,
     difficulty: opt.difficulty === "mixed" ? undefined : { easy: 2, medium: 3, hard: 4 }[opt.difficulty],
     score: 1,
     source: opt.sourceTitle
@@ -219,6 +228,8 @@ function rawOf(q: Question): string {
     answer: q.answer,
     analysis: q.analysis,
     kp: q.kp,
+    expansion: q.expansion,
+    prerequisites: q.prerequisites,
   });
 }
 

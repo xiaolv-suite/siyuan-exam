@@ -36,13 +36,21 @@ export async function fetchBlockBacklinks(
   }
 }
 
-/** 在思源中受控打开块或文档（优先使用思源原生 openTab 在工作区内打开，无宿主 app 时回退 siyuan:// 深链） */
+export interface OpenTargetOptions {
+  position?: "right" | "bottom";
+  openNewTab?: boolean;
+  keepCursor?: boolean;
+  event?: MouseEvent | KeyboardEvent;
+}
+
+/** 在思源中受控打开块或文档（优先使用思源原生 openTab 在工作区内打开，支持右侧分屏对照；无宿主 app 时回退 siyuan:// 深链） */
 export function openSiYuanTarget(
   plugin: any,
   rootId: string,
   blockId?: string,
   showMessage?: (msg: string, time?: number, type?: string) => void,
   t?: (k: string) => string,
+  options?: OpenTargetOptions,
 ): void {
   const targetId = blockId || rootId;
   if (!targetId) {
@@ -52,8 +60,13 @@ export function openSiYuanTarget(
     return;
   }
 
+  const isSplitModifier = options?.event
+    ? options.event.ctrlKey || options.event.metaKey || options.event.altKey
+    : false;
+  const splitPosition = options?.position ?? (isSplitModifier ? "right" : undefined);
+
   const hostApp = plugin?.app;
-  if (!hostApp && blockId && typeof window !== "undefined") {
+  if (!hostApp && blockId && typeof window !== "undefined" && !splitPosition) {
     try {
       window.open(`siyuan://blocks/${blockId}`);
       return;
@@ -70,6 +83,7 @@ export function openSiYuanTarget(
           id: targetId,
           ...(blockId ? { action: ["cb-get-hl", "cb-get-focus", "cb-get-all"] } : {}),
         },
+        ...(splitPosition ? { position: splitPosition, openNewTab: true } : {}),
       });
     })
     .catch((e) => {

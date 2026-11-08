@@ -94,6 +94,7 @@ export interface ManualQuestionFormData {
   expansion?: string;
   kp: string;
   secondaryKps?: string[];
+  prerequisites?: string[];
   source: string;
   sourceBlockId?: string;
   group?: string;
@@ -160,6 +161,9 @@ export async function saveManualQuestion(
   if (data.secondaryKps && data.secondaryKps.length > 0) {
     q.secondaryKps = data.secondaryKps;
   }
+  if (data.prerequisites && data.prerequisites.length > 0) {
+    q.prerequisites = data.prerequisites;
+  }
   if (data.family) {
     q.family = data.family;
   }
@@ -223,6 +227,9 @@ export async function processAndSaveManualQuestion(
 
   if (data.secondaryKps && data.secondaryKps.length > 0) {
     q.secondaryKps = data.secondaryKps;
+  }
+  if (data.prerequisites && data.prerequisites.length > 0) {
+    q.prerequisites = data.prerequisites;
   }
   if (data.family) {
     q.family = data.family;
@@ -360,6 +367,7 @@ export interface BlankManualFormState {
   expansion?: string;
   kp: string;
   secondaryKps?: string;
+  prerequisites?: string;
   source: string;
   group: string;
   specOpen: boolean;
@@ -390,6 +398,7 @@ export function createBlankManualFormState(): BlankManualFormState {
     expansion: "",
     kp: "",
     secondaryKps: "",
+    prerequisites: "",
     source: "",
     group: "",
     specOpen: false,
@@ -420,6 +429,7 @@ export function createManualDraftSnapshot(state: Partial<BlankManualFormState>):
     analysis: state.analysis ?? "",
     kp: state.kp ?? "",
     secondaryKps: state.secondaryKps ?? "",
+    prerequisites: state.prerequisites ?? "",
     source: state.source ?? "",
     group: state.group ?? "",
     savedAt: Date.now(),
@@ -451,6 +461,7 @@ export function assembleManualFormData(
     expansion?: string;
     kp: string;
     secondaryKps?: string;
+    prerequisites?: string;
     source: string;
     group: string;
     status: QuestionLifecycleStatus;
@@ -471,6 +482,9 @@ export function assembleManualFormData(
   const secondaryKpsList = state.secondaryKps
     ? state.secondaryKps.split(/[,，、;；]/).map((s) => s.trim()).filter(Boolean)
     : undefined;
+  const prerequisitesList = state.prerequisites
+    ? state.prerequisites.split(/[,，、;；]/).map((s) => s.trim()).filter(Boolean)
+    : undefined;
 
   return {
     type: state.type,
@@ -481,6 +495,7 @@ export function assembleManualFormData(
     expansion: state.expansion?.trim() || undefined,
     kp: state.kp,
     secondaryKps: secondaryKpsList,
+    prerequisites: prerequisitesList,
     source: state.source,
     group: state.group?.trim() || undefined,
     status: overrideStatus ?? state.status,

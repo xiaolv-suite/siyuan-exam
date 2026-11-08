@@ -78,7 +78,7 @@
     onprev: () => void;
     onnext: () => void;
     ontoggleFav: (q: QuestionWithBlock) => void;
-    onopenInSiYuan: (rootId?: string, blockId?: string) => void;
+    onopenInSiYuan: (rootId?: string, blockId?: string, opt?: any) => void;
     onttsSpeak: (text: string, opt?: any) => void;
     onsaveEdit: (q: QuestionWithBlock) => void;
     oncloseEdit: () => void;
@@ -337,7 +337,7 @@
       <button class="lv-btn sm lv-btn--ghost" class:lv-chip--amb={!!q.fav} title={`${t("session.kbdFav")} (E)`} aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} disabled={favBusy} onclick={() => ontoggleFav(q)}>
         <Icon name="star" size={13} />
       </button>
-      <button class="lv-btn sm lv-btn--ghost" title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦" : t("browse.openDoc")} aria-label={t("browse.openDoc")} onclick={() => onopenInSiYuan(q.rootId, q.blockId)} disabled={!q.rootId && !q.blockId}>
+      <button class="lv-btn sm lv-btn--ghost" title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦（按住 Ctrl/Cmd 点击可在右侧分屏打开）" : t("browse.openDoc")} aria-label={t("browse.openDoc")} onclick={(e) => onopenInSiYuan(q.rootId, q.blockId, { event: e })} disabled={!q.rootId && !q.blockId}>
         <Icon name="pin" size={13} />
       </button>
       <button class="lv-btn sm lv-btn--ghost lv-peek-close" title={t("dialog.close", "关闭")} aria-label={t("dialog.close", "关闭")} onclick={onclose}>
@@ -381,12 +381,12 @@
         <span class="lv-chip lv-chip--acc" style="font-size:11px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px">
           <Icon name="link" size={11} /> 来源笔记: {q.source || "思源笔记文档"}
         </span>
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan("", q.sourceBlockId)} title="在思源笔记中打开并定位原段落" style="font-size:11px;padding:2px 6px">
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={(e) => onopenInSiYuan("", q.sourceBlockId, { event: e })} title="在思源笔记中打开并定位原段落（按住 Ctrl/Cmd 点击可在右侧分屏打开）" style="font-size:11px;padding:2px 6px">
           <Icon name="pin" size={11} /> 定位原笔记 ↗
         </button>
       {/if}
       {#if q.blockId}
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(q.rootId, q.blockId)} title="在思源中定位此题题库块" style="font-size:11px;padding:2px 6px">
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={(e) => onopenInSiYuan(q.rootId, q.blockId, { event: e })} title="在思源中定位此题题库块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" style="font-size:11px;padding:2px 6px">
           <Icon name="folder" size={11} /> 题库块 ↗
         </button>
       {/if}
@@ -733,7 +733,7 @@
               {t("lifecycle.toDraft")}
             </button>
           {/if}
-          <button class="lv-btn sm" onclick={() => onopenInSiYuan(q.rootId, q.blockId)} disabled={!q.rootId && !q.blockId} title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦" : t("browse.openDoc")}><Icon name="pin" size={13} /> {t("browse.openDoc")}</button>
+          <button class="lv-btn sm" onclick={(e) => onopenInSiYuan(q.rootId, q.blockId, { event: e })} disabled={!q.rootId && !q.blockId} title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦（按住 Ctrl/Cmd 点击可在右侧分屏打开）" : t("browse.openDoc")}><Icon name="pin" size={13} /> {t("browse.openDoc")}</button>
           <button class="lv-btn sm" onclick={() => onloadBacklinks(q.blockId)} disabled={!app.kernelOnline || !!backlinkBusyFor} aria-busy={backlinkBusyFor === q.blockId} title={!app.kernelOnline ? t("state.offlineHint") : t("browse.backlinks")}><Icon name="link" size={13} /> {backlinkBusyFor === q.blockId ? t("browse.backlinkLoading") : t("browse.backlinks")}</button>
           {#if links}
             {#if links.length === 0}<span class="lv-muted">{t("browse.noBacklinks")}</span>

@@ -294,6 +294,16 @@
                 {#if q.difficulty}<span class="lv-chip num" style="display:inline-flex;align-items:center;gap:4px"><Icon name="star" size={11} /> {q.difficulty}</span>{/if}
               </div>
               <div class="lv-analysis" style="margin:8px 0 0">{q.analysis}</div>
+              {#if q.expansion}
+                <div style="margin-top:6px;padding:4px 8px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);border-radius:2px;font-size:12px;color:var(--lv-text)">
+                  <strong>💡 思路拓展：</strong> {q.expansion}
+                </div>
+              {/if}
+              {#if q.prerequisites && q.prerequisites.length > 0}
+                <div style="margin-top:4px;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--lv-brand)">
+                  <Icon name="compass" size={11} /> <span>先修依赖：{q.prerequisites.join("、")}</span>
+                </div>
+              {/if}
               <div class="lv-row" style="margin:8px 0 0">
                 <button class="lv-btn sm lv-btn--primary" onclick={() => onapproveOne(q)} disabled={aiMutationBusy || !hasBank || (!!aiQueueBankId && aiQueueBankId !== activeBankId)} aria-busy={aiMutationBusy} style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={13} /> {t("ai.approve")}</button>
                 <button class="lv-btn sm" onclick={() => onstartEdit(q)} disabled={aiMutationBusy} style="display:inline-flex;align-items:center;gap:4px"><Icon name="edit" size={13} /> {t("ai.edit")}</button>

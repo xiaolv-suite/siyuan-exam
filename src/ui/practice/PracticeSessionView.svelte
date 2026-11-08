@@ -175,7 +175,7 @@
     ontraceMother: () => void;
     ondiagnosePrereqs?: (q: Question) => void;
     ontoCard: () => void;
-    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
+    onopenInSiYuan?: (rootId: string, blockId?: string, opt?: any) => void;
     onexplainCurrent: (mode: "explain" | "socratic" | "dual-loop" | "storm") => void;
     onviewLeakedHint: () => void;
     ondismissLeakedHint: () => void;
@@ -533,13 +533,13 @@
           {/if}
           <button class="lv-chip" class:acc={reciteToggle} title={t("session.reciteMode")} aria-label={t("session.reciteMode")} aria-pressed={reciteToggle} onclick={ontoggleRecite}><Icon name="eye" size={13} /> {t("session.reciteMode")}</button>
           {#if q.blockId && onopenInSiYuan}
-            <button type="button" class="lv-chip" title="在思源笔记中定位并高亮原题块" aria-label={t("session.stageSourceOpen", "打开思源原块")} onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}><Icon name="pin" size={12} /> {t("recite.jumpSource", "定位原题")}</button>
+            <button type="button" class="lv-chip" title="在思源笔记中定位并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" aria-label={t("session.stageSourceOpen", "打开思源原块")} onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> {t("recite.jumpSource", "定位原题")}</button>
           {/if}
           <button class="lv-chip" class:acc={!!q.fav} title="E" aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} aria-busy={favBusy} disabled={favBusy} onclick={(e) => { notifyInline(e.currentTarget, !q.fav ? "已收藏" : "已取消收藏"); ontoggleFavCurrent(); }}><Icon name="star" size={13} /></button>
         </div>
         <div class="lv-session-dock" role="group" aria-label="辅助工具坞">
           <button class="lv-chip" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-label={t("scratchpad.tip")} aria-pressed={scratchpadOpen} onclick={ontoggleScratchpad}><Icon name="pencil" size={13} /></button>
-          <button type="button" class="lv-chip" class:acc={autoNextOnCorrect} title="⚡ 答对自动翻题（单选/判断答对后 500ms 自动进入下一题，答错暂停看解析）" aria-label="答对自动翻题" onclick={() => { autoNextOnCorrect = !autoNextOnCorrect; }}><Icon name="zap" size={13} /> <span class="lv-dock-label">{autoNextOnCorrect ? "自动翻题" : "翻题关"}</span></button>
+          <button type="button" class="lv-chip" class:acc={autoNextOnCorrect} title="⚡ 答对自动翻题（单选/判断答对后启动平滑倒计时切题，答错暂停看解析；点击题面或草稿纸即刻打断）" aria-label="答对自动翻题" onclick={() => { autoNextOnCorrect = !autoNextOnCorrect; }}><Icon name="zap" size={13} /> <span class="lv-dock-label">{autoNextOnCorrect ? "自动翻题" : "翻题关"}</span></button>
           <button type="button" class="lv-chip" class:acc={speedDrillEnabled} title="🚀 极速答题模式（答对后1.5s极速翻题，适合快节奏刷词与熟题巩固）" aria-label="极速答题模式" onclick={() => { speedDrillEnabled = !speedDrillEnabled; }}><Icon name="compass" size={13} /> <span class="lv-dock-label">{speedDrillEnabled ? "极速" : "标准"}</span></button>
           <button type="button" class="lv-chip" class:acc={shuffleOptions} title="🔀 选项随机乱序（打乱 ABCD 渲染次序，打破位置记忆）" aria-label="选项随机乱序" onclick={() => { shuffleOptions = !shuffleOptions; }}><Icon name="shuffle" size={13} /> <span class="lv-dock-label">{shuffleOptions ? "乱序" : "顺序"}</span></button>
           <button class="lv-chip" class:acc={pureListen} title={t("tts.pureListen")} aria-label={t("tts.pureListen")} aria-pressed={pureListen} onclick={ontogglePureListen}><Icon name="eyeoff" size={13} /></button>
@@ -893,14 +893,14 @@
                     {#if q.source}<span class="lv-chip num">{q.source}</span>{/if}
                     {#if q.blockId}
                       {#if onopenInSiYuan}
-                        <button type="button" class="lv-chip" onclick={() => onopenInSiYuan(q.rootId || "", q.blockId)}>{t("session.stageSourceOpen", "打开思源原块")} ↗</button>
+                        <button type="button" class="lv-chip" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })} title="在思源中打开原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）">{t("session.stageSourceOpen", "打开思源原块")} ↗</button>
                       {:else}
                         <a class="lv-chip" href={`siyuan://blocks/${q.blockId}`}>{t("session.stageSourceOpen", "打开思源原块")} ↗</a>
                       {/if}
                     {/if}
                     {#if q.sourceBlockId && q.sourceBlockId !== q.blockId}
                       {#if onopenInSiYuan}
-                        <button type="button" class="lv-chip" onclick={() => onopenInSiYuan("", q.sourceBlockId)}>📖 跳转至来源笔记段落 ↗</button>
+                        <button type="button" class="lv-chip" onclick={(e) => onopenInSiYuan("", q.sourceBlockId, { event: e })} title="跳转至来源笔记段落（按住 Ctrl/Cmd 点击可在右侧分屏打开）">📖 跳转至来源笔记段落 ↗</button>
                       {:else}
                         <a class="lv-chip" href={`siyuan://blocks/${q.sourceBlockId}`}>📖 跳转至来源笔记段落 ↗</a>
                       {/if}

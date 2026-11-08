@@ -852,7 +852,7 @@
                   <!-- 发现差量更新 -->
                   <button
                     class="lv-btn lv-btn--primary"
-                    style="flex:1;justify-content:center;font-weight:700;background:var(--lv-accent, #f59e0b);color:var(--lv-on-accent, #ffffff);border:none"
+                    style="flex:1;justify-content:center;font-weight:700;background:var(--lv-accent);color:var(--lv-on-accent);border:none"
                     disabled={installingId === item.id}
                     onclick={() => handleApplyDeltaUpdate(item)}
                     title="无损合入新版本题目与解析，保留本地已有的答题历史与错题数据"

@@ -828,7 +828,7 @@
     }
 
     let lastSavedMockDoc = $state<{ docId: string; title: string } | null>(null);
-    const openInSiYuan = (rootId: string, blockId?: string) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t);
+    const openInSiYuan = (rootId: string, blockId?: string, opt?: any) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t, opt);
 
     async function saveMockExamAsDoc() {
       if (!activeBankId || !app || !questions.length) return;
@@ -1081,11 +1081,36 @@
       }
     }
 
+    let warned5Min = false;
+    let warned1Min = false;
+
     function startTimer() {
       if (timer) clearInterval(timer);
+      if (session) {
+        const initRemain = session.remaining(Date.now());
+        warned5Min = initRemain <= 300_000;
+        warned1Min = initRemain <= 60_000;
+      } else {
+        warned5Min = false;
+        warned1Min = false;
+      }
       timer = setInterval(() => {
         nowTick = Date.now();
         if (session?.shouldAutoSubmit(nowTick)) { void finishExam(true); return; }
+
+        if (session) {
+          const remainMs = Math.max(0, session.remaining(nowTick));
+          if (remainMs <= 300_000 && remainMs > 240_000 && !warned5Min) {
+            warned5Min = true;
+            lvLaunchpad.haptic(20);
+            notifyCapsule("⏱️ 考试剩余时间不足 5 分钟，请抓紧涂卡与核对", 3500);
+          } else if (remainMs <= 60_000 && remainMs > 10_000 && !warned1Min) {
+            warned1Min = true;
+            lvLaunchpad.haptic(35);
+            notifyCapsule("🚨 考试剩余最后 1 分钟，准备自动交卷！", 4000);
+          }
+        }
+
         // 分段计时归零自动跳段（docs/11 S6：段倒计时归零 → 下一模块首题）
         if (bp.sectionTimed && session && currentSection) {
           const sr = session.sectionRemaining(currentSection, nowTick);
@@ -2139,6 +2164,7 @@
       <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
         <select class="lv-select sm" bind:value={mockPrintFormat} disabled={printBusy || !questions.length} aria-label="选择模考打印卷面版式">
           <option value="exam">标准测试卷</option>
+          <option value="card">🗂️ 标准答题卡</option>
           <option value="answer">独立答案册</option>
           <option value="lecture">授课讲义卷</option>
           <option value="homework">留白作业单</option>
@@ -2580,10 +2606,17 @@
     </div>
     {#if sheetDisplayMode === "grid"}
       {#if sheetSectionGroups.length > 1}
+        {@const isAllCollapsed = sheetSectionGroups.length > 0 && sheetSectionGroups.every((g) => collapsedSections[g.name])}
+        {@const isAllExpanded = sheetSectionGroups.length > 0 && sheetSectionGroups.every((g) => !collapsedSections[g.name])}
         <div class="lv-row" style="margin:0 0 6px;justify-content:space-between;align-items:center;font-size:11px">
           <span class="lv-muted">分卷大题导航（{sheetSectionGroups.length} 个分部）</span>
           <div class="lv-row" style="margin:0;gap:4px">
-            <button type="button" class="lv-chip sm" onclick={() => { collapsedSections = {}; }}>全部展开</button>
+            <button type="button" class="lv-chip sm" class:acc={isAllExpanded} onclick={() => { collapsedSections = {}; }}>全部展开</button>
+            <button type="button" class="lv-chip sm" class:acc={isAllCollapsed} onclick={() => {
+              const next: Record<string, boolean> = {};
+              sheetSectionGroups.forEach((g) => { next[g.name] = true; });
+              collapsedSections = next;
+            }}>全部收起</button>
             <button type="button" class="lv-chip sm" onclick={() => {
               const next: Record<string, boolean> = {};
               sheetSectionGroups.forEach((g) => { next[g.name] = true; });
@@ -3307,7 +3340,7 @@
                   {/if}
                   {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
                   {#if q?.blockId}
-                    <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块" onclick={() => openInSiYuan(q.rootId || "", q.blockId)}>
+                    <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => openInSiYuan(q.rootId || "", q.blockId, { event: e })}>
                       <Icon name="pin" size={12} /> 原题 ↗
                     </button>
                   {/if}
@@ -3431,7 +3464,8 @@
   .lv-cell:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--lv-sh-2); border-color: var(--lv-border-hover, var(--lv-accent)); }
   .lv-cell:active:not(:disabled) { transform: scale(0.96); }
   .lv-cell.done { background: var(--lv-accent-soft); color: var(--lv-accent); border-color: color-mix(in srgb, var(--lv-accent) 36%, transparent); font-weight: var(--lv-font-weight-bold); }
-  .lv-cell.flag { outline: 2px solid var(--lv-amber); outline-offset: -2px; border-color: var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 40%, var(--lv-surface)); box-shadow: 0 0 6px color-mix(in srgb, var(--lv-amber) 25%, transparent); }
+  .lv-cell.flag { position: relative; outline: 2px solid var(--lv-amber); outline-offset: -2px; border-color: var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 40%, var(--lv-surface)); box-shadow: 0 0 6px color-mix(in srgb, var(--lv-amber) 25%, transparent); }
+  .lv-cell.flag::after { content: ""; position: absolute; top: 3.5px; right: 3.5px; width: 6px; height: 6px; border-radius: var(--lv-radius-round, 9999px); background: var(--lv-amber); box-shadow: 0 0 4px color-mix(in srgb, var(--lv-amber) 50%, transparent); }
   .lv-cell.cur { background: var(--lv-accent); color: var(--lv-on-accent, #fff); border-color: transparent; box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4.5px var(--lv-accent), var(--lv-sh-2); transform: translateY(-1px); z-index: 2; }
   .lv-card.lv-question { box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
   .lv-score-card { box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }

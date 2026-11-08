@@ -48,7 +48,7 @@
     oneditReflection: (qid: string) => void;
     onrunMisdiagnosis: (a: any) => void;
     onadoptMisdiagnosis: (qid: string) => void;
-    onopenInSiYuan?: (rootId: string, blockId?: string) => void;
+    onopenInSiYuan?: (rootId: string, blockId?: string, opt?: any) => void;
     onexitSession: () => void;
     trails?: Map<string, any>;
   }
@@ -282,7 +282,7 @@
                   <Icon name="flask" size={13} /> {misdiagnosisBusy === a.qid ? "…" : t("misdiagnosis.ask")}
                 </button>
                 {#if aq?.blockId && onopenInSiYuan}
-                  <button class="lv-btn sm lv-btn--ghost" onclick={() => onopenInSiYuan(aq.rootId || "", aq.blockId)} title="在思源笔记中打开并高亮原题块">
+                  <button class="lv-btn sm lv-btn--ghost" onclick={(e) => onopenInSiYuan(aq.rootId || "", aq.blockId, { event: e })} title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）">
                     <Icon name="link" size={13} /> {t("session.stageSourceOpen", "打开思源原块")} ↗
                   </button>
                 {/if}

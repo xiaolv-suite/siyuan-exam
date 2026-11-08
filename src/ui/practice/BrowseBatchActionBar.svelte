@@ -40,6 +40,7 @@
         </button>
         <select class="lv-select sm" bind:value={printFormat} aria-label="选择打印试卷版式">
           <option value="exam">标准测试卷</option>
+          <option value="card">🗂️ 标准答题卡</option>
           <option value="answer">独立答案册</option>
           <option value="lecture">授课讲义卷</option>
           <option value="homework">留白作业单</option>

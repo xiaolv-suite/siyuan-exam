@@ -51,7 +51,7 @@ export function formatExamScorecardCalloutMarkdown(input: ExamScorecardCalloutIn
     const {
         examId = "",
         examTitle,
-        date,
+        date: _date = "",
         totalScore,
         fullScore,
         passLine,
