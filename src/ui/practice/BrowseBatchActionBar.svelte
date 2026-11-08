@@ -28,13 +28,13 @@
 </script>
 
 <div role="toolbar" aria-label="批量操作快捷栏" class="lv-batch-action-bar">
-  <div class="lv-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 20px);border:1px solid var(--lv-border-subtle, var(--lv-border));background:color-mix(in srgb, var(--lv-surface) 92%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
-    <div class="lv-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div class="lv-row" style="margin:0;gap:6px">
+  <div class="lv-card lv-batch-action-card" style="box-shadow:var(--lv-sh-pop);padding:10px 18px;border-radius:var(--lv-r-4, 20px);border:1px solid var(--lv-border-subtle, var(--lv-border));background:color-mix(in srgb, var(--lv-surface) 92%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
+    <div class="lv-row lv-batch-action-row" style="margin:0;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="lv-row lv-batch-action-group" style="margin:0;gap:6px">
         <span class="lv-chip lv-chip--data num">已选 {selectedCount} 题</span>
         <button class="lv-btn sm lv-btn--ghost" onclick={onclearSelection}>清空选择</button>
       </div>
-      <div class="lv-row" style="margin:0;gap:6px">
+      <div class="lv-row lv-batch-action-group" style="margin:0;gap:6px">
         <button class="lv-btn sm lv-btn--primary" onclick={onstartFocusDrill} title="将勾选的这批题目发起专属特训">
           <Icon name="play" size={13} /> 开始特训
         </button>
@@ -66,20 +66,69 @@
   .lv-batch-action-bar {
     position: fixed;
     bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
+    margin-inline: auto;
     z-index: 95;
     width: min(680px, calc(100vw - 32px));
     animation: lv-appear 0.2s var(--lv-ease-out);
   }
   @container lv-exam (max-width: 759px) {
     .lv-batch-action-bar {
-      bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(var(--lv-tasknav-height, 68px) + 6px);
+      width: min(680px, calc(100vw - 16px));
+    }
+    .lv-batch-action-card {
+      padding: 8px 10px !important;
+      border-radius: var(--lv-r-3, 14px) !important;
+    }
+    .lv-batch-action-row {
+      flex-wrap: nowrap !important;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      gap: 6px !important;
+    }
+    .lv-batch-action-row::-webkit-scrollbar {
+      display: none;
+    }
+    .lv-batch-action-group {
+      flex-wrap: nowrap !important;
+      flex-shrink: 0;
+    }
+    .lv-batch-action-row :global(.lv-btn.sm),
+    .lv-batch-action-row :global(.lv-select.sm) {
+      min-height: 34px !important;
+      height: 34px !important;
+      padding: 0 8px !important;
+      font-size: 12px !important;
+      flex-shrink: 0;
     }
   }
   @media (max-width: 759px) {
     .lv-batch-action-bar {
-      bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(var(--lv-tasknav-height, 68px) + 6px);
+      width: min(680px, calc(100vw - 16px));
+    }
+    .lv-batch-action-card {
+      padding: 8px 10px !important;
+      border-radius: var(--lv-r-3, 14px) !important;
+    }
+    .lv-batch-action-row {
+      flex-wrap: nowrap !important;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      gap: 6px !important;
+    }
+    .lv-batch-action-row::-webkit-scrollbar {
+      display: none;
+    }
+    .lv-batch-action-group {
+      flex-wrap: nowrap !important;
+      flex-shrink: 0;
     }
   }
 </style>

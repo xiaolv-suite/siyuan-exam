@@ -533,18 +533,20 @@
         }),
       ];
       // 移动端虚拟键盘避让：监听 visualViewport 动态抬升底边距，防遮挡操作
-      if (typeof window !== "undefined" && window.visualViewport) {
+      if (typeof window !== "undefined") {
         const onViewportChange = () => {
           const vv = window.visualViewport;
-          if (!vv) return;
-          const diff = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
-          keyboardOpen = diff > 80;
+          const diff = vv ? Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0)) : 0;
+          keyboardOpen = diff > 80 || (window.innerWidth <= 759 && window.innerHeight <= 480);
           const inMobileDialog = Boolean(tabRoot?.closest(".lv-exam-mobile-dialog"));
           viewportBottomPad = !inMobileDialog && diff > 80 ? diff : 0;
         };
-        window.visualViewport.addEventListener("resize", onViewportChange);
-        window.visualViewport.addEventListener("scroll", onViewportChange);
+        onViewportChange();
+        window.addEventListener("resize", onViewportChange);
+        window.visualViewport?.addEventListener("resize", onViewportChange);
+        window.visualViewport?.addEventListener("scroll", onViewportChange);
         offs.push(() => {
+          window.removeEventListener("resize", onViewportChange);
           window.visualViewport?.removeEventListener("resize", onViewportChange);
           window.visualViewport?.removeEventListener("scroll", onViewportChange);
         });
@@ -2073,7 +2075,7 @@
       <Icon name="close" size={18} />
     </button>
   </div>
-<div class="fn__flex-1 lv-shell" class:lv-shell-focus={view === "exam" || view === "report"}>
+<div class="fn__flex-1 lv-shell" class:lv-shell-focus={view === "exam" || view === "report"} class:lv-shell-tasknav-hidden={view === "exam" || view === "report"}>
   <Rail active="mock" taskactive="mock" tasknavhidden={view === "exam" || view === "report"} ontasknavigate={onTaskNav} {plugin} open={railOpen} onclose={closeRail}
     project={{ name: railBankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => plugin.openPractice?.()} />
   <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: calc(${viewportBottomPad + 16}px + env(safe-area-inset-bottom, 0px));` : undefined}>
@@ -2393,7 +2395,7 @@
     </details>
   {:else if view === "exam" && session && currentQ}
     <!-- ===== S6 全真考试 ===== -->
-    <div class="lv-row">
+    <div class="lv-row lv-mock-exam-head">
       <span class="lv-chip">{currentSection}</span>
       {#if bp.sectionTimed}
         {@const sr = session.sectionRemaining(currentSection, Date.now())}
@@ -2817,7 +2819,7 @@
       <span class="lv-muted num">{cursor + 1} / {session.state.qids.length}</span>
     </div>
     {#if view === "exam" && session}
-      <div style="position:fixed;bottom:22px;right:22px;z-index:90;display:flex;gap:8px;align-items:center">
+      <div class="lv-mock-floating-pills" style="position:fixed;bottom:22px;right:22px;z-index:90;display:flex;gap:8px;align-items:center">
         {#if unansweredIndices.length > 0 || flaggedIndices.length > 0}
           <button
             type="button"
@@ -3483,9 +3485,73 @@
   .progress { height: 6px; border-radius: var(--lv-radius-pill); background: var(--lv-surface-2); overflow: hidden; }
   .progress i { display: block; height: 100%; background: var(--lv-accent-grad); border-radius: var(--lv-radius-pill); }
   @media (prefers-reduced-motion: reduce) { .lv-skeleton { animation: none; } .lv-opt, .lv-btn { transition: none; } }
+  @container lv-exam (max-width: 680px) {
+    .lv-bp-table {
+      overflow-x: hidden;
+    }
+    .lv-bp-row.head {
+      display: none;
+    }
+    .lv-bp-row:not(.head) {
+      min-width: 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 8px;
+      padding: 10px;
+    }
+    .lv-bp-row:not(.head) .lv-input,
+    .lv-bp-row:not(.head) .lv-select,
+    .lv-bp-row:not(.head) .lv-input.num {
+      width: 100%;
+      max-width: 100% !important;
+      min-width: 0;
+    }
+    .lv-bp-row:not(.head) > .lv-row {
+      grid-column: 1 / -1;
+      min-width: 0;
+    }
+    .lv-mock-exam-head {
+      flex-wrap: nowrap;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      margin: 0 0 8px;
+    }
+    .lv-mock-exam-head::-webkit-scrollbar {
+      display: none;
+    }
+    .lv-mock-exam-head .lv-btn.sm {
+      min-height: 32px;
+      height: 32px;
+      padding: 0 8px;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .lv-mock-exam-head .lv-kbd {
+      display: none;
+    }
+    .lv-mock-floating-pills {
+      right: 10px !important;
+      bottom: 10px !important;
+      left: 10px !important;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      pointer-events: none;
+    }
+    .lv-mock-floating-pills > button {
+      pointer-events: auto;
+      font-size: 11.5px !important;
+      padding: 4px 10px !important;
+      max-width: 100%;
+    }
+    .lv-sheet {
+      grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+      gap: 6px;
+      padding: 10px;
+    }
+  }
   @container lv-exam (max-width: 480px) {
-    /* 极窄屏适配：答题卡 3 列、蓝图表格保持横滚 */
-    .lv-sheet { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    /* 极窄屏适配：答题卡紧凑网格 */
+    .lv-sheet { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); }
     .lv-btn { white-space: nowrap; }
   }
 </style>

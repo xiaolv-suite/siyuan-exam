@@ -592,6 +592,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (view !== "session" && view !== "recite") sessionSourceView = view;
       view = "recite";
       armPracticeExamHistory();
+      void tick().then(() => scrollMainToTop());
       if (reciteAutoTts && reciteQueue[0]) {
         ttsSpeak(reciteQueue[0].stem, { lang: reciteQueue[0].studyMeta?.lang, rate: ttsSlowRate ? 0.85 : 1 });
       }
@@ -905,6 +906,10 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     let sessionSourceView = $state<View>("entry");
 
+    function scrollMainToTop() {
+      tabRoot?.querySelector(".lv-main")?.scrollTo?.({ top: 0 });
+    }
+
     function enterSessionView() {
       if (view !== "session" && view !== "recite") {
         sessionSourceView = view;
@@ -912,6 +917,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       resetSessionViewState();
       view = "session";
       armPracticeExamHistory();
+      void tick().then(() => scrollMainToTop());
     }
 
     // ---------- 55-05 主观题逐采分点自评 ----------
@@ -1775,18 +1781,20 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
 
       // 移动端虚拟键盘避让：监听 visualViewport 动态抬升底边距，防遮挡按钮
-      if (typeof window !== "undefined" && window.visualViewport) {
+      if (typeof window !== "undefined") {
         const onViewportChange = () => {
           const vv = window.visualViewport;
-          if (!vv) return;
-          const diff = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
-          keyboardOpen = diff > 80;
+          const diff = vv ? Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0)) : 0;
+          keyboardOpen = diff > 80 || (window.innerWidth <= 759 && window.innerHeight <= 480);
           const inMobileDialog = Boolean(tabRoot?.closest(".lv-exam-mobile-dialog"));
           viewportBottomPad = !inMobileDialog && diff > 80 ? diff : 0;
         };
-        window.visualViewport.addEventListener("resize", onViewportChange);
-        window.visualViewport.addEventListener("scroll", onViewportChange);
+        onViewportChange();
+        window.addEventListener("resize", onViewportChange);
+        window.visualViewport?.addEventListener("resize", onViewportChange);
+        window.visualViewport?.addEventListener("scroll", onViewportChange);
         offs.push(() => {
+          window.removeEventListener("resize", onViewportChange);
           window.visualViewport?.removeEventListener("resize", onViewportChange);
           window.visualViewport?.removeEventListener("scroll", onViewportChange);
         });
@@ -2759,6 +2767,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (view !== "session" && view !== "recite") sessionSourceView = view;
       view = "recite";
       armPracticeExamHistory();
+      void tick().then(() => scrollMainToTop());
       if (reciteAutoTts) {
         const payload = getReciteTtsPayload(reciteQueue[0], "stem", ttsSlowRate);
         if (payload) ttsSpeak(payload.text, payload.options);
@@ -3461,7 +3470,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     /** 114-01 泄露守卫拦截的待决提示（提交前）：用户明确揭示才展示（G6） */
     let leakPending = $state<{ level: 1 | 2 | 3; text: string; reasons: string } | null>(null);
     let speedTimer: ReturnType<typeof setTimeout> | null = null;
-    let autoNextOnCorrect = $state(readLocal("lv-exam/auto-next") !== "0");
+    let autoNextOnCorrect = $state(readLocal("lv-exam/auto-next") === "1");
     let autoNextPending = $state(false);
     let autoNextRemainingS = $state(3.5);
     let autoNextInterval: ReturnType<typeof setInterval> | null = null;
@@ -3623,6 +3632,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!session.next()) { void finishSession(); return; }
       restoreQuestionControls();
       sessionRev++; // 类实例非响应式：切题后刷新题面
+      scrollMainToTop();
       void app.saveSession().catch(() => undefined);   // 游标推进随答随存
       scheduleDebouncedDraftSave();
       if (reciteToggle) scheduleReciteSubmit(); // 背题模式：切题后自动揭示答案
@@ -3635,6 +3645,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!session?.prev()) return;
       restoreQuestionControls();
       sessionRev++;
+      scrollMainToTop();
       if (reciteToggle && !feedback) scheduleReciteSubmit(); // 背题模式：切题后自动揭示答案
     }
 
@@ -5952,7 +5963,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         <Icon name="close" size={18} />
       </button>
   </div>
-  <div class="lv-shell" class:lv-shell-focus={view === "session" && !sessionDone} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
+  <div class="lv-shell" class:lv-shell-focus={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
     <Rail active="practice" taskactive={view === "marketplace" ? "marketplace" : (view === "browse" || view === "wrongbook" ? "bank" : view === "manual" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
       project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => (view = "entry")}
       onquickcreate={() => { view = "manual"; }} />
@@ -6247,6 +6258,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       ondismissReasonPrompt={() => (reasonPromptQid = "")}
       ontouchStart={onTouchStart}
       ontouchEnd={onTouchEnd}
+      onopenSessionSheet={() => (sessionSheetOpen = !sessionSheetOpen)}
     />
   {:else if view === "recite"}
     <ReciteStudioView
@@ -6980,7 +6992,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     </div>
     <Palette commands={paletteCommands} bind:open={paletteOpen} {t} />
     {#if view === "session" && session && !sessionDone}
-      <div style="position:fixed;bottom:22px;right:22px;z-index:90">
+      <div class="lv-session-floating-sheet" style="position:fixed;bottom:22px;right:22px;z-index:90">
         <button
           type="button"
           class="lv-achievement-pill"
@@ -7143,4 +7155,9 @@ import { confirmDialogSync } from "@/libs/dialog";
   .lv-stage--root { border-left: 4px solid var(--lv-accent-seal) !important; }
   .lv-stage--shaky { border-left: 4px solid var(--lv-accent) !important; }
   .lv-stage--target { border-left: 4px solid var(--lv-brand) !important; }
+  @container lv-exam (max-width: 680px) {
+    .lv-session-floating-sheet {
+      display: none !important;
+    }
+  }
 </style>

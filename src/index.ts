@@ -118,7 +118,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       name: "考试",
       fullName: "小驴考试",
       svgIcon: "icon-lv-exam",
-      color: "var(--lv-brand, #3b82f6)",
+      color: "var(--lv-brand, var(--b3-theme-primary))",
       desc: "题库刷题 · 错题特训",
       digit: 5,
       badge: "今日待测",

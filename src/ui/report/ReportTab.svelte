@@ -2100,7 +2100,33 @@
   .lv-daily-report-scope { max-width: 480px; margin: 4px 0 10px; }
   .lv-report-week-scope { margin: 0 0 8px; font-size: var(--lv-font-size-caption); line-height: 1.5; }
   @container lv-exam (max-width: 960px) { .lv-report-overview-grid.has-both { grid-template-columns: minmax(0, 1fr); } }
-  @container lv-exam (max-width: 600px) { .lv-report-tabs { width: 100%; } .lv-report-tab { flex: 1 0 auto; } .lv-report-next { align-items: flex-start; flex-direction: column; } .lv-quad-grid { grid-template-columns: minmax(0, 1fr); } }
+  @container lv-exam (max-width: 680px) {
+    .lv-card,
+    .lv-section,
+    .lv-radar-container,
+    .lv-dtable,
+    .lv-heat {
+      min-width: 0;
+      max-width: 100%;
+    }
+    .lv-card {
+      padding: 14px 12px;
+    }
+    .lv-heat {
+      gap: 1.5px;
+    }
+    .lv-quad-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .lv-quad {
+      padding: 12px 14px;
+    }
+    .lv-quad .v {
+      font-size: 24px;
+    }
+  }
+  @container lv-exam (max-width: 600px) { .lv-report-tabs { width: 100%; } .lv-report-tab { flex: 1 0 auto; } .lv-report-next { align-items: flex-start; flex-direction: column; } }
   /* .lv-btn/.lv-select 外观基线上收 lv-base.scss（修复暗色露 UA 白底） */
   .lv-card-title { display: inline-flex; align-items: center; gap: var(--lv-space-compact); }
   .lv-inline-icon { display: inline-flex; margin-right: 5px; }

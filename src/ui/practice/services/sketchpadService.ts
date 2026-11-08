@@ -5,6 +5,14 @@
 
 export const SKETCH_STORAGE_PREFIX = "lv-exam-sketch:";
 
+function resolveCanvasColor(raw: string, fallback: string): string {
+  if (!raw.startsWith("var(") || typeof document === "undefined") return raw || fallback;
+  const m = raw.match(/var\((--[^,)]+)(?:,\s*([^)]+))?\)/);
+  if (!m) return fallback;
+  const val = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
+  return val || m[2]?.trim() || fallback;
+}
+
 /**
  * 绘制数理方格网背景（类似工程网格草稿纸）
  */
@@ -15,10 +23,10 @@ export function drawGridBackground(
   gridSize = 20,
 ): void {
   ctx.save();
-  ctx.fillStyle = "var(--lv-surface, #ffffff)";
+  ctx.fillStyle = resolveCanvasColor("var(--lv-surface, #ffffff)", "#ffffff");
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = "rgba(100, 116, 139, 0.12)";
+  ctx.strokeStyle = "rgba(100, 116, 139, 0.14)";
   ctx.lineWidth = 1;
 
   ctx.beginPath();
@@ -43,9 +51,10 @@ export function drawCoordinateAxis(
   height: number,
   strokeColor = "#1e3a8a",
 ): void {
+  const resolvedStroke = resolveCanvasColor(strokeColor, "#1e3a8a");
   ctx.save();
-  ctx.strokeStyle = strokeColor;
-  ctx.fillStyle = strokeColor;
+  ctx.strokeStyle = resolvedStroke;
+  ctx.fillStyle = resolvedStroke;
   ctx.lineWidth = 1.6;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";

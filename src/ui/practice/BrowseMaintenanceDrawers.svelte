@@ -200,7 +200,7 @@
     <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
       <b style="font-size:var(--lv-font-size-body-compact)">{t("browse.sectionTree")}</b>
       {#if oncloseSection}
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncloseSection} title="收起" aria-label="收起"><Icon name="close" size={12} /></button>
+        <button type="button" class="lv-btn sm lv-btn--ghost lv-modal-close-btn" onclick={oncloseSection} title="收起" aria-label="关闭"><Icon name="close" size={12} /></button>
       {/if}
     </div>
     {#if sectionBusy}<span class="lv-muted" style="margin-left:8px">…</span>{/if}
@@ -231,7 +231,7 @@
     <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
       <b style="font-size:var(--lv-font-size-body-compact)">{t("kp.title")}</b>
       {#if oncloseKp}
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncloseKp} title="收起" aria-label="收起"><Icon name="close" size={12} /></button>
+        <button type="button" class="lv-btn sm lv-btn--ghost lv-modal-close-btn" onclick={oncloseKp} title="收起" aria-label="关闭"><Icon name="close" size={12} /></button>
       {/if}
     </div>
     {#if !kpData}
@@ -356,7 +356,7 @@
         <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("paper.hint")}</span>
       </div>
       {#if onclosePaper}
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclosePaper} title="收起" aria-label="收起"><Icon name="close" size={12} /></button>
+        <button type="button" class="lv-btn sm lv-btn--ghost lv-modal-close-btn" onclick={onclosePaper} title="收起" aria-label="关闭"><Icon name="close" size={12} /></button>
       {/if}
     </div>
     <textarea class="lv-input lv-textarea" rows="4" style="min-height:96px;max-height:280px;resize:vertical" bind:value={paperText} placeholder={t("paper.placeholder")} aria-label={t("paper.title")}></textarea>
@@ -393,7 +393,7 @@
         <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("errata.hint")}</span>
       </div>
       {#if oncloseErrata}
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={oncloseErrata} title="收起" aria-label="收起"><Icon name="close" size={12} /></button>
+        <button type="button" class="lv-btn sm lv-btn--ghost lv-modal-close-btn" onclick={oncloseErrata} title="收起" aria-label="关闭"><Icon name="close" size={12} /></button>
       {/if}
     </div>
     <div class="lv-row" style="margin:6px 0 0">

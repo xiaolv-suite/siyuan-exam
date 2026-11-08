@@ -176,14 +176,14 @@
       role="dialog"
       aria-modal="true"
       aria-label="题库与闪卡公共集市"
-      style="width:min(1240px, 96vw);max-height:90vh;overflow-y:auto;pointer-events:auto;padding:26px;border-radius:var(--lv-r-card, 20px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop);background:var(--lv-surface)"
+      style="width:min(1240px, 96vw);max-height:90vh;overflow-y:auto;pointer-events:auto;padding:clamp(14px, 4vw, 26px);border-radius:var(--lv-r-card, 20px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop);background:var(--lv-surface)"
     >
       <!-- 头部标题区 -->
-      <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 16px;flex-wrap:wrap;gap:12px">
-        <div>
-          <div class="lv-dialog-title-wrap" style="align-items:center;gap:8px">
+      <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 16px;flex-wrap:nowrap;gap:8px">
+        <div style="min-width:0;flex:1">
+          <div class="lv-dialog-title-wrap" style="align-items:center;gap:8px;flex-wrap:wrap">
             <span class="lv-dialog-title-icon" style="font-size:18px"><Icon name="book" size={16} /></span>
-            <h2 style="font-size:18px;font-weight:700;margin:0;color:var(--lv-text)">
+            <h2 style="font-size:clamp(15px, 4vw, 18px);font-weight:700;margin:0;color:var(--lv-text)">
               🏛️ 题库与闪卡公共集市
             </h2>
             <span class="lv-chip sm lv-chip--acc" style="font-weight:600">公版精选 · 零版权争议</span>
@@ -192,11 +192,11 @@
             零集中存储、去中心化开放知识集市。精选公共领域常识、国家新课标与学术公式题卡，一键克隆入库。
           </p>
         </div>
-        <div class="lv-row" style="margin:0;gap:6px">
-          <button class="lv-btn sm lv-btn--ghost" onclick={() => (addSourceModalOpen = !addSourceModalOpen)} title="添加自定义第三方题库/闪卡订阅源">
-            <Icon name="link" size={13} /> {addSourceModalOpen ? "收起订阅设置" : "➕ 自定义订阅源"}
+        <div class="lv-row" style="margin:0;gap:6px;flex-wrap:nowrap;flex-shrink:0">
+          <button class="lv-btn sm lv-btn--ghost" style="padding:0 10px;min-height:36px;height:36px;font-size:12px" onclick={() => (addSourceModalOpen = !addSourceModalOpen)} title="添加自定义第三方题库/闪卡订阅源">
+            <Icon name="link" size={13} /> <span>{addSourceModalOpen ? "收起订阅" : "订阅源"}</span>
           </button>
-          <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={14} /></button>
+          <button class="lv-btn sm lv-btn--ghost lv-modal-close-btn" onclick={onclose} aria-label="关闭"><Icon name="close" size={14} /></button>
         </div>
       </div>
 
@@ -299,7 +299,7 @@
           <p style="font-size:12px;margin-top:4px">可尝试清空搜索词或切换学科领域分类。</p>
         </div>
       {:else}
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(min(280px, 100%), 1fr));gap:16px;margin-bottom:20px">
           {#each filteredItems as item (item.id)}
             <div
               class="lv-card lv-marketplace-card"

@@ -120,12 +120,12 @@
         </button>
         <button
           type="button"
-          class="lv-btn sm lv-btn--ghost"
+          class="lv-btn sm lv-btn--ghost lv-present-close-btn"
           onclick={onclose}
           title="退出大屏放映 (Esc)"
           aria-label="退出大屏放映"
         >
-          <Icon name="close" size={14} /> 退出放映
+          <Icon name="close" size={14} /> <span class="lv-present-close-text">退出放映</span>
         </button>
       </div>
     </header>
@@ -402,5 +402,56 @@
     box-shadow: var(--lv-sh-pop, 0 8px 28px rgba(0,0,0,0.14));
     border: 1px solid var(--lv-border-subtle, var(--lv-border));
     z-index: 1000;
+  }
+  .lv-present-close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  @media (max-width: 680px) {
+    .lv-present-header {
+      padding: 8px 12px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .lv-present-title {
+      display: none;
+    }
+    .lv-present-close-btn {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      justify-content: center;
+    }
+    .lv-present-close-text {
+      display: none;
+    }
+    .lv-present-stage {
+      padding: 14px 12px 92px;
+    }
+    .lv-present-card {
+      padding: 16px 14px;
+    }
+    .lv-present-stem {
+      font-size: 17px;
+      margin-bottom: 14px;
+    }
+    .lv-present-opt-item {
+      padding: 10px 12px;
+      font-size: 15px;
+    }
+    .lv-present-dock {
+      width: calc(100vw - 24px);
+      max-width: 400px;
+      justify-content: space-between;
+      padding: 6px 10px;
+      gap: 6px;
+      bottom: max(12px, env(safe-area-inset-bottom, 12px));
+    }
+    .lv-present-dock > .lv-btn {
+      min-width: 0 !important;
+      flex: 1 1 auto;
+      padding: 0 8px;
+      font-size: 12.5px;
+    }
   }
 </style>

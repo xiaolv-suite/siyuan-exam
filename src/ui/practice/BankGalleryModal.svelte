@@ -109,26 +109,26 @@
 {#if open}
   <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭" onclick={onclose}></button>
   <div class="lv-hotkeys-wrap">
-    <div bind:this={dialogEl} class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:24px;border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border-subtle)">
-      <div class="lv-row" style="justify-content:space-between;margin:0 0 12px">
-        <div class="lv-dialog-title-wrap">
+    <div bind:this={dialogEl} class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label={t("bank.hubTitle")} style="width:min(640px, 100%);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:clamp(14px, 4vw, 24px);border-radius:var(--lv-r-card, 20px);box-shadow:var(--lv-sh-pop);border:1px solid var(--lv-border-subtle)">
+      <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;margin:0 0 12px">
+        <div class="lv-dialog-title-wrap" style="min-width:0;flex:1">
           <span class="lv-dialog-title-icon"><Icon name="folder" size={13} /></span>
-          <span>{t("bank.hubTitle")}</span>
-          <span class="lv-dialog-title-tag num">{banks.length} 题库</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{t("bank.hubTitle")}</span>
+          <span class="lv-dialog-title-tag num" style="flex-shrink:0">{banks.length} 题库</span>
         </div>
-        <div class="lv-row" style="margin:0;gap:6px">
+        <div class="lv-row" style="margin:0;gap:6px;flex-wrap:nowrap;flex-shrink:0">
           {#if onopenMarketplace}
             <button
               type="button"
               class="lv-btn sm lv-btn--primary"
-              style="font-weight:600;display:inline-flex;align-items:center;gap:4px"
+              style="font-weight:600;display:inline-flex;align-items:center;gap:4px;padding:0 10px;min-height:36px;height:36px"
               onclick={onopenMarketplace}
               title="浏览题库与闪卡公共集市，一键获取精选公版题库与社区订阅卡包"
             >
-              <Icon name="sparkles" size={13} /> 🏛️ 题库集市
+              <Icon name="sparkles" size={13} /> <span>题库集市</span>
             </button>
           {/if}
-          <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
+          <button class="lv-btn sm lv-btn--ghost lv-modal-close-btn" onclick={onclose} aria-label="关闭"><Icon name="close" size={13} /></button>
         </div>
       </div>
 

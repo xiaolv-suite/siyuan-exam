@@ -426,7 +426,7 @@
           </div>
         </div>
         <!-- 独立的符号快捷工具条，绝不挤压 label -->
-        <div class="lv-symbol-dock-row" role="toolbar" aria-label="符号快捷选择栏" style="margin-bottom:8px;padding:4px 6px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border-subtle);display:flex;gap:4px;overflow-x:auto">
+        <div class="lv-symbol-dock-row" role="toolbar" aria-label="符号快捷选择栏" style="margin-bottom:8px;padding:4px 6px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border-subtle);display:flex;flex-wrap:wrap;gap:4px;max-width:100%">
           {#if manualSymbolTab === "math"}
             <button type="button" class="lv-chip sm" title="上标 x²" onclick={() => oninsertMathSnippet("x^2")}>x²</button>
             <button type="button" class="lv-chip sm" title="根号 √x" onclick={() => oninsertMathSnippet("\\sqrt{x}")}>√x</button>

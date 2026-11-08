@@ -185,6 +185,7 @@
     ondismissReasonPrompt: () => void;
     ontouchStart: (e: TouchEvent) => void;
     ontouchEnd: (e: TouchEvent) => void;
+    onopenSessionSheet?: () => void;
     trails?: Map<string, any>;
   }
 
@@ -241,7 +242,7 @@
     speechRecording = false,
     reciteToggle,
     speedDrillEnabled = $bindable(false),
-    autoNextOnCorrect = $bindable(true),
+    autoNextOnCorrect = $bindable(false),
     autoNextPending = false,
     autoNextRemainingS = 3.5,
     shuffleOptions = $bindable(false),
@@ -345,8 +346,11 @@
     ondismissReasonPrompt,
     ontouchStart,
     ontouchEnd,
+    onopenSessionSheet,
     trails,
   }: Props = $props();
+
+  let mobileToolsOpen = $state(false);
 
   // —— benchmark-fusion：解析 3 阶渐进折叠（Moodle Adaptive Hints + TextFold 标杆）——
   // 阶1 考点提示：作答中可展开（不暴露答案；默认折叠不弱化独立回忆）
@@ -500,14 +504,32 @@
   {#if q}
     <div class="lv-pad lv-session-grid">
       <div class="lv-row lv-session-head">
-        <button class="lv-btn lv-btn--ghost" onclick={onexitSession} disabled={exitBusy} style="display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--lv-text)" title="结束本次做题并退出（下次可在首页随时继续或放弃）">
-          <Icon name="close" size={13} /> {exitBusy ? "…" : "结束练习"}
-        </button>
-        <div class="lv-row" style="flex:1;min-width:120px;gap:var(--lv-space-2)">
-          <div class="lv-progress" style="flex:1" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={curProgress.total} aria-valuenow={curProgress.done}><i style="width:{curProgress.total ? Math.round((curProgress.done / curProgress.total) * 100) : 0}%"></i></div>
-          <span class="num lv-muted">{curProgress.done}/{curProgress.total}</span>
+        <div class="lv-row lv-session-head-bar">
+          <button class="lv-btn lv-btn--ghost lv-session-exit-btn" onclick={onexitSession} disabled={exitBusy} style="display:inline-flex;align-items:center;gap:4px;font-weight:600;color:var(--lv-text)" title="结束本次做题并退出（下次可在首页随时继续或放弃）">
+            <Icon name="close" size={13} /> <span class="lv-session-exit-label">{exitBusy ? "…" : "结束练习"}</span>
+          </button>
+          <div class="lv-row lv-session-prog-wrap" style="flex:1;min-width:60px;gap:var(--lv-space-2);flex-wrap:nowrap">
+            <div class="lv-progress" style="flex:1" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={curProgress.total} aria-valuenow={curProgress.done}><i style="width:{curProgress.total ? Math.round((curProgress.done / curProgress.total) * 100) : 0}%"></i></div>
+            {#if onopenSessionSheet}
+              <button type="button" class="lv-chip sm num lv-session-sheet-trigger" onclick={onopenSessionSheet} title="展开练习答题卡" style="padding:1px 6px;cursor:pointer">{curProgress.done}/{curProgress.total}</button>
+            {:else}
+              <span class="num lv-muted">{curProgress.done}/{curProgress.total}</span>
+            {/if}
+          </div>
+          <span class="lv-chip lv-chip--acc lv-session-qtype">{t("qtype." + q.type)}</span>
+          <button
+            type="button"
+            class="lv-chip sm lv-session-tools-toggle"
+            class:acc={mobileToolsOpen || reciteToggle || scratchpadOpen || !!q.fav}
+            aria-expanded={mobileToolsOpen}
+            onclick={() => (mobileToolsOpen = !mobileToolsOpen)}
+            title="展开/收起做题工具栏"
+          >
+            <Icon name="layers" size={12} />
+            <span>工具</span>
+          </button>
         </div>
-        <span class="lv-chip lv-chip--acc">{t("qtype." + q.type)}</span>
+        <div class="lv-session-tools-collapse" class:open={mobileToolsOpen}>
         {#if session.isDelayedReviewAtCurrent()}
           <span class="lv-chip lv-chip--amb" title={t("session.delayedRetestTip")}>
             <Icon name="rotate" size={11} /> {t("session.delayedRetest")}
@@ -553,6 +575,7 @@
           <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("doubt")} title={t("session.tagDoubt")} aria-label={t("session.tagDoubt")} aria-pressed={(q.userTags || []).includes("doubt")} onclick={(e) => { notifyInline(e.currentTarget); ontoggleUserTag("doubt"); }}><Icon name="help" size={12} /></button>
           <button class="lv-btn sm lv-btn--ghost" style="padding:1px 5px;font-size:11px" class:acc={(q.userTags || []).includes("key")} title={t("session.tagKey")} aria-label={t("session.tagKey")} aria-pressed={(q.userTags || []).includes("key")} onclick={(e) => { notifyInline(e.currentTarget); ontoggleUserTag("key"); }}><Icon name="bulb" size={12} /></button>
         </span>
+        </div>
       </div>
       <div class="lv-session-main">
         <ScratchpadDrawer
@@ -758,7 +781,7 @@
           {#if !feedback && (q.kp || (q.secondaryKps?.length ?? 0) > 0)}
             <!-- benchmark-fusion 阶1：卡壳时可展开考点提示（Moodle Adaptive Hints）——
                  只露考点不露答案；默认折叠避免弱化独立回忆；读屏由 aria-expanded 播报展开态 -->
-            <div class="lv-analysis" style="padding:10px 14px">
+            <div class="lv-analysis lv-stage-hint-box" style="padding:10px 14px">
               <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
                 aria-expanded={stageHintOpen} aria-controls="lv-stage-hint"
                 onclick={() => {
@@ -933,9 +956,9 @@
           {/if}
 
           {#if !feedback}
-            <div class="lv-row" style="margin:6px 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div class="lv-row lv-confidence-timer-row" style="margin:6px 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
               <div class="lv-session-dock" role="group" aria-label={t("confidence.before")}>
-                <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("confidence.before")}</span>
+                <span class="lv-chip lv-conf-label" style="color:var(--lv-text-3);cursor:default">{t("confidence.before")}</span>
                 {#each ["sure", "fuzzy", "guess"] as c, _i (_i)}
                   <button type="button" class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={c === "guess" ? "Key 3 · G" : `Key ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => onconfidenceSelect(c as "sure" | "fuzzy" | "guess")}>
                     <span class="lv-reason-key">{_i + 1}</span> {t("confidence." + c)}
@@ -1000,7 +1023,7 @@
                 <span>{reciteToggle ? "已掌握，下一题 (Space / →)" : t("session.next")}</span>
                 <Icon name="chev-right" size={13} />
               </button>
-              {#if feedback.verdict === "wrong"}
+              {#if feedback?.verdict === "wrong"}
                 <button class="lv-btn" onclick={ondrillVariant} title={t("session.drillVariantTip")}><Icon name="layers" size={15} /> {t("session.drillVariant")}</button>
                 <button class="lv-btn" onclick={ontraceMother} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
                 {#if ondiagnosePrereqs}
@@ -1104,11 +1127,15 @@
   .lv-side-rows { display: flex; flex-wrap: wrap; gap: var(--lv-space-compact); }
   @container lv-exam (max-width: 960px) { .lv-session-grid { grid-template-columns: minmax(0, 1fr); } .lv-session-side { order: 2; } }
   .lv-session-head { justify-content: flex-start; }
-  @container lv-exam (max-width: 600px) {
-    .lv-pad { padding: 12px 14px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .lv-session-head-bar { display: contents; }
+  .lv-session-tools-collapse { display: contents; }
+  .lv-session-tools-toggle { display: none; }
+  @container lv-exam (max-width: 680px) {
+    .lv-pad { padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px)); }
     .lv-session-grid {
       display: flex;
       flex-direction: column;
+      gap: 10px;
       overflow-y: auto;
       overscroll-behavior-y: contain;
       -webkit-overflow-scrolling: touch;
@@ -1118,19 +1145,138 @@
       min-width: 0;
       overflow-y: visible;
     }
-    .lv-session-head { gap: var(--lv-space-compact); align-items: center; }
-    .lv-session-head .lv-progress { min-width: 56px; }
-    .lv-session-head > .lv-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .lv-answer-actions { align-items: stretch; }
-    .lv-answer-actions > .lv-btn { flex: 1 1 auto; min-width: 0; }
+    .lv-session-head {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      margin: 0 !important;
+      width: 100%;
+    }
+    .lv-session-head-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: nowrap;
+      gap: 6px;
+      margin: 0 !important;
+      width: 100%;
+      min-width: 0;
+    }
+    .lv-session-exit-btn {
+      min-height: 32px !important;
+      height: 32px !important;
+      padding: 0 8px !important;
+      font-size: 12px !important;
+      flex-shrink: 0;
+    }
+    .lv-session-prog-wrap {
+      flex: 1 1 0;
+      min-width: 0 !important;
+      margin: 0 !important;
+      gap: 6px !important;
+      flex-wrap: nowrap !important;
+    }
+    .lv-session-head .lv-progress { min-width: 48px; }
+    .lv-session-qtype {
+      flex-shrink: 0;
+      padding: 2px 7px;
+      font-size: 11.5px;
+    }
+    .lv-session-tools-toggle {
+      display: inline-flex;
+      flex-shrink: 0;
+      min-height: 30px;
+      height: 30px;
+      padding: 0 8px;
+      font-size: 11.5px;
+    }
+    .lv-session-tools-collapse {
+      display: none;
+    }
+    .lv-session-tools-collapse.open {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      background: var(--lv-surface);
+      border: 1px solid var(--lv-border-subtle);
+      border-radius: var(--lv-r-2);
+    }
+    .lv-question { margin-top: 2px; }
+    .lv-stage-hint-box {
+      padding: 4px 10px !important;
+      margin-bottom: 6px !important;
+    }
+    .lv-stage-hint-box .lv-btn.sm {
+      min-height: 28px !important;
+      height: 28px !important;
+      font-size: 12px;
+    }
+    .lv-confidence-timer-row {
+      flex-wrap: nowrap !important;
+      gap: 4px !important;
+      margin: 6px 0 8px !important;
+    }
+    .lv-confidence-timer-row .lv-conf-label {
+      display: none;
+    }
+    .lv-confidence-timer-row .lv-session-dock {
+      flex-wrap: nowrap;
+    }
+    .lv-confidence-timer-row .lv-session-dock .lv-chip {
+      padding: 2px 6px;
+      font-size: 11.5px;
+    }
+    .lv-answer-actions {
+      align-items: center;
+      margin-top: 10px;
+      padding: 8px 10px;
+      gap: 6px !important;
+    }
+    .lv-answer-actions > .lv-btn {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 36px;
+      height: 36px;
+      padding: 0 10px;
+      font-size: 12.5px;
+    }
     .lv-opt {
-      min-height: 52px;
-      padding: 14px 16px;
+      min-height: 48px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
     }
     .lv-opt .key {
-      width: 36px;
-      height: 36px;
-      font-size: 14px;
+      width: 32px;
+      height: 32px;
+      font-size: 13px;
+    }
+  }
+  @media (max-width: 759px) and (max-height: 480px) {
+    .lv-pad { padding: 4px 10px 8px !important; }
+    .lv-session-grid { gap: 4px; }
+    .lv-question {
+      margin-top: 0 !important;
+      padding: 8px 10px !important;
+    }
+    .lv-stem {
+      font-size: 14.5px !important;
+      line-height: 1.4 !important;
+      margin-bottom: 6px !important;
+    }
+    .lv-question > p.lv-muted[role="note"] {
+      display: none !important;
+    }
+    .lv-question textarea.lv-textarea {
+      min-height: 48px !important;
+      max-height: 68px !important;
+      padding: 6px 10px !important;
+    }
+    .lv-confidence-timer-row {
+      margin: 4px 0 !important;
+    }
+    .lv-answer-actions {
+      margin-top: 6px !important;
+      padding: 6px 8px !important;
     }
   }
   .lv-pure .lv-stem, .lv-pure .lv-opt > span:not(.key) { display: none; }
@@ -1205,6 +1351,12 @@
   /* —— 改答原因弹层（63-03：轻量内联，不阻断作答） —— */
   .lv-reason { margin: 10px 0 0; padding: 12px 16px; border-radius: var(--lv-r-3); border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface)); box-shadow: var(--lv-sh-1), var(--lv-inset-card); }
   /* —— 结构化作答框（54 第三刀：数值单行 / 多空逐空） —— */
+  .lv-question textarea.lv-textarea,
+  .lv-answer-num,
+  .lv-answer-blank {
+    width: 100%;
+    box-sizing: border-box;
+  }
   .lv-answer-num { min-height: 48px; font-size: 16px; font-variant-numeric: tabular-nums; }
   .lv-answer-blank { min-height: 44px; margin-bottom: 10px; }
   .lv-analysis { border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-accent); background: var(--lv-surface-2); border-radius: var(--lv-r-2); padding: 14px 18px; font-size: var(--lv-font-size-body); color: var(--lv-text-2); margin-bottom: 12px; white-space: pre-wrap; box-shadow: var(--lv-sh-1); }

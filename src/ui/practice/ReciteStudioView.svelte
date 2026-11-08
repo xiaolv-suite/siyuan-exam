@@ -86,17 +86,17 @@
 </script>
 
 <div class="lv-pad">
-  <div class="lv-row lv-session-head" style="align-items:center;flex-wrap:wrap;gap:8px">
-    <div class="lv-row" style="flex:1;min-width:200px;align-items:center;gap:var(--lv-space-2)">
-      <button class="lv-btn lv-btn--ghost" onclick={onexit} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("recite.exit")}</button>
-      <div class="lv-progress" style="flex:1;min-width:80px" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={reciteQueue.length} aria-valuenow={reciteCursor + 1}>
+  <div class="lv-row lv-session-head lv-recite-head" style="align-items:center;flex-wrap:wrap;gap:8px">
+    <div class="lv-row lv-recite-head-main" style="flex:1;min-width:120px;align-items:center;gap:var(--lv-space-2)">
+      <button class="lv-btn lv-btn--ghost lv-recite-exit-btn" onclick={onexit} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("recite.exit")}</button>
+      <div class="lv-progress" style="flex:1;min-width:48px" role="progressbar" aria-label={t("session.progress")} aria-valuemin="0" aria-valuemax={reciteQueue.length} aria-valuenow={reciteCursor + 1}>
         <i style="width:{Math.round(((reciteCursor + (reciteRevealed ? 1 : 0)) / Math.max(1, reciteQueue.length)) * 100)}%"></i>
       </div>
       <span class="lv-chip num">{reciteCursor + 1}/{reciteQueue.length}</span>
     </div>
-    <div class="lv-session-dock" role="group" aria-label="背诵辅助操作">
+    <div class="lv-session-dock lv-recite-dock" role="group" aria-label="背诵辅助操作">
       <button type="button" class="lv-chip" class:acc={reciteAutoTts} aria-pressed={reciteAutoTts} aria-label="伴学自动朗读开关" title="伴学自动朗读开关：开启后自动朗读题干与揭示答案" onclick={ontoggleAutoTts}>
-        <Icon name="volume" size={12} /> {reciteAutoTts ? "伴读开" : "伴读"}
+        <Icon name="volume" size={12} /> <span class="lv-dock-label">{reciteAutoTts ? "伴读开" : "伴读"}</span>
       </button>
       <button type="button" class="lv-chip num sm" class:acc={ttsSlowRate} aria-pressed={ttsSlowRate} aria-label="切换语音语速" onclick={ontoggleTtsSlow} title="切换语音语速（0.8x 慢速磨耳朵 / 1.0x 正常）">
         {ttsSlowRate ? "0.8x" : "1.0x"}
@@ -106,17 +106,17 @@
       </button>
       {#if (reciteQueue[reciteCursor]?.studyMeta?.lang || reciteQueue[reciteCursor]?.studyMeta?.phonetic || speechEvalEnabled) && onstartSpeech}
         <button type="button" class="lv-chip" class:acc={speechRecording} aria-pressed={speechRecording} aria-label="开启麦克风发音跟读录音" onclick={() => onstartSpeech(reciteQueue[reciteCursor]?.answer || reciteQueue[reciteCursor]?.stem, reciteQueue[reciteCursor]?.studyMeta?.lang || "zh-CN")} title="开启麦克风发音跟读录音与匹配度测评">
-          <Icon name="mic" size={12} /> {speechRecording ? "跟读中…" : "跟读"}
+          <Icon name="mic" size={12} /> <span class="lv-dock-label">{speechRecording ? "跟读中…" : "跟读"}</span>
         </button>
       {/if}
       {#if reciteQueue[reciteCursor]?.prerequisites && reciteQueue[reciteCursor].prerequisites!.length > 0}
-        <span class="lv-chip sm" title="先修依赖考点"><Icon name="compass" size={11} /> 先修: {reciteQueue[reciteCursor].prerequisites!.join("、")}</span>
+        <span class="lv-chip sm lv-recite-meta-chip" title="先修依赖考点"><Icon name="compass" size={11} /> 先修: {reciteQueue[reciteCursor].prerequisites!.join("、")}</span>
       {/if}
       {#if reciteQueue[reciteCursor]?.group}
-        <span class="lv-chip num"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
+        <span class="lv-chip num lv-recite-meta-chip"><Icon name="link" size={12} /> {t("session.groupPos")}</span>
       {/if}
       {#if reciteQueue[reciteCursor]?.blockId && reciteQueue[reciteCursor]?.rootId}
-        <button class="lv-chip" title="在思源笔记中定位并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onjumpSource(e)}><Icon name="pin" size={12} /> {t("recite.jumpSource")}</button>
+        <button class="lv-chip" title="在思源笔记中定位并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" aria-label={t("recite.jumpSource")} onclick={(e) => onjumpSource(e)}><Icon name="pin" size={12} /> <span class="lv-dock-label">{t("recite.jumpSource")}</span></button>
       {/if}
       {#if reciteQueue[reciteCursor]}
         <button class="lv-chip" title={ttsSupported() ? t("tts.read") : t("tts.unsupported", "当前前端不支持朗读")} aria-label={t("tts.read")} disabled={!ttsSupported()} onclick={() => onttsSpeak(reciteQueue[reciteCursor].stem, reciteQueue[reciteCursor].studyMeta?.lang ? { lang: reciteQueue[reciteCursor].studyMeta.lang } : 1)}><Icon name="volume" size={13} /></button>
@@ -231,3 +231,43 @@
     </div>
   {/if}
 </div>
+
+<style>
+  @container lv-exam (max-width: 680px) {
+    .lv-recite-head {
+      flex-wrap: nowrap !important;
+      gap: 6px !important;
+      margin: 0 0 8px !important;
+    }
+    .lv-recite-head-main {
+      min-width: 0 !important;
+      flex: 1 1 0;
+      flex-wrap: nowrap !important;
+      margin: 0 !important;
+      gap: 6px !important;
+    }
+    .lv-recite-exit-btn {
+      min-height: 32px !important;
+      height: 32px !important;
+      padding: 0 8px !important;
+      font-size: 12px !important;
+      flex-shrink: 0;
+    }
+    .lv-recite-dock {
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+      padding: 2px 3px;
+    }
+    .lv-recite-dock .lv-chip {
+      padding: 2px 6px;
+      height: 26px;
+      min-height: 26px;
+    }
+    .lv-recite-meta-chip {
+      display: none !important;
+    }
+    .lv-paper {
+      padding: 16px 14px;
+    }
+  }
+</style>

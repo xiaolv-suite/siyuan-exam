@@ -505,7 +505,7 @@
         {#if q.type === "single" || q.type === "multiple"}
           <button class="lv-btn sm lv-btn--ghost" onclick={() => { editDraft!.options.push(""); editDraft = { ...editDraft! }; }} style="display:inline-flex;align-items:center;gap:4px"><Icon name="plus" size={11} /> {t("manual.addOption")}</button>
         {/if}
-        <div class="lv-row" style="margin:6px 0">
+        <div class="lv-row lv-peek-edit-meta" style="margin:6px 0">
           <label class="lv-muted" for="lv-edit-answer">{t("browse.answer")}</label>
           <input id="lv-edit-answer" class="lv-input" style="max-width:180px" bind:value={editDraft.answer} placeholder={q.type === "judge" ? "对/错" : q.type === "multiple" ? "AB/ABC" : ""} />
           <label class="lv-muted" for="lv-edit-kp">{t("manual.kp")}</label>
@@ -532,7 +532,7 @@
             </button>
           </div>
           {#if editSpecOpen}
-            <div class="lv-row" style="margin:4px 0 0;align-items:flex-end">
+            <div class="lv-row lv-peek-spec-row" style="margin:4px 0 0;align-items:flex-end">
               <label class="lv-field" style="max-width:140px"><span class="lv-muted">{t("spec.unit")}</span>
                 <input class="lv-input" bind:value={editSpecUnit} placeholder="m/s" aria-label={t("spec.unit")} />
               </label>
@@ -934,3 +934,36 @@
     </button>
   </footer>
 </div>
+
+<style>
+  @container lv-exam (max-width: 680px) {
+    .lv-peek-edit-meta,
+    .lv-peek-spec-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+    .lv-peek-edit-meta .lv-input,
+    .lv-peek-edit-meta .lv-select,
+    .lv-peek-spec-row .lv-field,
+    .lv-peek-spec-row .lv-input {
+      max-width: 100% !important;
+      width: 100%;
+    }
+  }
+  @media (max-width: 680px) {
+    .lv-peek-edit-meta,
+    .lv-peek-spec-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+    .lv-peek-edit-meta .lv-input,
+    .lv-peek-edit-meta .lv-select,
+    .lv-peek-spec-row .lv-field,
+    .lv-peek-spec-row .lv-input {
+      max-width: 100% !important;
+      width: 100%;
+    }
+  }
+</style>

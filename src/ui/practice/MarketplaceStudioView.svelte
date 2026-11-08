@@ -404,8 +404,8 @@
         支持输入托管在 GitHub Gist、Gitee 或自建服务器的 <code>catalog.json</code> 订阅直链（模式同开源阅读书源），思源客户端在前端直接拉取，官方不设中转。
       </p>
       <div class="lv-row" style="gap:8px;margin:0 0 8px;flex-wrap:wrap">
-        <input class="lv-input" style="flex:1;min-width:160px" bind:value={newSourceName} placeholder="订阅源名称（如：考研专业课精选源）" />
-        <input class="lv-input" style="flex:2;min-width:260px" bind:value={newSourceUrl} placeholder="https://example.com/catalog.json" />
+        <input class="lv-input" style="flex:1;min-width:min(160px, 100%)" bind:value={newSourceName} placeholder="订阅源名称（如：考研专业课精选源）" />
+        <input class="lv-input" style="flex:2;min-width:min(220px, 100%)" bind:value={newSourceUrl} placeholder="https://example.com/catalog.json" />
         <button class="lv-btn sm lv-btn--primary" onclick={handleAddCustomSource}>添加并载入</button>
       </div>
       {#if customSources.length > 0}
@@ -462,7 +462,7 @@
   <!-- 搜索与筛选工具栏 -->
   <div class="lv-card" style="margin:0 0 18px;padding:14px 18px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2)">
     <div class="lv-row" style="margin:0 0 12px;gap:12px;flex-wrap:wrap;align-items:center">
-      <div style="position:relative;flex:1;min-width:260px">
+      <div style="position:relative;flex:1;min-width:min(220px, 100%)">
         <input
           class="lv-input"
           style="width:100%;box-sizing:border-box;padding-left:32px;font-size:14px"
@@ -589,7 +589,7 @@
       <p style="font-size:13px;margin-top:6px">尝试清空搜索关键词或切换上方的领域分类。</p>
     </div>
   {:else}
-    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:18px;margin-bottom:24px">
+    <div class="lv-marketplace-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(min(280px, 100%), 1fr));gap:18px;margin-bottom:24px">
       {#each filteredItems as item (item.id)}
         {@const localBank = getLocalBankForItem(item)}
         {@const isInstalled = !!localBank || installedIds.has(item.id)}
@@ -1048,6 +1048,13 @@
   }
   .lv-cart-drawer {
     animation: lv-slide-up var(--lv-dur-fast, 180ms) cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @container lv-exam (max-width: 759px) {
+    .lv-cart-dock {
+      bottom: calc(var(--lv-tasknav-height, 68px) + 10px) !important;
+      right: 12px !important;
+      max-width: calc(100vw - 24px);
+    }
   }
   @keyframes lv-slide-up {
     from {
