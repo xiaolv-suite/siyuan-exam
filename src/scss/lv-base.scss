@@ -2163,8 +2163,56 @@ input[type="range"] {
 .lv-shell-grid > .stack { min-width: 0; }
 .lv-shell-grid > .stack > .lv-card { min-width: 0; }
 .lv-block-title { display: block; font-size: var(--lv-font-size-h3); font-weight: var(--lv-font-weight-semibold); letter-spacing: -0.2px; }
-.stack { display: grid; gap: var(--lv-space-4); align-content: start; min-width: 0; }
-.stack-sm { display: grid; gap: var(--lv-space-2); }
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--lv-space-4); align-content: start; min-width: 0; max-width: 100%; }
+.stack-sm { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--lv-space-2); min-width: 0; max-width: 100%; }
+.stack > *, .stack-sm > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+
+@media (max-width: 680px) {
+  .lv-studio-nav + .lv-row:has(.lv-mobile-back) {
+    display: none !important;
+  }
+
+  .lv-studio-nav {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+    width: 100% !important;
+    margin-bottom: 8px !important;
+
+    .lv-studio-tab {
+      min-width: 0 !important;
+      padding: 6px 4px !important;
+      font-size: 12px !important;
+      justify-content: center !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+    }
+  }
+
+  .lv-import-card {
+    padding: 10px 12px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .lv-import-subtabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    width: 100% !important;
+
+    .lv-chip {
+      flex: 1 1 auto !important;
+      justify-content: center !important;
+      min-width: 0 !important;
+      font-size: 11.5px !important;
+      padding: 4px 8px !important;
+    }
+  }
+}
 .task-number { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; border: 1px solid var(--lv-border); background: var(--lv-surface-2); color: var(--lv-accent); font-size: var(--lv-font-size-sm); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .lv-rate { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 .lv-recite-revealed { animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out); }

@@ -443,9 +443,9 @@
       ondrop={onImportFileDrop}
     >
       <!-- 52-09 导入方式子分面切换：批量文件导入 vs 思源笔记文档直接导入 vs 思源标签与闪卡提取 vs 正文划重点挖空出题 -->
-      <div class="lv-session-dock" role="tablist" tabindex="-1" aria-label="导入方式切换" style="margin-bottom:14px" onkeydown={handleTablistKeydown}>
+      <div class="lv-session-dock lv-import-subtabs" role="tablist" tabindex="-1" aria-label="导入方式切换" style="margin-bottom:10px;width:100%;box-sizing:border-box" onkeydown={handleTablistKeydown}>
         <button type="button" role="tab" tabindex={importSubTab === "standard" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "standard"} aria-selected={importSubTab === "standard"} onclick={() => importSubTab = "standard"}>
-          <Icon name="import" size={12} /> {t("import.title")}（Excel / CSV / Aiken / Word）
+          <Icon name="import" size={12} /> {t("import.title")}<span class="lv-dock-label">（Excel / CSV / Aiken / Word）</span>
         </button>
         <button type="button" role="tab" tabindex={importSubTab === "siyuan" ? 0 : -1} class="lv-chip" class:acc={importSubTab === "siyuan"} aria-selected={importSubTab === "siyuan"} onclick={() => { importSubTab = "siyuan"; onDoSearchDocs(""); }}>
           <Icon name="book" size={12} /> {t("import.fromSiyuanDoc")}
@@ -462,12 +462,12 @@
       </div>
       {#if importSubTab === "siyuan"}
         <!-- 从思源笔记原生文档直接提取题目导入（本插件核心特色能力） -->
-        <div class="stack-sm" style="margin-top:6px">
-          <div class="lv-card" style="margin:2px 0 6px;padding:10px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+        <div class="stack-sm" style="margin-top:6px;min-width:0;max-width:100%">
+          <div class="lv-card lv-import-guide-card" style="margin:2px 0 4px;padding:8px 12px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.5;min-width:0;max-width:100%;box-sizing:border-box">
             <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 思源原生笔记试题提取指引（本插件核心特色）：</b>
             直接读取思源笔记正文，支持单选/多选/判断/表格题、<code>==高亮划重点填空==</code>、<code>**术语定义**</code> 以及 <code>::</code> 闪卡语法。提取后的题目自动与思源原笔记段落挂载 <code>sourceBlockId</code> 双向链接！
           </div>
-          <div class="lv-chip lv-chip--grn" style="font-size:11px;padding:4px 8px;margin-bottom:4px" role="note">
+          <div class="lv-chip lv-chip--grn" style="font-size:11px;padding:4px 8px;margin-bottom:4px;white-space:normal;height:auto;line-height:1.4;max-width:100%;box-sizing:border-box" role="note">
             {t("import.siyuanDocSafety")}
           </div>
           <!-- 识别场景模式预设切换 -->
