@@ -739,9 +739,17 @@
   @container lv-exam (max-width: 960px) { .lv-entry-overview { grid-template-columns: minmax(0, 1fr); } }
   .lv-hero-actions { margin-top: 18px; }
   .lv-hero-actions .lv-btn--primary { box-shadow: var(--lv-btn-primary-shadow); }
-  @container lv-exam (max-width: 600px) {
-    .lv-entry-hero { grid-template-columns: minmax(0,1fr); padding: 18px; }
-    .lv-entry-num { border-left: 0; border-top: 1px solid var(--lv-darkcard-border); padding: 12px 0 0; flex-direction: row; align-items: baseline; gap: var(--lv-space-relaxed); justify-content: flex-start; }
+  @container lv-exam (max-width: 680px) {
+    .lv-entry-overview { margin-bottom: 12px; gap: 10px; }
+    .lv-entry-hero { grid-template-columns: minmax(0,1fr); padding: 14px 16px; gap: 10px; border-radius: var(--lv-r-3, 16px); }
+    .lv-entry-reason { font-size: 15.5px; line-height: 1.4; margin: 4px 0 8px; }
+    .lv-hero-actions { margin-top: 8px; }
+    .lv-entry-num { border-left: 0; border-top: 1px solid var(--lv-darkcard-border); padding: 8px 0 0; flex-direction: row; align-items: baseline; gap: 10px; justify-content: flex-start; }
+    .lv-entry-count { font-size: 30px; letter-spacing: -1px; }
+    .lv-entry-week { padding: 14px 16px; border-radius: var(--lv-r-3, 16px); }
+    .lv-entry-empty { padding: 18px 16px !important; margin: 6px auto 12px !important; }
+    .lv-entry-empty h2 { font-size: 17px !important; }
+    .lv-entry-empty .lv-empty-icon { width: 42px !important; height: 42px !important; margin-bottom: 8px !important; }
   }
   .lv-guard { max-width: 460px; width: 100%; }
   .lv-guard--welcome { max-width: 760px; }

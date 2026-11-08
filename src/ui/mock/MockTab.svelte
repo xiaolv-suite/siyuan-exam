@@ -538,7 +538,9 @@
           const vv = window.visualViewport;
           if (!vv) return;
           const diff = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
-          viewportBottomPad = diff > 80 ? diff : 0;
+          keyboardOpen = diff > 80;
+          const inMobileDialog = Boolean(tabRoot?.closest(".lv-exam-mobile-dialog"));
+          viewportBottomPad = !inMobileDialog && diff > 80 ? diff : 0;
         };
         window.visualViewport.addEventListener("resize", onViewportChange);
         window.visualViewport.addEventListener("scroll", onViewportChange);
@@ -756,6 +758,7 @@
     const sweepIndices = $derived(Array.from(new Set([...unansweredIndices, ...flaggedIndices])).sort((a, b) => a - b));
     let mockPaperGridOpen = $state(false);
     let viewportBottomPad = $state(0);
+    let keyboardOpen = $state(false);
     let presetOptions = $state<import("@/core/examPresets").ExamBlueprintPreset[]>([]);
     function readLocal(key: string): string {
       try {
@@ -2014,7 +2017,7 @@
 
 <svelte:window onblur={onBlur} onfocus={recomputeTimeCompensation} onpageshow={recomputeTimeCompensation} onkeydown={onExamKey} />
 
-<div class="fn__flex-1 lv-exam-tab" bind:this={tabRoot}>
+<div class="fn__flex-1 lv-exam-tab" class:lv-keyboard-open={keyboardOpen} bind:this={tabRoot}>
   <div class="block__icons" class:lv-focus-toolbar={view === "exam"}>
     <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
     {#if view === "exam"}<div class="lv-focus-brand"><Icon name="clock" size={15} /><strong>{t("mock.focusTitle", "专注模考")}</strong></div>{/if}
@@ -2046,10 +2049,10 @@
         <span class="lv-chip sm">{activeBankName}</span>
       {/if}
       <button class="lv-btn sm lv-btn--ghost" onclick={() => { plugin.openPractice?.(); }} title="打开题库画廊管理" aria-label="打开题库画廊管理">
-        <Icon name="folder" size={13} /> {t("bank.hubTitle", "题库管理")}
+        <Icon name="folder" size={13} /> <span class="lv-topbar-btn-label">{t("bank.hubTitle", "题库管理")}</span>
       </button>
     </div>
-    <span class="fn__flex-1"></span>
+    <span class="fn__flex-1 lv-topbar-spacer"></span>
     <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
@@ -2066,11 +2069,14 @@
         <Icon name="clock" size={13} />+5{t("entry.minutes")}
       </button>
     {/if}
+    <button type="button" class="lv-mobile-close-btn" aria-label="关闭" title="关闭" onclick={() => { lvLaunchpad.haptic(8); void plugin?.closeMobileDialog?.(); }}>
+      <Icon name="close" size={18} />
+    </button>
   </div>
 <div class="fn__flex-1 lv-shell" class:lv-shell-focus={view === "exam" || view === "report"}>
   <Rail active="mock" taskactive="mock" tasknavhidden={view === "exam" || view === "report"} ontasknavigate={onTaskNav} {plugin} open={railOpen} onclose={closeRail}
     project={{ name: railBankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => plugin.openPractice?.()} />
-  <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: ${viewportBottomPad + 16}px;` : undefined}>
+  <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: calc(${viewportBottomPad + 16}px + env(safe-area-inset-bottom, 0px));` : undefined}>
   <div class="fn__flex-1 lv-pad">
   {#if view === "config"}
     <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.mock.eyebrow")}</span><h1 class="lv-h1">{t("head.mock.title")}</h1><p>{t("head.mock.desc")}</p></div>

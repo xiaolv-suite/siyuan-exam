@@ -535,6 +535,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let questionsLoaded = $state(false);
     let questionLoadSeq = 0;
     let viewportBottomPad = $state(0);
+    let keyboardOpen = $state(false);
     const hasCardsPlugin = $derived(Boolean(getBridgeSafely("cards")));
 
     // —— ux §9 focus-on-route-change（WCAG 2.4.3）：视图切换后把键盘/读屏焦点移交新视图主标题，
@@ -1779,7 +1780,9 @@ import { confirmDialogSync } from "@/libs/dialog";
           const vv = window.visualViewport;
           if (!vv) return;
           const diff = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
-          viewportBottomPad = diff > 80 ? diff : 0;
+          keyboardOpen = diff > 80;
+          const inMobileDialog = Boolean(tabRoot?.closest(".lv-exam-mobile-dialog"));
+          viewportBottomPad = !inMobileDialog && diff > 80 ? diff : 0;
         };
         window.visualViewport.addEventListener("resize", onViewportChange);
         window.visualViewport.addEventListener("scroll", onViewportChange);
@@ -5876,7 +5879,7 @@ import { confirmDialogSync } from "@/libs/dialog";
 
 <svelte:window onkeydown={onKeydown} onclick={(e) => { onRichTextClick(e); onWindowClick(e); }} onauxclick={onRichTextClick} ondragover={(e) => { if (tabRoot?.contains(e.target as Node)) e.preventDefault(); }} ondrop={onDrop} />
 
-<div class="fn__flex-1 lv-exam-tab" bind:this={tabRoot} role="region" aria-label={t("tab.practice")}>
+<div class="fn__flex-1 lv-exam-tab" class:lv-keyboard-open={keyboardOpen} bind:this={tabRoot} role="region" aria-label={t("tab.practice")}>
   <div class="block__icons" class:lv-focus-toolbar={view === "session" && !sessionDone}>
     <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
     <!-- 原型 .breadcrumbs：题库 / 当前页（muted/当前 双色导航语境） -->
@@ -5887,7 +5890,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       <span class="lv-crumb-current">{t("tab.practice")}</span>
     </div>
     {#if app?.saves}<SaveStatus gate={app.saves} {t} />{/if}
-    <span class="fn__flex-1"></span>
+    <span class="fn__flex-1 lv-topbar-spacer"></span>
     <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
@@ -5922,7 +5925,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     {/if}
       {#if checkinStreak != null && checkinStreak > 0}
         <!-- 48-04 lite：打卡→考试只读投影（连续数由打卡单一实现计算，考试侧不自算） -->
-        <span class="lv-chip num lv-focus-context" title={t("entry.checkinStreakTip")}><Icon name="flame" size={12} /> {t("entry.checkinStreak").replace("{n}", String(checkinStreak))}</span>
+        <span class="lv-chip num lv-focus-context lv-checkin-chip" title={t("entry.checkinStreakTip")}><Icon name="flame" size={12} /> {t("entry.checkinStreak").replace("{n}", String(checkinStreak))}</span>
       {/if}
       <div class="lv-row lv-focus-context lv-bank-picker-group" style="margin:0;gap:6px;align-items:center">
         {#if banks.length > 1}
@@ -5933,7 +5936,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         {:else if hasBank}
           <span class="lv-chip sm">{bankName}</span>
         {/if}
-        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> {t("bank.hubTitle")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> <span class="lv-topbar-btn-label">{t("bank.hubTitle")}</span></button>
         <button
           type="button"
           class="lv-btn sm lv-btn--ghost"
@@ -5942,15 +5945,18 @@ import { confirmDialogSync } from "@/libs/dialog";
           title="题库与闪卡公共集市：精选公版题库与网络卡包"
           aria-label="题库集市"
         >
-          <Icon name="sparkles" size={13} /> 🏛️ 题库集市
+          <Icon name="sparkles" size={13} /> <span class="lv-topbar-btn-label">🏛️ 题库集市</span>
         </button>
       </div>
+      <button type="button" class="lv-mobile-close-btn" aria-label="关闭" title="关闭" onclick={() => { lvLaunchpad.haptic(8); void plugin?.closeMobileDialog?.(); }}>
+        <Icon name="close" size={18} />
+      </button>
   </div>
   <div class="lv-shell" class:lv-shell-focus={view === "session" && !sessionDone} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
     <Rail active="practice" taskactive={view === "marketplace" ? "marketplace" : (view === "browse" || view === "wrongbook" ? "bank" : view === "manual" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
       project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => (view = "entry")}
       onquickcreate={() => { view = "manual"; }} />
-    <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: ${viewportBottomPad + 16}px;` : undefined}>
+    <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: calc(${viewportBottomPad + 16}px + env(safe-area-inset-bottom, 0px));` : undefined}>
   {#if errorMsg && errorMsg !== t("state.emptyBank") && view !== "session"}
     <div class="lv-pad" style="padding-bottom:0"><div class="lv-error" role="alert">{errorMsg}</div></div>
   {/if}

@@ -1217,18 +1217,31 @@ input[type="range"] {
   color: var(--lv-text-3);
   opacity: 1;
 }
-/* 抽屉触发按钮（窄屏显示；置于各 Tab 头部） */
-.lv-menu-btn {
+/* 抽屉触发按钮与移动端关闭钮（置于各 Tab 头部） */
+.lv-menu-btn,
+.lv-mobile-close-btn {
   display: none;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
+  padding: 0;
+  flex: 0 0 auto;
   border-radius: var(--lv-radius-control-sm);
   border: 1px solid var(--lv-ctl-border);
   background: var(--lv-surface);
   color: var(--lv-text-2);
   cursor: pointer;
+  touch-action: manipulation;
+}
+.lv-mobile-close-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+.lv-report-mobile-more {
+  display: none;
 }
 @container lv-exam (max-width: 759px) {
   .lv-menu-btn {

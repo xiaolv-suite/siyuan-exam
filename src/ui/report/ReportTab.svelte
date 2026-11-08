@@ -21,6 +21,7 @@
     import { openSiYuanTarget } from "../practice/services/backlinkNavigationService";
     import type { ActionItem } from "@/core/actions";
     import SaveStatus from "../shared/SaveStatus.svelte";
+    import { lvLaunchpad } from "@/libs/lv-notice-kit";
     import { emitExamEvent, onExamEvent } from "@/core/bus";
     import { openPracticeView, type ExamPluginLike } from "@/core/pluginTab";
     import type { AttemptEvent, Question } from "@/core/types";
@@ -39,6 +40,8 @@
     };
 
     let railOpen = $state(false);
+    let reportMoreOpen = $state(false);
+    let reportMoreRoot: HTMLDivElement | null = null;
     let menuBtn: HTMLButtonElement | null = null;
     function closeRail() { railOpen = false; menuBtn?.focus(); }
 
@@ -1015,6 +1018,8 @@
     }
 </script>
 
+<svelte:window onclick={(e) => { if (reportMoreOpen && reportMoreRoot && !reportMoreRoot.contains(e.target as Node)) reportMoreOpen = false; }} />
+
 <div class="fn__flex-1 lv-exam-tab">
   <div class="block__icons">
     <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
@@ -1024,44 +1029,66 @@
       <span class="lv-crumb-current">{t("tab.report")}</span>
     </div>
     {#if app}<SaveStatus gate={app.saves} {t} />{/if}
-    <!-- 39-06 lite：统计日期范围（消灭错题/连续天数为状态类指标保持全局） -->
-    <select class="lv-select" bind:value={rangeDays} onchange={onRangeChange} disabled={loading || reportRefreshing} title={t("report.rangeTip")}>
-      <option value={0}>{t("report.rangeAll")}</option>
-      <option value={1}>{t("report.rangeToday")}</option>
-      <option value={7}>{t("report.range7")}</option>
-      <option value={30}>{t("report.range30")}</option>
-    </select>
-    <!-- 69-04 lite：陈旧态显式控制——流水可能在报告打开期间新增，强制刷新清 memo 重算 -->
-    <button class="lv-btn sm lv-btn--ghost" disabled={!app || reportRefreshing} aria-busy={reportRefreshing} aria-label={t("report.refreshTip")} onclick={() => void refreshReport(true)} title={t("report.refreshTip")}>
-      <Icon name="rotate" size={14} /> {reportRefreshing ? "…" : t("report.refresh")}
-    </button>
-    {#if bankOptions.length > 1}
-      <select class="lv-select" style="max-width:200px" bind:value={bankId} disabled={scopeLoading || reportRefreshing} onchange={onBankChange} aria-label="选择题库范围">
-        {#each bankOptions as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
+    <div class="lv-row lv-report-picker-group" style="margin:0;gap:6px;align-items:center">
+      <!-- 39-06 lite：统计日期范围（消灭错题/连续天数为状态类指标保持全局） -->
+      <select class="lv-select lv-range-select" bind:value={rangeDays} onchange={onRangeChange} disabled={loading || reportRefreshing} title={t("report.rangeTip")}>
+        <option value={0}>{t("report.rangeAll")}</option>
+        <option value={1}>{t("report.rangeToday")}</option>
+        <option value={7}>{t("report.range7")}</option>
+        <option value={30}>{t("report.range30")}</option>
       </select>
-      <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("report.scopeHint")}</span>
-    {/if}
-    <span class="fn__flex-1"></span>
+      {#if bankOptions.length > 1}
+        <select class="lv-select" style="max-width:200px" bind:value={bankId} disabled={scopeLoading || reportRefreshing} onchange={onBankChange} aria-label="选择题库范围">
+          {#each bankOptions as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
+        </select>
+        <span class="lv-muted lv-scope-hint" style="font-size:var(--lv-font-size-caption)">{t("report.scopeHint")}</span>
+      {/if}
+      <!-- 69-04 lite：陈旧态显式控制——流水可能在报告打开期间新增，强制刷新清 memo 重算 -->
+      <button class="lv-btn sm lv-btn--ghost" disabled={!app || reportRefreshing} aria-busy={reportRefreshing} aria-label={t("report.refreshTip")} onclick={() => void refreshReport(true)} title={t("report.refreshTip")}>
+        <Icon name="rotate" size={14} /> <span class="lv-topbar-btn-label">{reportRefreshing ? "…" : t("report.refresh")}</span>
+      </button>
+    </div>
+    <span class="fn__flex-1 lv-topbar-spacer"></span>
     <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
-    <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
-      <Icon name="star" size={13} /> 勋章墙
+    <div class="lv-row lv-report-desktop-actions" style="margin:0;gap:6px;align-items:center">
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
+        <Icon name="star" size={13} /> 勋章墙
+      </button>
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title="导出备考完备度体检报告">
+        <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
+      </button>
+      <!-- 117-01 T11 / 117-02：AI 解读与 AI 下一行动（按当前统计范围；只解释/建议，不重算不虚构） -->
+      <button class="lv-btn sm" onclick={() => void runReportExplain()} disabled={!app || loading || reportRefreshing || scopeLoading || explainBusy} aria-busy={explainBusy}>
+        <Icon name="sparkles" size={13} /> {explainBusy ? "…" : t("reportExplain.ask")}
+      </button>
+      <button class="lv-btn sm" onclick={() => void runNextAction()} disabled={!app || loading || reportRefreshing || scopeLoading || nextActionBusy} aria-busy={nextActionBusy}>
+        <Icon name="target" size={13} /> {nextActionBusy ? "…" : t("nextAction.ask")}
+      </button>
+      <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} aria-busy={fullHtmlExportBusy} title="一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）">
+        <Icon name="file" size={13} /> {fullHtmlExportBusy ? "导出中…" : t("report.fullHtmlReport")}
+      </button>
+    </div>
+    <div class="lv-more lv-report-mobile-more" bind:this={reportMoreRoot}>
+      <button type="button" class="lv-btn sm lv-btn--ghost" aria-haspopup="menu" aria-expanded={reportMoreOpen} aria-label="更多导出与AI诊断" title="更多导出与AI诊断" style="width:36px;min-width:36px;height:36px;min-height:36px;padding:0;justify-content:center" onclick={() => (reportMoreOpen = !reportMoreOpen)}>
+        <Icon name="sparkles" size={14} />
+      </button>
+      {#if reportMoreOpen}
+        <div class="lv-more-pop" role="menu" tabindex="-1" style="right:0;left:auto">
+          <button role="menuitem" disabled={!app || loading || reportRefreshing || scopeLoading || explainBusy} onclick={() => { reportMoreOpen = false; void runReportExplain(); }}><Icon name="sparkles" size={14} /> {t("reportExplain.ask")}</button>
+          <button role="menuitem" disabled={!app || loading || reportRefreshing || scopeLoading || nextActionBusy} onclick={() => { reportMoreOpen = false; void runNextAction(); }}><Icon name="target" size={14} /> {t("nextAction.ask")}</button>
+          <div class="lv-more-sep" role="separator"></div>
+          <button role="menuitem" disabled={fullHtmlExportBusy} onclick={() => { reportMoreOpen = false; exportFullHtmlReport(); }}><Icon name="file" size={14} /> {t("report.fullHtmlReport")}</button>
+          <button role="menuitem" disabled={readinessExportBusy} onclick={() => { reportMoreOpen = false; exportReadinessReport(); }}><Icon name="activity" size={14} /> {t("report.readinessReport")}</button>
+          <button role="menuitem" disabled={badgeWallBusy} onclick={() => { reportMoreOpen = false; exportBadgeWall(); }}><Icon name="star" size={14} /> 勋章墙</button>
+        </div>
+      {/if}
+    </div>
+    <span class="lv-chip lv-report-data-chip">{t("report.dataFromLog")}</span>
+    <button type="button" class="lv-mobile-close-btn" aria-label="关闭" title="关闭" onclick={() => { lvLaunchpad.haptic(8); void plugin?.closeMobileDialog?.(); }}>
+      <Icon name="close" size={18} />
     </button>
-    <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title="导出备考完备度体检报告">
-      <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
-    </button>
-    <!-- 117-01 T11 / 117-02：AI 解读与 AI 下一行动（按当前统计范围；只解释/建议，不重算不虚构） -->
-    <button class="lv-btn sm" onclick={() => void runReportExplain()} disabled={!app || loading || reportRefreshing || scopeLoading || explainBusy} aria-busy={explainBusy}>
-      <Icon name="sparkles" size={13} /> {explainBusy ? "…" : t("reportExplain.ask")}
-    </button>
-    <button class="lv-btn sm" onclick={() => void runNextAction()} disabled={!app || loading || reportRefreshing || scopeLoading || nextActionBusy} aria-busy={nextActionBusy}>
-      <Icon name="target" size={13} /> {nextActionBusy ? "…" : t("nextAction.ask")}
-    </button>
-    <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} aria-busy={fullHtmlExportBusy} title="一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）">
-      <Icon name="file" size={13} /> {fullHtmlExportBusy ? "导出中…" : t("report.fullHtmlReport")}
-    </button>
-    <span class="lv-chip">{t("report.dataFromLog")}</span>
   </div>
 <div class="fn__flex-1 lv-shell">
   <Rail active="report" taskactive="report" ontasknavigate={onTaskNav} {plugin} open={railOpen} onclose={closeRail}

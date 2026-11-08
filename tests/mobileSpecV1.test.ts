@@ -373,4 +373,28 @@ describe("小驴生态 · 手机端完整开发 · Mobile Spec v1 规范测试",
 
     vi.useRealTimers();
   });
+
+  it("11. 移动端布局收敛契约：单行顶栏、折叠筛选抽屉与底部任务栏防重叠", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const root = path.resolve(__dirname, "..");
+    const indexScss = fs.readFileSync(path.join(root, "src/index.scss"), "utf8");
+    const baseScss = fs.readFileSync(path.join(root, "src/scss/lv-base.scss"), "utf8");
+    const browseSvelte = fs.readFileSync(path.join(root, "src/ui/practice/BrowseStudioView.svelte"), "utf8");
+    const practiceSvelte = fs.readFileSync(path.join(root, "src/ui/practice/PracticeTab.svelte"), "utf8");
+    const mockSvelte = fs.readFileSync(path.join(root, "src/ui/mock/MockTab.svelte"), "utf8");
+    const reportSvelte = fs.readFileSync(path.join(root, "src/ui/report/ReportTab.svelte"), "utf8");
+
+    expect(indexScss).toMatch(/\.lv-exam-mobile-dialog[\s\S]*?\.b3-dialog__header\s*\{\s*display:\s*none\s*!important;/);
+    expect(baseScss).toMatch(/\.lv-mobile-close-btn\s*\{[\s\S]*?width:\s*44px;[\s\S]*?height:\s*44px;/);
+    expect(practiceSvelte).toContain('class="lv-mobile-close-btn"');
+    expect(mockSvelte).toContain('class="lv-mobile-close-btn"');
+    expect(reportSvelte).toContain('class="lv-mobile-close-btn"');
+    expect(indexScss).toMatch(/@container lv-exam \(max-width: 680px\)[\s\S]*?height:\s*46px;/);
+    expect(indexScss).toMatch(/@container lv-exam \(max-width: 680px\)[\s\S]*?\.lv-screen-head\s*\{\s*display:\s*none\s*!important;/);
+    expect(browseSvelte).toContain("lv-browse-filter-toggle");
+    expect(browseSvelte).toContain("lv-browse-filter-drawer");
+    expect(indexScss).toMatch(/\.lv-mobile-tasknav\s*\{[\s\S]*?position:\s*relative;[\s\S]*?flex-shrink:\s*0;/);
+    expect(indexScss).toMatch(/\.lv-keyboard-open \.lv-mobile-tasknav\s*\{\s*display:\s*none\s*!important;/);
+  });
 });

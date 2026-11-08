@@ -943,6 +943,10 @@
   @container lv-exam (max-width: 759px) {
     .lv-mobile-tasknav {
       display: grid;
+      position: relative;
+      inset: auto;
+      flex-shrink: 0;
+      order: 2;
     }
     .lv-mobile-tasknav.focus {
       display: none;

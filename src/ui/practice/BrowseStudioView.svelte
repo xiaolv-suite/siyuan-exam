@@ -490,6 +490,20 @@
   let publishModalOpen = $state(false);
   let assembleModalOpen = $state(false);
   let assembleQuestions = $state<Question[]>([]);
+  let mobileFiltersOpen = $state(false);
+
+  const activeFilterCount = $derived(
+    (filterType ? 1 : 0) +
+      (filterStatus ? 1 : 0) +
+      (filterSource ? 1 : 0) +
+      (filterDays ? 1 : 0) +
+      (filterWrong ? 1 : 0) +
+      (filterDispute ? 1 : 0) +
+      (filterHelp ? 1 : 0) +
+      (favOnly ? 1 : 0) +
+      (filterUserTag ? 1 : 0) +
+      (selectedView ? 1 : 0),
+  );
 
   function openAssembleStudio(qs?: Question[]) {
     const target = qs && qs.length ? qs : (shownQuestions.length ? shownQuestions : questions);
@@ -508,8 +522,8 @@
     <h1 class="lv-h1">{t("head.browse.title")}</h1>
     <p>{t("head.browse.desc")}</p>
   </div>
-  <div class="lv-row" style="margin:0 0 8px;gap:8px;align-items:center">
-    <div style="position:relative;flex:1;min-width:180px;display:flex;align-items:center">
+  <div class="lv-row lv-browse-search-row" style="margin:0 0 8px;gap:8px;align-items:center">
+    <div style="position:relative;flex:1;min-width:140px;display:flex;align-items:center">
       <span style="position:absolute;left:10px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
         <Icon name="search" size={14} />
       </span>
@@ -530,55 +544,99 @@
         <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { searchText = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:6px;padding:2px 6px;min-width:24px;min-height:24px"><Icon name="close" size={12} /></button>
       {/if}
     </div>
-    <select class="lv-select" style="max-width:115px" bind:value={filterType} onchange={onbrowseLimit200} aria-label={t("browse.fAnyType")}>
-      <option value="">{t("browse.fAnyType")}</option>
-      {#each ["single", "multiple", "judge", "fill", "short", "material"] as tp, _i (_i)}
-        <option value={tp}>{t("qtype." + tp)}</option>
-      {/each}
-    </select>
-    <select class="lv-select" style="max-width:115px" bind:value={filterStatus} onchange={onbrowseLimit200} title={t("browse.filterStatus")} aria-label={t("browse.filterStatus")}>
-      <option value="">{t("browse.filterStatusAll")}</option>
-      <option value="published">{t("lifecycle.published")}</option>
-      <option value="review">{t("lifecycle.review")}</option>
-      <option value="draft">{t("lifecycle.draft")}</option>
-      <option value="deprecated">{t("lifecycle.deprecated")}</option>
-    </select>
-    {#if sourceOptions.length}
-      <select class="lv-select" style="max-width:130px" bind:value={filterSource} onchange={onbrowseLimit200} title={t("browse.fSource")} aria-label={t("browse.fSource")}>
-        <option value="">{t("browse.fAnySource")}</option>
-        {#each sourceOptions as src, _i (_i)}<option value={src}>{src}</option>{/each}
+    <button
+      type="button"
+      class="lv-btn sm lv-browse-filter-toggle"
+      class:acc={mobileFiltersOpen || activeFilterCount > 0}
+      aria-expanded={mobileFiltersOpen}
+      onclick={() => (mobileFiltersOpen = !mobileFiltersOpen)}
+    >
+      <Icon name="layers" size={13} />
+      <span>筛选{#if activeFilterCount > 0} ({activeFilterCount}){/if}</span>
+    </button>
+    <div class="lv-browse-selects lv-browse-desktop-selects">
+      <select class="lv-select" style="max-width:115px" bind:value={filterType} onchange={onbrowseLimit200} aria-label={t("browse.fAnyType")}>
+        <option value="">{t("browse.fAnyType")}</option>
+        {#each ["single", "multiple", "judge", "fill", "short", "material"] as tp, _i (_i)}
+          <option value={tp}>{t("qtype." + tp)}</option>
+        {/each}
       </select>
-    {/if}
-    <select class="lv-select" style="max-width:115px" bind:value={filterDays} title={t("browse.fDaysTip")} aria-label={t("browse.fDaysTip")}>
-      <option value={0}>{t("browse.fAnyDay")}</option>
-      <option value={1}>{t("browse.fToday")}</option>
-      <option value={7}>{t("browse.f7")}</option>
-      <option value={30}>{t("browse.f30")}</option>
-    </select>
-  </div>
-  <div class="lv-row" style="margin:0 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-    <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
-      <div class="lv-session-dock" role="group" aria-label="状态快速过滤">
-        <button class="lv-chip" class:acc={filterWrong} aria-pressed={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={11} /> {t("browse.fWrong")}</button>
-        <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} aria-pressed={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
-        <button class="lv-chip" class:acc={filterHelp} aria-pressed={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
-        <button class="lv-chip" class:acc={favOnly} aria-pressed={favOnly} onclick={() => (favOnly = !favOnly)}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
-      </div>
-      <div class="lv-session-dock" role="group" aria-label="考点标签过滤">
-        <button class="lv-chip" class:acc={filterUserTag === "star"} aria-pressed={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}><Icon name="star" size={12} /> {t("session.tagStar")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "trap"} aria-pressed={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}><Icon name="alert-triangle" size={12} /> {t("session.tagTrap")}</button>
-        <button class="lv-chip" class:acc={filterUserTag === "doubt"} aria-pressed={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}><Icon name="help" size={12} /> {t("session.tagDoubt")}</button>
-      </div>
-    </div>
-    <div class="lv-row" style="margin:0;gap:6px">
-      {#if smartViews.length}
-        <select class="lv-select" style="max-width:140px" bind:value={selectedView} onchange={() => onapplyNamedView(selectedView)} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} aria-label={t("view.pick")}>
-          <option value="">{t("view.pick")}</option>
-          {#each smartViews as v, _i (_i)}<option value={v.name}>{v.name}</option>{/each}
+      <select class="lv-select" style="max-width:115px" bind:value={filterStatus} onchange={onbrowseLimit200} title={t("browse.filterStatus")} aria-label={t("browse.filterStatus")}>
+        <option value="">{t("browse.filterStatusAll")}</option>
+        <option value="published">{t("lifecycle.published")}</option>
+        <option value="review">{t("lifecycle.review")}</option>
+        <option value="draft">{t("lifecycle.draft")}</option>
+        <option value="deprecated">{t("lifecycle.deprecated")}</option>
+      </select>
+      {#if sourceOptions.length}
+        <select class="lv-select" style="max-width:130px" bind:value={filterSource} onchange={onbrowseLimit200} title={t("browse.fSource")} aria-label={t("browse.fSource")}>
+          <option value="">{t("browse.fAnySource")}</option>
+          {#each sourceOptions as src, _i (_i)}<option value={src}>{src}</option>{/each}
         </select>
-        <button class="lv-btn sm lv-btn--ghost" title={t("view.delete")} aria-label={t("view.delete")} aria-busy={smartViewBusy} disabled={!selectedView || smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} onclick={ondeleteNamedView}><Icon name="trash" size={13} /></button>
       {/if}
-      <button class="lv-btn sm lv-btn--ghost" title={t("view.saveTitle")} aria-busy={smartViewBusy} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed || !activeBankId} onclick={onsaveCurrentView}><Icon name="save" size={13} /> {smartViewBusy ? "…" : t("view.save")}</button>
+      <select class="lv-select" style="max-width:115px" bind:value={filterDays} title={t("browse.fDaysTip")} aria-label={t("browse.fDaysTip")}>
+        <option value={0}>{t("browse.fAnyDay")}</option>
+        <option value={1}>{t("browse.fToday")}</option>
+        <option value={7}>{t("browse.f7")}</option>
+        <option value={30}>{t("browse.f30")}</option>
+      </select>
+    </div>
+  </div>
+  <div class="lv-browse-filter-drawer" class:open={mobileFiltersOpen}>
+    <div class="lv-browse-mobile-selects">
+      <select class="lv-select" bind:value={filterType} onchange={onbrowseLimit200} aria-label={t("browse.fAnyType")}>
+        <option value="">{t("browse.fAnyType")}</option>
+        {#each ["single", "multiple", "judge", "fill", "short", "material"] as tp, _i (_i)}
+          <option value={tp}>{t("qtype." + tp)}</option>
+        {/each}
+      </select>
+      <select class="lv-select" bind:value={filterStatus} onchange={onbrowseLimit200} title={t("browse.filterStatus")} aria-label={t("browse.filterStatus")}>
+        <option value="">{t("browse.filterStatusAll")}</option>
+        <option value="published">{t("lifecycle.published")}</option>
+        <option value="review">{t("lifecycle.review")}</option>
+        <option value="draft">{t("lifecycle.draft")}</option>
+        <option value="deprecated">{t("lifecycle.deprecated")}</option>
+      </select>
+      {#if sourceOptions.length}
+        <select class="lv-select" bind:value={filterSource} onchange={onbrowseLimit200} title={t("browse.fSource")} aria-label={t("browse.fSource")}>
+          <option value="">{t("browse.fAnySource")}</option>
+          {#each sourceOptions as src, _i (_i)}<option value={src}>{src}</option>{/each}
+        </select>
+      {/if}
+      <select class="lv-select" bind:value={filterDays} title={t("browse.fDaysTip")} aria-label={t("browse.fDaysTip")}>
+        <option value={0}>{t("browse.fAnyDay")}</option>
+        <option value={1}>{t("browse.fToday")}</option>
+        <option value={7}>{t("browse.f7")}</option>
+        <option value={30}>{t("browse.f30")}</option>
+      </select>
+    </div>
+    <div class="lv-row lv-browse-chips-row" style="margin:0 0 10px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
+        <div class="lv-session-dock" role="group" aria-label="状态快速过滤">
+          <button class="lv-chip" class:acc={filterWrong} aria-pressed={filterWrong} onclick={() => (filterWrong = !filterWrong)} title={t("browse.fWrongTip")} style="display:inline-flex;align-items:center;gap:4px"><Icon name="close" size={11} /> {t("browse.fWrong")}</button>
+          <button class="lv-chip" class:acc={filterDispute} class:lv-chip--red={filterDispute} aria-pressed={filterDispute} onclick={() => (filterDispute = !filterDispute)} title={t("browse.fDisputeTip")}><Icon name="alert-triangle" size={12} /> {t("browse.fDispute")}</button>
+          <button class="lv-chip" class:acc={filterHelp} aria-pressed={filterHelp} onclick={() => (filterHelp = !filterHelp)} title={t("browse.fHelpTip")}><Icon name="bulb" size={12} /> {t("browse.fHelp")}</button>
+          <button class="lv-chip" class:acc={favOnly} aria-pressed={favOnly} onclick={() => (favOnly = !favOnly)}><Icon name="star" size={12} /> {t("browse.favOnly")}</button>
+        </div>
+        <div class="lv-session-dock" role="group" aria-label="考点标签过滤">
+          <button class="lv-chip" class:acc={filterUserTag === "star"} aria-pressed={filterUserTag === "star"} onclick={() => (filterUserTag = filterUserTag === "star" ? "" : "star")} title={t("session.tagStar")}><Icon name="star" size={12} /> {t("session.tagStar")}</button>
+          <button class="lv-chip" class:acc={filterUserTag === "trap"} aria-pressed={filterUserTag === "trap"} onclick={() => (filterUserTag = filterUserTag === "trap" ? "" : "trap")} title={t("session.tagTrap")}><Icon name="alert-triangle" size={12} /> {t("session.tagTrap")}</button>
+          <button class="lv-chip" class:acc={filterUserTag === "doubt"} aria-pressed={filterUserTag === "doubt"} onclick={() => (filterUserTag = filterUserTag === "doubt" ? "" : "doubt")} title={t("session.tagDoubt")}><Icon name="help" size={12} /> {t("session.tagDoubt")}</button>
+        </div>
+      </div>
+      <div class="lv-row" style="margin:0;gap:6px">
+        {#if smartViews.length}
+          <select class="lv-select" style="max-width:140px" bind:value={selectedView} onchange={() => onapplyNamedView(selectedView)} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} aria-label={t("view.pick")}>
+            <option value="">{t("view.pick")}</option>
+            {#each smartViews as v, _i (_i)}<option value={v.name}>{v.name}</option>{/each}
+          </select>
+          <button class="lv-btn sm lv-btn--ghost" title={t("view.delete")} aria-label={t("view.delete")} aria-busy={smartViewBusy} disabled={!selectedView || smartViewBusy || smartViewLoadBusy || smartViewLoadFailed} onclick={ondeleteNamedView}><Icon name="trash" size={13} /></button>
+        {/if}
+        <button class="lv-btn sm lv-btn--ghost" title={t("view.saveTitle")} aria-busy={smartViewBusy} disabled={smartViewBusy || smartViewLoadBusy || smartViewLoadFailed || !activeBankId} onclick={onsaveCurrentView}><Icon name="save" size={13} /> {smartViewBusy ? "…" : t("view.save")}</button>
+        {#if activeFilterCount > 0}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onclearBrowseFilters}>{t("browse.clearFilters")}</button>
+        {/if}
+      </div>
     </div>
   </div>
   {#if smartViewError}
@@ -589,17 +647,17 @@
       {/if}
     </div>
   {/if}
-  <div class="lv-row" style="margin:0 0 10px;gap:var(--lv-space-2) 8px">
-    <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onbackToEntry} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
+  <div class="lv-row lv-browse-action-row" style="margin:0 0 10px;gap:var(--lv-space-2) 8px">
+    <button class="lv-btn lv-btn--ghost lv-mobile-back lv-browse-back-btn" onclick={onbackToEntry} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
     <span class="lv-chip lv-chip--data num">{shownQuestions.length}/{questions.length} {t("browse.count")}</span>
     {#if shownQuestions.length > 0}
       <button class="lv-btn sm lv-btn--primary" onclick={onstartFilteredFocusDrill} title="将当前筛选出的这批题目直接发起专注特训">
         <Icon name="play" size={13} /> {t("browse.drillFiltered").replace("{n}", String(shownQuestions.length))}
       </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={() => (presentationOpen = true)} title="进入试卷大屏放映模式，支持投屏演示与键盘翻页">
+      <button class="lv-btn sm lv-btn--ghost lv-browse-desktop-only" onclick={() => (presentationOpen = true)} title="进入试卷大屏放映模式，支持投屏演示与键盘翻页">
         <Icon name="monitor" size={13} /> 投屏放映
       </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={() => openAssembleStudio()} title="进入专业组卷排版工坊，自定义 A4 双栏/单栏、卷面大标题、密封线与答题留白并直接打印">
+      <button class="lv-btn sm lv-btn--ghost lv-browse-desktop-only" onclick={() => openAssembleStudio()} title="进入专业组卷排版工坊，自定义 A4 双栏/单栏、卷面大标题、密封线与答题留白并直接打印">
         <Icon name="printer" size={13} /> 🖨️ 组卷排版打印
       </button>
     {/if}
@@ -622,6 +680,9 @@
           <button role="menuitemcheckbox" aria-checked={errataOpen} onclick={() => { errataOpen = !errataOpen; moreOpen = false; }}><Icon name="file-text" size={14} /> {t("errata.title")}</button>
           <button role="menuitemcheckbox" aria-checked={paperOpen} onclick={() => { paperOpen = !paperOpen; moreOpen = false; }}><Icon name="paperclip" size={14} /> {t("paper.title")}</button>
           <div class="lv-more-sep" role="separator"></div>
+          {#if shownQuestions.length > 0}
+            <button role="menuitem" onclick={() => { presentationOpen = true; moreOpen = false; }}><Icon name="monitor" size={14} /> 投屏放映</button>
+          {/if}
           <button role="menuitem" title={t("browse.exportCsvTitle")} onclick={() => { onexportBankCsv(); moreOpen = false; }}><Icon name="export" size={14} /> CSV</button>
           <button role="menuitem" title={t("print.qSheetTip")} onclick={() => { onprintQuestionSheet(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.qSheet")}</button>
           <button role="menuitem" title={t("print.aSheetTip")} onclick={() => { onprintAnswerSheet(); moreOpen = false; }}><Icon name="printer" size={14} /> {t("print.aSheet")}</button>
@@ -956,3 +1017,106 @@
     {showMessage}
   />
 </div>
+
+<style>
+  .lv-browse-filter-toggle {
+    display: none;
+  }
+  .lv-browse-desktop-selects {
+    display: contents;
+  }
+  .lv-browse-mobile-selects {
+    display: none;
+  }
+  .lv-browse-filter-drawer {
+    display: contents;
+  }
+
+  @container lv-exam (max-width: 680px) {
+    .lv-browse-search-row {
+      flex-wrap: nowrap !important;
+      margin: 0 0 6px !important;
+      gap: 6px !important;
+    }
+    .lv-browse-desktop-selects,
+    .lv-browse-desktop-only,
+    .lv-browse-back-btn {
+      display: none !important;
+    }
+    .lv-browse-filter-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex: 0 0 auto;
+      min-height: 36px;
+      height: 36px;
+      padding: 0 10px;
+    }
+    .lv-browse-filter-toggle.acc {
+      border-color: var(--lv-accent);
+      background: var(--lv-accent-soft);
+      color: var(--lv-accent);
+    }
+    .lv-browse-filter-drawer {
+      display: none;
+    }
+    .lv-browse-filter-drawer.open {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      margin: 0 0 8px;
+      border-radius: var(--lv-r-2);
+      background: var(--lv-surface);
+      border: 1px solid var(--lv-border);
+      box-shadow: var(--lv-sh-1);
+    }
+    .lv-browse-mobile-selects {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .lv-browse-mobile-selects .lv-select {
+      width: 100%;
+      max-width: none;
+    }
+    .lv-browse-chips-row {
+      margin: 0 !important;
+    }
+    .lv-browse-action-row {
+      margin: 0 0 6px !important;
+      gap: 5px !important;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .lv-browse-action-row > .lv-btn.sm,
+    .lv-browse-action-row > .lv-chip,
+    .lv-browse-action-row .lv-more > .lv-chip {
+      min-height: 34px;
+      height: 34px;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+    .lv-browse-action-row .lv-more {
+      margin-left: auto;
+    }
+    .lv-browse-action-row .lv-more-pop {
+      right: 0;
+      left: auto;
+      max-width: calc(100vw - 24px);
+    }
+    .lv-qrow {
+      padding: 8px 10px;
+      margin-bottom: 6px;
+    }
+    .lv-qrow-stem {
+      font-size: 13.5px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  }
+</style>

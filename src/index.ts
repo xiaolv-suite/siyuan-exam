@@ -97,6 +97,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private mobileComponent: any = null;
   private currentMobileTabType: string | null = null;
   private mobileSurfaceCleaner?: () => void;
+  private mobileViewportCleaner?: () => void;
 
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile" || lvLaunchpad.isMobileFrontend();
@@ -950,25 +951,28 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       });
     }
 
-    // 交互统一：顶部弹层下滑手势关闭 (Pull down to dismiss)
-    const headerEl = dialog.element.querySelector(".b3-dialog__header") as HTMLElement | null;
-    if (headerEl) {
+    // 交互统一：顶栏（原生头或自定义 .block__icons）下滑手势关闭 (Pull down to dismiss)
+    const bindPullDownDismiss = (targetEl: HTMLElement | null, requireTopBar = false) => {
+      if (!targetEl) return;
       let touchStartY = 0;
       let touchStartX = 0;
-      headerEl.addEventListener(
+      let validStart = false;
+      targetEl.addEventListener(
         "touchstart",
         (e: TouchEvent) => {
-          if (e.touches.length > 0) {
+          const target = e.target as HTMLElement | null;
+          validStart = !requireTopBar || Boolean(target?.closest(".block__icons, .b3-dialog__header"));
+          if (validStart && e.touches.length > 0) {
             touchStartY = e.touches[0].clientY;
             touchStartX = e.touches[0].clientX;
           }
         },
         { passive: true },
       );
-      headerEl.addEventListener(
+      targetEl.addEventListener(
         "touchend",
         (e: TouchEvent) => {
-          if (e.changedTouches.length > 0) {
+          if (validStart && e.changedTouches.length > 0) {
             const deltaY = e.changedTouches[0].clientY - touchStartY;
             const deltaX = Math.abs(e.changedTouches[0].clientX - touchStartX);
             if (deltaY > 70 && deltaX < 60) {
@@ -976,9 +980,40 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
               void this.closeMobileDialog();
             }
           }
+          validStart = false;
         },
         { passive: true },
       );
+    };
+    bindPullDownDismiss(dialog.element, true);
+    dialog.element.addEventListener("lv-exam:close-mobile-dialog", () => {
+      void this.closeMobileDialog();
+    });
+
+    this.mobileViewportCleaner?.();
+    if (typeof window !== "undefined" && window.visualViewport) {
+      const baseHeight = Math.max(window.innerHeight, window.visualViewport.height || 0);
+      const syncMobileViewport = () => {
+        if (!dialog.element.isConnected) return;
+        const vv = window.visualViewport;
+        if (!vv) return;
+        const diff = Math.max(window.innerHeight, baseHeight) - vv.height;
+        if (diff > 100) {
+          dialog.element.style.setProperty("--lv-visual-viewport-h", `${vv.height}px`);
+          dialog.element.style.setProperty("--lv-visual-viewport-top", `${Math.max(0, vv.offsetTop || 0)}px`);
+          dialog.element.classList.add("lv-keyboard-open");
+        } else {
+          dialog.element.style.removeProperty("--lv-visual-viewport-h");
+          dialog.element.style.removeProperty("--lv-visual-viewport-top");
+          dialog.element.classList.remove("lv-keyboard-open");
+        }
+      };
+      window.visualViewport.addEventListener("resize", syncMobileViewport, { passive: true });
+      window.visualViewport.addEventListener("scroll", syncMobileViewport, { passive: true });
+      this.mobileViewportCleaner = () => {
+        window.visualViewport?.removeEventListener("resize", syncMobileViewport);
+        window.visualViewport?.removeEventListener("scroll", syncMobileViewport);
+      };
     }
 
     this.mobileDialog = dialog;
@@ -1016,6 +1051,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   private cleanupMobileDialog(): void {
+    this.mobileViewportCleaner?.();
+    this.mobileViewportCleaner = undefined;
     this.mobileSurfaceCleaner?.();
     this.mobileSurfaceCleaner = undefined;
     if (this.mobileComponent) {
