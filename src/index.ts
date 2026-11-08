@@ -101,8 +101,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile" || lvLaunchpad.isMobileFrontend();
 
-    // 补手机入口（Protocol v1.6.0 Mobile）：挂载 lvLaunchpad.ensureMobileEntry()（桌面保留原 topBar）
-    this.launchpadMobileCleaner = lvLaunchpad.ensureMobileEntry();
+    // 挂载罗盘全端统一入口（Protocol v1.7.5 Unified Entry 顶栏+悬浮球收敛）
+    this.launchpadMobileCleaner = lvLaunchpad.ensureUnifiedEntry();
 
     // Epoch 7 Phase 4：注册全生态一键联合灾备切面 (lvBackup)
     this.backupCleaner = lvBackup.register(
@@ -123,6 +123,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       badge: "今日待测",
       badgeType: "primary",
       actions: ["继续上次练习", "错题复仇特训", "每日一练", "全真计时模拟考试"],
+      topBarElement: (this as any).topBarElement,
       onClick: () => this.openExamHome(),
       onAction: (action) => this.handleQuickAction(action),
     });
@@ -681,10 +682,31 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
 
   /** 唯一顶栏入口：点击后直接进入小驴考试主页面。 */
   private registerTopBar() {
-    this.addTopBar({
+    (this as any).topBarElement = this.addTopBar({
       icon: "iconExam",
       title: manifest.displayName["zh-CN"] ?? "小驴考试（内测版）",
       callback: () => this.openPractice(),
+    });
+    // 重新注册以同步 topBarElement 引用，驱动罗盘收敛
+    this.registerLaunchpad();
+  }
+
+  private registerLaunchpad() {
+    this.launchpadCleaner?.();
+    this.launchpadCleaner = lvLaunchpad.register({
+      id: "siyuan-exam",
+      name: "考试",
+      fullName: "小驴考试",
+      svgIcon: "icon-lv-exam",
+      color: "#3b82f6",
+      desc: "题库刷题 · 错题特训",
+      digit: 5,
+      badge: "今日待测",
+      badgeType: "primary",
+      actions: ["继续上次练习", "错题复仇特训", "每日一练", "全真计时模拟考试"],
+      topBarElement: (this as any).topBarElement,
+      onClick: () => this.openExamHome(),
+      onAction: (action) => this.handleQuickAction(action),
     });
   }
 
