@@ -1235,10 +1235,15 @@
     .lv-answer-actions > .lv-btn {
       flex: 1 1 auto;
       min-width: 0;
-      min-height: 36px;
-      height: 36px;
-      padding: 0 10px;
-      font-size: 12.5px;
+      min-height: 40px;
+      height: 40px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+    .lv-answer-actions > .lv-btn.lv-btn--primary {
+      min-height: 44px;
+      height: 44px;
+      font-weight: var(--lv-font-weight-semibold, 600);
     }
     .lv-opt {
       min-height: 48px;
