@@ -2143,6 +2143,7 @@
   .lv-quad--red { background: color-mix(in srgb, var(--lv-red-soft) 22%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-red) 20%, var(--lv-border)); } .lv-quad--red .v { color: var(--lv-red); }
   .lv-quad--amb { background: color-mix(in srgb, var(--lv-amber-soft) 22%, var(--lv-surface)); border-color: color-mix(in srgb, var(--lv-amber) 20%, var(--lv-border)); } .lv-quad--amb .v { color: var(--lv-amber); }
   @container lv-exam (max-width: 960px) { .lv-quad-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @container lv-exam (max-width: 759px) { .lv-quad { padding: 10px 12px; } .lv-quad .v { font-size: 20px; } }
   .lv-heat { display: grid; grid-template-columns: repeat(53, 1fr); gap: 2.5px; }
   /* 空格子 = 卡片上的轻微抬升（border 混合），暗色不再呈黑洞；有值格子在抬升底上叠主色 */
   .lv-heat i { aspect-ratio: 1; border-radius: 3px; background: color-mix(in srgb, var(--lv-border) 45%, var(--lv-surface)); transition: transform var(--lv-dur-micro) var(--lv-ease-out), filter var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out); position: relative; }

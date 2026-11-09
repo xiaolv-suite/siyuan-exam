@@ -235,8 +235,13 @@
     display: none !important;
   }
 
-  .lv-exam-tab .lv-done-stats strong {
+  .lv-exam-tab .lv-done-stats strong,
+  .lv-exam-tab .lv-quad .v {
     font-size: 20px !important;
+  }
+
+  .lv-exam-mobile-dialog .lv-mobile-tasknav {
+    padding-bottom: 4px !important;
   }
 
   .lv-exam-tab .lv-empty,

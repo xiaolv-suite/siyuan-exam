@@ -3020,7 +3020,7 @@
         {/if}
       </div>
       <div class="lv-row" style="align-items:center;padding:6px 4px">
-        <span class="num" style="font-size:40px;font-weight:var(--lv-font-weight-bold, 700);color:var(--lv-data-accent)">{score.total}</span>
+        <span class="num" style="font-size:var(--lv-font-size-kpi, 28px);font-weight:var(--lv-font-weight-bold, 700);color:var(--lv-data-accent)">{score.total}</span>
         <span class="lv-muted">/ {score.full}</span>
         <span class="lv-chip" class:grn={score.pass} class:red={!score.pass}>{score.pass ? t("mock.pass") : t("mock.fail")}（{t("mock.passLine")} {bp.passLine}%）</span>
         <span class="lv-chip lv-chip--data num">{score.percent}%</span>
@@ -3057,7 +3057,7 @@
           </div>
         </div>
         <div class="lv-row" style="margin:8px 0 0;align-items:baseline;gap:var(--lv-space-3);flex-wrap:wrap">
-          <span class="num" style="font-size:26px;font-weight:var(--lv-font-weight-bold, 700);color:var(--lv-data-accent)">{t("mock.percentileTop").replace("{n}", String(percentileVerdict.topPercent))}</span>
+          <span class="num" style="font-size:var(--lv-font-size-kpi-mobile, 20px);font-weight:var(--lv-font-weight-bold, 700);color:var(--lv-data-accent)">{t("mock.percentileTop").replace("{n}", String(percentileVerdict.topPercent))}</span>
           <span class="lv-chip num" title={t("mock.percentilePercentileTip")}>{t("mock.percentilePercentile").replace("{n}", String(percentileVerdict.percentile))}</span>
           <span class="lv-chip num" title={t("mock.percentileZTip")}>z = {percentileVerdict.zScore}</span>
         </div>

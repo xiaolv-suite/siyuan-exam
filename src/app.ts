@@ -3057,8 +3057,9 @@ export class ExamApp {
     let targetNotebook = notebookId;
     if (!targetNotebook) {
       const notebooks = await this.deps.client.listNotebooks();
-      const normalNb = notebooks.find((n) => !n.name.startsWith("题库【") && !n.name.startsWith("题库 ["));
-      targetNotebook = (normalNb ?? notebooks[0])?.id;
+      const preferredNb = notebooks.find((n) => /DailyNote|日记|小驴空间|小驴生态统一测试空间|小驴笔记本/i.test(n.name || ""))
+        ?? notebooks.find((n) => !n.name.startsWith("题库【") && !n.name.startsWith("题库 ["));
+      targetNotebook = (preferredNb ?? notebooks[0])?.id;
     }
     if (!targetNotebook) throw new Error("未找到可写入日记的笔记本");
     const docId = await this.deps.client.createDailyNote(targetNotebook);
