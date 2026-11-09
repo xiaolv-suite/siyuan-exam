@@ -10,6 +10,7 @@
     open: boolean;
     banks: BankInfo[];
     activeBankId: string;
+    bankQuestionCounts?: Record<string, number>;
     creating: boolean;
     offline: boolean;
     t: (k: string, fb?: string) => string;
@@ -28,6 +29,7 @@
     open,
     banks,
     activeBankId,
+    bankQuestionCounts = {},
     creating,
     offline,
     t,
@@ -193,6 +195,11 @@
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                     <b style="font-size:15px;color:var(--lv-text)">{b.name}</b>
                     <button type="button" class={`lv-scene-badge lv-scene-badge--${b.category || "general"}`} style="display:inline-flex;align-items:center;gap:4px" onclick={() => void oncycleBankCategory(b)} title="点击切换题库场景分类（备考/语言/教研/通识）" aria-label={`切换题库场景分类: ${b.name}`}><span>{getBankCategoryMeta(b.category).badge}</span> <Icon name="rotate" size={11} /></button>
+                    {#if bankQuestionCounts[b.id] !== undefined}
+                      <span class="lv-chip sm" class:lv-chip--acc={(bankQuestionCounts[b.id] ?? 0) > 0} style="font-weight:600">
+                        {(bankQuestionCounts[b.id] ?? 0) > 0 ? `${bankQuestionCounts[b.id]} 题` : "0 题 · 空题库"}
+                      </span>
+                    {/if}
                     {#if b.id === activeBankId}
                       <span class="lv-chip sm lv-chip--acc" style="font-weight:700">✓ 当前正在使用</span>
                     {/if}

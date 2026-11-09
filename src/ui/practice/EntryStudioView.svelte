@@ -64,6 +64,9 @@
     onretryEntryLoad: () => void;
     onnavView: (view: any, subTab?: string) => void;
     onopenBankHub: () => void;
+    onswitchToNonEmptyBank?: () => void;
+    bankQuestionCounts?: Record<string, number>;
+    activeBankId?: string;
     onrescueEbbinghausNow: () => void;
     onrescueEbbinghausRecite: () => void;
     onstartToday: () => void;
@@ -142,6 +145,9 @@
     onretryEntryLoad,
     onnavView,
     onopenBankHub,
+    onswitchToNonEmptyBank,
+    bankQuestionCounts = {},
+    activeBankId = "",
     onrescueEbbinghausNow,
     onrescueEbbinghausRecite,
     onstartToday,
@@ -327,14 +333,33 @@
         </div>
 
         <div class="lv-row lv-empty-actions" style="justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 0">
-          {#if banks.length > 1}
-            <button class="lv-btn lv-btn--primary" onclick={onopenBankHub}>
-              <Icon name="folder" size={15} /> 切换至已有题库刷题 ({banks.length})
+          {#if banks.some((b) => b.id !== activeBankId && (bankQuestionCounts[b.id] ?? 0) > 0)}
+            {@const bestOther = banks.find((b) => b.id !== activeBankId && (bankQuestionCounts[b.id] ?? 0) > 0)}
+            <button class="lv-btn lv-btn--primary" onclick={() => onswitchToNonEmptyBank ? onswitchToNonEmptyBank() : onopenBankHub()}>
+              <Icon name="folder" size={15} /> 切换至「{bestOther?.name}」刷题 ({bankQuestionCounts[bestOther?.id]} 题)
+            </button>
+            {#if banks.length > 1}
+              <button class="lv-btn lv-btn--ghost" onclick={onopenBankHub}>
+                <Icon name="grid" size={15} /> 全部题库 ({banks.length})
+              </button>
+            {/if}
+          {:else if banks.length > 1}
+            <button class="lv-btn lv-btn--primary" onclick={() => void oncreateSampleBank("general")} disabled={creating || offline}>
+              <Icon name="grid" size={15} /> 创建示例题库体验刷题（{SAMPLE_QUESTION_COUNT} 题）
+            </button>
+            <button class="lv-btn lv-btn--ghost" onclick={() => onswitchToNonEmptyBank ? onswitchToNonEmptyBank() : onopenBankHub()}>
+              <Icon name="folder" size={15} /> 查看题库列表 ({banks.length})
+            </button>
+          {:else}
+            <button class="lv-btn lv-btn--primary" onclick={() => void oncreateSampleBank("general")} disabled={creating || offline}>
+              <Icon name="grid" size={15} /> 创建示例题库体验刷题（{SAMPLE_QUESTION_COUNT} 题）
             </button>
           {/if}
-          <button class="lv-btn {banks.length > 1 ? 'lv-btn--ghost' : 'lv-btn--primary'}" onclick={() => void oncreateSampleBank("general")} disabled={creating || offline}>
-            <Icon name="grid" size={15} /> 创建示例题库体验刷题（{SAMPLE_QUESTION_COUNT} 题）
-          </button>
+          {#if banks.some((b) => b.id !== activeBankId && (bankQuestionCounts[b.id] ?? 0) > 0)}
+            <button class="lv-btn lv-btn--ghost" onclick={() => void oncreateSampleBank("general")} disabled={creating || offline}>
+              <Icon name="grid" size={15} /> 创建示例题库体验刷题（{SAMPLE_QUESTION_COUNT} 题）
+            </button>
+          {/if}
           <button class="lv-btn lv-btn--ghost lv-desktop-author-action" onclick={() => onnavView("import", "siyuan")}>
             <Icon name="file" size={15} /> 从思源笔记智能提取试题
           </button>

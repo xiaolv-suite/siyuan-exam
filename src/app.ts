@@ -517,10 +517,19 @@ export class ExamApp {
       try {
         const allNotebooks = await (this.deps.client as any).listAllNotebooks();
         if (Array.isArray(allNotebooks) && allNotebooks.length > 0) {
-          const existingIds = new Set(allNotebooks.map((n: { id: string }) => n.id));
-          const aliveBanks = this.banks.filter((b) => existingIds.has(b.id));
+          const nbMap = new Map(allNotebooks.map((n: { id: string; closed?: boolean }) => [n.id, n]));
+          const aliveBanks = this.banks.filter((b) => nbMap.has(b.id));
           if (aliveBanks.length !== this.banks.length) {
             this.banks = aliveBanks;
+            void this.saveBankRegistry().catch(() => undefined);
+          }
+          if (typeof (this.deps.client as any).openNotebook === "function") {
+            for (const b of this.banks) {
+              const nb = nbMap.get(b.id);
+              if (nb?.closed) {
+                await (this.deps.client as any).openNotebook(b.id).catch(() => undefined);
+              }
+            }
           }
         }
       } catch {

@@ -528,6 +528,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let errorMsg = $state("");
     let banks = $state<any[]>([]);
     let activeBankId = $state("");
+    let bankQuestionCounts = $state<Record<string, number>>({});
     /** 上次使用题库的记忆键（localStorage；多库切换与重载恢复） */
     const BANK_PREF_KEY = "lv-exam/activeBank";
     let questions = $state<(Question & { blockId: string; rootId: string })[]>([]);
@@ -1587,53 +1588,60 @@ import { confirmDialogSync } from "@/libs/dialog";
             } else {
               rememberBank(activeBankId);
             }
-          })();
-        }
+            void refreshBankCounts();
 
-        // 恢复未完成会话（37-05：校验题库归属，缺题剔除后提示）
-        app.resumeSession(async (qids) => {
-          const all = await loadQuestions();
-          return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
-        }, activeBankId).then(async (s) => {
-          const rawRecite = activeBankId && !externalStartBusy
-            ? await app.loadAux<any>("recite/active").catch(() => null)
-            : null;
-          const reciteIsNewer = Boolean(
-            rawRecite &&
-            rawRecite.bankId === activeBankId &&
-            !rawRecite.done &&
-            (!s || (rawRecite.updatedAt ?? 0) > (s.state.updatedAt ?? 0)),
-          );
-          if (s) {
-            s.advancePastAnswered();                       // 37-05：恢复跳过已答位置防双计
-            if (s.allAnswered()) sessionDone = s.finish();
-            session = s;
-            syncSessionScratchpad(s);
-            if (!reciteIsNewer) {
-              view = "session";
-              sessionRev++;
-              restoreQuestionControls();
+            // 恢复未完成会话（37-05：校验题库归属，缺题剔除后提示；在首轮题库自愈完成后串行执行，避免与 refreshQuestionsAfterWrite 竞争 questionLoadSeq）
+            try {
+              const s = await app.resumeSession(async (qids) => {
+                const all = questions.length ? questions : await loadQuestions();
+                return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
+              }, activeBankId);
+              const rawRecite = activeBankId && !externalStartBusy
+                ? await app.loadAux<any>("recite/active").catch(() => null)
+                : null;
+              const reciteIsNewer = Boolean(
+                rawRecite &&
+                rawRecite.bankId === activeBankId &&
+                !rawRecite.done &&
+                (!s || (rawRecite.updatedAt ?? 0) > (s.state.updatedAt ?? 0)),
+              );
+              if (s) {
+                s.advancePastAnswered();                       // 37-05：恢复跳过已答位置防双计
+                if (s.allAnswered()) sessionDone = s.finish();
+                session = s;
+                syncSessionScratchpad(s);
+                if (!reciteIsNewer) {
+                  view = "session";
+                  sessionRev++;
+                  restoreQuestionControls();
+                }
+                if (app.lastResumeMissing.length) showMessage(t("resume.missing").replace("{n}", String(app.lastResumeMissing.length)), 4200, "info");
+              }
+              if (reciteIsNewer && !externalStartBusy) {
+                const all = questions.length ? questions : await loadQuestions();
+                const rs = await loadReciteSnapshot(app, activeBankId, all.filter((q) => q.type !== "material"));
+                if (rs && !externalStartBusy) {
+                  reciteQueue = rs.queue;
+                  reciteCursor = rs.cursor;
+                  reciteRevealed = rs.revealed;
+                  reciteDone = rs.done;
+                  reciteHint = rs.hint;
+                  reciteRatings = rs.ratings;
+                  reciteSessionId = rs.sessionId;
+                  reciteCardStart = Date.now();
+                  view = "recite";
+                }
+              }
+              rebuildPlan();
+            } catch {
+              /* ignore */
+            } finally {
+              loading = false;
             }
-            if (app.lastResumeMissing.length) showMessage(t("resume.missing").replace("{n}", String(app.lastResumeMissing.length)), 4200, "info");
-          }
-          if (reciteIsNewer && !externalStartBusy) {
-            const all = questions.length ? questions : await loadQuestions();
-            const rs = await loadReciteSnapshot(app, activeBankId, all.filter((q) => q.type !== "material"));
-            if (rs && !externalStartBusy) {
-              reciteQueue = rs.queue;
-              reciteCursor = rs.cursor;
-              reciteRevealed = rs.revealed;
-              reciteDone = rs.done;
-              reciteHint = rs.hint;
-              reciteRatings = rs.ratings;
-              reciteSessionId = rs.sessionId;
-              reciteCardStart = Date.now();
-              view = "recite";
-            }
-          }
-          rebuildPlan();
+          })();
+        } else {
           loading = false;
-        }).catch(() => { loading = false; });
+        }
       };
 
       if (app) {
@@ -1889,6 +1897,8 @@ import { confirmDialogSync } from "@/libs/dialog";
         // 快速连续切库时，只允许最后一次读取更新页面，防止旧库结果覆盖新库。
         if (requestId !== questionLoadSeq || bankId !== activeBankId) return [];
         questions = loaded;
+        const practiceCount = loaded.filter((q) => q.type !== "material").length;
+        bankQuestionCounts = { ...bankQuestionCounts, [bankId]: practiceCount };
         rebuildQrefView();
         return questions;
       } catch (e) {
@@ -1907,6 +1917,37 @@ import { confirmDialogSync } from "@/libs/dialog";
       await loadQuestions();
       rebuildPlan();
       loading = false;
+    }
+
+    async function refreshBankCounts() {
+      if (!app || !banks.length) return;
+      const next: Record<string, number> = { ...bankQuestionCounts };
+      for (const b of banks) {
+        try {
+          if (b.id === activeBankId && questionsLoaded) {
+            next[b.id] = questions.filter((q) => q.type !== "material").length;
+          } else {
+            const qs = await app.listQuestions(b.id);
+            next[b.id] = qs.filter((q) => q.type !== "material").length;
+          }
+        } catch {
+          next[b.id] = next[b.id] ?? 0;
+        }
+      }
+      bankQuestionCounts = next;
+    }
+
+    async function switchToNonEmptyBank() {
+      if (!app) return;
+      await refreshBankCounts();
+      const target = banks.find((b) => b.id !== activeBankId && (bankQuestionCounts[b.id] ?? 0) > 0);
+      if (target) {
+        activeBankId = target.id;
+        await onBankSwitch();
+        showMessage(`已切换至题库「${target.name}」（共 ${bankQuestionCounts[target.id]} 题）✓`, 2800, "info");
+        return;
+      }
+      bankHubOpen = true;
     }
 
     async function refreshQuestionsAfterWrite(minCount: number) {
@@ -6102,7 +6143,10 @@ import { confirmDialogSync } from "@/libs/dialog";
         if (subTab) importSubTab = subTab as any;
         if (v === "browse") void loadQuestions();
       }}
-      onopenBankHub={() => { bankHubOpen = true; }}
+      onopenBankHub={() => { void refreshBankCounts(); bankHubOpen = true; }}
+      onswitchToNonEmptyBank={() => void switchToNonEmptyBank()}
+      {bankQuestionCounts}
+      {activeBankId}
       onrescueEbbinghausNow={rescueEbbinghausNow}
       onrescueEbbinghausRecite={rescueEbbinghausRecite}
       onstartToday={() => void startToday()}
@@ -7072,6 +7116,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       open={bankHubOpen}
       {banks}
       {activeBankId}
+      {bankQuestionCounts}
       {creating}
       {offline}
       {t}
