@@ -240,6 +240,10 @@
     font-size: 20px !important;
   }
 
+  .lv-input, .lv-select, .lv-textarea, input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 16px !important;
+  }
+
   .lv-exam-mobile-dialog .lv-mobile-tasknav {
     padding-bottom: 4px !important;
   }
