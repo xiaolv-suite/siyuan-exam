@@ -2211,7 +2211,8 @@
             <option value="mixed">{t("mock.sourceMixed", "不限来源")}</option><option value="real">{t("mock.sourceReal")}</option><option value="mock">{t("mock.sourceMock")}</option>
           </select></label>
           <!-- 55-02 lite：考点配额（前缀匹配；缺口显式计入短缺，不用其他考点补齐） -->
-          <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+          <div class="lv-row" style="margin:0;gap:4px;align-items:center;flex-wrap:wrap">
+            <span class="lv-bp-field-label" style="width:100%">{t("mock.secKp")}</span>
             <input class="lv-input" style="flex:1;min-width:90px" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
               aria-label={t("mock.secKp")}
               oninput={(e) => updateSection(i, { kp: (e.target as HTMLInputElement).value.trim() || undefined })} />
