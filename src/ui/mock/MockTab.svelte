@@ -2204,12 +2204,12 @@
       <div class="lv-bp-row head"><span>{t("mock.sec")}</span><span>{t("mock.count")}</span><span>{t("mock.each")}</span><span>{t("mock.source")}</span><span>{t("mock.secKp")}</span><span>难度梯度 (MathCyclus)</span><span></span></div>
       {#each bp.sections as s, i (i)}
         <div class="lv-bp-row">
-          <input class="lv-input" bind:value={s.name} oninput={() => updateSection(i, { name: s.name })} aria-label={t("mock.sec")} />
-          <input class="lv-input num" type="number" inputMode="numeric" min="0" value={s.count} aria-label={t("mock.count")} oninput={(e) => updateSection(i, { count: Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0) })} />
-          <input class="lv-input num" type="number" inputMode="numeric" min="0" step="0.1" value={s.scoreEach} aria-label={t("mock.each")} oninput={(e) => updateSection(i, { scoreEach: Math.max(0, parseFloat((e.target as HTMLInputElement).value) || 0) })} />
-          <select class="lv-select" value={s.source} aria-label={t("mock.source")} onchange={(e) => updateSection(i, { source: (e.target as HTMLSelectElement).value as SectionSource })}>
+          <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.sec")}</span><input class="lv-input" bind:value={s.name} oninput={() => updateSection(i, { name: s.name })} aria-label={t("mock.sec")} /></label>
+          <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.count")}</span><input class="lv-input num" type="number" inputMode="numeric" min="0" value={s.count} aria-label={t("mock.count")} oninput={(e) => updateSection(i, { count: Math.max(0, parseInt((e.target as HTMLInputElement).value) || 0) })} /></label>
+          <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.each")}</span><input class="lv-input num" type="number" inputMode="numeric" min="0" step="0.1" value={s.scoreEach} aria-label={t("mock.each")} oninput={(e) => updateSection(i, { scoreEach: Math.max(0, parseFloat((e.target as HTMLInputElement).value) || 0) })} /></label>
+          <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.source")}</span><select class="lv-select" value={s.source} aria-label={t("mock.source")} onchange={(e) => updateSection(i, { source: (e.target as HTMLSelectElement).value as SectionSource })}>
             <option value="mixed">{t("mock.sourceMixed", "不限来源")}</option><option value="real">{t("mock.sourceReal")}</option><option value="mock">{t("mock.sourceMock")}</option>
-          </select>
+          </select></label>
           <!-- 55-02 lite：考点配额（前缀匹配；缺口显式计入短缺，不用其他考点补齐） -->
           <div class="lv-row" style="margin:0;gap:4px;align-items:center">
             <input class="lv-input" style="flex:1;min-width:90px" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
@@ -2221,7 +2221,7 @@
             </label>
           </div>
           <!-- MathCyclus 难度梯度分桶配比 (7:2:1 标准 / 5:3:2 拔高) -->
-          <select class="lv-select" style="max-width:130px" aria-label="难度梯度配比"
+          <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.difficulty", "难度配比")}</span><select class="lv-select" style="max-width:130px" aria-label="难度梯度配比"
             value={s.difficultyQuota ? (s.difficultyQuota.easy === 7 ? "721" : s.difficultyQuota.easy === 5 ? "532" : "111") : "none"}
             onchange={(e) => {
               const val = (e.target as HTMLSelectElement).value;
@@ -2232,7 +2232,7 @@
             <option value="721">7:2:1 标准</option>
             <option value="532">5:3:2 拔高</option>
             <option value="111">1:1:1 均衡</option>
-          </select>
+          </select></label>
           <button class="lv-btn lv-btn--ghost sm lv-bp-del" title={t("mock.removeSection")} aria-label={`${t("mock.removeSection")}：${s.name}`} aria-busy={sectionRemoveBusy} disabled={sectionRemoveBusy} onclick={() => void removeSection(i)}><Icon name="close" size={13} /></button>
         </div>
       {/each}
@@ -3554,4 +3554,10 @@
     .lv-sheet { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); }
     .lv-btn { white-space: nowrap; }
   }
+  .lv-bp-field { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+  .lv-bp-field-label { display: none; font-size: var(--lv-font-size-caption); color: var(--lv-text-2); font-weight: var(--lv-font-weight-medium, 500); }
+  @container lv-exam (max-width: 680px) { .lv-bp-field-label { display: block; } }
+  @media (max-width: 680px) { .lv-bp-field-label { display: block; } }
+  :global(.lv-mobile) .lv-bp-field-label,
+  :global([data-mobile="true"]) .lv-bp-field-label { display: block; }
 </style>

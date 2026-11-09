@@ -1572,5 +1572,12 @@
     "wrongbook.loadMore": "Load more wrong items",
     "wrongbook.remaining": "remaining",
     "setting.speechEvalEnabled.title": "Always show speech pronunciation evaluation",
-    "setting.speechEvalEnabled.desc": "By default the microphone follow-reading button appears automatically on questions with language or phonetic metadata; enable to show it on all questions"
+    "setting.speechEvalEnabled.desc": "By default the microphone follow-reading button appears automatically on questions with language or phonetic metadata; enable to show it on all questions",
+    "entry.retestSuggestion": "Consider retesting {n} topics (evidence)",
+    "entry.retestEstimateNote": "This local estimate uses past answers and time since practice. It is not a measured memory retention rate. Small samples, help and changed materials may affect it. Retest independently before adjusting your plan.",
+    "entry.retestEvidence": "{n} practiced questions · Last answer {date}",
+    "entry.retestNoEvidence": "No record",
+    "entry.retestPractice": "Independent retest (up to 10)",
+    "entry.retestRecite": "Recall before checking",
+    "mock.difficulty": "Difficulty mix"
 }

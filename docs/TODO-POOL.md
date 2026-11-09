@@ -1,5 +1,7 @@
 # 小驴考试（siyuan-exam）当前待办池
 
+> 唯一当前状态入口：[CURRENT-STATUS.md](CURRENT-STATUS.md)。下列历史基线、完成数量与版本不自动代表当前源码/安装/发布；未勾选项应先与当前实现对账。
+
 - **建立日期**：2026-10-31
 - **当前执行状态（核心闭环收敛后）**：
   - ✅ **已闭环**：`POOL-UI-01`、`POOL-UI-02`、`POOL-FUNC-01`、`POOL-FUNC-02`、`POOL-FUNC-03`、`POOL-FUNC-07`（`FlowDwellTracker` 死代码与白噪音一并清退，考点预露与受助提示跨重载持久化闭环，同时修复 `replayer.ts` 受助答对不计入错题消灭）。

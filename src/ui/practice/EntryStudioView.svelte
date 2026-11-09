@@ -374,30 +374,6 @@
     {:else}
       <!-- ===== 备考与刷题主空间 ===== -->
       {#if plan}
-        {#if criticalForgettingKps.length > 0}
-          <div class="lv-card lv-ebbinghaus-banner" role="alert">
-            <div class="lv-row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <span class="lv-achievement-pill lv-achievement-pill--seal">
-                  <Icon name="flame" size={13} /> 记忆急救
-                </span>
-                <span style="font-size:var(--lv-font-size-body-compact);font-weight:600;color:var(--lv-text)">
-                  检测到 {criticalForgettingKps.length} 个核心考点记忆留存已跌破 35% 临界线！
-                </span>
-                <span class="lv-chip num sm" style="font-size:11px">{criticalForgettingKps[0].kp} 等</span>
-              </div>
-              <div class="lv-row" style="margin:0;gap:8px">
-                <button class="lv-btn sm lv-btn--primary" onclick={onrescueEbbinghausNow} style="background:var(--lv-accent-seal);border-color:transparent">
-                  <Icon name="play" size={13} /> 立即做题抢救 (5题)
-                </button>
-                <button class="lv-btn sm lv-btn--ghost" onclick={onrescueEbbinghausRecite} title="不看答案先回忆，以纸面背题模式进行记忆抢救">
-                  <Icon name="rotate" size={13} /> 背诵抢救
-                </button>
-              </div>
-            </div>
-          </div>
-        {/if}
-
         <div class="lv-entry-overview">
           <div class="lv-card lv-hero lv-entry-hero">
             <div class="lv-entry-main">
@@ -451,6 +427,21 @@
             <p class="lv-muted lv-week-hint">{weekAttemptTotal ? t("entry.weekScope") : t("entry.weekEmpty")}</p>
           </section>
         </div>
+        {#if criticalForgettingKps.length > 0}
+          <details class="lv-card lv-review-suggestions">
+            <summary>{t("entry.retestSuggestion").replace("{n}", String(criticalForgettingKps.length))}</summary>
+            <p class="lv-muted">{t("entry.retestEstimateNote")}</p>
+            <ul>
+              {#each criticalForgettingKps as item (item.kp)}
+                <li><strong>{item.kp}</strong> · {t("entry.retestEvidence").replace("{n}", String(item.practicedCount)).replace("{date}", item.lastAttemptAt ? new Date(item.lastAttemptAt).toLocaleDateString() : t("entry.retestNoEvidence"))}</li>
+              {/each}
+            </ul>
+            <div class="lv-row" style="gap:8px;flex-wrap:wrap">
+              <button class="lv-btn sm" onclick={onrescueEbbinghausNow}><Icon name="play" size={13} /> {t("entry.retestPractice")}</button>
+              <button class="lv-btn sm lv-btn--ghost" onclick={onrescueEbbinghausRecite}><Icon name="rotate" size={13} /> {t("entry.retestRecite")}</button>
+            </div>
+          </details>
+        {/if}
       {/if}
 
       <div class="lv-widgets">
@@ -549,8 +540,8 @@
               <Icon name="chart" size={13} /> 查看学情诊断报告
             </button>
             {#if criticalForgettingKps.length > 0}
-              <button class="lv-btn sm" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title="临界记忆抢救">
-                <Icon name="flame" size={13} /> 临界记忆抢救 (5题)
+              <button class="lv-btn sm" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title={t("entry.retestPractice")}>
+                <Icon name="flame" size={13} /> {t("entry.retestPractice")}
               </button>
             {/if}
           </div>
@@ -728,15 +719,6 @@
   .lv-sample-welcome-main { flex: 1; min-width: 0; }
   .lv-sample-welcome-lead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .lv-sample-welcome-title { font-size: var(--lv-font-size-md); font-weight: 600; color: var(--lv-text); }
-  .lv-ebbinghaus-banner {
-    margin-bottom: 14px;
-    padding: 12px 18px;
-    border: 1px solid var(--lv-border-subtle, var(--lv-border));
-    border-left: 3.5px solid var(--lv-accent-seal);
-    background: color-mix(in srgb, var(--lv-accent-seal-soft) 30%, var(--lv-surface));
-    border-radius: var(--lv-r-2);
-    box-shadow: var(--lv-sh-1);
-  }
   .lv-entry-overview { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr); gap: var(--lv-space-loose); align-items: stretch; margin-bottom: 18px; }
   .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 26px 30px; position: relative; overflow: hidden; background: var(--lv-darkcard-bg); border: 1px solid var(--lv-darkcard-border); border-radius: var(--lv-r-card, 20px); box-shadow: var(--lv-darkcard-shadow); color: var(--lv-darkcard-text); }
   .lv-entry-hero::after { content: ''; position: absolute; right: -70px; top: -70px; width: 240px; height: 240px; border-radius: var(--lv-radius-round); background: radial-gradient(closest-side, var(--lv-darkcard-accent-soft), transparent); pointer-events: none; }
@@ -845,4 +827,7 @@
       margin-top: 12px;
     }
   }
+  .lv-review-suggestions { margin: 12px 0; padding: 12px 16px; }
+  .lv-review-suggestions summary { cursor: pointer; font-weight: 600; }
+  .lv-review-suggestions ul { padding-left: 20px; overflow-wrap: anywhere; }
 </style>

@@ -1570,5 +1570,12 @@
   "report.asRoadmap": "通关地图",
   "blockMenu.convertToQuestion": "转为小驴试题（录入题库）",
   "report.sectionQuality": "试题区分度与质量",
-  "slash.convertToQuestion": "转为小驴试题（录入题库）"
+  "slash.convertToQuestion": "转为小驴试题（录入题库）",
+    "entry.retestSuggestion": "建议复测 {n} 个考点（查看依据）",
+    "entry.retestEstimateNote": "依据已有作答与距上次练习的时间做本地估计，不能证明实际记忆保持率；样本少、受助作答和资料变化都会影响判断。建议先独立复测，再据结果调整计划。",
+    "entry.retestEvidence": "已练题目 {n} 道 · 最近作答 {date}",
+    "entry.retestNoEvidence": "暂无记录",
+    "entry.retestPractice": "独立复测（最多10题）",
+    "entry.retestRecite": "先回忆再核对",
+    "mock.difficulty": "难度配比"
 }
