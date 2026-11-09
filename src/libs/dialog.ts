@@ -184,7 +184,7 @@ export const simpleDialog = (args: {
 
   const dialog = new Dialog({
     title: args.title,
-    content: `<div class="dialog-content" style="display: flex; height: 100%;"/>`,
+    content: `<div class="dialog-content" style="display: flex; flex-direction: column; align-items: stretch; width: 100%; height: 100%; min-width: 0; min-height: 0; box-sizing: border-box;"/>`,
     width: args.width,
     height: args.height,
     destroyCallback: () => {
@@ -205,6 +205,30 @@ export const simpleDialog = (args: {
     }
   });
   dialog.element.querySelector(".dialog-content").appendChild(args.ele);
+  try {
+    const outerClose = dialog.element.querySelector<HTMLElement | SVGElement>(".b3-dialog__container > .b3-dialog__close");
+    if (outerClose && outerClose.style) {
+      outerClose.style.setProperty("display", "none", "important");
+    }
+    const header = dialog.element.querySelector<HTMLElement>(".b3-dialog__header");
+    if (header && !header.querySelector(".b3-dialog__close")) {
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "b3-dialog__close lv-exam-dialog-close";
+      closeBtn.setAttribute("aria-label", window.siyuan?.languages?.close ?? "关闭");
+      closeBtn.textContent = "✕";
+      closeBtn.style.cssText = "display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:auto;border:none;background:transparent;color:var(--b3-theme-on-surface);cursor:pointer;border-radius:6px;";
+      closeBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!closed) {
+          closed = true;
+          popSurface();
+          dialog.destroy();
+        }
+      });
+      header.appendChild(closeBtn);
+    }
+  } catch { /* soft */ }
   return {
     dialog,
     close: () => {

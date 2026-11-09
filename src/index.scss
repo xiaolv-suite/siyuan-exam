@@ -320,7 +320,8 @@
     touch-action: manipulation;
   }
 
-  .b3-dialog__header {
+  .b3-dialog__header,
+  .b3-dialog__container:has(.lv-mobile-close-btn) > .b3-dialog__close {
     display: none !important;
   }
 
