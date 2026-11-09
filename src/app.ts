@@ -177,6 +177,10 @@ export interface BankInfo {
   id: string;
   name: string;
   createdAt: number;
+  /** 统一小驴空间下的宿主笔记本 ID（未设置时向下兼容等同于 id） */
+  notebookId?: string;
+  /** 统一小驴空间下的题库子树根路径，如 "/06-小驴考试/题库中心/基础学习题库" */
+  rootHPath?: string;
   /** 研学场景分类：exam 备考 | language 语言 | teaching 教学 | general 通识 */
   category?: BankCategory;
   /** 显式创建的演示库；pending 允许写入失败后继续，ready 时只打开已有题库。 */
@@ -518,16 +522,17 @@ export class ExamApp {
         const allNotebooks = await (this.deps.client as any).listAllNotebooks();
         if (Array.isArray(allNotebooks) && allNotebooks.length > 0) {
           const nbMap = new Map(allNotebooks.map((n: { id: string; closed?: boolean }) => [n.id, n]));
-          const aliveBanks = this.banks.filter((b) => nbMap.has(b.id));
+          const aliveBanks = this.banks.filter((b) => nbMap.has(b.notebookId || b.id));
           if (aliveBanks.length !== this.banks.length) {
             this.banks = aliveBanks;
             void this.saveBankRegistry().catch(() => undefined);
           }
           if (typeof (this.deps.client as any).openNotebook === "function") {
             for (const b of this.banks) {
-              const nb = nbMap.get(b.id);
+              const targetNbId = b.notebookId || b.id;
+              const nb = nbMap.get(targetNbId);
               if (nb?.closed) {
-                await (this.deps.client as any).openNotebook(b.id).catch(() => undefined);
+                await (this.deps.client as any).openNotebook(targetNbId).catch(() => undefined);
               }
             }
           }
@@ -544,6 +549,48 @@ export class ExamApp {
     return [...this.banks];
   }
 
+  /** 解析题库物理归属范围：支持「一树八脉」统一小驴空间子树题库与旧版独立笔记本题库 */
+  resolveBankScope(bankId: string): { notebookId: string; rootHPath: string } {
+    const bank = this.banks.find((b) => b.id === bankId);
+    const notebookId = bank?.notebookId || bankId;
+    const rootHPath = bank?.rootHPath ? bank.rootHPath.replace(/\/+$/, "") : "";
+    return { notebookId, rootHPath };
+  }
+
+  /** 将题库内相对路径映射为宿主笔记本内的完整 hpath */
+  qualifyBankHPath(bankId: string, subHPath: string): { notebookId: string; hpath: string } {
+    const { notebookId, rootHPath } = this.resolveBankScope(bankId);
+    const normalizedSub = subHPath.startsWith("/") ? subHPath : `/${subHPath}`;
+    if (!rootHPath) {
+      return { notebookId, hpath: normalizedSub };
+    }
+    if (normalizedSub === rootHPath || normalizedSub.startsWith(`${rootHPath}/`)) {
+      return { notebookId, hpath: normalizedSub };
+    }
+    return { notebookId, hpath: `${rootHPath}${normalizedSub}` };
+  }
+
+  /** 探测当前工作区是否已存在「🐴 小驴空间 / 小驴生态统一测试空间」统一宿主笔记本 */
+  private async resolveUnifiedExamHubNotebook(): Promise<{ notebookId: string; rootPrefix: string } | null> {
+    if (typeof (this.deps.client as any).listNotebooks !== "function") return null;
+    try {
+      const notebooks = await this.deps.client.listNotebooks();
+      if (!Array.isArray(notebooks) || notebooks.length === 0) return null;
+      const hub = notebooks.find(
+        (n) =>
+          n.name.includes("小驴空间") ||
+          n.name.includes("小驴笔记本") ||
+          n.name.includes("小驴生态统一测试空间"),
+      );
+      if (hub?.id) {
+        return { notebookId: hub.id, rootPrefix: "/06-小驴考试/题库中心" };
+      }
+    } catch {
+      /* 忽略探测异常，回退独立建库 */
+    }
+    return null;
+  }
+
   /** 题库注册表保存：同 key 的后续快照排队，避免旧 banks 覆盖新增/删除结果。 */
   private saveBankRegistry(): Promise<void> {
     this.assertStorageWritable();
@@ -555,26 +602,36 @@ export class ExamApp {
     );
   }
 
-  /** 新建题库一键流程（2.2 P0）：笔记本 + 首页 + 章节骨架 + 示例题文档（真实入库，建完即可练）。
+  /** 新建题库一键流程（2.2 P0）：支持统一小驴空间子树题库（优先）或独立笔记本 + 首页 + 章节骨架 + 示例题文档（真实入库，建完即可练）。
    *  骨架失败不阻断建库：逐段 try，返回 info 时尽力而为（部分骨架缺失可后续手动补/重导）。 */
   async createBank(name: string, category: BankCategory = "general"): Promise<BankInfo> {
     this.assertStorageWritable();
     const clean = name.trim();
     if (!clean) throw new Error("题库名不能为空");
-    const notebookId = await this.deps.client.createNotebook(`题库/${clean}`);
-    const info: BankInfo = { id: notebookId, name: clean, createdAt: Date.now(), category };
+    const hub = await this.resolveUnifiedExamHubNotebook();
+    let info: BankInfo;
+    if (hub) {
+      const rootHPath = `${hub.rootPrefix}/${clean.replace(/\//g, "·")}`;
+      const bankId = `bank-${sha1like(`${hub.notebookId}:${rootHPath}:${Date.now()}`).slice(0, 12)}`;
+      info = { id: bankId, notebookId: hub.notebookId, rootHPath, name: clean, createdAt: Date.now(), category };
+    } else {
+      const notebookId = await this.deps.client.createNotebook(`题库/${clean}`);
+      info = { id: notebookId, name: clean, createdAt: Date.now(), category };
+    }
+    const targetNbId = info.notebookId || info.id;
+    const prefix = info.rootHPath || "";
     try {
       await this.deps.client.createDocWithMd(
-        notebookId,
-        "/首页",
-        `# 题库：${clean}\n\n> 本笔记本由小驴考试管理。章节文档存放题目与试卷。\n> 可在练习台导入题目，或删除「示例题」文档后自建章节。\n`,
+        targetNbId,
+        `${prefix}/首页`,
+        `# 题库：${clean}\n\n> 本题库由小驴考试管理。章节文档存放题目与试卷。\n> 可在练习台导入题目，或删除「示例题」文档后自建章节。\n`,
       );
     } catch { /* 首页失败不阻断 */ }
     // 章节骨架：按官方模板的考点分层示例（47-02 首五分钟任务的最短路径）
     try {
       const docId = await this.deps.client.createDocWithMd(
-        notebookId,
-        "/示例题",
+        targetNbId,
+        `${prefix}/示例题`,
         `# 示例题\n\n> 体验用：可直接开始练习/转闪卡；正式使用前可整篇删除。\n`,
       );
       const { makeQuestion } = await import("./core/blockTemplate");
@@ -647,12 +704,28 @@ export class ExamApp {
     let info = this.banks.find((bank) => bank.name === bankName && bank.sampleState);
     if (info?.sampleState === "ready") return info;
     if (!info) {
-      const notebookId = await this.deps.client.createNotebook(`题库/${bankName}`);
-      info = { id: notebookId, name: bankName, createdAt: Date.now(), category, sampleState: "pending" };
-      // 先注册真实笔记本，后续失败可在同一库继续，不会再次新建笔记本。
-      this.banks.push(info);
-      // 思源 3.8.9-beta.2：新建笔记本后给内核 200ms 异步建立根目录和文档元数据树的时间，防 createDocWithMd 竞态
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      const hub = await this.resolveUnifiedExamHubNotebook();
+      if (hub) {
+        const rootHPath = `${hub.rootPrefix}/${bankName.replace(/\//g, "·")}`;
+        const bankId = `bank-sample-${kind}`;
+        info = {
+          id: bankId,
+          notebookId: hub.notebookId,
+          rootHPath,
+          name: bankName,
+          createdAt: Date.now(),
+          category,
+          sampleState: "pending",
+        };
+        this.banks.push(info);
+      } else {
+        const notebookId = await this.deps.client.createNotebook(`题库/${bankName}`);
+        info = { id: notebookId, name: bankName, createdAt: Date.now(), category, sampleState: "pending" };
+        // 先注册真实笔记本，后续失败可在同一库继续，不会再次新建笔记本。
+        this.banks.push(info);
+        // 思源 3.8.9-beta.2：新建笔记本后给内核 200ms 异步建立根目录和文档元数据树的时间，防 createDocWithMd 竞态
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
     }
     await this.saveBankRegistry();
     try {
@@ -1044,7 +1117,8 @@ export class ExamApp {
   private dailyReportBlockIds = new Map<string, string>();
 
   private async ensureDoc(bankId: string, hpath: string, markdown?: string): Promise<string> {
-    const cacheKey = `${bankId}\0${hpath}`;
+    const { notebookId, hpath: fullHPath } = this.qualifyBankHPath(bankId, hpath);
+    const cacheKey = `${notebookId}\0${fullHPath}`;
     const cached = this.ensuredDocIds.get(cacheKey);
     if (cached) return cached;
     const inflight = this.ensuringDocPromises.get(cacheKey);
@@ -1056,7 +1130,7 @@ export class ExamApp {
     const task = (async () => {
       const findExisting = async () => {
         const existing = await this.deps.client.sql(
-          `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
+          `SELECT id FROM blocks WHERE box='${notebookId.replace(/'/g, "''")}' AND hpath='${fullHPath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
         );
         return existing[0]?.id ? String(existing[0].id) : "";
       };
@@ -1070,7 +1144,7 @@ export class ExamApp {
       let lastErr: unknown;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const created = await this.deps.client.createDocWithMd(bankId, hpath, markdown ?? `# ${hpath.split("/").pop()}\n\n`);
+          const created = await this.deps.client.createDocWithMd(notebookId, fullHPath, markdown ?? `# ${fullHPath.split("/").pop()}\n\n`);
           if (created) {
             this.ensuredDocIds.set(cacheKey, created);
             return created;
@@ -1115,12 +1189,13 @@ export class ExamApp {
 
   /** 原位幂等建档/更新文档：若目标 hpath 已存在则通过 updateBlock 原位刷新内容，避免文档树无限堆积重复同名文档 */
   private async upsertDocWithMd(bankId: string, hpath: string, markdown: string): Promise<string> {
-    const cacheKey = `${bankId}\0${hpath}`;
+    const { notebookId, hpath: fullHPath } = this.qualifyBankHPath(bankId, hpath);
+    const cacheKey = `${notebookId}\0${fullHPath}`;
     let existingId = this.ensuredDocIds.get(cacheKey) || "";
     if (!existingId && typeof this.deps.client.sql === "function") {
       try {
         const rows = await this.deps.client.sql(
-          `SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
+          `SELECT id FROM blocks WHERE box='${notebookId.replace(/'/g, "''")}' AND hpath='${fullHPath.replace(/'/g, "''")}' AND type='d' ORDER BY updated DESC LIMIT 1`,
         );
         if (rows[0]?.id) existingId = String(rows[0].id);
       } catch {
@@ -1138,13 +1213,18 @@ export class ExamApp {
       }
       return existingId;
     }
-    const created = (await this.deps.client.createDocWithMd(bankId, hpath, markdown)) || (await this.ensureDoc(bankId, hpath, markdown));
+    const created = (await this.deps.client.createDocWithMd(notebookId, fullHPath, markdown)) || (await this.ensureDoc(bankId, hpath, markdown));
     if (created) this.ensuredDocIds.set(cacheKey, created);
     return created;
   }
 
   async listQuestions(bankId: string): Promise<(Question & { blockId: string; rootId: string; hpath: string })[]> {
-    let qs = await this.deps.client.listQuestions(bankId);
+    const { notebookId, rootHPath } = this.resolveBankScope(bankId);
+    const queryQuestions = () =>
+      rootHPath
+        ? this.deps.client.listQuestions(notebookId, rootHPath)
+        : this.deps.client.listQuestions(notebookId);
+    let qs = await queryQuestions();
     if (
       qs.length === 0 &&
       this.kernelOnline &&
@@ -1154,12 +1234,12 @@ export class ExamApp {
     ) {
       try {
         const nbs = await (this.deps.client as any).listAllNotebooks();
-        const nb = Array.isArray(nbs) ? nbs.find((n: { id: string; closed?: boolean }) => n.id === bankId) : undefined;
+        const nb = Array.isArray(nbs) ? nbs.find((n: { id: string; closed?: boolean }) => n.id === notebookId) : undefined;
         if (nb?.closed) {
-          await (this.deps.client as any).openNotebook(bankId);
+          await (this.deps.client as any).openNotebook(notebookId);
           for (let i = 0; i < 6; i++) {
             await new Promise((r) => setTimeout(r, 350));
-            qs = await this.deps.client.listQuestions(bankId);
+            qs = await queryQuestions();
             if (qs.length > 0) break;
           }
         }
@@ -1243,7 +1323,8 @@ export class ExamApp {
 
   // ---------- 章节树（TODO 2.2：notebook→doc→heading 数据源） ----------
   async docTree(bankId: string) {
-    return this.deps.client.docTree(bankId);
+    const { notebookId, rootHPath } = this.resolveBankScope(bankId);
+    return rootHPath ? this.deps.client.docTree(notebookId, rootHPath) : this.deps.client.docTree(notebookId);
   }
 
   // ---------- 题目编辑（43-01 lite：块菜单「编辑」→ 浏览视图内联表单 → updateBlock 整块重写） ----------
@@ -2090,11 +2171,14 @@ export class ExamApp {
   async rollbackBatch(bankId: string, batch: string): Promise<{ deleted: number; failed: number }> {
     if (!this.kernelOnline) throw new Error("离线：批次回滚需要内核可写");
     const escaped = batch.replace(/'/g, "''");
+    const { notebookId, rootHPath } = this.resolveBankScope(bankId);
+    const escRoot = rootHPath.replace(/'/g, "''");
+    const hpathCond = rootHPath ? ` AND (hpath='${escRoot}' OR hpath LIKE '${escRoot}/%')` : "";
     // 分页取全量（3.8.6 默认 64 行截断会让大批次静默漏删）；ORDER BY b.id 保证分页全序
     const rows = await this.deps.client.sqlPaged<{ id?: string }>(
       `SELECT b.id AS id FROM blocks b
        JOIN attributes a ON a.block_id = b.id
-       WHERE b.root_id IN (SELECT id FROM blocks WHERE box='${bankId.replace(/'/g, "''")}' AND type='d')
+       WHERE b.root_id IN (SELECT id FROM blocks WHERE box='${notebookId.replace(/'/g, "''")}' AND type='d'${hpathCond})
          AND a.name='custom-exam-batch' AND a.value='${escaped}'
        ORDER BY b.id`,
     );
@@ -2957,7 +3041,8 @@ export class ExamApp {
       const ymd = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
       const hms = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
       const hpath = `/导出/模考成绩单 ${ymd}-${hms}`;
-      return (await this.deps.client.createDocWithMd(bankId, hpath, md)) || (await this.ensureDoc(bankId, hpath, md));
+      const { notebookId, hpath: fullHPath } = this.qualifyBankHPath(bankId, hpath);
+      return (await this.deps.client.createDocWithMd(notebookId, fullHPath, md)) || (await this.ensureDoc(bankId, hpath, md));
     });
   }
 
@@ -3147,11 +3232,11 @@ export class ExamApp {
 
     // 若内核在线且传入了有效题库 ID，则为题目在题库内创建专用的正反面闪卡册
     if (this.kernelOnline && bankId) {
-      const hpath = "/学习闪卡";
+      const { notebookId, hpath } = this.qualifyBankHPath(bankId, "/学习闪卡");
       let docId: string | undefined;
       try {
         const rows = await this.deps.client.sql<{ id: string }>(
-          `SELECT id FROM blocks WHERE box = '${bankId.replace(/'/g, "''")}' AND hpath = '${hpath}' AND type = 'd' LIMIT 1`,
+          `SELECT id FROM blocks WHERE box = '${notebookId.replace(/'/g, "''")}' AND hpath = '${hpath.replace(/'/g, "''")}' AND type = 'd' LIMIT 1`,
         );
         docId = rows[0]?.id;
       } catch {
@@ -3160,7 +3245,7 @@ export class ExamApp {
       if (!docId) {
         try {
           docId = await this.deps.client.createDocWithMd(
-            bankId,
+            notebookId,
             hpath,
             "# 学习闪卡册\n\n> 本卡册由小驴考试自动生成（卡片与题目）。正面思考，背面核对，已送入 FSRS 间隔重复卡包。\n",
           );
@@ -3201,17 +3286,17 @@ export class ExamApp {
     if (!this.kernelOnline) throw new Error("离线：建卡需要内核可写");
     if (!cards.length) throw new Error("无候选卡");
     const deckId = await this.ensureDeck(bankName);
-    const hpath = "/AI 闪卡";
+    const { notebookId, hpath } = this.qualifyBankHPath(bankId, "/AI 闪卡");
     let docId: string | undefined;
     try {
       const rows = await this.deps.client.sql<{ id: string }>(
-        `SELECT id FROM blocks WHERE box = '${bankId.replace(/'/g, "''")}' AND hpath = '${hpath}' AND type = 'd' LIMIT 1`,
+        `SELECT id FROM blocks WHERE box = '${notebookId.replace(/'/g, "''")}' AND hpath = '${hpath.replace(/'/g, "''")}' AND type = 'd' LIMIT 1`,
       );
       docId = rows[0]?.id;
     } catch { /* 查询失败走新建路径 */ }
     if (!docId) {
       docId = await this.deps.client.createDocWithMd(
-        bankId,
+        notebookId,
         hpath,
         "# AI 闪卡\n\n> 由错因/解析生成的最小卡候选（116-03）。删除本文档不影响题目与作答流水。\n",
       );
@@ -4130,15 +4215,16 @@ export class ExamApp {
     const targetBank = bankId || this.listBanks()[0]?.id;
     if (!targetBank) return { syncedCount: 0 };
 
-    let docId = this.ensuredDocIds.get(`${targetBank}:/小驴考试/03 备考行动与复盘日志`);
+    const { notebookId, hpath } = this.qualifyBankHPath(targetBank, "/小驴考试/03 备考行动与复盘日志");
+    let docId = this.ensuredDocIds.get(`${notebookId}\0${hpath}`) || this.ensuredDocIds.get(`${targetBank}:/小驴考试/03 备考行动与复盘日志`);
     if (!docId) {
       try {
         const rows = await this.deps.client.sql<{ id: string }>(
-          `SELECT id FROM blocks WHERE box='${targetBank.replace(/'/g, "''")}' AND hpath='/小驴考试/03 备考行动与复盘日志' AND type='d' LIMIT 1`,
+          `SELECT id FROM blocks WHERE box='${notebookId.replace(/'/g, "''")}' AND hpath='${hpath.replace(/'/g, "''")}' AND type='d' LIMIT 1`,
         );
         if (Array.isArray(rows) && rows[0]?.id) {
           docId = rows[0].id;
-          this.ensuredDocIds.set(`${targetBank}:/小驴考试/03 备考行动与复盘日志`, docId);
+          this.ensuredDocIds.set(`${notebookId}\0${hpath}`, docId);
         }
       } catch {
         return { syncedCount: 0 };

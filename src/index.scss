@@ -200,7 +200,9 @@
   .lv-onboard,
   .lv-qtype-guide,
   .lv-ecosystem-footer,
-  .lv-desktop-author-action {
+  .lv-desktop-author-action,
+  .lv-mock-desktop-toolbar,
+  .lv-browse-desktop-only {
     display: none !important;
   }
 
@@ -210,7 +212,54 @@
   }
 
   .lv-pad {
-    padding: 8px 12px 14px !important;
+    padding: 8px 10px 12px !important;
+  }
+}
+
+@media (max-width: 759px) {
+  .lv-exam-tab {
+    --lv-card-pad: 12px;
+    --lv-font-size-h1: 16px;
+    --lv-font-size-display: 20px;
+    --lv-font-size-kpi: 18px;
+    --lv-font-size-kpi-mobile: 18px;
+  }
+
+  .lv-exam-tab .lv-screen-head,
+  .lv-exam-tab .lv-onboard,
+  .lv-exam-tab .lv-qtype-guide,
+  .lv-exam-tab .lv-ecosystem-footer,
+  .lv-exam-tab .lv-desktop-author-action,
+  .lv-exam-tab .lv-mock-desktop-toolbar,
+  .lv-exam-tab .lv-browse-desktop-only {
+    display: none !important;
+  }
+
+  .lv-exam-tab .lv-done-stats strong {
+    font-size: 20px !important;
+  }
+
+  .lv-exam-tab .lv-empty,
+  .lv-exam-tab .lv-ai-empty {
+    min-height: 88px !important;
+    padding: 14px 12px !important;
+  }
+
+  .b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
+    align-items: stretch !important;
+    padding: 0 !important;
+
+    .b3-dialog__container {
+      width: 100vw !important;
+      height: 100dvh !important;
+      max-width: 100vw !important;
+      max-height: 100dvh !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      border: 0 !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    }
   }
 }
 

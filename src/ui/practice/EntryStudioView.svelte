@@ -765,23 +765,23 @@
   .lv-hero-actions { margin-top: 18px; }
   .lv-hero-actions .lv-btn--primary { box-shadow: var(--lv-btn-primary-shadow); }
   @container lv-exam (max-width: 680px) {
-    .lv-entry-overview { margin-bottom: 10px; gap: 8px; }
-    .lv-entry-hero { grid-template-columns: minmax(0,1fr) auto; padding: 12px 14px; gap: 12px; border-radius: var(--lv-r-3, 16px); }
-    .lv-entry-reason { font-size: 14px; line-height: 1.35; margin: 3px 0 8px; }
-    .lv-hero-actions { margin-top: 6px; }
+    .lv-entry-overview { margin-bottom: 8px; gap: 8px; }
+    .lv-entry-hero { grid-template-columns: minmax(0,1fr) auto; padding: 10px 12px; gap: 10px; border-radius: var(--lv-r-3, 14px); }
+    .lv-entry-reason { font-size: 13.5px; line-height: 1.35; margin: 2px 0 6px; }
+    .lv-hero-actions { margin-top: 4px; }
     .lv-hero-copy-btn { display: none !important; }
-    .lv-entry-num { border-left: 1px solid var(--lv-darkcard-border); border-top: 0; padding: 2px 0 2px 12px; flex-direction: column; align-items: center; gap: 2px; justify-content: center; }
-    .lv-entry-count { font-size: 28px; letter-spacing: -1px; }
+    .lv-entry-num { border-left: 1px solid var(--lv-darkcard-border); border-top: 0; padding: 2px 0 2px 10px; flex-direction: column; align-items: center; gap: 2px; justify-content: center; }
+    .lv-entry-count { font-size: 20px; letter-spacing: -0.5px; }
     .lv-entry-week { display: none; }
-    .lv-home-grids { margin-top: 10px !important; gap: 10px !important; }
-    .lv-home-panel { padding: 12px 14px; border-radius: 14px; }
-    .lv-home-panel-head { margin-bottom: 8px; padding-bottom: 6px; }
+    .lv-home-grids { margin-top: 8px !important; gap: 8px !important; }
+    .lv-home-panel { padding: 10px 12px; border-radius: 12px; }
+    .lv-home-panel-head { margin-bottom: 6px; padding-bottom: 4px; }
     .lv-home-btn-group { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-    .lv-home-btn-group .lv-btn { padding: 6px 10px; font-size: 12.5px; min-height: 40px; height: auto; }
+    .lv-home-btn-group .lv-btn { padding: 6px 8px; font-size: 12px; min-height: 36px; height: auto; }
     .lv-desktop-author-action { display: none !important; }
-    .lv-entry-empty { padding: 18px 16px !important; margin: 6px auto 12px !important; }
-    .lv-entry-empty h2 { font-size: 17px !important; }
-    .lv-entry-empty .lv-empty-icon { width: 42px !important; height: 42px !important; margin-bottom: 8px !important; }
+    .lv-entry-empty { padding: 14px 12px !important; margin: 4px auto 10px !important; }
+    .lv-entry-empty h2 { font-size: 15px !important; }
+    .lv-entry-empty .lv-empty-icon { width: 36px !important; height: 36px !important; margin-bottom: 6px !important; }
   }
   .lv-guard { max-width: 460px; width: 100%; }
   .lv-guard--welcome { max-width: 760px; }

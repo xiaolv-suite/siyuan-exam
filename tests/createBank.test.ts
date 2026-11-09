@@ -288,4 +288,26 @@ describe("显式示例题库", () => {
     expect(reflectionsAfter?.[sampleQ.id]).toBeUndefined();
     expect(qrefsAfter?.[sampleQ.id]).toBeUndefined();
   });
+
+  it("一树八脉：存在统一小驴空间笔记本时，新建题库与示例题库均作为 /06-小驴考试/题库中心 子树挂载，零新建顶层笔记本", async () => {
+    const { client, docs, createNotebook, listQuestions } = sampleClient();
+    (client as any).listNotebooks = async () => [{ id: "hub-nb-id", name: "🐴 小驴空间", closed: false }];
+    const app = mkApp(client);
+    const sampleBank = await app.createSampleBank();
+    expect(createNotebook).not.toHaveBeenCalled();
+    expect(sampleBank.notebookId).toBe("hub-nb-id");
+    expect(sampleBank.rootHPath).toBe(`/06-小驴考试/题库中心/${SAMPLE_BANK_NAME}`);
+    expect(docs.has(`/06-小驴考试/题库中心/${SAMPLE_BANK_NAME}/首页`)).toBe(true);
+    expect(docs.has(`/06-小驴考试/题库中心/${SAMPLE_BANK_NAME}/示例题`)).toBe(true);
+
+    const userBank = await app.createBank("高数强化");
+    expect(createNotebook).not.toHaveBeenCalled();
+    expect(userBank.notebookId).toBe("hub-nb-id");
+    expect(userBank.rootHPath).toBe("/06-小驴考试/题库中心/高数强化");
+    expect(docs.has("/06-小驴考试/题库中心/高数强化/首页")).toBe(true);
+    expect(docs.has("/06-小驴考试/题库中心/高数强化/示例题")).toBe(true);
+
+    await app.listQuestions(userBank.id);
+    expect(listQuestions).toHaveBeenCalledWith("hub-nb-id", "/06-小驴考试/题库中心/高数强化");
+  });
 });

@@ -2169,7 +2169,7 @@
         </select>
         <button class="lv-btn sm" onclick={generateAdaptiveSprint} disabled={sprintBusy || !questions.length || starting} aria-busy={sprintBusy} title="基于考点盲区与高频错题自适应装配全真密卷"><Icon name="sparkles" size={14} /> {sprintBusy ? "…" : t("mock.sprintPaper")}</button>
       </div>
-      <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
+      <div class="lv-row lv-mock-desktop-toolbar" style="margin:0;gap:6px;flex-wrap:wrap">
         <select class="lv-select sm" bind:value={mockPrintFormat} disabled={printBusy || !questions.length} aria-label="选择模考打印卷面版式">
           <option value="exam">标准测试卷</option>
           <option value="card">🗂️ 标准答题卡</option>

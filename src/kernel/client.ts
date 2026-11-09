@@ -564,16 +564,23 @@ export class KernelApiClient {
   }
 
   /** 题库内检索：custom-exam-* 属性驱动（2026-10-02 实测前缀约定）；带 root_id 供文档跳转、hpath 供章节树过滤 */
-  async listQuestions(notebook: string): Promise<(Question & { blockId: string; rootId: string; hpath: string })[]> {
+  async listQuestions(
+    notebook: string,
+    rootHPath?: string,
+  ): Promise<(Question & { blockId: string; rootId: string; hpath: string })[]> {
+    const cleanRoot = rootHPath ? rootHPath.replace(/\/+$/, "") : "";
+    const hpathFilter = cleanRoot
+      ? ` AND (hpath='${escapeSql(cleanRoot)}' OR hpath LIKE '${escapeSql(cleanRoot)}/%')`
+      : "";
     // 每题 ≥6 行 custom-exam-* 属性，3.8.6 默认 64 行截断会在约 10 题处静默丢题——必须分页
     const rows = await this.sqlPaged<Record<string, string>>(
       `SELECT b.id AS blockId, b.root_id AS rootId, b.content AS content, b.markdown AS markdown, b.hpath AS hpath,
               a.name AS attrName, a.value AS attrValue
        FROM attributes a JOIN blocks b ON a.block_id = b.id
-       WHERE b.root_id IN (SELECT id FROM blocks WHERE box='${escapeSql(notebook)}' AND type='d')
+       WHERE b.root_id IN (SELECT id FROM blocks WHERE box='${escapeSql(notebook)}' AND type='d'${hpathFilter})
          AND a.name LIKE 'custom-exam-%' ORDER BY b.id, a.name`,
       1000,
-      { requestKey: `questions:${notebook}` },
+      { requestKey: cleanRoot ? `questions:${notebook}:${cleanRoot}` : `questions:${notebook}` },
     );
     const byBlock = new Map<string, { attrs: Record<string, string>; content: string; markdown: string; rootId: string; hpath: string }>();
     for (const row of rows) {
@@ -585,7 +592,15 @@ export class KernelApiClient {
     }
     const outById = new Map<string, Question & { blockId: string; rootId: string; hpath: string }>();
     for (const [blockId, e] of byBlock) {
-      if (e.hpath.startsWith("/小驴考试/") || e.hpath.startsWith("/导出/") || e.hpath.startsWith("/每日战报/")) {
+      const relPath = cleanRoot && e.hpath.startsWith(cleanRoot) ? e.hpath.slice(cleanRoot.length) : e.hpath;
+      if (
+        relPath.startsWith("/小驴考试/") ||
+        relPath.startsWith("/导出/") ||
+        relPath.startsWith("/每日战报/") ||
+        e.hpath.startsWith("/小驴考试/") ||
+        e.hpath.startsWith("/导出/") ||
+        e.hpath.startsWith("/每日战报/")
+      ) {
         continue;
       }
       // content 是搜索摘要，会把超级块的题干、列表、解析压成一行。
@@ -609,21 +624,29 @@ export class KernelApiClient {
   }
 
   /** 章节树数据源（TODO 2.2）：notebook → 文档 → 标题层级；块 hpath 含标题祖先路径，供按章节过滤题目 */
-  async docTree(notebook: string): Promise<{
+  async docTree(
+    notebook: string,
+    rootHPath?: string,
+  ): Promise<{
     docs: { id: string; title: string; hpath: string }[];
     headings: { id: string; text: string; hpath: string; level: number }[];
   }> {
     const box = escapeSql(notebook);
+    const cleanRoot = rootHPath ? rootHPath.replace(/\/+$/, "") : "";
+    const hpathFilter = cleanRoot
+      ? ` AND (hpath='${escapeSql(cleanRoot)}' OR hpath LIKE '${escapeSql(cleanRoot)}/%')`
+      : "";
+    const reqKeySuffix = cleanRoot ? `${notebook}:${cleanRoot}` : notebook;
     // ORDER BY 补 id 破平局：OFFSET 分页需要全序，同名标题的 hpath 可能重复
     const docRows = await this.sqlPaged<Record<string, string>>(
-      `SELECT id, content, hpath FROM blocks WHERE box='${box}' AND type='d' ORDER BY hpath, id`,
+      `SELECT id, content, hpath FROM blocks WHERE box='${box}' AND type='d'${hpathFilter} ORDER BY hpath, id`,
       1000,
-      { requestKey: `doc-tree:${notebook}` },
+      { requestKey: `doc-tree:${reqKeySuffix}` },
     );
     const hRows = await this.sqlPaged<Record<string, string>>(
-      `SELECT id, content, hpath, subtype FROM blocks WHERE box='${box}' AND type='h' ORDER BY hpath, id`,
+      `SELECT id, content, hpath, subtype FROM blocks WHERE box='${box}' AND type='h'${hpathFilter} ORDER BY hpath, id`,
       1000,
-      { requestKey: `doc-tree:${notebook}` },
+      { requestKey: `doc-tree:${reqKeySuffix}` },
     );
     return {
       docs: docRows.map((r) => ({ id: String(r.id ?? ""), title: String(r.content ?? ""), hpath: String(r.hpath ?? "") })),
