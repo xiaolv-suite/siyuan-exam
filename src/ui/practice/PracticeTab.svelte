@@ -102,10 +102,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       exportBankQuestionsCsvFile,
     } from "./services/bankExportService";
     import {
-      runCheckinSync,
-      retryPendingCheckin,
       queryCheckinStreak,
-      postSessionCheckinSafely,
       extractCheckinSettingsFromPlugin,
     } from "./services/checkinBridgeService";
     import {
@@ -2893,7 +2890,7 @@ import { confirmDialogSync } from "@/libs/dialog";
             correct: adv.ratings.filter((x) => x >= 3).length,
             wrong: adv.ratings.filter((x) => x < 3).length,
           });
-          void runCheckinBridge().catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
+          void runCheckinBridge({ id: reciteSessionId, total: adv.ratings.length, correct: adv.ratings.filter((x) => x >= 3).length }).catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
         } else {
           await persistReciteSnapshot();
           if (reciteAutoTts && adv.nextQuestion) {
@@ -3412,25 +3409,15 @@ import { confirmDialogSync } from "@/libs/dialog";
     let checkinStatus = $state<import("@/core/checkinBridge").CheckinSyncStatus | null>(null);
     let checkinNote = $state("");
     const checkinSettings = () => extractCheckinSettingsFromPlugin(plugin);
-    async function runCheckinBridge() {
-      const res = await runCheckinSync(app, checkinSettings(), window, (item) => {
-        try {
-          plugin?.settingUtils?.set?.("checkinItemId", item.id);
-          void plugin?.settingUtils?.save?.();
-          showMessage(`[小驴考试] 已自动匹配打卡项「${item.name}」并同步打卡！`, 3000, "info");
-        } catch {
-          /* fail-soft */
-        }
-      });
+    async function runCheckinBridge(completed?: { id: string; total: number; correct: number }) {
+      const { syncSessionCheckin } = await import("./services/sessionCheckinService");
+      const res = await syncSessionCheckin(app, checkinSettings(), completed, window);
       checkinStatus = res.status;
       checkinNote = res.note;
-      if (res.status === "synced") {
-        await loadCheckinStreak();
-      }
+      if (res.status === "synced") await loadCheckinStreak();
     }
-    /** 重载补写：上次未写入的打卡事件以原 externalRef 重试（写入成功才清除） */
     async function retryCheckinPending() {
-      await retryPendingCheckin(app, window);
+      await runCheckinBridge();
     }
     /** 48-04 lite：打卡→考试只读投影——桥开启时读取连续天数（只读、失败安静、不自算 streak） */
     let checkinStreak = $state<number | null>(null);
@@ -3727,11 +3714,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       settleMode = res.settleMode;
       rebuildPlan();
 
-      // 小驴打卡联动（安全调用，未配置或未安装时优雅跳过）
-      const checkinItemId = String(plugin.settingUtils?.get?.("checkinItemId") ?? "").trim();
-      void postSessionCheckinSafely(checkinItemId, sessionDone.total, sessionDone.correct);
-
-      void runCheckinBridge().catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error")); // 48-03 lite：结算自动同步打卡（幂等 externalRef，失败进待重试）
+      // 同一会话只上报一次增量；队列持久化后才投递，重试复用原身份。
+      if (session) void runCheckinBridge({ id: session.id, total: sessionDone.total, correct: sessionDone.correct })
+        .catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
 
       // Epoch 7：交卷与结算成绩单重点提醒卡片（支持得分查看与【查看错题本】直达）
       if (sessionDone) {

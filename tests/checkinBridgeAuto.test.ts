@@ -49,7 +49,7 @@ describe("打卡项免配置智能匹配 (autoResolveCheckinItem)", () => {
     expect(matched?.id).toBe("item-single");
   });
 
-  it("未配置 itemId 时 syncCheckin 自动发现项目并成功打卡", async () => {
+  it("未配置 itemId 时 syncCheckin 保持关闭", async () => {
     const recordMock = vi.fn().mockReturnValue({ eventId: "e-auto" });
     const api = {
       protocol: "siyuan-checkin",
@@ -61,12 +61,12 @@ describe("打卡项免配置智能匹配 (autoResolveCheckinItem)", () => {
     } as unknown as CheckinApiV5;
 
     const res = await syncCheckin(api, { itemId: "", threshold: 5 }, 10, Date.now(), 10);
-    expect(res.status).toBe("synced");
-    expect(res.autoResolvedItem?.id).toBe("item-auto");
-    expect(recordMock).toHaveBeenCalled();
+    expect(res.status).toBe("disabled");
+    expect(res.autoResolvedItem).toBeUndefined();
+    expect(recordMock).not.toHaveBeenCalled();
   });
 
-  it("runCheckinSync 自动触发 onAutoBound 回调", async () => {
+  it("runCheckinSync 不在未配置时自动绑定", async () => {
     const mockApp = {
       attempts: {
         all: () => [
@@ -94,7 +94,7 @@ describe("打卡项免配置智能匹配 (autoResolveCheckinItem)", () => {
       (item) => { boundId = item.id; },
     );
 
-    expect(res.status).toBe("synced");
-    expect(boundId).toBe("item-bound");
+    expect(res.status).toBe("disabled");
+    expect(boundId).toBe("");
   });
 });

@@ -30,7 +30,8 @@ export function assembleReciteQueue(
   const size = Math.max(5, Math.min(50, groupSize));
   if (typeof app.recitePool === "function") {
     const candidate = app.recitePool(allQuestions);
-    const primary = app.quickDrill(candidate.length > 0 ? candidate : allQuestions, size);
+    if (candidate.length === 0) return [];
+    const primary = app.quickDrill(candidate, size);
     if (primary.length >= size || primary.length >= allQuestions.length) return primary;
     const pickedIds = new Set(primary.map((q) => q.id));
     const restPool = app.recitePool(allQuestions.filter((q) => !pickedIds.has(q.id)));

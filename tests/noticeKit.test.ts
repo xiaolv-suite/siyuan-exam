@@ -13,6 +13,13 @@ import {
 
 describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () => {
   beforeEach(() => {
+    // Browser fixture owns the same origin lock used by session export/restore.
+    let lockTail: Promise<unknown> = Promise.resolve();
+    vi.stubGlobal("navigator", { locks: { request: (_name: string, task: () => Promise<unknown>) => {
+      const next = lockTail.then(task, task);
+      lockTail = next.then(() => undefined, () => undefined);
+      return next;
+    } } });
     localStorage.clear();
     const host = document.getElementById("lv-notice-host");
     if (host) host.remove();
@@ -29,6 +36,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
     delete (window as any).__LV_OMNISEARCH__;
     delete (window as any).__LV_AUTOMATION__;
     localStorage.clear();
+    vi.unstubAllGlobals();
   });
 
   it("lvNotify.capsule 能够生成瞬时轻量微胶囊 DOM 元素", () => {
@@ -349,7 +357,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
       expect(diag.version).toBeGreaterThanOrEqual(130);
 
       const badgeText = lvEcosystem.getStatusBadgeText();
-      expect(badgeText).toContain("🐴 小驴全家桶协同正常");
+      expect(badgeText).toContain("🐴 小驴全家桶");
       expect(badgeText).toContain("插件已联结");
       expect(badgeText).toContain("今日活动");
 

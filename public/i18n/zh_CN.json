@@ -1226,7 +1226,7 @@
   "import.updatesHint": "更新式重导：同指纹行不跳过，提交时按指纹定位库内题并覆盖答案/解析/别名；题干/选项与作答流水不动",
   "import.updatesDone": "已更新 {ok} 道题，失败 {f}，库内找不到 {m}",
   "setting.checkinItemId.title": "打卡桥 · 项目 ID",
-  "setting.checkinItemId.desc": "填写小驴打卡的项目 ID 后，每日练习达标会自动向该项目写一条打卡（幂等：同日只记一次；未填写=桥关闭）",
+  "setting.checkinItemId.desc": "填写项目 ID 后，每日达标时按已完成会话逐笔同步题数；失败保留原会话引用重试。未填写=桥关闭。",
   "setting.checkinThreshold.title": "打卡桥 · 达标题数",
   "setting.checkinThreshold.desc": "当日作答达到该题数才打卡；0 = 跟随「每日一练题数」设置",
   "checkin.status.synced": "已同步到小驴打卡",

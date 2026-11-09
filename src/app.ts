@@ -3,6 +3,8 @@
 // 依赖全部注入（KernelApiClient / StorageAdapter），headless 可驱动
 // ============================================================
 import { KernelApiClient, KernelError } from "./kernel/client";
+import { SESSION_CHECKIN_KEY, validateSessionLedger, assertSafeSessionLedgerRestore } from "./core/sessionCheckinLedger";
+import { withSessionCheckinLock } from "./libs/session-checkin-lock";
 import type { StorageAdapter } from "./core/attemptLog";
 import { AttemptLog } from "./core/attemptLog";
 import type { AttemptEvent, Question, ReplayResult, WrongItem, SessionState } from "./core/types";
@@ -237,6 +239,7 @@ const KNOWN_STORAGE_KEYS = [
   "materials/qrefs",
   "syllabus/tree",
   "kp/relations",
+  SESSION_CHECKIN_KEY,
 ];
 
 export interface ExamAppDeps {
@@ -2250,6 +2253,7 @@ export class ExamApp {
 
   /** 全生态联合灾备 (lvBackup) 导出切面：题库索引、错题本数据与模拟考试历史记录 */
   async dumpData(): Promise<Record<string, unknown>> {
+    const sessionCheckin = await withSessionCheckinLock(async () => validateSessionLedger(await this.loadAux(SESSION_CHECKIN_KEY)));
     const [overlays, reasons, reflections, actions, mockResults, mockBlueprint, misdiagnoses, syllabus, kpRelations] =
       await Promise.all([
         this.loadAux("wrongbook/overlays"),
@@ -2280,6 +2284,7 @@ export class ExamApp {
       materials: serializeRegistry(this.materialsRegistry),
       materialNotes: serializeNoteStore(this.materialNoteStore),
       materialLinks: serializeLinkStore(this.materialLinkStore),
+      sessionCheckin,
     };
   }
 
@@ -2289,6 +2294,21 @@ export class ExamApp {
     this.assertStorageWritable();
 
     try {
+      // Validate before touching any other domain. Restore replaces this explicit snapshot,
+      // under the same lock as send/retry; immutable event references remain unchanged.
+      const restoredCheckin = data.sessionCheckin === undefined ? undefined : validateSessionLedger(data.sessionCheckin);
+      if (restoredCheckin) await withSessionCheckinLock(async () => {
+        const previous = await this.loadAux(SESSION_CHECKIN_KEY);
+        assertSafeSessionLedgerRestore(previous, restoredCheckin);
+        try {
+          await this.saveAux(SESSION_CHECKIN_KEY, restoredCheckin);
+          const readback = validateSessionLedger(await this.loadAux(SESSION_CHECKIN_KEY));
+          if (JSON.stringify(readback) !== JSON.stringify(restoredCheckin)) throw new Error("Restored session ledger readback failed");
+        } catch (error) {
+          await this.saveAux(SESSION_CHECKIN_KEY, previous ?? null);
+          throw error;
+        }
+      });
       // 1. 恢复题库索引
       if (Array.isArray(data.banks)) {
         const bankMap = new Map(this.banks.map((b) => [b.id, b]));

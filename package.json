@@ -12,6 +12,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
+    "test:ecosystem:reliability": "node --test tests/ecosystem-reliability.test.cjs",
     "posttest": "node scripts/cleanup-tmp-workspaces.cjs --since-snapshot --quiet",
     "pretest": "node scripts/cleanup-tmp-workspaces.cjs && node scripts/cleanup-tmp-workspaces.cjs --snapshot",
     "dev": "pnpm run dev:app",

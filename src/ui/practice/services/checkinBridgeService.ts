@@ -90,7 +90,7 @@ export async function retryPendingCheckin(
   try {
     await api.whenReady?.();
     if (api.hasCapability && !api.hasCapability("events.record")) return false;
-    const result = api.recordEvent?.(pending);
+    const result = await api.recordEvent?.(pending);
     if (result !== undefined) {
       await app.saveAux(CHECKIN_PENDING_KEY, null);
       return true;
@@ -116,7 +116,7 @@ export async function queryCheckinStreak(
 }
 
 /**
- * 会话结算后安全异步上报打卡事件（48-03 lite）
+ * @deprecated Legacy daily identity adapter. Production settlement uses syncSessionCheckin.
  */
 export async function postSessionCheckinSafely(
   checkinItemId: string,

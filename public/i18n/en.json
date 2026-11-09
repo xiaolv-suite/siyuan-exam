@@ -1233,7 +1233,7 @@
     "import.updatesHint": "Update re-import: same-fingerprint rows are not skipped; on commit the existing question is located by fingerprint and its answer/analysis/aliases overwritten; stem/options and attempt log stay untouched",
     "import.updatesDone": "Updated {ok}, failed {f}, not found in bank {m}",
     "setting.checkinItemId.title": "Check-in bridge · item ID",
-    "setting.checkinItemId.desc": "Set a check-in item ID to auto-record a daily check-in when practice goal is met (idempotent: once per day; empty = bridge off)",
+    "setting.checkinItemId.desc": "Bind an item ID to sync completed session deltas after the daily target is reached. Failed sessions keep the original identity. Empty means off.",
     "setting.checkinThreshold.title": "Check-in bridge · daily threshold",
     "setting.checkinThreshold.desc": "Minimum answers today before checking in; 0 = follow the daily practice goal setting",
     "checkin.status.synced": "Synced to Check-in",

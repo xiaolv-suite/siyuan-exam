@@ -71,12 +71,14 @@ export interface CheckinApiV5 {
   protocol: string;
   whenReady?: () => Promise<void> | void;
   hasCapability?: (name: string) => boolean;
-  recordEvent?: (input: CheckinEventInput) => CheckinEventRecord | undefined;
+  recordEvent?: (input: CheckinEventInput) => CheckinEventRecord | undefined | Promise<CheckinEventRecord | undefined>;
+  recordEventsBatch?: (inputs: CheckinEventInput[]) => Promise<Array<{ kind: "recorded" | "duplicate" | "discarded" | "blocked" | "rejected"; eventId?: string }>>;
   queryItems?: (options?: { includeArchived?: boolean; limit?: number }) => CheckinItemSummary[];
   getItems?: () => CheckinItemSummary[];
 }
 
 export interface CheckinEventRecord {
+  id?: string;
   eventId?: string;
 }
 
@@ -140,7 +142,7 @@ export function probeCheckinApi(w: unknown): CheckinApiV5 | null {
   return api;
 }
 
-/** 同步一次打卡（幂等；调用方负责把 pending 状态持久化并在下次重试） */
+/** @deprecated Legacy daily aggregate adapter. Production settlement uses sessionCheckinService. */
 export async function syncCheckin(
   api: CheckinApiV5 | null,
   cfg: CheckinBridgeConfig,
@@ -150,13 +152,7 @@ export async function syncCheckin(
 ): Promise<{ status: CheckinSyncStatus; event?: CheckinEventInput; autoResolvedItem?: CheckinItemSummary }> {
   let effectiveCfg = cfg;
   let autoResolvedItem: CheckinItemSummary | undefined;
-  if (!bridgeEnabled(effectiveCfg) && api) {
-    const discovered = autoResolveCheckinItem(api);
-    if (discovered && discovered.id) {
-      effectiveCfg = { ...cfg, itemId: discovered.id };
-      autoResolvedItem = discovered;
-    }
-  }
+  // Discovery is a read-only suggestion. Empty configuration always means off.
   if (!bridgeEnabled(effectiveCfg)) return { status: "disabled" };
   if (!shouldCheckin(todayAttempts, effectiveCfg, fallbackGoal)) return { status: "below-threshold" };
   if (!api) return { status: "no-api" };
@@ -165,7 +161,7 @@ export async function syncCheckin(
     if (api.hasCapability && !api.hasCapability("events.record")) return { status: "no-capability" };
     if (typeof api.recordEvent !== "function") return { status: "no-capability" };
     const event = buildCheckinEvent(effectiveCfg, todayAttempts, nowMs);
-    const result = api.recordEvent(event); // undefined = 未写入（保留原 externalRef 重试，不换新引用）
+    const result = await api.recordEvent(event); // undefined = 未写入（保留原 externalRef 重试，不换新引用）
     if (result === undefined) return { status: "pending", event, autoResolvedItem };
     return { status: "synced", event, autoResolvedItem }; // 新写入与幂等命中都视为已同步（duplicate 返回已有副本）
   } catch {
