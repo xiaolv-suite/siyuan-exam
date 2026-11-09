@@ -513,6 +513,20 @@ export class ExamApp {
         }
       })(),
     ]);
+    if (this.kernelOnline && this.banks.length > 0 && typeof (this.deps.client as any).listAllNotebooks === "function") {
+      try {
+        const allNotebooks = await (this.deps.client as any).listAllNotebooks();
+        if (Array.isArray(allNotebooks) && allNotebooks.length > 0) {
+          const existingIds = new Set(allNotebooks.map((n: { id: string }) => n.id));
+          const aliveBanks = this.banks.filter((b) => existingIds.has(b.id));
+          if (aliveBanks.length !== this.banks.length) {
+            this.banks = aliveBanks;
+          }
+        }
+      } catch {
+        /* 离线或模拟环境静默跳过 */
+      }
+    }
     this.invalidate();
   }
 
@@ -1121,7 +1135,29 @@ export class ExamApp {
   }
 
   async listQuestions(bankId: string): Promise<(Question & { blockId: string; rootId: string; hpath: string })[]> {
-    const qs = await this.deps.client.listQuestions(bankId);
+    let qs = await this.deps.client.listQuestions(bankId);
+    if (
+      qs.length === 0 &&
+      this.kernelOnline &&
+      this.banks.some((b) => b.id === bankId) &&
+      typeof (this.deps.client as any).listAllNotebooks === "function" &&
+      typeof (this.deps.client as any).openNotebook === "function"
+    ) {
+      try {
+        const nbs = await (this.deps.client as any).listAllNotebooks();
+        const nb = Array.isArray(nbs) ? nbs.find((n: { id: string; closed?: boolean }) => n.id === bankId) : undefined;
+        if (nb?.closed) {
+          await (this.deps.client as any).openNotebook(bankId);
+          for (let i = 0; i < 6; i++) {
+            await new Promise((r) => setTimeout(r, 350));
+            qs = await this.deps.client.listQuestions(bankId);
+            if (qs.length > 0) break;
+          }
+        }
+      } catch {
+        /* 打开已关闭题库失败时回退空结果 */
+      }
+    }
     for (const q of qs) {
       if (q.id && q.blockId) {
         this.questionBlockMap.set(q.id, q.blockId);

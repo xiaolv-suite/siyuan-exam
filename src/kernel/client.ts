@@ -411,6 +411,18 @@ export class KernelApiClient {
     return notebooks.filter((n) => !n.closed).map((n) => ({ id: n.id, name: n.name }));
   }
 
+  /** 全量笔记本清单（含已关闭笔记本，用于过滤已被物理删除的孤儿题库并按需挂载关闭的题库笔记本） */
+  async listAllNotebooks(): Promise<{ id: string; name: string; closed: boolean }[]> {
+    const r = await this.readPost("/api/notebook/lsNotebooks", {}, { requestKey: "notebook-list-all" });
+    const notebooks = (r.data as { notebooks?: { id: string; name: string; closed?: boolean }[] } | null)?.notebooks ?? [];
+    return notebooks.map((n) => ({ id: n.id, name: n.name, closed: Boolean(n.closed) }));
+  }
+
+  /** 打开已关闭的题库笔记本以恢复 SQLite 块索引 */
+  async openNotebook(notebook: string): Promise<void> {
+    await this.writePost("/api/notebook/openNotebook", { notebook });
+  }
+
   /** 文档导出 Markdown（AI 出题"当前文档"输入源；2026-10-02 实测返回 hPath+content，content 带 YAML 头需剥离） */
   async exportDocMarkdown(docId: string): Promise<{ title: string; content: string }> {
     const r = await this.readPost("/api/export/exportMdContent", { id: docId }, { requestKey: `doc-markdown:${docId}` });
