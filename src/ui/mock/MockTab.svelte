@@ -3520,11 +3520,17 @@
       display: none;
     }
     .lv-mock-exam-head .lv-btn.sm {
-      min-height: 32px;
-      height: 32px;
-      padding: 0 8px;
+      min-height: 36px;
+      height: 36px;
+      padding: 0 10px;
       font-size: 12px;
       flex-shrink: 0;
+    }
+    .lv-bp-row:not(.head) .lv-bp-del {
+      min-width: 36px;
+      min-height: 36px;
+      align-self: center;
+      justify-self: end;
     }
     .lv-mock-exam-head .lv-kbd {
       display: none;
