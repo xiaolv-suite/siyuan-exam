@@ -625,7 +625,7 @@
               <span>注音 / 粤拼：{q.studyMeta.phonetic}</span>
             </div>
           {/if}
-          <p class="lv-muted" style="margin:8px 0 14px" role="note">{t("session.guide." + q.type)}</p>
+          <p class="lv-muted lv-qtype-guide" style="margin:8px 0 14px" role="note">{t("session.guide." + q.type)}</p>
           {#key session.id + ":" + curProgress.done}
           {#if isChoiceQuestion(q)}
             {@const baseChoices = answerChoices(q)}

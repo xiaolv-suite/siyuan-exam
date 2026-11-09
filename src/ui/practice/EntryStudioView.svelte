@@ -326,24 +326,24 @@
           </p>
         </div>
 
-        <div class="lv-row" style="justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 0">
-          <button class="lv-btn lv-btn--primary" onclick={() => onnavView("import", "siyuan")}>
-            <Icon name="file" size={15} /> 从思源笔记智能提取试题
-          </button>
-          <button class="lv-btn lv-btn--ghost" onclick={() => onnavView("import", "standard")}>
-            <Icon name="import" size={15} /> 批量导入 (Excel / CSV / Aiken)
-          </button>
-          <button class="lv-btn lv-btn--ghost" onclick={() => onnavView("manual")}>
-            <Icon name="clipboard" size={15} /> 手工录题工坊
-          </button>
-          <button class="lv-btn lv-btn--ghost" onclick={() => void oncreateSampleBank("general")} disabled={creating || offline}>
-            <Icon name="grid" size={15} /> 创建示例题库（{SAMPLE_QUESTION_COUNT} 题）
-          </button>
+        <div class="lv-row lv-empty-actions" style="justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 0">
           {#if banks.length > 1}
-            <button class="lv-btn lv-btn--ghost" onclick={onopenBankHub}>
-              <Icon name="folder" size={15} /> 切换其他已有题库 ({banks.length})
+            <button class="lv-btn lv-btn--primary" onclick={onopenBankHub}>
+              <Icon name="folder" size={15} /> 切换至已有题库刷题 ({banks.length})
             </button>
           {/if}
+          <button class="lv-btn {banks.length > 1 ? 'lv-btn--ghost' : 'lv-btn--primary'}" onclick={() => void oncreateSampleBank("general")} disabled={creating || offline}>
+            <Icon name="grid" size={15} /> 创建示例题库体验刷题（{SAMPLE_QUESTION_COUNT} 题）
+          </button>
+          <button class="lv-btn lv-btn--ghost lv-desktop-author-action" onclick={() => onnavView("import", "siyuan")}>
+            <Icon name="file" size={15} /> 从思源笔记智能提取试题
+          </button>
+          <button class="lv-btn lv-btn--ghost lv-desktop-author-action" onclick={() => onnavView("import", "standard")}>
+            <Icon name="import" size={15} /> 批量导入 (Excel / CSV / Aiken)
+          </button>
+          <button class="lv-btn lv-btn--ghost lv-desktop-author-action" onclick={() => onnavView("manual")}>
+            <Icon name="clipboard" size={15} /> 手工录题工坊
+          </button>
         </div>
       </div>
     {:else}
@@ -389,7 +389,7 @@
                 <button class="lv-btn lv-btn--primary" onclick={onstartToday} disabled={!todayQueue.length} title={todayQueue.length ? "" : t("state.emptyBank")}>
                   <Icon name="play" size={15} /> 开始今日练习
                 </button>
-                <button class="lv-btn lv-btn--ghost" onclick={oncopyTodayReport} title={t("entry.copyReportTip")}>
+                <button class="lv-btn lv-btn--ghost lv-hero-copy-btn" onclick={oncopyTodayReport} title={t("entry.copyReportTip")}>
                   <Icon name="copy" size={14} /> {t("entry.copyReport")}
                 </button>
                 {#if !plan.queue.length && todayQueue.length}
@@ -505,41 +505,41 @@
           </div>
         </section>
 
-        <!-- 移动端后收折叠：题库管理、录题工坊、导入向导、模考历史 -->
+        <!-- 卡片 2（手机首屏直达）：概念背诵与全真模考 -->
+        <section class="lv-card lv-home-panel lv-study-modes-panel" aria-label="概念背诵与全真模考">
+          <div class="lv-home-panel-head">
+            <b style="display:inline-flex;align-items:center;gap:6px">
+              <Icon name="clock" size={15} /> 概念背诵与全真模考
+            </b>
+            <span class="lv-muted" style="font-size:12px">主动回忆 · 实战验真</span>
+          </div>
+          <div class="lv-home-btn-group">
+            <button class="lv-btn sm lv-mode" disabled={!practiceQuestions.length} onclick={onstartRecite} title="不看答案先回忆，以纸面背题模式进行记忆巩固">
+              <Icon name="rotate" size={13} /> {t("mode.recite", "纸面背诵模式")}
+            </button>
+            <button class="lv-btn sm lv-btn--primary" onclick={onopenMock} title="进入全真模拟考场">
+              <Icon name="clock" size={13} /> 进入全真模考场
+            </button>
+            <button class="lv-btn sm" onclick={onopenReport} title="查看学情诊断报告">
+              <Icon name="chart" size={13} /> 查看学情诊断报告
+            </button>
+            {#if criticalForgettingKps.length > 0}
+              <button class="lv-btn sm" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title="临界记忆抢救">
+                <Icon name="flame" size={13} /> 临界记忆抢救 (5题)
+              </button>
+            {/if}
+          </div>
+        </section>
+
+        <!-- 移动端后收折叠：仅收纳偏电脑端创作管理的题库录入、导入与维护 -->
         <details class="lv-mobile-folded-section" bind:open={mobileToolsOpen}>
           <summary class="lv-mobile-folded-summary">
             <span style="display:inline-flex;align-items:center;gap:6px">
-              <Icon name="folder" size={15} /> 题库管理 · 录题工坊 · 导入向导 · 模考
+              <Icon name="folder" size={15} /> 录题 · 导入 · 题库维护（建议电脑端操作）
             </span>
-            <span class="lv-chip sm">{mobileToolsOpen ? "收起 ▲" : "展开更多 ▼"}</span>
+            <span class="lv-chip sm">{mobileToolsOpen ? "收起 ▲" : "展开 ▼"}</span>
           </summary>
           <div class="lv-mobile-folded-content">
-            <!-- 卡片 2：主动背诵与实战模考 -->
-            <section class="lv-card lv-home-panel" aria-label="概念背诵与全真模考">
-              <div class="lv-home-panel-head">
-                <b style="display:inline-flex;align-items:center;gap:6px">
-                  <Icon name="clock" size={15} /> 概念背诵与全真模考
-                </b>
-                <span class="lv-muted" style="font-size:12px">主动回忆 · 实战验真</span>
-              </div>
-              <div class="lv-home-btn-group">
-                <button class="lv-btn sm lv-btn--primary" onclick={onopenMock} title="进入全真模拟考场">
-                  <Icon name="clock" size={13} /> 进入全真模考场
-                </button>
-                <button class="lv-btn sm lv-mode" disabled={!practiceQuestions.length} onclick={onstartRecite} title="不看答案先回忆，以纸面背题模式进行记忆巩固">
-                  <Icon name="rotate" size={13} /> {t("mode.recite", "纸面背诵模式")}
-                </button>
-                <button class="lv-btn sm" onclick={onopenReport} title="查看学情诊断报告">
-                  <Icon name="chart" size={13} /> 查看学情诊断报告
-                </button>
-                {#if criticalForgettingKps.length > 0}
-                  <button class="lv-btn sm" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title="临界记忆抢救">
-                    <Icon name="flame" size={13} /> 临界记忆抢救 (5题)
-                  </button>
-                {/if}
-              </div>
-            </section>
-
             <!-- 卡片 3：试题录入与题库维护 -->
             <section class="lv-card lv-home-panel" aria-label="试题录入与题库维护">
               <div class="lv-home-panel-head">
@@ -740,13 +740,20 @@
   .lv-hero-actions { margin-top: 18px; }
   .lv-hero-actions .lv-btn--primary { box-shadow: var(--lv-btn-primary-shadow); }
   @container lv-exam (max-width: 680px) {
-    .lv-entry-overview { margin-bottom: 12px; gap: 10px; }
-    .lv-entry-hero { grid-template-columns: minmax(0,1fr); padding: 14px 16px; gap: 10px; border-radius: var(--lv-r-3, 16px); }
-    .lv-entry-reason { font-size: 15.5px; line-height: 1.4; margin: 4px 0 8px; }
-    .lv-hero-actions { margin-top: 8px; }
-    .lv-entry-num { border-left: 0; border-top: 1px solid var(--lv-darkcard-border); padding: 8px 0 0; flex-direction: row; align-items: baseline; gap: 10px; justify-content: flex-start; }
-    .lv-entry-count { font-size: 30px; letter-spacing: -1px; }
-    .lv-entry-week { padding: 14px 16px; border-radius: var(--lv-r-3, 16px); }
+    .lv-entry-overview { margin-bottom: 10px; gap: 8px; }
+    .lv-entry-hero { grid-template-columns: minmax(0,1fr) auto; padding: 12px 14px; gap: 12px; border-radius: var(--lv-r-3, 16px); }
+    .lv-entry-reason { font-size: 14px; line-height: 1.35; margin: 3px 0 8px; }
+    .lv-hero-actions { margin-top: 6px; }
+    .lv-hero-copy-btn { display: none !important; }
+    .lv-entry-num { border-left: 1px solid var(--lv-darkcard-border); border-top: 0; padding: 2px 0 2px 12px; flex-direction: column; align-items: center; gap: 2px; justify-content: center; }
+    .lv-entry-count { font-size: 28px; letter-spacing: -1px; }
+    .lv-entry-week { display: none; }
+    .lv-home-grids { margin-top: 10px !important; gap: 10px !important; }
+    .lv-home-panel { padding: 12px 14px; border-radius: 14px; }
+    .lv-home-panel-head { margin-bottom: 8px; padding-bottom: 6px; }
+    .lv-home-btn-group { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .lv-home-btn-group .lv-btn { padding: 6px 10px; font-size: 12.5px; min-height: 40px; height: auto; }
+    .lv-desktop-author-action { display: none !important; }
     .lv-entry-empty { padding: 18px 16px !important; margin: 6px auto 12px !important; }
     .lv-entry-empty h2 { font-size: 17px !important; }
     .lv-entry-empty .lv-empty-icon { width: 42px !important; height: 42px !important; margin-bottom: 8px !important; }

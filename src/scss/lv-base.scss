@@ -1434,19 +1434,51 @@ input[type="range"] {
     grid-template-columns: 1fr !important;
   }
 
-  /* widget 标题与内容文字 nowrap 防竖排 */
+  /* widget 窄屏转为紧凑三列横条，彻底释放手机首屏刷题空间 */
+  .lv-widgets {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-bottom: 12px !important;
+  }
   .lv-widget {
     flex-direction: column;
-    align-items: flex-start;
-    gap: var(--lv-space-2);
+    align-items: center;
+    text-align: center;
+    padding: 10px 6px !important;
+    gap: 4px;
+    border-radius: 14px;
+  }
+  .lv-widget .lv-goal-wrap {
+    width: 34px;
+    height: 34px;
+  }
+  .lv-widget .lv-goal-center {
+    font-size: 10px;
+  }
+  .lv-widget .lv-streak-flame {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+  .lv-widget .lv-streak-flame svg {
+    width: 16px;
+    height: 16px;
   }
   .lv-widget-title {
     white-space: nowrap;
+    font-size: 10.5px;
+    letter-spacing: 0.2px;
+    margin-bottom: 2px;
   }
+  .lv-widget strong.num,
   .lv-widget-body strong {
+    font-size: 16px !important;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .lv-widget-body .lv-muted {
+    display: none !important;
   }
 
   /* 图表行（周比较/信心校准/时段分布等）标签列收窄防挤压 */

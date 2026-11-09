@@ -1563,8 +1563,31 @@ import { confirmDialogSync } from "@/libs/dialog";
           pendingPracticeBankId: plugin?.pendingPracticeBankId,
         });
         if (activeBankId) {
-          void refreshQuestionsAfterWrite(0);
-          rememberBank(activeBankId);
+          void (async () => {
+            await refreshQuestionsAfterWrite(0);
+            // 若默认/记忆题库为空库且存在其它非空题库（且无外部指定题库深链），自动切至首个有题题库以便直接刷题
+            if (
+              !pendingPracticeViewIsCurrent &&
+              !plugin?.pendingPracticeBankId &&
+              questions.filter((q) => q.type !== "material").length === 0 &&
+              banks.length > 1
+            ) {
+              for (const b of banks) {
+                if (b.id === activeBankId) continue;
+                try {
+                  const candidateQs = await app.listQuestions(b.id);
+                  if (candidateQs.some((q) => q.type !== "material")) {
+                    activeBankId = b.id;
+                    rememberBank(b.id);
+                    await onBankSwitch();
+                    break;
+                  }
+                } catch { /* ignore */ }
+              }
+            } else {
+              rememberBank(activeBankId);
+            }
+          })();
         }
 
         // 恢复未完成会话（37-05：校验题库归属，缺题剔除后提示）
@@ -2339,7 +2362,13 @@ import { confirmDialogSync } from "@/libs/dialog";
       },
     }));
 
-    async function onTaskNav(target: "today" | "bank" | "marketplace" | "create" | "mock" | "report") {
+    async function onTaskNav(target: "today" | "wrong" | "bank" | "marketplace" | "create" | "mock" | "report") {
+      if (target === "wrong") {
+        dataRev++;
+        switchView("wrongbook");
+        void loadQuestions();
+        return;
+      }
       if (target === "marketplace") {
         switchView("marketplace");
         return;
@@ -5964,7 +5993,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       </button>
   </div>
   <div class="lv-shell" class:lv-shell-focus={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
-    <Rail active="practice" taskactive={view === "marketplace" ? "marketplace" : (view === "browse" || view === "wrongbook" ? "bank" : view === "manual" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
+    <Rail active="practice" taskactive={view === "marketplace" ? "marketplace" : view === "wrongbook" ? "wrong" : (view === "browse" ? "bank" : view === "manual" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
       project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => (view = "entry")}
       onquickcreate={() => { view = "manual"; }} />
     <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: calc(${viewportBottomPad + 16}px + env(safe-area-inset-bottom, 0px));` : undefined}>

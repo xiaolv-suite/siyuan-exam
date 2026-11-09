@@ -62,6 +62,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   /** 应用组装层（与基类 Plugin.app: App 无关，刻意改名避免遮蔽） */
   examApp: ExamApp | null = null;
   private appInitializing = true;
+  private layoutReadyPromise: Promise<void> | null = null;
   private queuedTab: { type: string; icon: string; title: string } | null = null;
   private openingTabs = new Set<string>();
   private boundBlockIcon = this.onBlockIconClick.bind(this);
@@ -359,6 +360,16 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     this.eventBus.on("open-menu-content", this.boundContentMenu);
     this.eventBus.on("open-menu-blockref", this.boundBlockRefMenu);
     window.addEventListener("message", this.boundWidgetMessage);
+
+    // 防护第三方插件（如 sy-plugin-enhance）在手机端 onLayoutReady 抛错中断思源宿主插件遍历循环：
+    // 若真实思源环境下 1500ms 后宿主仍未回调 onLayoutReady，主动自愈完成初始化
+    if (typeof window !== "undefined" && (window as any).siyuan?.ws) {
+      window.setTimeout(() => {
+        if (!this.isUnloaded && this.appInitializing && !this.layoutReadyPromise) {
+          void this.onLayoutReady();
+        }
+      }, 1500);
+    }
   }
 
   /**
@@ -377,6 +388,12 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onLayoutReady() {
+    if (this.layoutReadyPromise) return this.layoutReadyPromise;
+    this.layoutReadyPromise = this.runLayoutReady();
+    return this.layoutReadyPromise;
+  }
+
+  private async runLayoutReady() {
     try {
       await this.settingUtils.load();
     } catch (e) {
@@ -848,6 +865,9 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     // 早于应用就绪的点击延后执行，避免把 null app 固定传入永久报错的页签。
     if (this.appInitializing) {
       this.queuedTab = { type, icon, title };
+      if (!this.layoutReadyPromise) {
+        void this.onLayoutReady();
+      }
       showMessage(this.i18n["state.initializing"] ?? "正在初始化小驴考试，完成后自动打开…", 2400, "info");
       return false;
     }

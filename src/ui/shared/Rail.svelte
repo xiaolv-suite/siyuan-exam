@@ -8,7 +8,7 @@
   import { openPracticeView, type ExamPluginLike } from "../../core/pluginTab";
   import { lvLaunchpad } from "@/libs/lv-notice-kit";
 
-  type TaskTarget = "today" | "bank" | "marketplace" | "create" | "mock" | "report";
+  type TaskTarget = "today" | "wrong" | "bank" | "marketplace" | "create" | "mock" | "report";
 
   let {
     active,
@@ -300,6 +300,7 @@
     if (target === "mock") return plugin?.openMock?.();
     if (target === "report") return plugin?.openReport?.();
     if (target === "marketplace") return openPracticeView(plugin, "marketplace");
+    if (target === "wrong") return openPracticeView(plugin, "wrongbook");
     const view = target === "today" ? "entry" : target === "bank" ? "browse" : "manual";
     openPracticeView(plugin, view);
   }
@@ -312,11 +313,11 @@
     { target: "mock" as const, icon: "clock", label: t("task.mock", "模考") },
     { target: "report" as const, icon: "chart", label: t("task.report", "复盘") },
   ];
-  // 移动端底部任务导航（Mobile Spec v1 规范：严格 ≤5 项，触感 haptic）
+  // 移动端底部任务导航（聚焦手机端高频消费动作：刷题 / 错题 / 题库 / 模考 / 复盘；出题导入收纳至抽屉与电脑端）
   const mobileGlobals = [
-    { target: "today" as const, icon: "home", label: t("task.today", "今日") },
+    { target: "today" as const, icon: "play", label: "刷题" },
+    { target: "wrong" as const, icon: "target", label: "错题" },
     { target: "bank" as const, icon: "book", label: t("task.bank", "题库") },
-    { target: "create" as const, icon: "create", label: t("task.create", "出题") },
     { target: "mock" as const, icon: "clock", label: t("task.mock", "模考") },
     { target: "report" as const, icon: "chart", label: t("task.report", "复盘") },
   ];

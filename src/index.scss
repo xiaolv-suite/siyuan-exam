@@ -183,6 +183,10 @@
     flex: 0 0 auto;
   }
 
+  .lv-exam-tab > .block__icons .lv-bank-picker-group > .lv-btn {
+    display: none !important;
+  }
+
   .lv-exam-tab > .block__icons .lv-report-mobile-more {
     display: inline-flex !important;
     flex: 0 0 auto;
@@ -193,8 +197,18 @@
     display: none !important;
   }
 
+  .lv-onboard,
+  .lv-qtype-guide {
+    display: none !important;
+  }
+
+  .lv-exam-tab > .block__icons.lv-focus-toolbar {
+    min-height: 38px;
+    height: 38px;
+  }
+
   .lv-pad {
-    padding: 8px 12px 16px !important;
+    padding: 8px 12px 14px !important;
   }
 }
 
@@ -320,7 +334,10 @@
     touch-action: manipulation;
   }
 
-  .b3-dialog__header,
+  .b3-dialog__header {
+    display: none !important;
+  }
+
   .b3-dialog__container:has(.lv-mobile-close-btn) > .b3-dialog__close {
     display: none !important;
   }
