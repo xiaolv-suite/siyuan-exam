@@ -240,8 +240,8 @@ importers:
         specifier: ^9.0.3
         version: 9.0.3
       playwright-core:
-        specifier: ^1.64.1
-        version: 1.64.1
+        specifier: ^1.65.0
+        version: 1.65.0
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -1675,8 +1675,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright-core@1.64.1:
-    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
+  playwright-core@1.65.0:
+    resolution: {integrity: sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2788,7 +2788,7 @@ snapshots:
 
   buffer-image-size@0.6.4:
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
     optional: true
 
   cacheable@2.5.0:
@@ -3123,7 +3123,7 @@ snapshots:
 
   happy-dom@20.14.5:
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       buffer-image-size: 0.6.4
@@ -3455,7 +3455,7 @@ snapshots:
 
   pidtree@1.0.0: {}
 
-  playwright-core@1.64.1: {}
+  playwright-core@1.65.0: {}
 
   postcss-load-config@3.1.4(postcss@8.5.28)(ts-node@10.9.2(@types/node@26.6.5)(typescript@6.0.3)):
     dependencies:
