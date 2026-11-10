@@ -1,7 +1,7 @@
 # 贡献指南（CONTRIBUTING）
 
 > 小驴考试（内测版）是本地优先的思源笔记备考插件。单人维护为主，但任何 issue、冒烟反馈、PR 都欢迎。
-> 产品定位与范围约束见 [docs/04](docs/04-版本路线图.md)；架构决策见 [docs/adr](docs/adr)。
+> 架构决策见 [docs/adr](docs/adr)，当前状态见 [docs/CURRENT-STATUS.md](docs/CURRENT-STATUS.md)。
 
 ## 1. 本地开发
 
@@ -12,7 +12,7 @@ pnpm dev                           # 监听构建（思源设置-集市重载插
 SIYUAN_TOKEN=... pnpm preflight    # 活内核 API 预检（17 项，需思源运行中）
 ```
 
-真机手工验证按 [docs/17 真机冒烟清单](docs/17-真机冒烟清单.md) 的 40 步执行（A–E 覆盖 v0.5.x，+F 覆盖 v0.6-dev）。
+真机手工验证按仓库内真机冒烟清单批次执行（详见各批次验收文档）。
 
 ## 2. 门禁（提交前必跑）
 
@@ -43,7 +43,7 @@ SIYUAN_WORKSPACE=... pnpm e2e      # 只读数据层走查（工作区路径必�
 ## 4. 提交规范
 
 - Conventional Commits：`feat|fix|docs|test|chore|refactor(scope): 摘要`，scope 用模块名（memory/mock/importer/ai…）。历史记录见 `git log`。
-- 一个批次一个里程碑 commit；部分完成的待办在 [TODO](../TODO.md) 保持未勾、附"开发推进"注记。
+- 一个批次一个里程碑 commit；部分完成的待办在待办池 [docs/TODO-POOL.md](docs/TODO-POOL.md) 保持未勾、附"开发推进"注记。
 - 完成待办请勾选并注明版本与验收证据；真机验收项必须附 docs/17 步骤号。
 
 ## 5. 报告问题

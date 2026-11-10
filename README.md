@@ -1,20 +1,21 @@
 # 小驴考试 (siyuan-exam)
 
-> 当前源码与验收边界：[唯一当前状态入口](docs/CURRENT-STATUS.md)。本轮修改未发布；以下版本历史不能代表当前安装或全部能力已验收。
 
 > **解决什么问题：** 传统刷题软件与个人笔记割裂、题库锁在外部云端、看着答案误以为学会、错题越积越多却无从下手。**小驴考试** 把题库、独立主动回忆刷题、全真模考、错题靶向消灭与 FSRS 闪卡联动直接建在你的思源笔记里——每一道题都是原生思源块，可双链回跳原文，100% 本地优先离线可用。欢迎加入交流 QQ 群 **871707735** 参与内测反馈。
 
 **笔记即题库 · 独立主动回忆 · 受助不冒充掌握 · 全真模考与 A4 双栏印卷 · FSRS 闪卡联动**
 
-[![Release](https://img.shields.io/badge/release-v0.15.0-blue.svg)](https://github.com/ai68298100/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.1-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue.svg)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[English Documentation](README.en-US.md) · [当前状态](docs/STATUS.md) · [待办池](docs/TODO-POOL.md) · [内测说明与反馈模板](docs/BETA-TESTING.md) · [交付说明](docs/DELIVERY.md) · [组件清单](docs/UI-COMPONENTS.md) · [安全报告](SECURITY.md) · [提交反馈](https://github.com/ai68298100/siyuan-exam/issues)
+![小驴考试界面预览](preview.png)
+
+[English Documentation](README.en-US.md) · [当前状态](docs/STATUS.md) · [待办池](docs/TODO-POOL.md) · [内测说明与反馈模板](docs/BETA-TESTING.md) · [组件清单](docs/UI-COMPONENTS.md) · [安全报告](SECURITY.md) · [提交反馈](https://github.com/xiaolv-suite/siyuan-exam/issues)
 
 ---
 
-## 历史版本说明：v0.15.0（2026-11-02）
+## 版本亮点：v0.15.0（2026-11-02）
 
 本版本为**做题心流提速、四层结构知识深度、自适应根因诊断与模考大题自评闭环**重大发版：
 - **做题心流与极速提速**：
@@ -73,10 +74,9 @@
 
 ## 📦 安装方式
 
-1. **发行包手动安装（推荐）**：
-   - 将根目录生成的 `package.zip` 解压至思源工作空间的 `<workspace>/data/plugins/siyuan-exam/` 目录；
-   - 打开思源笔记「设置 → 集市 → 已下载」，启用 **小驴考试**，点击顶栏试卷图标（或按 `⌥⌘P` / `Ctrl+Alt+P`）即可进入练习台。
-2. **源码构建与本地安装**：
+1. **思源集市安装（推荐）**：打开思源笔记 `设置` → `集市` → `插件`，搜索 **「小驴考试」**，点击安装并启用；
+2. **发行包手动安装**：从 [GitHub Releases](https://github.com/xiaolv-suite/siyuan-exam/releases) 下载 `package.zip`，解压至思源工作空间的 `<workspace>/data/plugins/siyuan-exam/` 目录；
+3. **源码构建与本地安装**：
    - 环境要求：Node.js `>= 24.0.0`、pnpm `12.x`；
    - 在仓库根目录执行 `pnpm install && pnpm make-install`（选择本地思源工作空间自动复制生产构建产物），或执行 `pnpm make-link` 建立开发软链。
 
@@ -130,7 +130,7 @@
 
 ---
 
-## ⚙️ 设置项说明（18 项参数与影响）
+## ⚙️ 设置项说明（20 项参数与影响）
 
 思源顶部菜单「设置」→「插件设置」→「小驴考试」中配置，全部选项经 Svelte 响应式派生，**修改确认后即时生效，无需重启插件**：
 

@@ -9,14 +9,14 @@
 > **Personal Notes → Independent Retrieval → Honest Evidence → Wrongbook Elimination → Timed Mock Verification**  
 > Every question is a native, searchable, linkable **SiYuan block** in your own workspace — never locked in an external cloud.
 
-[![Release](https://img.shields.io/badge/release-v0.15.0-blue.svg)](https://github.com/ai68298100/siyuan-exam/releases)
-[![CI](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/ai68298100/siyuan-exam/actions/workflows/check.yml)
+[![Release](https://img.shields.io/badge/release-v0.15.1-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
+[![CI](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
 
 <img src="preview.png" alt="Lv Exam (Beta) preview" width="640"/>
 
-*[中文说明](README.md) · English Docs · [Current Status](docs/STATUS.md) · [Todo Pool](docs/TODO-POOL.md) · [Beta Guide](docs/BETA-TESTING.md) · [Delivery Guide](docs/DELIVERY.md) · [UI Components](docs/UI-COMPONENTS.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Releases](https://github.com/ai68298100/siyuan-exam/releases)*
+*[中文说明](README.md) · English Docs · [Current Status](docs/STATUS.md) · [Todo Pool](docs/TODO-POOL.md) · [Beta Guide](docs/BETA-TESTING.md) · [Delivery Guide](docs/DELIVERY.md) · [UI Components](docs/UI-COMPONENTS.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Releases](https://github.com/xiaolv-suite/siyuan-exam/releases)*
 
 </div>
 
@@ -38,11 +38,11 @@
 ## 🚀 Quick Start
 
 1. **Manual Installation (Beta Recommended)**:
-   - Download `package.zip` from [GitHub Releases](https://github.com/ai68298100/siyuan-exam/releases) and extract into `<Workspace>/data/plugins/siyuan-exam/`;
+   - Download `package.zip` from [GitHub Releases](https://github.com/xiaolv-suite/siyuan-exam/releases) and extract into `<Workspace>/data/plugins/siyuan-exam/`;
    - Enable **Lv Exam (Beta) / 小驴考试** in SiYuan `Settings → Marketplace → Downloaded`, then press `Ctrl+Alt+P` (`⌥⌘P` on macOS).
 2. **Developer Setup**:
    ```bash
-   git clone https://github.com/ai68298100/siyuan-exam.git
+   git clone https://github.com/xiaolv-suite/siyuan-exam.git
    cd siyuan-exam
    pnpm install
    pnpm make-link

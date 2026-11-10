@@ -1,5 +1,5 @@
 小驴考试（内测版） (Lv Exam (Beta)) —— 思源笔记本地题库学习管理插件
-Copyright (c) 2026 ai68298100
+Copyright (c) 2026 xiaolv-suite
 
 本插件基于官方模板 siyuan-note/plugin-sample-vite-svelte（MIT, Copyright (c) frostime
 及其贡献者）构建；src/libs/ 下的 setting-utils.ts、dialog.ts、promise-pool.ts 与

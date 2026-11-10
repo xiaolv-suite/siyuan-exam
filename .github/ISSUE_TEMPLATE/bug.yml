@@ -39,6 +39,6 @@ body:
     id: smoke
     attributes:
       label: 是否已有冒烟清单结果？
-      description: "[docs/17](https://github.com/ai68298100/siyuan-exam/blob/main/docs/17-真机冒烟清单.md) 的步骤号 ✅/❌ 列表对定位极有帮助"
+      description: "[docs/17](https://github.com/xiaolv-suite/siyuan-exam/blob/main/docs/17-真机冒烟清单.md) 的步骤号 ✅/❌ 列表对定位极有帮助"
       options:
         - label: 我按清单跑过并附步骤号

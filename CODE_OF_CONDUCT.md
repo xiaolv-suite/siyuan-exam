@@ -7,4 +7,4 @@
 - 说明复现条件与不确定性，接受可验证的技术反馈；
 - 避免公开密钥、个人信息、受限题文及其他不应传播的材料。
 
-维护者可以编辑、隐藏或关闭违反本准则的内容，并在必要时限制参与权限。需要报告安全问题时，请使用 [GitHub 私密安全报告](https://github.com/ai68298100/siyuan-exam/security/advisories/new)，不要发到公开 issue。
+维护者可以编辑、隐藏或关闭违反本准则的内容，并在必要时限制参与权限。需要报告安全问题时，请使用 [GitHub 私密安全报告](https://github.com/xiaolv-suite/siyuan-exam/security/advisories/new)，不要发到公开 issue。

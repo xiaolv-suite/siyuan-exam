@@ -3,9 +3,9 @@
   "version": "0.15.1",
   "type": "module",
   "description": "小驴考试 (Lv Exam (Beta)) — Local-first question bank & exam prep workspace in SiYuan: import, active-recall practice, wrongbook, mock exam, FSRS flashcards, AI. 思源笔记本地题库与备考工作台",
-  "repository": "https://github.com/ai68298100/siyuan-exam",
-  "homepage": "https://github.com/ai68298100/siyuan-exam",
-  "author": "ai68298100",
+  "repository": "https://github.com/xiaolv-suite/siyuan-exam",
+  "homepage": "https://github.com/xiaolv-suite/siyuan-exam",
+  "author": "xiaolv-suite",
   "license": "MIT",
   "packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d",
   "engines": {
