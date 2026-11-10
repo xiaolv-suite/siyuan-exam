@@ -1,0 +1,217 @@
+<script lang="ts">
+  // ============================================================
+  // 命令面板（设计规范 v6 §5.2 / P0-3）：⌘K / Ctrl+K 全局命令。
+  // 组件自持开合与键盘导航；命令集由宿主 Tab 注入（页面直达 + 动作 + 跨 Tab）。
+  // 无外部输入面：命令为静态闭包，无题干/答案内容。
+  // ============================================================
+  import { tick } from "svelte";
+  import Icon from "./Icon.svelte";
+  import type { PaletteCommand } from "./paletteTypes";
+  import { matchesQueryWithPinyin } from "./pinyinInitials";
+
+  let {
+    commands,
+    open = $bindable(false),
+    t,
+  }: {
+    commands: PaletteCommand[];
+    open?: boolean;
+    t: (k: string, fb?: string) => string;
+  } = $props();
+
+  let q = $state("");
+  let sel = $state(0);
+  let panelEl: HTMLDivElement | null = $state(null);
+  let ownerEl: HTMLElement | null = null;
+  let returnFocus: HTMLElement | null = null;
+  let wasOpen = false;
+  // 实例级 id 后缀（同页多 Tab 各挂一个面板，避免 aria id 冲突）
+  const uid = Math.random().toString(36).slice(2, 8);
+  let inputEl: HTMLInputElement | null = $state(null);
+  const ACTIVE_TAB_KEY = "__lvExamActivePaletteTab";
+  const shown = $derived.by(() => {
+    const query = q.trim().toLowerCase();
+    if (!query) return commands;
+    return commands.filter(
+      (c) =>
+        matchesQueryWithPinyin(c.label, query, c.keywords) ||
+        matchesQueryWithPinyin(c.group, query) ||
+        (c.keywords ?? "").toLowerCase().includes(query),
+    );
+  });
+
+  $effect(() => {
+    if (open) {
+      if (!wasOpen && document.activeElement instanceof HTMLElement) returnFocus = document.activeElement;
+      wasOpen = true;
+      q = "";
+      sel = 0;
+      tick().then(() => inputEl?.focus());
+    } else if (wasOpen) {
+      wasOpen = false;
+      const target = returnFocus;
+      returnFocus = null;
+      tick().then(() => target?.isConnected && target.getClientRects().length > 0 && target.focus());
+    }
+  });
+
+  $effect(() => {
+    if (!open || !panelEl) return;
+    const root = ownerEl?.closest<HTMLElement>(".lv-exam-tab");
+    if (!root) return;
+    const background = [...root.children].filter((el): el is HTMLElement => el instanceof HTMLElement && !el.contains(panelEl));
+    const previous = background.map((el) => ({ el, inert: el.hasAttribute("inert"), ariaHidden: el.getAttribute("aria-hidden") }));
+    for (const { el } of previous) {
+      el.setAttribute("inert", "");
+      el.setAttribute("aria-hidden", "true");
+    }
+    return () => {
+      for (const { el, inert, ariaHidden } of previous) {
+        if (!inert) el.removeAttribute("inert");
+        if (ariaHidden === null) el.removeAttribute("aria-hidden");
+        else el.setAttribute("aria-hidden", ariaHidden);
+      }
+    };
+  });
+
+  function run(c: PaletteCommand | undefined) {
+    if (!c) return;
+    open = false;
+    c.run();
+  }
+
+  function rememberActiveTab(e: Event) {
+    const ownerRoot = ownerEl?.closest<HTMLElement>(".lv-exam-tab");
+    const target = e.target instanceof Element ? e.target.closest<HTMLElement>(".lv-exam-tab") : null;
+    if (ownerRoot && target === ownerRoot) (window as unknown as Record<string, HTMLElement | undefined>)[ACTIVE_TAB_KEY] = ownerRoot;
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    // 输入法的 Enter/方向键用于确认和选择候选词，不执行面板命令。
+    if (e.isComposing || e.keyCode === 229) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      // Each open SiYuan tab mounts its own Palette. Only respond to the
+      // shortcut from this tab so hidden or side-by-side tabs stay closed.
+      const ownerRoot = ownerEl?.closest(".lv-exam-tab");
+      const eventRoot = e.target instanceof Element ? e.target.closest<HTMLElement>(".lv-exam-tab") : null;
+      const visibleRoots = [...document.querySelectorAll<HTMLElement>(".lv-exam-tab")].filter(
+        (root) => root.getClientRects().length > 0,
+      );
+      // When focus is outside the tab content (for example, body focus), a
+      // recently focused plugin tab remains the best target. A single visible
+      // tab is an unambiguous fallback; with split tabs, avoid guessing.
+      const rememberedRoot = (window as unknown as Record<string, HTMLElement | undefined>)[ACTIVE_TAB_KEY];
+      const activeRoot = eventRoot
+        ? (eventRoot.getClientRects().length > 0 ? eventRoot : null)
+        : rememberedRoot?.isConnected && visibleRoots.includes(rememberedRoot)
+          ? rememberedRoot
+          : visibleRoots.length === 1 ? visibleRoots[0] : null;
+      if (!ownerRoot || ownerRoot !== activeRoot) return;
+      e.preventDefault();
+      open = !open;
+      return;
+    }
+    // 其他页签或宿主弹窗获得焦点时，不劫持它们的 Esc / Enter / Tab。
+    if (open && (!panelEl?.getClientRects().length || !(e.target instanceof Node) || !panelEl.contains(e.target))) return;
+    if (open && e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      open = false;
+      return;
+    }
+    if (!open || !panelEl?.getClientRects().length) return;
+    if (e.key === "Tab" && panelEl) {
+      const focusables = [...panelEl.querySelectorAll<HTMLElement>("input:not([disabled]), button:not([disabled])")];
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (first && last) {
+        const idx = focusables.indexOf(document.activeElement as HTMLElement);
+        if (e.shiftKey && idx <= 0) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (idx === focusables.length - 1 || idx === -1)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveSelection(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveSelection(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      run(shown[sel]);
+    }
+  }
+
+  function moveSelection(delta: number) {
+    sel = Math.max(0, Math.min(sel + delta, shown.length - 1));
+    const button = panelEl?.querySelector<HTMLButtonElement>(`#lv-palette-opt-${uid}-${sel}`);
+    button?.scrollIntoView({ block: "nearest" });
+    // 输入框维持 combobox 的虚拟焦点；Tab 进入列表后，方向键同步真实焦点。
+    if (document.activeElement !== inputEl) button?.focus();
+  }
+</script>
+
+<span bind:this={ownerEl} hidden aria-hidden="true"></span>
+<svelte:window onkeydown={onKeydown} onpointerdown={rememberActiveTab} onfocusin={rememberActiveTab} />
+{#if open}
+  <div
+    class="lv-palette-overlay"
+    role="presentation"
+    onclick={(e) => { if (e.target === e.currentTarget) open = false; }}
+  >
+    <div bind:this={panelEl} class="lv-palette" role="dialog" aria-modal="true" aria-label={t("palette.title", "命令面板")}>
+      <div class="lv-palette-input">
+        <Icon name="search" size={16} />
+        <input
+          bind:this={inputEl}
+          bind:value={q}
+          oninput={() => (sel = 0)}
+          type="text"
+          placeholder={t("palette.placeholder", "搜索页面与动作…")}
+          aria-label={t("palette.placeholder", "搜索页面与动作…")}
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={"lv-palette-list-" + uid}
+          aria-activedescendant={shown[sel] ? `lv-palette-opt-${uid}-${sel}` : undefined}
+        />
+        {#if q}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { q = ""; sel = 0; inputEl?.focus(); }} title="清空输入" aria-label="清空输入" style="min-width:28px;min-height:28px;padding:2px 6px"><Icon name="close" size={12} /></button>
+        {/if}
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { open = false; }} title="关闭命令面板" aria-label="关闭命令面板" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;margin-left:4px;touch-action:manipulation">
+          <Icon name="close" size={13} />
+          <span class="lv-kbd">Esc</span>
+        </button>
+      </div>
+      <div class="lv-palette-list" role="listbox" id={"lv-palette-list-" + uid}>
+        {#if !shown.length}
+          <p class="lv-palette-empty">{t("palette.empty", "没有匹配的命令。试试“练习”“模考”或“导出”。")}</p>
+        {:else}
+          {#each shown as c, i (c.group + c.label)}
+            {#if i === 0 || shown[i - 1].group !== c.group}
+              <div class="lv-palette-group">{c.group}</div>
+            {/if}
+            <button class="lv-palette-item" class:sel={i === sel} role="option" aria-selected={i === sel}
+              id={`lv-palette-opt-${uid}-${i}`}
+              onclick={() => run(c)} onpointerenter={() => (sel = i)} onfocus={() => (sel = i)}>
+              <Icon name={c.icon} size={15} />
+              <span>{c.label}</span>
+              {#if c.kbd}<span class="lv-kbd">{c.kbd}</span>{/if}
+            </button>
+          {/each}
+        {/if}
+      </div>
+      <div class="lv-palette-foot">
+        <span><span class="lv-kbd" style="display:inline-flex;align-items:center"><Icon name="arrow-up" size={10} /></span> <span class="lv-kbd" style="display:inline-flex;align-items:center"><Icon name="arrow-down" size={10} /></span> {t("palette.select", "选择")}</span>
+        <span><span class="lv-kbd">Enter</span> {t("palette.run", "执行")}</span>
+        <span style="flex:1"></span>
+        <span>{t("palette.kbdHint", "Ctrl / ⌘ K 随时呼出")}</span>
+      </div>
+    </div>
+  </div>
+{/if}

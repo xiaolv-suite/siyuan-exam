@@ -1,0 +1,511 @@
+// 小驴考试（内测版） (Lv Exam Beta)
+// 入口样式：token → 基础组件 → 屏幕级样式
+// 设计基准：design/prototype/index.html；规范：docs/12；总册：docs/13
+@use "./scss/lv-base";
+
+.lv-exam-tab {
+  &, *, *::before, *::after {
+    box-sizing: border-box;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button {
+    font-family: inherit;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  svg:not([fill]),
+  svg[fill="none"] {
+    fill: none;
+  }
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+  --lv-tasknav-height: calc(72px + env(safe-area-inset-bottom, 0px));
+  container-name: lv-exam;
+  container-type: inline-size;
+  /* 继承 lv-tokens.scss 定义的自适应暗亮色色彩系统，支持宿主模式自愈 */
+  background: var(--lv-canvas);
+  color: var(--lv-text);
+}
+
+/* A plugin tab can be narrow inside a wide SiYuan window (split panes,
+   floating panels, or settings overlays). Adapt from its own width. */
+@container lv-exam (max-width: 759px) {
+  .lv-shell {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .lv-shell > .lv-rail:not(.open) {
+    display: none;
+  }
+
+  .lv-shell > .lv-rail.open {
+    display: flex;
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(280px, calc(100% - 36px));
+    z-index: 90;
+    box-shadow: var(--lv-sh-pop);
+  }
+
+  .lv-exam-tab .lv-menu-btn {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .lv-shell .lv-rail .lv-drawer-close {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .lv-mobile-tasknav {
+    display: grid;
+    position: relative;
+    inset: auto;
+    flex-shrink: 0;
+    order: 2;
+  }
+
+  .lv-shell.lv-shell-focus .lv-mobile-tasknav,
+  .lv-shell.lv-shell-tasknav-hidden .lv-mobile-tasknav,
+  .lv-mobile-tasknav.focus {
+    display: none !important;
+  }
+
+  .lv-main {
+    flex: 1 1 0;
+    min-height: 0;
+    order: 1;
+    padding-bottom: 12px;
+  }
+
+  .lv-shell.lv-shell-focus .lv-main,
+  .lv-shell.lv-shell-tasknav-hidden .lv-main {
+    padding-bottom: 0;
+  }
+
+  .lv-exam-tab > .block__icons {
+    row-gap: 6px;
+  }
+
+  .lv-exam-tab > .block__icons .lv-crumbs {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
+@container lv-exam (max-width: 680px) {
+  .lv-exam-tab > .block__icons {
+    flex-wrap: nowrap;
+    min-height: 46px;
+    height: 46px;
+    padding: 0 6px;
+    gap: 6px;
+    row-gap: 0;
+  }
+
+  .lv-exam-tab > .block__icons :is(
+    .lv-crumbs,
+    .lv-plan-context,
+    .lv-checkin-chip,
+    .lv-palette-btn .lv-kbd,
+    .lv-palette-label,
+    .lv-scope-hint,
+    .lv-report-data-chip,
+    .lv-report-desktop-actions,
+    .lv-topbar-spacer,
+    .lv-topbar-btn-label
+  ) {
+    display: none !important;
+  }
+
+  .lv-exam-tab > .block__icons .lv-palette-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+    order: 2;
+  }
+
+  .lv-exam-tab > .block__icons .lv-mobile-close-btn {
+    order: 4;
+    margin-left: auto;
+  }
+
+  .lv-exam-tab > .block__icons :is(.lv-bank-picker-group, .lv-report-picker-group) {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-wrap: nowrap;
+    gap: 4px !important;
+  }
+
+  .lv-exam-tab > .block__icons :is(.lv-bank-picker-group, .lv-report-picker-group) .lv-select {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none !important;
+    height: 34px;
+    padding-inline: 8px 24px;
+  }
+
+  .lv-exam-tab > .block__icons .lv-report-picker-group .lv-select.lv-range-select {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 68px;
+  }
+
+  .lv-exam-tab > .block__icons :is(.lv-bank-picker-group, .lv-report-picker-group) .lv-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  .lv-exam-tab > .block__icons .lv-bank-picker-group > .lv-btn {
+    display: none !important;
+  }
+
+  .lv-exam-tab > .block__icons .lv-report-mobile-more {
+    display: inline-flex !important;
+    flex: 0 0 auto;
+    order: 3;
+  }
+
+  .lv-screen-head {
+    display: none !important;
+  }
+
+  .lv-onboard,
+  .lv-qtype-guide,
+  .lv-ecosystem-footer,
+  .lv-desktop-author-action,
+  .lv-mock-desktop-toolbar,
+  .lv-browse-desktop-only {
+    display: none !important;
+  }
+
+  .lv-exam-tab > .block__icons.lv-focus-toolbar {
+    min-height: 38px;
+    height: 38px;
+  }
+
+  .lv-pad {
+    padding: 8px 10px 12px !important;
+  }
+}
+
+@media (max-width: 759px) {
+  .lv-exam-tab {
+    --lv-card-pad: 12px;
+    --lv-font-size-h1: 16px;
+    --lv-font-size-display: 20px;
+    --lv-font-size-kpi: 18px;
+    --lv-font-size-kpi-mobile: 18px;
+  }
+
+  .lv-exam-tab .lv-screen-head,
+  .lv-exam-tab .lv-onboard,
+  .lv-exam-tab .lv-qtype-guide,
+  .lv-exam-tab .lv-ecosystem-footer,
+  .lv-exam-tab .lv-desktop-author-action,
+  .lv-exam-tab .lv-mock-desktop-toolbar,
+  .lv-exam-tab .lv-browse-desktop-only {
+    display: none !important;
+  }
+
+  .lv-exam-tab .lv-done-stats strong,
+  .lv-exam-tab .lv-quad .v {
+    font-size: 20px !important;
+  }
+
+  .lv-input, .lv-select, .lv-textarea, input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 16px !important;
+  }
+
+  .lv-exam-mobile-dialog .lv-mobile-tasknav {
+    padding-bottom: 4px !important;
+  }
+
+  .lv-exam-tab .lv-empty,
+  .lv-exam-tab .lv-ai-empty {
+    min-height: 88px !important;
+    padding: 14px 12px !important;
+  }
+
+  .b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
+    align-items: stretch !important;
+    padding: 0 !important;
+
+    .b3-dialog__container {
+      width: 100vw !important;
+      height: 100dvh !important;
+      max-width: 100vw !important;
+      max-height: 100dvh !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      border: 0 !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    }
+  }
+}
+
+.lv-exam-tab.lv-keyboard-open .lv-mobile-tasknav,
+.lv-exam-mobile-dialog.lv-keyboard-open .lv-mobile-tasknav {
+  display: none !important;
+}
+
+@media (max-width: 759px) and (max-height: 480px) {
+  .lv-exam-tab .lv-mobile-tasknav {
+    display: none !important;
+  }
+  .lv-exam-tab > .block__icons {
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 6px !important;
+  }
+}
+
+@container lv-exam (min-width: 760px) and (max-width: 1119px) {
+  .lv-shell {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+}
+
+.lv-exam-wrongbook {
+  padding: var(--lv-space-2);
+  overflow: auto;
+}
+
+// ── body 级原生弹窗高对比度与无障碍加固 (Epoch 5) ──────────────
+@media (forced-colors: active) {
+  .b3-dialog:has(.b3-dialog__content),
+  .b3-dialog:has(.b3-dialog__action),
+  .b3-dialog {
+    .b3-dialog__container {
+      border: 2px solid CanvasText !important;
+      background: Canvas !important;
+      color: CanvasText !important;
+      box-shadow: none !important;
+    }
+
+    .b3-dialog__header {
+      background: Canvas !important;
+      color: CanvasText !important;
+      border-bottom: 1px solid CanvasText !important;
+    }
+
+    .b3-dialog__content {
+      background: Canvas !important;
+      color: CanvasText !important;
+    }
+
+    .b3-dialog__action {
+      background: Canvas !important;
+      color: CanvasText !important;
+      border-top: 1px solid CanvasText !important;
+    }
+
+    .b3-button--primary,
+    #confirmDialogConfirmBtn {
+      background: Highlight !important;
+      color: HighlightText !important;
+      border: 1px solid Highlight !important;
+    }
+
+    :is(.b3-button, .b3-text-field, .b3-select) {
+      border: 1px solid CanvasText;
+    }
+
+    :where(button, a, input, select, textarea, [tabindex="0"]):focus-visible,
+    :focus-visible {
+      outline: 2px solid Highlight !important;
+      outline-color: Highlight !important;
+      outline-offset: 2px;
+    }
+  }
+}
+
+@media (prefers-contrast: more) {
+  .b3-dialog:has(.b3-dialog__content),
+  .b3-dialog:has(.b3-dialog__action),
+  .b3-dialog {
+    .b3-dialog__container {
+      border: 2px solid var(--b3-theme-on-background) !important;
+    }
+
+    .b3-dialog__header,
+    .b3-dialog__action {
+      border-color: var(--b3-theme-on-background) !important;
+    }
+  }
+}
+
+// ── 移动端全屏宿主 Dialog 样式 (Mobile Spec v1: 100vw/100dvh + safe-area) ──────────
+.lv-exam-mobile-dialog {
+  &,
+  &.b3-dialog,
+  .b3-dialog {
+    align-items: flex-start !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .b3-dialog__container {
+    position: relative;
+    top: var(--lv-visual-viewport-top, 0px);
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: var(--lv-visual-viewport-h, 100dvh) !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: none !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    padding-left: env(safe-area-inset-left, 0px) !important;
+    padding-right: env(safe-area-inset-right, 0px) !important;
+    background: var(--b3-theme-background) !important;
+    touch-action: manipulation;
+  }
+
+  .b3-dialog__header {
+    display: none !important;
+  }
+
+  .b3-dialog__container:has(.lv-mobile-close-btn) > .b3-dialog__close {
+    display: none !important;
+  }
+
+  .b3-dialog__content,
+  .b3-dialog__body {
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--b3-theme-background) !important;
+  }
+
+  .lv-exam-tab {
+    padding-bottom: 0;
+  }
+
+  .lv-mobile-close-btn {
+    display: inline-flex !important;
+  }
+}
+
+/* ══════════ 小驴考试主权弹窗外壳防护 (Sovereign Modal Shell Defense) ══════════ */
+.b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  .b3-dialog__container {
+    border-radius: 16px !important;
+    background: var(--b3-theme-surface, var(--lv-surface)) !important;
+    border: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+    box-shadow: var(--b3-dialog-shadow, var(--lv-sh-pop)) !important;
+    overflow: hidden;
+    animation: exam-dialog-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
+  }
+
+  .b3-dialog__header {
+    background: transparent !important;
+    border-bottom: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+    padding: 10px 16px !important;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .b3-dialog__close {
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
+      padding: 6px;
+      border-radius: 6px;
+      color: var(--b3-theme-on-surface, var(--lv-text));
+      opacity: 0.7;
+      transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      box-sizing: border-box;
+
+      &:hover {
+        opacity: 1;
+        background: var(--b3-theme-surface-light, var(--lv-surface-2));
+        color: var(--b3-theme-on-surface, var(--lv-text));
+        transform: scale(1.05);
+      }
+
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+  }
+
+  .b3-dialog__body,
+  .b3-dialog__content {
+    background: transparent !important;
+    color: inherit;
+  }
+
+  .b3-dialog__action {
+    background: transparent !important;
+    border-top: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+  }
+
+  .b3-dialog__scrim {
+    background: var(--b3-mask-background, var(--lv-overlay));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+@keyframes exam-dialog-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab) .b3-dialog__container {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
