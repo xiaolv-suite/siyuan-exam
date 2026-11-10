@@ -982,7 +982,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         "touchstart",
         (e: TouchEvent) => {
           const target = e.target as HTMLElement | null;
-          validStart = !requireTopBar || Boolean(target?.closest(".block__icons, .b3-dialog__header"));
+          const isInput = Boolean(target?.closest("input, textarea, select, [contenteditable='true']"));
+          validStart = !isInput && (!requireTopBar || Boolean(target?.closest(".block__icons, .b3-dialog__header")));
           if (validStart && e.touches.length > 0) {
             touchStartY = e.touches[0].clientY;
             touchStartX = e.touches[0].clientX;
