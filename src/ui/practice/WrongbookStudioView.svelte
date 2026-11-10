@@ -5,6 +5,7 @@
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
   import PaperPresentationModal from "../shared/PaperPresentationModal.svelte";
   import PaperAssembleModal from "./PaperAssembleModal.svelte";
+  import { showExamNotice } from "../../libs/notice";
 
   interface Props {
     wrongList: any[];
@@ -800,6 +801,6 @@
     bankName="错题攻坚清零重测卷"
     questions={wbAssembleQuestions}
     onclose={() => (wbAssembleOpen = false)}
-    showMessage={(msg) => console.log(msg)}
+    showMessage={(msg, timeout, type) => showExamNotice(msg, timeout, type)}
   />
 </div>
