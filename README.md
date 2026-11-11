@@ -87,11 +87,13 @@
 
 ## 📦 安装方式
 
-1. **思源集市安装（推荐）**：打开思源笔记 `设置` → `集市` → `插件`，搜索 **「小驴考试」**（或 `siyuan-exam`），点击安装并启用；
-2. **发行包手动安装**：从 [GitHub Releases](https://github.com/xiaolv-suite/siyuan-exam/releases) 下载 `package.zip`，解压至思源工作空间的 `<workspace>/data/plugins/siyuan-exam/` 目录；
-3. **源码构建与本地安装**：
+> **内测说明**：当前版本尚未在思源集市上架（`disabledInPublish: true`），集市搜索不到属预期；请使用发行包或源码本地安装。
+
+1. **发行包手动安装（内测推荐）**：从 [GitHub Releases](https://github.com/xiaolv-suite/siyuan-exam/releases) 下载 `package.zip`，解压至思源工作空间的 `<workspace>/data/plugins/siyuan-exam/` 目录；
+2. **源码构建与本地安装**：
    - 环境要求：Node.js `>= 24.0.0`、pnpm `12.x`；
-   - 在仓库根目录执行 `pnpm install && pnpm make-install`，或执行 `pnpm make-link` 建立开发软链。
+   - 在仓库根目录执行 `pnpm install && pnpm make-install`，或执行 `pnpm make-link` 建立开发软链；
+3. **思源集市（内测转正后开放）**：第 7B 组门槛达成并完成上架后开放。
 
 ---
 

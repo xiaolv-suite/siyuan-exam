@@ -9,6 +9,7 @@ import type { MaterialNote, NoteLocator } from "@/core/materialNotes";
 import { parseTimeToSec, formatSecToTime } from "@/core/materialNotes";
 import { locatedUrl } from "@/core/materialNotes";
 import { escapeHtml } from "@/libs/sanitize";
+import { safeDocTitleFromHPath } from "@/libs/lv-notice-kit";
 
 export interface MaterialRegisterMeta {
   subject?: string;
@@ -83,7 +84,7 @@ export async function registerMaterialLinkInput(
       if (rows && rows[0]) {
         titleToUse =
           String(rows[0].content || "").trim().slice(0, 40) ||
-          (rows[0].hpath ? String(rows[0].hpath).split("/").pop() || "" : "");
+          safeDocTitleFromHPath(rows[0].hpath, "");
       }
     } catch {
       // 容错降级

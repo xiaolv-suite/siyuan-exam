@@ -11,6 +11,7 @@
 import type { Question, QuestionType } from "./types";
 import type { MarketplaceItem } from "./marketplace";
 import { makeQuestion } from "./blockTemplate";
+import { PLUGIN_VERSION } from "../libs/const";
 
 export type LvCardKind = "qa" | "cloze" | "code" | "list";
 
@@ -61,7 +62,8 @@ export interface LvCardsPackage {
 }
 
 export const LVCARDS_FORMAT_VERSION = "lvcards.v1" as const;
-export const BRIDGE_GENERATOR_TAG = "siyuan-exam/v0.15.0";
+// 版本随仓内单一常量走，避免再次出现 v0.15.0 之类过期字面量（审查 E4）。
+export const BRIDGE_GENERATOR_TAG = `siyuan-exam/v${PLUGIN_VERSION}`;
 
 /**
  * 格式化题目的选项列表为纯文本

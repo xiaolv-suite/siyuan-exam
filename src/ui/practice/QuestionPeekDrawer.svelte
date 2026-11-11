@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
+  import { showDocTreeNativeMenu } from "@/libs/lv-notice-kit";
   import type { Question, QuestionLifecycleStatus } from "../../core/types";
   import type { ExamApp } from "../../app";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
@@ -273,6 +274,25 @@
     }
   }
 
+  async function handleDocContextMenu(e: MouseEvent) {
+    const docId = q.rootId || q.blockId;
+    if (!docId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    let nbId = "";
+    try {
+      const rows = await app.deps.client.sql(`SELECT box FROM blocks WHERE id = '${docId.replace(/'/g, "''")}' LIMIT 1`);
+      if (rows && rows[0]?.box) nbId = String(rows[0].box);
+    } catch {}
+    if (nbId) {
+      await showDocTreeNativeMenu({
+        notebookId: nbId,
+        docId,
+        position: { x: e.clientX, y: e.clientY },
+      });
+    }
+  }
+
   async function bindDocToQuestion(doc: { id: string; title: string; hpath: string }) {
     q.sourceBlockId = doc.id;
     q.source = doc.title;
@@ -337,7 +357,7 @@
       <button class="lv-btn sm lv-btn--ghost" class:lv-chip--amb={!!q.fav} title={`${t("session.kbdFav")} (E)`} aria-label={t("session.kbdFav")} aria-pressed={!!q.fav} disabled={favBusy} onclick={() => ontoggleFav(q)}>
         <Icon name="star" size={13} />
       </button>
-      <button class="lv-btn sm lv-btn--ghost" title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦（按住 Ctrl/Cmd 点击可在右侧分屏打开）" : t("browse.openDoc")} aria-label={t("browse.openDoc")} onclick={(e) => onopenInSiYuan(q.rootId, q.blockId, { event: e })} disabled={!q.rootId && !q.blockId}>
+      <button class="lv-btn sm lv-btn--ghost" title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦（按住 Ctrl/Cmd 点击可在右侧分屏打开，右键呼出原生菜单）" : `${t("browse.openDoc")}（右键呼出原生菜单）`} aria-label={t("browse.openDoc")} onclick={(e) => onopenInSiYuan(q.rootId, q.blockId, { event: e })} oncontextmenu={handleDocContextMenu} disabled={!q.rootId && !q.blockId}>
         <Icon name="pin" size={13} />
       </button>
       <button class="lv-btn sm lv-btn--ghost lv-peek-close" title={t("dialog.close", "关闭")} aria-label={t("dialog.close", "关闭")} onclick={onclose}>
@@ -733,7 +753,7 @@
               {t("lifecycle.toDraft")}
             </button>
           {/if}
-          <button class="lv-btn sm" onclick={(e) => onopenInSiYuan(q.rootId, q.blockId, { event: e })} disabled={!q.rootId && !q.blockId} title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦（按住 Ctrl/Cmd 点击可在右侧分屏打开）" : t("browse.openDoc")}><Icon name="pin" size={13} /> {t("browse.openDoc")}</button>
+          <button class="lv-btn sm" onclick={(e) => onopenInSiYuan(q.rootId, q.blockId, { event: e })} oncontextmenu={handleDocContextMenu} disabled={!q.rootId && !q.blockId} title={q.blockId ? "在思源笔记中精准定位此题块并高亮聚焦（按住 Ctrl/Cmd 点击可在右侧分屏打开，右键呼出原生菜单）" : `${t("browse.openDoc")}（右键呼出原生菜单）`}><Icon name="pin" size={13} /> {t("browse.openDoc")}</button>
           <button class="lv-btn sm" onclick={() => onloadBacklinks(q.blockId)} disabled={!app.kernelOnline || !!backlinkBusyFor} aria-busy={backlinkBusyFor === q.blockId} title={!app.kernelOnline ? t("state.offlineHint") : t("browse.backlinks")}><Icon name="link" size={13} /> {backlinkBusyFor === q.blockId ? t("browse.backlinkLoading") : t("browse.backlinks")}</button>
           {#if links}
             {#if links.length === 0}<span class="lv-muted">{t("browse.noBacklinks")}</span>

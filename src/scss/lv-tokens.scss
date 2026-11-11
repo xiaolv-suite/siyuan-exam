@@ -40,7 +40,7 @@
   --lv-accent-grad: linear-gradient(135deg, #4f46e5, #6366f1);
   --lv-accent-deep: #4338ca;
   --lv-btn-primary-bg: #4f46e5;
-  --lv-on-accent: var(--b3-theme-on-primary, #ffffff);
+  --lv-on-accent: #ffffff; /* 固定值：不读取宿主 --b3-theme-on-primary，避免主题污染 */
 
   /* [数据语义色]：由主题色逆时针偏移 28° 派生，专属负责正确率、连续天数、掌握度 KPI 与正向数据 */
   --lv-data-accent: #0284c7;
@@ -267,7 +267,7 @@ html[data-theme-mode="dark"] {
   --lv-accent-soft: rgba(129, 140, 248, 0.14);
   --lv-accent-deep: #6366f1;
   --lv-btn-primary-bg: #6366f1;
-  --lv-on-accent: var(--b3-theme-on-primary, #ffffff);
+  --lv-on-accent: #ffffff; /* 固定值：不读取宿主 --b3-theme-on-primary，避免主题污染 */
   --lv-green: #34d399;
   --lv-green-soft: rgba(52, 211, 153, 0.15);
   --lv-on-green: #090d16;
@@ -318,7 +318,7 @@ html[data-theme-mode="dark"] {
   --lv-text-2: #cbd5e1;
   --lv-text-3: #94a3b8;
   --lv-text-muted: #94a3b8;
-  --lv-inset-card: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 0.8px var(--b3-border-color);
+  --lv-inset-card: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 0.8px var(--lv-border);
   --lv-safe-surface: #1a1a26;
   --lv-safe-border: rgba(255, 255, 255, 0.1);
   --lv-modal-mask-bg: rgba(0, 0, 0, 0.62);

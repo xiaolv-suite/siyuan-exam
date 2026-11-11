@@ -14,6 +14,7 @@ import type { Question, QuestionType } from "./types";
 import { makeQuestion } from "./blockTemplate";
 import { questionHash } from "./answer";
 import { lintQuestion, autoFixQuestion, hasBlankPlaceholder } from "./questionLinter";
+import { safeDocTitleFromHPath } from "../libs/lv-notice-kit";
 
 export type DocImportProfile = "all" | "paper" | "notes" | "cloze" | "table";
 
@@ -933,7 +934,7 @@ export function convertTaggedBlockToQuestion(
     .trim();
   if (cleanContent.length < 4) return null;
 
-  const docTitle = block.hpath ? block.hpath.split("/").pop() || "思源笔记" : "思源笔记";
+  const docTitle = safeDocTitleFromHPath(block, "思源笔记");
   const docMeta: SiyuanDocMeta = {
     docId: block.id,
     title: docTitle,

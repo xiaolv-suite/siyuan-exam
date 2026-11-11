@@ -25,7 +25,7 @@ import {
 import { SaveGate } from "./core/saveGate";
 import { normalizeAnswer, questionHash, sha1like } from "./core/answer";
 import { questionToMarkdown } from "./core/blockTemplate";
-import { withDocLock } from "./libs/lv-notice-kit";
+import { withDocLock, safeDocTitleFromHPath } from "./libs/lv-notice-kit";
 import { SAMPLE_BANK_NAME, SAMPLE_BANK_INTRO, sampleQuestions } from "./core/sampleBank";
 import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_BANK_INTRO, cantoneseSampleQuestions } from "./core/cantoneseSample";
 import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_BANK_INTRO, englishSampleQuestions } from "./core/englishSample";
@@ -1147,7 +1147,7 @@ export class ExamApp {
       let lastErr: unknown;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const created = await this.deps.client.createDocWithMd(notebookId, fullHPath, markdown ?? `# ${fullHPath.split("/").pop()}\n\n`);
+          const created = await this.deps.client.createDocWithMd(notebookId, fullHPath, markdown ?? `# ${safeDocTitleFromHPath(fullHPath)}\n\n`);
           if (created) {
             this.ensuredDocIds.set(cacheKey, created);
             return created;

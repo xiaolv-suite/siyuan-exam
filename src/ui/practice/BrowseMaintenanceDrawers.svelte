@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
+  import { showDocTreeNativeMenu } from "@/libs/lv-notice-kit";
   import type { Question } from "../../core/types";
   import type { ExamApp } from "../../app";
   import { coverageTree, subtreeCount, subtreeLearned, subtreeNoSource } from "@/core/syllabus";
@@ -210,7 +211,26 @@
     {#each sectionTree as doc, _di (_di)}
       <div class="lv-row" style="margin:6px 0 0">
         <button class="lv-btn sm lv-btn--ghost" class:acc-btn={sectionSel?.kind === "doc" && sectionSel.id === doc.id}
-          onclick={() => { sectionSel = { kind: "doc", id: doc.id, hpath: doc.hpath }; }}>
+          title={`${doc.title || doc.hpath}（右键呼出原生菜单）`}
+          onclick={() => { sectionSel = { kind: "doc", id: doc.id, hpath: doc.hpath }; }}
+          oncontextmenu={async (e) => {
+            e.preventDefault();
+            if (!doc.id) return;
+            let nbId = "";
+            try {
+              const rows = await app.deps.client.sql(`SELECT box FROM blocks WHERE id = '${doc.id.replace(/'/g, "''")}' LIMIT 1`);
+              if (rows && rows[0]?.box) {
+                nbId = String(rows[0].box);
+              }
+            } catch {}
+            if (nbId) {
+              await showDocTreeNativeMenu({
+                notebookId: nbId,
+                docId: doc.id,
+                position: { x: e.clientX, y: e.clientY },
+              });
+            }
+          }}>
           <Icon name="file" size={13} /> {doc.title || doc.hpath}
         </button>
       </div>

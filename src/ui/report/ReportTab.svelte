@@ -21,7 +21,7 @@
     import { openSiYuanTarget } from "../practice/services/backlinkNavigationService";
     import type { ActionItem } from "@/core/actions";
     import SaveStatus from "../shared/SaveStatus.svelte";
-    import { lvLaunchpad } from "@/libs/lv-notice-kit";
+    import { lvLaunchpad, showDocTreeNativeMenu } from "@/libs/lv-notice-kit";
     import { emitExamEvent, onExamEvent } from "@/core/bus";
     import { openPracticeView, type ExamPluginLike } from "@/core/pluginTab";
     import type { AttemptEvent, Question } from "@/core/types";
@@ -284,6 +284,20 @@
     let lastJournalDocId = $state("");
     let syncReportDocsBusy = $state(false);
     const openInSiYuan = (rootId: string, blockId?: string, opt?: any) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t, opt);
+
+    async function openNativeDocMenu(e: MouseEvent, docId?: string) {
+      if (!docId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      let nbId = "";
+      try {
+        const rows = await app?.deps?.client?.sql(`SELECT box FROM blocks WHERE id = '${docId.replace(/'/g, "''")}' LIMIT 1`);
+        if (rows && rows[0]?.box) nbId = String(rows[0].box);
+      } catch {}
+      if (nbId) {
+        await showDocTreeNativeMenu({ notebookId: nbId, docId, position: { x: e.clientX, y: e.clientY } });
+      }
+    }
 
     /** 每日战报写入思源日记（联动小驴复盘预留通道） */
     async function writeDaily() {
@@ -1071,7 +1085,7 @@
       </button>
     </div>
     <div class="lv-more lv-report-mobile-more" bind:this={reportMoreRoot}>
-      <button type="button" class="lv-btn sm lv-btn--ghost" aria-haspopup="menu" aria-expanded={reportMoreOpen} aria-label="更多导出与AI诊断" title="更多导出与AI诊断" style="width:36px;min-width:36px;height:36px;min-height:36px;padding:0;justify-content:center" onclick={() => (reportMoreOpen = !reportMoreOpen)}>
+      <button type="button" class="lv-btn sm lv-btn--ghost lv-report-more-trigger" aria-haspopup="menu" aria-expanded={reportMoreOpen} aria-label="更多导出与AI诊断" title="更多导出与AI诊断" onclick={() => (reportMoreOpen = !reportMoreOpen)}>
         <Icon name="sparkles" size={14} />
       </button>
       {#if reportMoreOpen}
@@ -1847,7 +1861,7 @@
               <Icon name="save" size={12} /> {syncReportDocsBusy ? "…" : "同步至思源日志"}
             </button>
             {#if lastJournalDocId}
-              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastJournalDocId)}>
+              <button type="button" class="lv-btn sm lv-btn--ghost" title="打开复盘日志（右键呼出原生菜单）" onclick={() => openInSiYuan(lastJournalDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastJournalDocId)}>
                 <Icon name="link" size={12} /> 打开复盘日志 ↗
               </button>
             {/if}
@@ -1860,7 +1874,7 @@
             <span class="lv-chip num">{t("action.kind." + a.kind)}</span>
             <span style="flex:1;min-width:140px">{a.detail}</span>
             {#if aq?.blockId}
-              <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => openInSiYuan(aq.rootId || "", aq.blockId, { event: e })}>
+              <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开，右键呼出原生菜单）" onclick={(e) => openInSiYuan(aq.rootId || "", aq.blockId, { event: e })} oncontextmenu={(e) => void openNativeDocMenu(e, aq.rootId || aq.blockId)}>
                 <Icon name="pin" size={12} /> 原题 ↗
               </button>
             {/if}
@@ -1972,17 +1986,17 @@
           <Icon name="book" size={14} /> {syncReportDocsBusy ? "…" : "同步总览与复盘日志到思源"}
         </button>
         {#if lastDailyDocId}
-          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastDailyDocId)}>
+          <button type="button" class="lv-btn sm lv-btn--ghost" title="打开今日战报（右键呼出原生菜单）" onclick={() => openInSiYuan(lastDailyDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastDailyDocId)}>
             <Icon name="link" size={12} /> 打开今日战报 ↗
           </button>
         {/if}
         {#if lastOverviewDocId}
-          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastOverviewDocId)}>
+          <button type="button" class="lv-btn sm lv-btn--ghost" title="打开题库总览（右键呼出原生菜单）" onclick={() => openInSiYuan(lastOverviewDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastOverviewDocId)}>
             <Icon name="compass" size={12} /> 打开题库总览 ↗
           </button>
         {/if}
         {#if lastJournalDocId}
-          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => openInSiYuan(lastJournalDocId)}>
+          <button type="button" class="lv-btn sm lv-btn--ghost" title="打开复盘日志（右键呼出原生菜单）" onclick={() => openInSiYuan(lastJournalDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastJournalDocId)}>
             <Icon name="clipboard" size={12} /> 打开复盘日志 ↗
           </button>
         {/if}
@@ -2085,7 +2099,7 @@
 
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
-  .lv-report-tabs { display: flex; gap: 3px; margin: 10px 0 14px; padding: 3px 4px; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; box-shadow: var(--lv-inset-subtle, inset 0 1px 0 transparent); }
+  .lv-report-tabs { display: flex; box-sizing: border-box; gap: 3px; margin: 10px 0 14px; padding: 3px 4px; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; box-shadow: var(--lv-inset-subtle, inset 0 1px 0 transparent); }
   .lv-report-tab { min-height: 36px; padding: 4px 14px; border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-body-compact); font-weight: 600; white-space: nowrap; cursor: pointer; transition: all var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-report-tab .lv-tab-inner { display: inline-flex; align-items: center; gap: 6px; }
   .lv-report-tab:hover { color: var(--lv-text); background: var(--lv-surface); }
@@ -2165,6 +2179,19 @@
     .lv-mastery-row { grid-template-columns: 72px minmax(0, 1fr) 48px; }
     .lv-mastery-row > span:last-child { grid-column: 2 / -1; padding-left: 8px; text-align: left; }
   }
+  .lv-report-more-trigger { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; justify-content: center; }
+  @container lv-exam (max-width: 759px) {
+    .lv-report-more-trigger { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+    .lv-report-tab { min-height: 44px; padding: 8px 14px; }
+    .lv-session-dock .lv-chip, button.lv-chip { min-height: 44px; height: auto; padding: 6px 12px; }
+  }
+  @media (max-width: 768px), (pointer: coarse) {
+    .lv-report-more-trigger { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+    .lv-report-tab { min-height: 44px; padding: 8px 14px; }
+    .lv-session-dock .lv-chip, button.lv-chip { min-height: 44px; height: auto; padding: 6px 12px; }
+  }
+  @container lv-exam (max-width: 600px) { .lv-report-tabs { width: 100%; } .lv-report-tab { flex: 1 0 auto; } .lv-report-next { align-items: flex-start; flex-direction: column; } .lv-report-next .lv-btn { width: 100%; justify-content: center; min-height: 44px; } }
+  @media (max-width: 600px) { .lv-report-tabs { width: 100%; } .lv-report-tab { flex: 1 0 auto; } .lv-report-next { align-items: flex-start; flex-direction: column; } .lv-report-next .lv-btn { width: 100%; justify-content: center; min-height: 44px; } }
   .lv-error { margin: 8px 0; padding: 10px 14px; border-radius: var(--lv-r-2); background: var(--lv-red-soft); color: var(--lv-red); font-size: var(--lv-font-size-body-compact); }
   .lv-skeleton { height: 160px; border-radius: var(--lv-r-3); background: linear-gradient(100deg, var(--lv-surface-2) 40%, var(--lv-surface) 50%, var(--lv-surface-2) 60%); background-size: 200% 100%; animation: lv-shim 1.4s infinite; }
   @keyframes lv-shim { to { background-position: -200% 0; } }

@@ -49,7 +49,7 @@
       notifyMockFinishCard,
       showExamNotice,
     } from "../../libs/notice";
-    import { withDocLock, lvActivity, lvLaunchpad } from "../../libs/lv-notice-kit";
+    import { withDocLock, lvActivity, lvLaunchpad, isNativeDockVisible, toggleNativeDock } from "../../libs/lv-notice-kit";
     const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
       showExamNotice(msg, timeout, type);
     };
@@ -490,8 +490,35 @@
     }
 
     let isFullscreen = $state(false);
+    let prevLeftDock = false;
+    let prevRightDock = false;
+    let prevBottomDock = false;
+
+    function applyNativeDocksForFullscreen(enable: boolean) {
+      if (enable) {
+        try {
+          prevLeftDock = Boolean(isNativeDockVisible("Left"));
+          prevRightDock = Boolean(isNativeDockVisible("Right"));
+          prevBottomDock = Boolean(isNativeDockVisible("Bottom"));
+          if (prevLeftDock) toggleNativeDock("Left", false);
+          if (prevRightDock) toggleNativeDock("Right", false);
+          if (prevBottomDock) toggleNativeDock("Bottom", false);
+        } catch {}
+      } else if (prevLeftDock || prevRightDock || prevBottomDock) {
+        try {
+          if (prevLeftDock) toggleNativeDock("Left", true);
+          if (prevRightDock) toggleNativeDock("Right", true);
+          if (prevBottomDock) toggleNativeDock("Bottom", true);
+        } catch {}
+        prevLeftDock = false;
+        prevRightDock = false;
+        prevBottomDock = false;
+      }
+    }
+
     function updateFullscreenState() {
       isFullscreen = Boolean(document.fullscreenElement);
+      applyNativeDocksForFullscreen(isFullscreen);
     }
 
     onMount(() => {
@@ -557,6 +584,7 @@
         if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
         document.removeEventListener("fullscreenchange", updateFullscreenState);
         document.removeEventListener("visibilitychange", onVisibilityChange);
+        applyNativeDocksForFullscreen(false);
         offs.forEach((off) => off());
       };
     });

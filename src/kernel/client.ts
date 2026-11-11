@@ -6,6 +6,7 @@
 // ============================================================
 import type { Question } from "../core/types";
 import { questionToMarkdown, questionFromBlock } from "../core/blockTemplate";
+import { safeDocTitleFromHPath } from "../libs/lv-notice-kit";
 
 export interface KernelTransport {
   post(endpoint: string, payload: unknown, options?: RequestOptions): Promise<{ code: number; msg: string; data: unknown }>;
@@ -429,7 +430,7 @@ export class KernelApiClient {
     const d = (r.data ?? {}) as { hPath?: string; content?: string };
     const raw = String(d.content ?? "");
     const content = raw.replace(/^---\n[\s\S]*?\n---\n*/, "").trim();
-    return { title: (d.hPath ?? "").split("/").pop() ?? "", content };
+    return { title: safeDocTitleFromHPath(d.hPath, ""), content };
   }
 
   async renderMarkdown(markdown: string): Promise<string> {
