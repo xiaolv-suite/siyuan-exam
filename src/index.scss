@@ -655,3 +655,40 @@
   }
 }
 
+
+/* ══════════ 按钮专项：原生设置弹窗按压反馈 / 忙碌态拦截 ══════════ */
+.b3-dialog:has(.lv-exam-setting-control) {
+    /* SiYuan 原生按钮在主题下往往缺少按压反馈：补齐统一回弹 */
+    .b3-button:not(:disabled):not([aria-busy="true"]):active {
+        transform: scale(0.97);
+    }
+
+    button[aria-busy="true"] {
+        pointer-events: none;
+        opacity: 0.72;
+    }
+
+    .b3-button {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* 设置项右侧按钮：长文案单行截断 */
+    .b3-label .b3-button {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* 主界面自绘按钮按压回弹（考试页签域） */
+.lv-exam-tab {
+    :is(.lv-btn, .lv-topbar-btn, .lv-menu-btn, .lv-mobile-close-btn):not(:disabled):not([aria-busy="true"]):active {
+        transform: scale(0.96);
+    }
+
+    button[aria-busy="true"] {
+        pointer-events: none;
+        opacity: 0.72;
+    }
+}
