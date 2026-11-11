@@ -1789,7 +1789,7 @@ export function buildInteractiveReviewSheetPro(
       banner.style.display = 'flex';
       document.getElementById('score-total-val').textContent = earnedScore + ' / ' + totalScore + ' 分';
       document.getElementById('score-breakdown').textContent = '正确率 ' + pct + '% · 做对 ' + correctCount + ' 题，答错 ' + wrongCount + ' 题';
-      banner.scrollIntoView({ behavior: 'smooth' });
+      banner.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     }
   </script>
 </body>

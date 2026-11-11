@@ -35,7 +35,7 @@ export function highlightTracePulse(blockId: string, durationMs = 2000): void {
     const el = document.querySelector<HTMLElement>(`[data-node-id="${blockId}"]`);
     if (el) {
       try {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
       } catch {
         /* fail-soft */
       }
