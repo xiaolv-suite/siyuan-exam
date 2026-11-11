@@ -705,3 +705,14 @@
         color: var(--lv-text, var(--b3-theme-on-background));
     }
 }
+
+/* ══════════ 文字专项：等宽数字对齐 / 行高节奏 / 换行保护 ══════════ */
+.lv-exam-tab {
+    font-variant-numeric: tabular-nums;
+
+    .lv-screen-head p,
+    .lv-onboard p {
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+    }
+}
