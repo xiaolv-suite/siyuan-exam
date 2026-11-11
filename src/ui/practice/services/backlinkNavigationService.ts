@@ -72,6 +72,44 @@ export function openSiYuanTarget(
   const splitPosition = options?.position ?? (isSplitModifier ? "right" : undefined);
 
   const hostApp = plugin?.app;
+  const isMobile = Boolean(
+    plugin?.isMobile ||
+    (typeof document !== "undefined" && document.getElementById("mobileTopBar"))
+  );
+
+  if (isMobile) {
+    void import("siyuan")
+      .then((siyuanMod) => {
+        if (typeof (siyuanMod as any).openMobileFileById === "function") {
+          (siyuanMod as any).openMobileFileById(
+            (hostApp ?? plugin) as import("siyuan").App,
+            targetId,
+            blockId ? ["cb-get-hl", "cb-get-focus", "cb-get-all"] : undefined,
+          );
+        } else {
+          siyuanMod.openTab({
+            app: (hostApp ?? plugin) as import("siyuan").App,
+            doc: {
+              id: targetId,
+              ...(blockId ? { action: ["cb-get-hl", "cb-get-focus", "cb-get-all"] } : {}),
+            },
+          });
+        }
+        try {
+          plugin?.closeMobileDialog?.();
+        } catch {}
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
+        }
+      })
+      .catch((e) => {
+        if (showMessage) {
+          showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+        }
+      });
+    return;
+  }
+
   if (!hostApp && blockId && typeof window !== "undefined" && !splitPosition) {
     try {
       window.open(`siyuan://blocks/${blockId}`);

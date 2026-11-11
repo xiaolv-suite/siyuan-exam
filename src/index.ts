@@ -99,6 +99,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private currentMobileTabType: string | null = null;
   private mobileSurfaceCleaner?: () => void;
   private mobileViewportCleaner?: () => void;
+  private mobileCloseListener?: () => void;
 
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile" || lvLaunchpad.isMobileFrontend();
@@ -1008,9 +1009,13 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       );
     };
     bindPullDownDismiss(dialog.element, true);
-    dialog.element.addEventListener("lv-exam:close-mobile-dialog", () => {
+    this.mobileCloseListener = () => {
       void this.closeMobileDialog();
-    });
+    };
+    dialog.element.addEventListener("lv-exam:close-mobile-dialog", this.mobileCloseListener);
+    if (typeof window !== "undefined") {
+      window.addEventListener("lv-exam:close-mobile-dialog", this.mobileCloseListener);
+    }
 
     this.mobileViewportCleaner?.();
     if (typeof window !== "undefined" && window.visualViewport) {
@@ -1073,6 +1078,10 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   private cleanupMobileDialog(): void {
+    if (this.mobileCloseListener && typeof window !== "undefined") {
+      window.removeEventListener("lv-exam:close-mobile-dialog", this.mobileCloseListener);
+      this.mobileCloseListener = undefined;
+    }
     this.mobileViewportCleaner?.();
     this.mobileViewportCleaner = undefined;
     this.mobileSurfaceCleaner?.();
