@@ -2661,3 +2661,10 @@ input[type="range"] {
   --b3-list-hover: var(--lv-surface-2);
   --b3-list-icon-hover: var(--lv-surface-2);
 }
+
+/* R14 桌面 hover 收口：可点题干行（触屏不生效） */
+@media (hover: hover) {
+    .lv-qrow-stem:hover {
+        color: var(--lv-accent);
+    }
+}

@@ -21,10 +21,16 @@ export function classifyError(e: unknown): LvErrKind {
 
 type Level = "debug" | "info" | "warn" | "error";
 
+// 构建期注入（vite define）：开发 true / 生产 false。雷切同款模式——
+// 生产构建将常量替换为 false 后，debug/info 分支被折叠清除，不残留日志字符串。
+declare const __LV_EXAM_DEV__: boolean;
+
 const PREFIX = "[LvExam]";
 
 function emit(level: Level, scope: string, msg: string, detail?: unknown) {
   const line = `${PREFIX}[${scope}] ${msg}`;
+  // 生产环境 info/debug 静默（对齐文件头契约）；warn/error 始终放行
+  if ((level === "debug" || level === "info") && !__LV_EXAM_DEV__) return;
   if (level === "debug") {
     console.debug(line, detail ?? "");
     return;

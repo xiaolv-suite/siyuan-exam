@@ -59,7 +59,9 @@ export default defineConfig({
 
     define: {
         "process.env.DEV_MODE": JSON.stringify(isDev),
-        "process.env.NODE_ENV": JSON.stringify(env.NODE_ENV)
+        "process.env.NODE_ENV": JSON.stringify(env.NODE_ENV),
+        // 日志门禁：生产构建 info/debug 折叠清除（对齐 core/logger.ts 头部契约）
+        "__LV_EXAM_DEV__": JSON.stringify(isDev)
     },
 
     build: {
