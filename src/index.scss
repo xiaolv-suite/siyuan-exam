@@ -716,3 +716,18 @@
         overflow-wrap: anywhere;
     }
 }
+
+/* ══════════ 手机端专项：滚动边界防抖 / 粘滞 hover 抑制 ══════════ */
+.b3-dialog:has(.lv-exam-setting-control) .b3-dialog__body,
+.lv-exam-tab {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .lv-exam-tab {
+        :is(.lv-rail button, .lv-mobile-tasknav button, .lv-menu-btn):hover:not(.is-active):not([aria-current="true"]) {
+            background: transparent;
+        }
+    }
+}
