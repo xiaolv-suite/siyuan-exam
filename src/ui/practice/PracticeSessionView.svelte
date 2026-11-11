@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import PracticeDoneCard from "./PracticeDoneCard.svelte";
   import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
@@ -396,6 +397,13 @@
 
   let optionLongPressTimer: ReturnType<typeof setTimeout> | null = null;
   let optionLongPressFired = false;
+
+  onDestroy(() => {
+    if (optionLongPressTimer) {
+      clearTimeout(optionLongPressTimer);
+      optionLongPressTimer = null;
+    }
+  });
 
   function triggerCbmGuess(choiceValue: string, targetEl?: HTMLElement | null) {
     if (feedback || reciteToggle) return;

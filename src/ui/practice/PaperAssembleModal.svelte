@@ -681,8 +681,12 @@
   @media (max-width: 840px) {
     .lv-assemble-card {
       width: 100vw !important;
-      height: 100vh !important;
+      height: 100dvh !important;
+      max-height: 100dvh !important;
       border-radius: 0 !important;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      box-sizing: border-box;
     }
     .lv-assemble-body {
       flex-direction: column !important;

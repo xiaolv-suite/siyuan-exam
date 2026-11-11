@@ -892,6 +892,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     onDestroy(() => {
+      clearAutoNext();
       disarmExamHistory();
       if (draftSaveTimer) {
         clearTimeout(draftSaveTimer);
@@ -1610,6 +1611,7 @@ import { confirmDialogSync } from "@/libs/dialog";
                 if (!reciteIsNewer) {
                   view = "session";
                   sessionRev++;
+                  armPracticeExamHistory();
                   restoreQuestionControls();
                 }
                 if (app.lastResumeMissing.length) showMessage(t("resume.missing").replace("{n}", String(app.lastResumeMissing.length)), 4200, "info");
@@ -1627,6 +1629,7 @@ import { confirmDialogSync } from "@/libs/dialog";
                   reciteSessionId = rs.sessionId;
                   reciteCardStart = Date.now();
                   view = "recite";
+                  armPracticeExamHistory();
                 }
               }
               rebuildPlan();
@@ -2375,8 +2378,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       startRecite,
       syncBankDocs,
       copyTodayReportMarkdown,
-      openMock: plugin.openMock,
-      openReport: plugin.openReport,
+      openMock: () => { plugin.openMock?.(); },
+      openReport: () => { plugin.openReport?.(); },
       openSettings: () => {
         plugin.openSetting?.();
       },
@@ -2444,7 +2447,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         plugin.openReport?.();
         return;
       }
-      const res = resolveTaskNavigation(target, plugin.openMock, plugin.openReport);
+      const res = resolveTaskNavigation(target, () => { plugin.openMock?.(); }, () => { plugin.openReport?.(); });
       if (res.nextView) {
         switchView(res.nextView);
         if (res.nextView === "entry" || res.nextView === "browse") void loadQuestions();
@@ -3933,7 +3936,7 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     async function launchWrongbookMockExam() {
       if (!filteredWrongQueue.length || !app) return;
-      await assembleAndLaunchWrongMock(app, activeBankId, plugin.openMock, showMessage, t);
+      await assembleAndLaunchWrongMock(app, activeBankId, (bp) => { plugin.openMock?.(bp); }, showMessage, t);
     }
 
     async function exportCheatSheet() {

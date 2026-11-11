@@ -555,38 +555,44 @@
               {#each cbmHighrisk as s, wi (s.qid)}
                 {@const q = qOf(s.qid)}
                 <div class="lv-wrong-row" style="border-left:3px solid var(--lv-red)">
-                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red-deep, var(--lv-red))">{wi + 1}</span>
-                  <div class="lv-wrong-main">
-                    <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
-                    <div class="lv-wrong-meta">
-                      <span class="lv-chip sm lv-chip--red" style="display:inline-flex;align-items:center;gap:4px"><Icon name="xcircle" size={11} /> {t("cbm.highrisk", "高危盲区")}</span>
-                      <span class="lv-chip num">{t("confidence.sure")} ✕</span>
-                      {#if s.myAnswer}<span class="lv-muted num">{t("session.myAnswer")}: {s.myAnswer}</span>{/if}
-                      <span>{new Date(s.ts).toLocaleDateString()}</span>
-                      {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
-                      {#if q?.blockId}
-                        <button
-                          type="button"
-                          class="lv-chip lv-traceback-btn"
-                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
-                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
-                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
-                        >
-                          📍 笔记原块上下文
+                  <div class="lv-wrong-header">
+                    <span class="task-number num" style="background:color-mix(in srgb, var(--lv-red) 14%, transparent);color:var(--lv-red-deep, var(--lv-red))">{wi + 1}</span>
+                    <div class="lv-wrong-main">
+                      <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
+                      <div class="lv-wrong-meta">
+                        <span class="lv-chip sm lv-chip--red" style="display:inline-flex;align-items:center;gap:4px"><Icon name="xcircle" size={11} /> {t("cbm.highrisk", "高危盲区")}</span>
+                        <span class="lv-chip num">{t("confidence.sure")} ✕</span>
+                        {#if s.myAnswer}<span class="lv-muted num">{t("session.myAnswer")}: {s.myAnswer}</span>{/if}
+                        <span>{new Date(s.ts).toLocaleDateString()}</span>
+                        {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                        {#if q?.blockId}
+                          <button
+                            type="button"
+                            class="lv-chip lv-traceback-btn"
+                            style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                            title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                            onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                          >
+                            📍 笔记原块上下文
+                          </button>
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lv-wrong-toolbar">
+                    <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
+                      <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                      {#if q?.blockId && onopenInSiYuan}
+                        <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
+                      {/if}
+                      <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
+                      {#if ondiagnosePrereqs}
+                        <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(s.qid); if (q) ondiagnosePrereqs(q); }}>
+                          <Icon name="compass" size={12} /> 根因
                         </button>
                       {/if}
                     </div>
                   </div>
-                  <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
-                  {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
-                  {/if}
-                  <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
-                  {#if ondiagnosePrereqs}
-                    <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(s.qid); if (q) ondiagnosePrereqs(q); }}>
-                      <Icon name="compass" size={12} /> 根因
-                    </button>
-                  {/if}
                 </div>
               {:else}
                 <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.highrisk.empty", "暂无高危盲区——作答时按 1/2/3 自评确定度即可积累 CBM 信号")}</div>
@@ -608,37 +614,43 @@
               {#each cbmFragile as s, wi (s.qid)}
                 {@const q = qOf(s.qid)}
                 <div class="lv-wrong-row" style="border-left:3px solid var(--lv-amber)">
-                  <span class="task-number num" style="background:color-mix(in srgb, var(--lv-amber) 16%, transparent);color:var(--lv-amber-deep, var(--lv-amber))">{wi + 1}</span>
-                  <div class="lv-wrong-main">
-                    <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
-                    <div class="lv-wrong-meta">
-                      <span class="lv-chip sm lv-chip--amb" style="display:inline-flex;align-items:center;gap:4px"><Icon name="help" size={11} /> {t("cbm.fragile", "脆弱伪掌握")}</span>
-                      <span class="lv-chip num">{t("confidence." + s.confidence)} ✓</span>
-                      <span>{new Date(s.ts).toLocaleDateString()}</span>
-                      {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
-                      {#if q?.blockId}
-                        <button
-                          type="button"
-                          class="lv-chip lv-traceback-btn"
-                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
-                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
-                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
-                        >
-                          📍 笔记原块上下文
+                  <div class="lv-wrong-header">
+                    <span class="task-number num" style="background:color-mix(in srgb, var(--lv-amber) 16%, transparent);color:var(--lv-amber-deep, var(--lv-amber))">{wi + 1}</span>
+                    <div class="lv-wrong-main">
+                      <div class="lv-wrong-stem" title={q?.stem ?? s.qid}>{q?.stem.slice(0, 80) ?? s.qid}</div>
+                      <div class="lv-wrong-meta">
+                        <span class="lv-chip sm lv-chip--amb" style="display:inline-flex;align-items:center;gap:4px"><Icon name="help" size={11} /> {t("cbm.fragile", "脆弱伪掌握")}</span>
+                        <span class="lv-chip num">{t("confidence." + s.confidence)} ✓</span>
+                        <span>{new Date(s.ts).toLocaleDateString()}</span>
+                        {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                        {#if q?.blockId}
+                          <button
+                            type="button"
+                            class="lv-chip lv-traceback-btn"
+                            style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                            title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                            onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                          >
+                            📍 笔记原块上下文
+                          </button>
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lv-wrong-toolbar">
+                    <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
+                      <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
+                      {#if q?.blockId && onopenInSiYuan}
+                        <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
+                      {/if}
+                      <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
+                      {#if ondiagnosePrereqs}
+                        <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(s.qid); if (q) ondiagnosePrereqs(q); }}>
+                          <Icon name="compass" size={12} /> 根因
                         </button>
                       {/if}
                     </div>
                   </div>
-                  <button class="lv-btn sm" onclick={() => onstartWrongFor(s.qid)}><Icon name="play" size={13} /> {t("wrongbook.retry")}</button>
-                  {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
-                  {/if}
-                  <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.sameKpTip")} onclick={() => onstartSameKpFor(s.qid)}><Icon name="link" size={13} /> {t("wrongbook.sameKp")}</button>
-                  {#if ondiagnosePrereqs}
-                    <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(s.qid); if (q) ondiagnosePrereqs(q); }}>
-                      <Icon name="compass" size={12} /> 根因
-                    </button>
-                  {/if}
                 </div>
               {:else}
                 <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.fragile.empty", "暂无脆弱伪掌握——没有蒙对题，掌握很扎实")}</div>
@@ -649,36 +661,42 @@
               {#each eliminatedWrongList as w, wi (w.qid)}
                 {@const q = qOf(w.qid)}
                 <div class="lv-wrong-row" style="border-left:3px solid var(--lv-green)">
-                  <span class="task-number num" style="background:var(--lv-green-soft);color:var(--lv-green)">{wi + 1}</span>
-                  <div class="lv-wrong-main">
-                    <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 80) ?? w.qid}</div>
-                    <div class="lv-wrong-meta">
-                      <span class="lv-chip sm lv-chip--grn" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={11} /> {t("wrongbook.tabEliminated")}</span>
-                      <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
-                      <span>消灭于 {new Date(w.lastWrongAt).toLocaleDateString()}</span>
-                      {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
-                      {#if q?.blockId}
-                        <button
-                          type="button"
-                          class="lv-chip lv-traceback-btn"
-                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
-                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
-                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
-                        >
-                          📍 笔记原块上下文
-                        </button>
-                      {/if}
+                  <div class="lv-wrong-header">
+                    <span class="task-number num" style="background:var(--lv-green-soft);color:var(--lv-green)">{wi + 1}</span>
+                    <div class="lv-wrong-main">
+                      <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 80) ?? w.qid}</div>
+                      <div class="lv-wrong-meta">
+                        <span class="lv-chip sm lv-chip--grn" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={11} /> {t("wrongbook.tabEliminated")}</span>
+                        <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
+                        <span>消灭于 {new Date(w.lastWrongAt).toLocaleDateString()}</span>
+                        {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                        {#if q?.blockId}
+                          <button
+                            type="button"
+                            class="lv-chip lv-traceback-btn"
+                            style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                            title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                            onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                          >
+                            📍 笔记原块上下文
+                          </button>
+                        {/if}
+                      </div>
                     </div>
                   </div>
-                  {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
-                  {/if}
-                  <button class="lv-btn sm lv-btn--ghost" onclick={() => onstartWrongFor(w.qid)}>
-                    <Icon name="play" size={13} /> {t("wrongbook.retry")}
-                  </button>
-                  <button class="lv-btn sm lv-btn--ghost" onclick={() => onrestoreWrongToActive(w.qid)}>
-                    <Icon name="rotate" size={12} /> {t("wrongbook.restoreToActive")}
-                  </button>
+                  <div class="lv-wrong-toolbar">
+                    <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
+                      {#if q?.blockId && onopenInSiYuan}
+                        <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
+                      {/if}
+                      <button class="lv-btn sm lv-btn--ghost" onclick={() => onstartWrongFor(w.qid)}>
+                        <Icon name="play" size={13} /> {t("wrongbook.retry")}
+                      </button>
+                      <button class="lv-btn sm lv-btn--ghost" onclick={() => onrestoreWrongToActive(w.qid)}>
+                        <Icon name="rotate" size={12} /> {t("wrongbook.restoreToActive")}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               {:else}
                 <div class="lv-muted" style="padding:16px 0;text-align:center">暂无已消灭错题（连续做对 2 次的错题将自动归入此处）</div>
@@ -728,32 +746,38 @@
               {#each archivedWrongList as w, wi (w.qid)}
                 {@const q = qOf(w.qid)}
                 <div class="lv-wrong-row" style="opacity:0.85">
-                  <span class="task-number num">{wi + 1}</span>
-                  <div class="lv-wrong-main">
-                    <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 80) ?? w.qid}</div>
-                    <div class="lv-wrong-meta">
-                      <span class="lv-chip sm">{t("wrongbook.tabArchived")}</span>
-                      <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
-                      {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
-                      {#if q?.blockId}
-                        <button
-                          type="button"
-                          class="lv-chip lv-traceback-btn"
-                          style="cursor:pointer;color:var(--lv-accent);font-weight:600"
-                          title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
-                          onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
-                        >
-                          📍 笔记原块上下文
-                        </button>
-                      {/if}
+                  <div class="lv-wrong-header">
+                    <span class="task-number num">{wi + 1}</span>
+                    <div class="lv-wrong-main">
+                      <div class="lv-wrong-stem" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 80) ?? w.qid}</div>
+                      <div class="lv-wrong-meta">
+                        <span class="lv-chip sm">{t("wrongbook.tabArchived")}</span>
+                        <span>{t("wrongbook.wrongN").replace("{n}", String(w.wrongCount))}</span>
+                        {#if q?.kp}<span class="lv-chip num">{q.kp}</span>{/if}
+                        {#if q?.blockId}
+                          <button
+                            type="button"
+                            class="lv-chip lv-traceback-btn"
+                            style="cursor:pointer;color:var(--lv-accent);font-weight:600"
+                            title="一键定位并穿透跳转至该题摘录的思源笔记原块上下文"
+                            onclick={() => ontracebackBlock?.(q.blockId, q.rootId)}
+                          >
+                            📍 笔记原块上下文
+                          </button>
+                        {/if}
+                      </div>
                     </div>
                   </div>
-                  {#if q?.blockId && onopenInSiYuan}
-                    <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
-                  {/if}
-                  <button class="lv-btn sm lv-btn--primary" onclick={() => onunarchiveWrong(w.qid)}>
-                    <Icon name="rotate" size={12} /> {t("wrongbook.unarchive")}
-                  </button>
+                  <div class="lv-wrong-toolbar">
+                    <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
+                      {#if q?.blockId && onopenInSiYuan}
+                        <button class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）" onclick={(e) => onopenInSiYuan(q.rootId || "", q.blockId, { event: e })}><Icon name="pin" size={12} /> 原题 ↗</button>
+                      {/if}
+                      <button class="lv-btn sm lv-btn--primary" onclick={() => onunarchiveWrong(w.qid)}>
+                        <Icon name="rotate" size={12} /> {t("wrongbook.unarchive")}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               {:else}
                 <div class="lv-muted" style="padding:16px 0;text-align:center">{t("browse.empty")}</div>

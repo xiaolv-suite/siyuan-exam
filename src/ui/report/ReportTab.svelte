@@ -1450,10 +1450,12 @@
 
     <div class="lv-card lv-section" class:lv-report-section--hidden={reportSection !== "overview"}>
       <b>{t("report.heat")}</b>
-      <div class="lv-heat">
-        {#each heat as c, _i (_i)}
-          <i class={heatColor(c.count)} title="{c.date} · {c.count}"></i>
-        {/each}
+      <div class="lv-heat-scroll">
+        <div class="lv-heat">
+          {#each heat as c, _i (_i)}
+            <i class={heatColor(c.count)} title="{c.date} · {c.count}"></i>
+          {/each}
+        </div>
       </div>
         <div class="lv-row" style="margin:6px 0 0">
         <button class="lv-btn sm lv-btn--ghost" aria-expanded={tableOpen === "heat"} onclick={() => tableOpen = tableOpen === "heat" ? "" : "heat"}><Icon name="table" size={13} /> {t("data.table")}</button>
@@ -2126,8 +2128,16 @@
     .lv-card {
       padding: 14px 12px;
     }
+    .lv-heat-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
+      padding-bottom: 4px;
+    }
     .lv-heat {
-      gap: 1.5px;
+      gap: 2px;
+      min-width: 480px;
+      grid-template-columns: repeat(53, minmax(8px, 1fr));
     }
     .lv-quad-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));

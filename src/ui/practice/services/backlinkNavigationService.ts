@@ -78,8 +78,15 @@ export function openSiYuanTarget(
   );
 
   if (isMobile) {
-    void import("siyuan")
-      .then((siyuanMod) => {
+    void (async () => {
+      try {
+        if (plugin?.closeMobileDialog) {
+          const closed = await plugin.closeMobileDialog();
+          if (closed === false) return;
+        } else if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
+        }
+        const siyuanMod = await import("siyuan");
         if (typeof (siyuanMod as any).openMobileFileById === "function") {
           (siyuanMod as any).openMobileFileById(
             (hostApp ?? plugin) as import("siyuan").App,
@@ -95,18 +102,12 @@ export function openSiYuanTarget(
             },
           });
         }
-        try {
-          plugin?.closeMobileDialog?.();
-        } catch {}
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
-        }
-      })
-      .catch((e) => {
+      } catch (e) {
         if (showMessage) {
           showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
         }
-      });
+      }
+    })();
     return;
   }
 

@@ -97,20 +97,22 @@ export async function tracebackToSourceBlock(options: TracebackOptions): Promise
     (typeof document !== "undefined" && document.getElementById("mobileTopBar"))
   );
 
-  // 2. 移动端穿透执行：openMobileFileById 并主动收起全屏考试弹窗，露出底层笔记
+  // 2. 移动端穿透执行：先经退出确认收起全屏考试弹窗，再调用 openMobileFileById 露出底层笔记
   if (isMobile) {
     try {
+      if (plugin?.closeMobileDialog) {
+        const closed = await plugin.closeMobileDialog();
+        if (closed === false) return false;
+      } else if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
+      }
       const siyuanMod = await import("siyuan");
       if (typeof siyuanMod.openMobileFileById === "function") {
         siyuanMod.openMobileFileById(hostApp, blockId);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
-        }
         return true;
       }
       if (typeof window !== "undefined") {
         window.open(`siyuan://blocks/${blockId}`);
-        window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
         return true;
       }
     } catch (err) {

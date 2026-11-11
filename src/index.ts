@@ -19,7 +19,7 @@ import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
 import { lvNotify, lvBackup, lvLaunchpad, lvOmnisearch, lvSurfaceStack, type LvSearchResultItem } from "./libs/lv-notice-kit";
 import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
-import { isExamHistoryArmed, requestExitExamWithConfirm } from "./core/examHistoryGuard";
+import { disarmExamHistory, isExamHistoryArmed, requestExitExamWithConfirm } from "./core/examHistoryGuard";
 
 const TAB_PRACTICE = "exam-practice";
 const TAB_MOCK = "exam-mock";
@@ -632,8 +632,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onunload() {
-    // 移动端宿主全屏 Dialog 清理
-    this.closeMobileDialog();
+    // 移动端宿主全屏 Dialog 清理（卸载期无条件同步销毁，禁止弹 confirm 阻塞）
+    this.forceDestroyMobileDialog();
 
     // Epoch 7 Phase 7：注销全生态穿透搜索提供者
     this.omnisearchCleaner?.();
@@ -934,7 +934,15 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         rememberOpenTab(type);
         return true;
       }
-      this.closeMobileDialog();
+      if (isExamHistoryArmed()) {
+        void this.closeMobileDialog().then((closed) => {
+          if (closed) {
+            this.openMobileDialog(type, title);
+          }
+        });
+        return false;
+      }
+      void this.closeMobileDialog();
     }
 
     const componentMap: Record<string, Component<any>> = {
@@ -1061,10 +1069,10 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     return false;
   }
 
-  async closeMobileDialog(): Promise<void> {
+  async closeMobileDialog(): Promise<boolean> {
     if (isExamHistoryArmed()) {
       const ok = await requestExitExamWithConfirm();
-      if (!ok) return; // 用户取消退出，保持弹窗继续考试
+      if (!ok) return false; // 用户取消退出，保持弹窗继续考试
     }
     if (this.mobileDialog) {
       const d = this.mobileDialog;
@@ -1075,6 +1083,21 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         console.warn("[LvExam] closeMobileDialog error:", err);
       }
     }
+    return true;
+  }
+
+  private forceDestroyMobileDialog(): void {
+    disarmExamHistory();
+    if (this.mobileDialog) {
+      const d = this.mobileDialog;
+      this.mobileDialog = null;
+      try {
+        d.destroy();
+      } catch (err) {
+        console.warn("[LvExam] forceDestroyMobileDialog error:", err);
+      }
+    }
+    this.cleanupMobileDialog();
   }
 
   private cleanupMobileDialog(): void {

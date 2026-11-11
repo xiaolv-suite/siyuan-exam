@@ -409,7 +409,7 @@
   }
   @media (max-width: 680px) {
     .lv-present-header {
-      padding: 8px 12px;
+      padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px));
       flex-wrap: wrap;
       gap: 6px;
     }

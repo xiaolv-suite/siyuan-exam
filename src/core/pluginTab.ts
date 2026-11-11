@@ -52,7 +52,7 @@ export interface ExamPluginLike extends PracticeViewPlugin, AiKeyHost {
   openMock?(blueprint?: import("./mock").Blueprint): boolean | void;
   openReport?(): boolean | void;
   openWrongbook?(): Promise<void> | void;
-  closeMobileDialog?(): Promise<void> | void;
+  closeMobileDialog?(): Promise<boolean | void> | void;
   showMessage?(message: string, timeout?: number, type?: "info" | "error"): void;
 }
 
