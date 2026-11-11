@@ -692,3 +692,16 @@
         opacity: 0.72;
     }
 }
+
+/* ══════════ 下拉菜单专项：选项可读性 / 光标 ══════════ */
+.lv-exam-tab,
+.b3-dialog:has(.lv-exam-setting-control) {
+    :is(select, .b3-select) {
+        cursor: pointer;
+    }
+
+    :is(select, .b3-select) :is(option, optgroup) {
+        background-color: var(--lv-surface, var(--b3-theme-background));
+        color: var(--lv-text, var(--b3-theme-on-background));
+    }
+}
