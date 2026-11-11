@@ -1823,7 +1823,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         onViewportChange();
         window.addEventListener("resize", onViewportChange);
         window.visualViewport?.addEventListener("resize", onViewportChange);
-        window.visualViewport?.addEventListener("scroll", onViewportChange);
+        window.visualViewport?.addEventListener("scroll", onViewportChange, { passive: true });
         offs.push(() => {
           window.removeEventListener("resize", onViewportChange);
           window.visualViewport?.removeEventListener("resize", onViewportChange);

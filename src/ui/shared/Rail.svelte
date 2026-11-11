@@ -149,7 +149,7 @@
     observer?.observe(launcherBtn);
     observer?.observe(launcherMenu);
     // Capture scrolls from the rail itself as well as host split-pane moves.
-    document.addEventListener("scroll", scheduleUpdate, true);
+    document.addEventListener("scroll", scheduleUpdate, { capture: true, passive: true });
     window.addEventListener("resize", scheduleUpdate);
     return () => {
       if (rafId !== null) {
