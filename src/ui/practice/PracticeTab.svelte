@@ -6833,7 +6833,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       onprevPeek={prevPeekQuestion}
       onnextPeek={nextPeekQuestion}
       ontoggleFavQuestion={(q) => void toggleFavQuestion(q)}
-      onopenInSiYuan={(rid, bid, opt) => openInSiYuan(rid, bid, opt)}
+      onopenInSiYuan={(rid, bid, opt) => {
+        closePeekDrawer();
+        openInSiYuan(rid, bid, opt);
+      }}
       onttsSpeak={handleTtsSpeak}
       onsaveEdit={(q) => void saveEdit(q)}
       oncloseEditForm={closeEditForm}

@@ -60,6 +60,12 @@ export function openSiYuanTarget(
     return;
   }
 
+  if (typeof document !== "undefined" && document.fullscreenElement) {
+    try {
+      void document.exitFullscreen().catch(() => {});
+    } catch {}
+  }
+
   const isSplitModifier = options?.event
     ? options.event.ctrlKey || options.event.metaKey || options.event.altKey
     : false;
