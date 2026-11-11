@@ -330,6 +330,8 @@ export class SettingUtils {
         createActionElement: () => {
           const val = this.get(item.key);
           const element = item.createElement(val);
+          element?.classList?.add("lv-exam-setting-control");
+          if (element?.dataset) element.dataset.examKey = item.key;
           this.elements.set(item.key, element);
           return element;
         },
@@ -441,6 +443,8 @@ export class SettingUtils {
       if (item.placeholder && "placeholder" in itemElement) itemElement.placeholder = item.placeholder;
       if (item.spellcheck !== undefined) itemElement.spellcheck = item.spellcheck;
     }
+    itemElement?.classList?.add("lv-exam-setting-control");
+    if (itemElement?.dataset) itemElement.dataset.examKey = item.key;
     return itemElement;
   }
 
