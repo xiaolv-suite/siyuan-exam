@@ -116,6 +116,50 @@ export class SettingUtils {
     return value;
   }
 
+  /**
+   * 分类排版：把标题里遗留的「[分组]」前缀提升为徽章，并为分组首行加分隔。
+   * 控件创建时尚未挂载（closest 找不到 .b3-label），推迟到下一帧再装饰；
+   * 幂等标记避免 destroy/reopen 循环里重复替换文本节点。
+   */
+  private decorateSettingGroup(element: HTMLElement, item: ISettingUtilsItem): void {
+    const match = /^\[([^\]]+)\]\s*/.exec(item.title);
+    if (!match) return;
+    const schedule = (task: () => void) => {
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(task);
+      else setTimeout(task, 0);
+    };
+    schedule(() => {
+      const label = element.closest?.(".b3-label");
+      if (!(label instanceof HTMLElement) || label.dataset.examGroupDecorated) return;
+      label.dataset.examGroupDecorated = "true";
+      label.dataset.examGroup = match[1];
+      const textHost = label.querySelector<HTMLElement>(".b3-label__text");
+      if (textHost) {
+        const walker = document.createTreeWalker(textHost, NodeFilter.SHOW_TEXT);
+        let node = walker.nextNode();
+        while (node) {
+          const value = node.nodeValue ?? "";
+          if (value.includes(`[${match[1]}]`)) {
+            const badge = document.createElement("span");
+            badge.className = "lv-exam-setting-group";
+            badge.textContent = match[1];
+            const fragment = document.createDocumentFragment();
+            fragment.appendChild(badge);
+            const rest = value.replace(`[${match[1]}]`, "").trimStart();
+            if (rest) fragment.appendChild(document.createTextNode(rest));
+            node.parentNode?.replaceChild(fragment, node);
+            break;
+          }
+          node = walker.nextNode();
+        }
+      }
+      const prev = label.previousElementSibling;
+      if (!(prev instanceof HTMLElement) || prev.dataset.examGroup !== match[1]) {
+        label.classList.add("lv-exam-setting-group-start");
+      }
+    });
+  }
+
   constructor(args: {
     plugin: Plugin;
     name?: string;
@@ -319,6 +363,7 @@ export class SettingUtils {
         createActionElement: () => {
           this.updateElementFromValue(item.key);
           const element = this.getElement(item.key);
+          if (element instanceof HTMLElement) this.decorateSettingGroup(element, item);
           return element;
         },
       });
@@ -332,6 +377,7 @@ export class SettingUtils {
           const element = item.createElement(val);
           element?.classList?.add("lv-exam-setting-control");
           if (element?.dataset) element.dataset.examKey = item.key;
+          if (element instanceof HTMLElement) this.decorateSettingGroup(element, item);
           this.elements.set(item.key, element);
           return element;
         },

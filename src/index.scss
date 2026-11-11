@@ -541,6 +541,34 @@
   :is(.b3-text-field, .b3-select) {
     border-radius: 8px !important;
   }
+
+  /* 分类徽章：由 setting-utils 将标题里的「[分组]」前缀提升为胶囊标签 */
+  .lv-exam-setting-group {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 8px;
+    padding: 1px 9px;
+    border-radius: 9999px;
+    background: var(--b3-theme-primary-lightest, rgba(125, 125, 125, 0.14));
+    color: var(--b3-theme-primary);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+
+  /* 分组首行：与上一行不同分组时拉开呼吸感并加分隔线 */
+  .b3-label.lv-exam-setting-group-start {
+    margin-top: 12px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+  }
+
+  .b3-label.lv-exam-setting-group-start:first-child {
+    margin-top: 0 !important;
+    border-top: 0 !important;
+  }
 }
 
 @media (max-width: 759px) {
