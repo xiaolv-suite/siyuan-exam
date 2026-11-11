@@ -861,7 +861,12 @@
     }
 
     let lastSavedMockDoc = $state<{ docId: string; title: string } | null>(null);
-    const openInSiYuan = (rootId: string, blockId?: string, opt?: any) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t, opt);
+    const openInSiYuan = (rootId: string, blockId?: string, opt?: any) => {
+      if (typeof document !== "undefined" && document.fullscreenElement) {
+        void document.exitFullscreen?.().catch(() => {});
+      }
+      openSiYuanTarget(plugin, rootId, blockId, showMessage, t, opt);
+    };
 
     async function saveMockExamAsDoc() {
       if (!activeBankId || !app || !questions.length) return;
