@@ -260,17 +260,29 @@
     quickKpEditing = false;
   }
 
+  let drawerDocSearchTimer: ReturnType<typeof setTimeout> | undefined;
+  let drawerDocSearchSeq = 0;
+
+  /* 输入防抖 300ms：连续敲键只发一次文档搜索请求；手动「搜索」按钮仍即时触发 */
+  function scheduleDrawerDocSearch(query: string) {
+    if (drawerDocSearchTimer) clearTimeout(drawerDocSearchTimer);
+    drawerDocSearchTimer = setTimeout(() => {
+      drawerDocSearchTimer = undefined;
+      void searchDocsForDrawer(query);
+    }, 300);
+  }
+
   async function searchDocsForDrawer(query: string) {
     if (!app) return;
+    const requestSeq = ++drawerDocSearchSeq;
     drawerDocBusy = true;
     try {
-      drawerDocCandidates = query.trim()
-        ? await app.searchSiyuanDocs(query.trim())
-        : await app.searchSiyuanDocs("");
+      const docs = await app.searchSiyuanDocs(query.trim());
+      if (requestSeq === drawerDocSearchSeq) drawerDocCandidates = docs;
     } catch {
-      drawerDocCandidates = [];
+      if (requestSeq === drawerDocSearchSeq) drawerDocCandidates = [];
     } finally {
-      drawerDocBusy = false;
+      if (requestSeq === drawerDocSearchSeq) drawerDocBusy = false;
     }
   }
 
@@ -430,7 +442,7 @@
           <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => drawerDocPickerOpen = false}><Icon name="close" size={11} /></button>
         </div>
         <div class="lv-row" style="margin:0 0 6px;gap:6px">
-          <input class="lv-input sm" style="flex:1" placeholder="搜索文档标题或路径…" bind:value={drawerDocSearch} oninput={(e) => searchDocsForDrawer((e.target as HTMLInputElement).value)} />
+          <input class="lv-input sm" style="flex:1" placeholder="搜索文档标题或路径…" bind:value={drawerDocSearch} oninput={(e) => scheduleDrawerDocSearch((e.target as HTMLInputElement).value)} />
           <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => searchDocsForDrawer(drawerDocSearch)}>搜索</button>
         </div>
         <div class="stack-sm" style="max-height:160px;overflow-y:auto;border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2);padding:4px;background:var(--lv-surface)">
