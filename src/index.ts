@@ -100,9 +100,40 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private mobileSurfaceCleaner?: () => void;
   private mobileViewportCleaner?: () => void;
   private mobileCloseListener?: () => void;
+  private settingViewportCleaner?: () => void;
+
+  /** 移动端原生设置弹窗软键盘守卫：键盘弹起时按 visualViewport 收缩容器，
+   *  保证被聚焦的输入框始终落在可视区内（思源原生 Setting 弹窗不自带避让）。 */
+  private installSettingKeyboardViewportGuard(): void {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    let baseHeight = Math.max(window.innerHeight || 0, Math.round(vv.height || 0));
+    const sync = () => {
+      const dialogEl = document.querySelector<HTMLElement>(".b3-dialog:has(.lv-exam-setting-control)");
+      if (!dialogEl?.isConnected) return;
+      const currentInner = window.innerHeight || 0;
+      const currentH = Math.round(vv.height || currentInner);
+      if (currentH > baseHeight) baseHeight = currentH;
+      const keyboardOpen = Math.max(baseHeight, currentInner) - currentH > 110;
+      dialogEl.classList.toggle("lv-keyboard-open", keyboardOpen);
+      if (keyboardOpen) dialogEl.style.setProperty("--lv-vv-h", `${currentH}px`);
+      else dialogEl.style.removeProperty("--lv-vv-h");
+    };
+    vv.addEventListener("resize", sync, { passive: true });
+    vv.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("resize", sync, { passive: true });
+    this.settingViewportCleaner = () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      window.removeEventListener("resize", sync);
+    };
+  }
 
   async onload() {
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile" || lvLaunchpad.isMobileFrontend();
+
+    // 移动端原生设置弹窗软键盘避让（visualViewport 守卫，仅移动端需要）
+    if (this.isMobile) this.installSettingKeyboardViewportGuard();
 
     // 挂载罗盘全端统一入口（Protocol v1.7.5 Unified Entry 顶栏+悬浮球收敛）
     this.launchpadMobileCleaner = lvLaunchpad.ensureUnifiedEntry();
@@ -634,6 +665,10 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   async onunload() {
     // 移动端宿主全屏 Dialog 清理（卸载期无条件同步销毁，禁止弹 confirm 阻塞）
     this.forceDestroyMobileDialog();
+
+    // 原生设置弹窗软键盘守卫清理
+    this.settingViewportCleaner?.();
+    this.settingViewportCleaner = undefined;
 
     // Epoch 7 Phase 7：注销全生态穿透搜索提供者
     this.omnisearchCleaner?.();
