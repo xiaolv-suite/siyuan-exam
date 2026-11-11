@@ -621,7 +621,7 @@
             {/each}
           </div>
           <div class="lv-row" style="margin:0;gap:6px;align-items:center">
-            <input class="lv-input sm" style="flex:1" placeholder="输入自定义标签名称（如 #考研真题 或 #法考重点）…" bind:value={customTagInput} onkeydown={(e) => { if (e.key === "Enter") { selectedTag = customTagInput || selectedTag; onDoSearchTags(selectedTag); } }} />
+            <input class="lv-input sm" style="flex:1" placeholder="输入自定义标签名称（如 #考研真题 或 #法考重点）…" bind:value={customTagInput} onkeydown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === "Enter") { selectedTag = customTagInput || selectedTag; onDoSearchTags(selectedTag); } }} />
             <button class="lv-btn sm lv-btn--primary" disabled={tagSearchBusy} onclick={() => { selectedTag = customTagInput || selectedTag; onDoSearchTags(selectedTag); }}>
               <Icon name="search" size={13} /> {tagSearchBusy ? "正在检索…" : "检索标签内容块"}
             </button>

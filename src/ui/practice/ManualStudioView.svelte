@@ -522,7 +522,7 @@
           {#if quickSplitOpen}
             <div class="lv-card" style="margin-bottom:8px;padding:8px 12px;background:var(--lv-surface-2);border:1px dashed var(--lv-border);border-radius:var(--lv-r-2)">
               <div class="lv-muted" style="font-size:11.5px;margin-bottom:4px">将试卷中复制的整行选项（如 “A. 红 B. 蓝 C. 绿 D. 黄 答案: B”）粘贴到下方：</div>
-              <input class="lv-input sm" style="width:100%" placeholder="在此粘贴整行或多行选项…" bind:value={quickSplitInput} onkeydown={(e) => { if (e.key === "Enter") applyQuickSplit(); }} />
+              <input class="lv-input sm" style="width:100%" placeholder="在此粘贴整行或多行选项…" bind:value={quickSplitInput} onkeydown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === "Enter") applyQuickSplit(); }} />
               <div class="lv-row" style="margin:6px 0 0;justify-content:flex-end;gap:6px">
                 <button type="button" class="lv-btn sm lv-btn--primary" onclick={applyQuickSplit} disabled={!quickSplitInput.trim()}>
                   <Icon name="check" size={12} /> 一键秒拆到各选项槽

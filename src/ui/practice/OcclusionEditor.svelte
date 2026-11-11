@@ -48,6 +48,8 @@
   const allAnswered = $derived(masks.length > 0 && masks.every((m) => m.answer.trim().length > 0));
 
   function handleImageUrlKeydown(e: KeyboardEvent) {
+    /* IME 合成期让路：Enter 属确认选字（中文文件名路径同样受影响）。 */
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter") {
       e.preventDefault();
       const v = imageUrl.trim();
