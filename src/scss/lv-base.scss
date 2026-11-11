@@ -485,6 +485,12 @@ button.lv-chip {
   line-height: 1.65;
   resize: both !important;
 }
+/* 触屏/窄屏：右下缩放握把无法精准拖拽且视觉上像破损，禁用（高度由 rows/最小值约束，页面滚动补足） */
+@media (pointer: coarse), (max-width: 680px) {
+  .lv-textarea {
+    resize: none !important;
+  }
+}
 
 /* —— 原生折叠元素 details / summary 体验收敛 —— */
 details summary {
