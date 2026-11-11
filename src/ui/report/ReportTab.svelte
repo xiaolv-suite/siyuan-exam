@@ -2102,7 +2102,7 @@
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
   .lv-report-tabs { display: flex; box-sizing: border-box; gap: 3px; margin: 10px 0 14px; padding: 3px 4px; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; box-shadow: var(--lv-inset-subtle, inset 0 1px 0 transparent); }
-  .lv-report-tab { min-height: 36px; padding: 4px 14px; border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-body-compact); font-weight: 600; white-space: nowrap; cursor: pointer; transition: all var(--lv-dur-micro) var(--lv-ease-out); }
+  .lv-report-tab { min-height: 36px; padding: 4px 14px; border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-body-compact); font-weight: 600; white-space: nowrap; cursor: pointer; transition: transform var(--lv-dur-micro) var(--lv-ease-out), background var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), opacity var(--lv-dur-micro) var(--lv-ease-out); }
   .lv-report-tab .lv-tab-inner { display: inline-flex; align-items: center; gap: 6px; }
   .lv-report-tab:hover { color: var(--lv-text); background: var(--lv-surface); }
   .lv-report-tab.active { color: var(--lv-accent); background: var(--lv-surface); box-shadow: var(--lv-sh-1); }

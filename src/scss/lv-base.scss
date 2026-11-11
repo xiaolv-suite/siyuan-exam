@@ -1964,7 +1964,7 @@ input[type="range"] {
   font-size: var(--lv-font-size-sm);
   color: var(--lv-text-2);
   cursor: pointer;
-  transition: all var(--lv-dur-micro) var(--lv-ease-out);
+  transition: transform var(--lv-dur-micro) var(--lv-ease-out), background var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), opacity var(--lv-dur-micro) var(--lv-ease-out);
 
   &:hover {
     background: var(--lv-surface);
@@ -1997,7 +1997,7 @@ input[type="range"] {
   border: 1px solid transparent;
   cursor: pointer;
   touch-action: manipulation;
-  transition: all var(--lv-dur-micro) var(--lv-ease-out);
+  transition: transform var(--lv-dur-micro) var(--lv-ease-out), background var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), opacity var(--lv-dur-micro) var(--lv-ease-out);
 
   &:hover {
     transform: translateY(-0.5px);

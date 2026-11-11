@@ -928,7 +928,7 @@
               <div class="stack-sm" style="display:grid;gap:10px;max-height:480px;overflow-y:auto;padding-right:4px">
                 {#each visibleImportQuestions as { q, qi } (q.id || qi)}
                   {@const isChecked = selectedImportQids[q.id || String(qi)] !== false}
-                  <div class="lv-card" style="padding:12px 14px;background:var(--lv-surface);border-radius:var(--lv-r-2);border:1px solid {isChecked ? 'var(--lv-border)' : 'var(--lv-border-subtle)'};opacity:{isChecked ? 1 : 0.6};transition:all var(--lv-dur-micro) ease;box-shadow:var(--lv-sh-1)">
+                  <div class="lv-card" style="padding:12px 14px;background:var(--lv-surface);border-radius:var(--lv-r-2);border:1px solid {isChecked ? 'var(--lv-border)' : 'var(--lv-border-subtle)'};opacity:{isChecked ? 1 : 0.6};transition: transform var(--lv-dur-micro) ease, background var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, opacity var(--lv-dur-micro) ease;box-shadow:var(--lv-sh-1)">
                     <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;gap:8px">
                       <div class="lv-row" style="margin:0;gap:8px;align-items:center;flex:1;min-width:0;flex-wrap:wrap">
                         <input type="checkbox" checked={isChecked} onchange={(e) => {

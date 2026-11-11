@@ -737,7 +737,7 @@
   .lv-entry-week-head { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); font-size: var(--lv-font-size-body-compact); }
   .lv-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 12px 0 10px; }
   .lv-week-day { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--lv-text-3); font-size: 11px; }
-  .lv-week-count { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--lv-r-2, 10px); background: var(--lv-surface-2); color: var(--lv-text-3); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; transition: all var(--lv-dur-micro) ease; }
+  .lv-week-count { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--lv-r-2, 10px); background: var(--lv-surface-2); color: var(--lv-text-3); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; transition: transform var(--lv-dur-micro) ease, background var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, opacity var(--lv-dur-micro) ease; }
   .lv-week-count.has-attempts { background: var(--lv-data-accent); color: var(--lv-on-data, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-data-accent) 35%, transparent); }
   .lv-week-day.is-today .lv-week-count { box-shadow: 0 0 0 2px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 30%, transparent); }
   .lv-week-day.is-today:not(:has(.has-attempts)) .lv-week-count { background: var(--lv-accent-soft); color: var(--lv-accent); }

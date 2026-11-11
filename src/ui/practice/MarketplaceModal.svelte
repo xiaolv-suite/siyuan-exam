@@ -303,7 +303,7 @@
           {#each filteredItems as item (item.id)}
             <div
               class="lv-card lv-marketplace-card"
-              style="padding:16px;display:flex;flex-direction:column;justify-content:space-between;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);border-top:4px solid {getCategoryBorderColor(item.category)};box-shadow:var(--lv-sh-1);transition:all var(--lv-dur-micro) var(--lv-ease-out)"
+              style="padding:16px;display:flex;flex-direction:column;justify-content:space-between;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);border-top:4px solid {getCategoryBorderColor(item.category)};box-shadow:var(--lv-sh-1);transition: transform var(--lv-dur-micro) var(--lv-ease-out), background var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), opacity var(--lv-dur-micro) var(--lv-ease-out)"
             >
               <div>
                 <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 6px">
