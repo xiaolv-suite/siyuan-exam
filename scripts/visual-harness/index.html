@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lv-exam visual harness</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%236554af%27/%3E%3Ctext x=%2716%27 y=%2723%27 text-anchor=%27middle%27 font-size=%2721%27 fill=%27white%27%3E%E9%A9%B4%3C/text%3E%3C/svg%3E" />
+    <style>
+      /* 模拟思源宿主的主题变量（亮=原型 v5 浅色对，暗=原型 v5 深色对） */
+      :root {
+        --b3-theme-primary: #6554af;
+        --b3-theme-primary-light: #7d6cc4;
+        --b3-theme-primary-lighter: rgba(101, 84, 175, 0.45);
+        --b3-theme-on-primary: #fff;
+        --b3-theme-success: #2c7155;
+        --b3-theme-error: #b43e4a;
+        --b3-theme-warning: #8b5e19;
+        --b3-theme-surface: #fffefa;
+        --b3-theme-background: #f5f4f0;
+        --b3-border-color: #e2e3dc;
+        --b3-theme-on-background: #292d36;
+      }
+      body.dark {
+        --b3-theme-primary: #c0aff0;
+        --b3-theme-primary-light: #d1c5f6;
+        --b3-theme-primary-lighter: rgba(192, 175, 240, 0.4);
+        --b3-theme-on-primary: #211b32;
+        --b3-theme-success: #9ad8b4;
+        --b3-theme-error: #f3a2ac;
+        --b3-theme-warning: #e6c184;
+        --b3-theme-surface: #1e212a;
+        --b3-theme-background: #15171d;
+        --b3-border-color: #343844;
+        --b3-theme-on-background: #ececf2;
+      }
+      /* 思源在 :root 翻转变量——保持与宿主同机制，避免 harness 假阳性 */
+      html[data-theme-mode="dark"] {
+        --b3-theme-primary: #c0aff0;
+        --b3-theme-primary-light: #d1c5f6;
+        --b3-theme-primary-lighter: rgba(192, 175, 240, 0.4);
+        --b3-theme-on-primary: #211b32;
+        --b3-theme-success: #9ad8b4;
+        --b3-theme-error: #f3a2ac;
+        --b3-theme-warning: #e6c184;
+        --b3-theme-surface: #1e212a;
+        --b3-theme-background: #15171d;
+        --b3-border-color: #343844;
+        --b3-theme-on-background: #ececf2;
+      }
+      /* 思源 block__icons 头部近似（保真对比用） */
+      .block__icons { display: flex; align-items: center; gap: 10px; padding: 8px 14px; }
+      .block__logo { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+      .block__logoicon { width: 16px; height: 16px; fill: var(--b3-theme-primary); }
+      /* 思源工具类近似 */
+      .fn__flex-1 { flex: 1; min-width: 0; min-height: 0; }
+      /* 设置页宿主渲染仿真（b3-label 结构近似） */
+      .setting-preview { width: 100%; max-width: 760px; margin: 0 auto; padding: 18px 26px 60px; }
+      .b3-dialog__title { font-size: 17px; font-weight: 650; margin: 6px 0 16px; }
+      .b3-label { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--b3-border-color); }
+      .setting-text b { display: block; font-size: 13.5px; font-weight: 550; }
+      .setting-desc { display: block; font-style: normal; font-size: 12px; color: var(--lv-text-3, #888); margin-top: 2px; max-width: 420px; }
+      .setting-ctl { flex-shrink: 0; }
+      .setting-ctl--col { width: 100%; margin-top: 8px; }
+      .setting-ctl--col .b3-text-field { width: 100%; }
+      .b3-text-field, .b3-select { min-height: 36px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--b3-border-color); background: var(--b3-theme-surface); color: var(--b3-theme-on-background); font: inherit; font-size: 13px; }
+      .b3-switch { width: 34px; height: 19px; accent-color: var(--b3-theme-primary); }
+      .b3-slider { accent-color: var(--b3-theme-primary); width: 200px; }
+      .fn__size200 { width: 200px; }
+      /* Production plugin CSS owns its box model, as in the real host. */
+      #bar, .setting-preview, .setting-preview * { box-sizing: border-box; }
+      body { margin: 0; background: var(--b3-theme-background); color: var(--b3-theme-on-background); font: 14px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+      #bar { display: flex; gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--b3-border-color); background: var(--b3-theme-surface); font-size: 12px; }
+      #bar button { cursor: pointer; min-height: 32px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--b3-border-color); background: var(--b3-theme-surface); color: inherit; }
+      #bar button.on { border-color: var(--b3-theme-primary); color: var(--b3-theme-primary); }
+      #stage { height: calc(100vh - 45px); display: flex; }
+      #app { flex: 1; min-width: 0; overflow: auto; display: flex; }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <button data-tab="practice" class="on">练习台</button>
+      <button data-tab="mock">模考场</button>
+      <button data-tab="report">报告中心</button>
+      <span style="flex: 1"></span>
+      <button id="theme">🌙 暗</button>
+    </div>
+    <div id="stage"><div id="app"></div></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

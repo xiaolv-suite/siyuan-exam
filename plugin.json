@@ -1,0 +1,61 @@
+{
+  "name": "siyuan-exam",
+  "author": "xiaolv-suite",
+  "url": "https://github.com/xiaolv-suite/siyuan-exam",
+  "version": "0.15.2",
+  "minAppVersion": "3.8.4",
+  "settingsWindow": true,
+  "backends": [
+    "windows",
+    "linux",
+    "darwin",
+    "ios",
+    "android",
+    "harmony",
+    "docker"
+  ],
+  "frontends": [
+    "desktop",
+    "mobile",
+    "browser-desktop",
+    "browser-mobile",
+    "desktop-window"
+  ],
+  "disabledInPublish": true,
+  "displayName": {
+    "default": "Lv Exam (Beta)",
+    "zh-CN": "小驴考试"
+  },
+  "description": {
+    "default": "Local-first question bank and exam prep workspace in SiYuan: import & manual authoring, independent active-recall practice, wrongbook remediation, timed mock exams, A4 paper printing, FSRS flashcards, and reviewable AI assistance.",
+    "zh-CN": "思源笔记本地题库与备考工作台：试题导入与录入、独立主动回忆刷题、错题靶向消灭、限时全真模考、A4 双栏印卷、FSRS 闪卡联动与可复核 AI 辅助——题目就是原生思源块。"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh-CN": "README.md",
+    "en_US": "README.en-US.md"
+  },
+  "icon": "icon.png",
+  "preview": "preview.png",
+  "keywords": [
+    "小驴",
+    "小驴考试",
+    "xiaolv",
+    "lv",
+    "exam",
+    "quiz",
+    "flashcard",
+    "spaced-repetition",
+    "wrongbook",
+    "题库",
+    "试卷",
+    "备考",
+    "刷题",
+    "背题",
+    "模考",
+    "错题本",
+    "闪卡",
+    "考试",
+    "AI"
+  ]
+}

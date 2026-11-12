@@ -1,0 +1,284 @@
+// ============================================================
+// 记忆服务（v0.2）：思源内核 riff 的领域封装
+// - 卡包命名空间隔离：小驴考试/<题库名>（与内置闪卡共存，docs/03 #1）
+// - 错题转卡：blockIds → addRiffCards；导入/转卡去重由内核按块幂等
+// - 自评→FSRS rating 映射：四级自评（墨墨式）→ riff.Rating
+//   （39-01 定案：rating 取值经上游源码核对——github.com/siyuan-note/riff store.go
+//    `Again Rating = iota + 1` 即 Again=1/Hard=2/Good=3/Easy=4，与 go-fsrs 一致；
+//    此前实现的 0–3 整体偏移一位，且 0 在 riff 中并不存在（go-fsrs 的 0 是 Manual，
+//    riff 未使用），会使 fsrs_store.Review 以不存在的键索引调度表。非法值一律不发。）
+// 纯逻辑（映射/挑选）与 IO（riff 调用）分离，测试覆盖纯逻辑
+// ============================================================
+import type { Question, AttemptEvent } from "./types";
+import { OPTION_LETTERS } from "./answer";
+
+export const DECK_PREFIX = "小驴考试/";
+
+export const deckNameForBank = (bankName: string) => DECK_PREFIX + bankName;
+
+/** riff 四档评级（与 github.com/siyuan-note/riff 的 Rating 常量一一对应）
+ *  Again=1 完全不会 / Hard=2 有点难 / Good=3 一般 / Easy=4 很容易 */
+export type RiffRating = 1 | 2 | 3 | 4;
+
+/** 四级自评 → riff rating（1不会 2模糊 3会 4熟知，与 riff 四档同序同值） */
+export function selfRatingToRiffRating(selfRating: number): RiffRating | null {
+  switch (selfRating) {
+    case 1:
+      return 1; // Again
+    case 2:
+      return 2; // Hard
+    case 3:
+      return 3; // Good
+    case 4:
+      return 4; // Easy
+    default:
+      return null; // 非法值不映射，由调用方跳过发送（39-01：非法值不发送）
+  }
+}
+
+/** 二元自评（记住/忘了）→ rating：记住=Good(3)、忘了=Again(1) */
+export function binaryToRiffRating(remembered: boolean): RiffRating {
+  return remembered ? 3 : 1;
+}
+
+/** 举一反三：完整考点优先 → 同章节（kp 首段）→ 任意；排除已做 */
+export function pickSameKp(
+  all: Question[],
+  seedQuestion: Question,
+  n: number,
+  excludeIds: Set<string> = new Set(),
+  rnd: () => number = Math.random,
+): Question[] {
+  const pool = all.filter((q) => !excludeIds.has(q.id) && q.id !== seedQuestion.id);
+  const sameExact = seedQuestion.kp ? pool.filter((q) => q.kp === seedQuestion.kp) : [];
+  const kpRoot = seedQuestion.kp?.split("/")[0];
+  const sameRoot = kpRoot ? pool.filter((q) => q.kp?.split("/")[0] === kpRoot && !sameExact.includes(q)) : [];
+  const rest = pool.filter((q) => !sameExact.includes(q) && !sameRoot.includes(q));
+  const out: Question[] = [];
+  const drain = (arr: Question[]) => {
+    while (arr.length && out.length < n) out.push(arr.splice(Math.floor(rnd() * arr.length), 1)[0]);
+  };
+  drain(sameExact);
+  drain(sameRoot);
+  drain(rest);
+  return out;
+}
+
+/** 冲刺 cram 队列：错 ≥2 次 ∪ 可选考点池；排除已消灭 */
+export function cramQueue(
+  questions: Question[],
+  wrongCounts: Map<string, number>,
+  minWrong = 2,
+  limit = 50,
+): Question[] {
+  const scored = questions
+    .filter((q) => (wrongCounts.get(q.id) ?? 0) >= minWrong)
+    .sort((a, b) => (wrongCounts.get(b.id) ?? 0) - (wrongCounts.get(a.id) ?? 0));
+  return scored.slice(0, limit);
+}
+
+/** 每日一练：到期优先（调用方传入）→ 高频错题 → 随机补足到 n */
+export function dailySet(
+  all: Question[],
+  dueFirst: Question[],
+  wrongCounts: Map<string, number>,
+  n: number,
+  rnd: () => number = Math.random,
+): Question[] {
+  const seen = new Set<string>();
+  const out: Question[] = [];
+  const push = (q: Question) => {
+    if (out.length < n && !seen.has(q.id)) {
+      seen.add(q.id);
+      out.push(q);
+    }
+  };
+  dueFirst.forEach(push);
+  const byWrong = [...all].sort((a, b) => (wrongCounts.get(b.id) ?? 0) - (wrongCounts.get(a.id) ?? 0));
+  byWrong.forEach(push);
+  const shuffled = [...all];
+  while (out.length < n && shuffled.length) {
+    push(shuffled.splice(Math.floor(rnd() * shuffled.length), 1)[0]);
+  }
+  return out;
+}
+
+/**
+ * 轮盘赌加权无放回随机抽取算法（Weighted Roulette Wheel Selection without replacement）
+ * 消除复习列表死板固定题序，依据题目遗忘衰退程度动态加权抽样，赋予复习队列有机活力（LogiNote 规范）。
+ */
+export function weightedRoulettePick<T>(
+  items: readonly T[],
+  weights: readonly number[],
+  count: number,
+  rnd: () => number = Math.random,
+): T[] {
+  if (!items || items.length === 0 || count <= 0) return [];
+  const n = Math.min(count, items.length);
+  const remainingItems = [...items];
+  const remainingWeights = weights.map((w) => Math.max(0.001, w));
+  const selected: T[] = [];
+
+  while (selected.length < n && remainingItems.length > 0) {
+    const totalWeight = remainingWeights.reduce((sum, w) => sum + w, 0);
+    let threshold = rnd() * totalWeight;
+
+    let pickIndex = 0;
+    for (let i = 0; i < remainingWeights.length; i++) {
+      threshold -= remainingWeights[i];
+      if (threshold <= 0) {
+        pickIndex = i;
+        break;
+      }
+    }
+
+    selected.push(remainingItems.splice(pickIndex, 1)[0]);
+    remainingWeights.splice(pickIndex, 1);
+  }
+
+  return selected;
+}
+
+/**
+ * 基于 DSR 记忆模型与轮盘赌加权的每日自适应复习队列（DSR-Weighted Daily Review Queue）
+ * 综合「记忆遗忘分 (1 - R)」与「历史错题权重」，为用户动态调度最需要趁热打铁的题目。
+ */
+export function dsrDailyReviewQueue(
+  all: readonly Question[],
+  attempts: readonly AttemptEvent[],
+  count: number,
+  options?: {
+    nowMs?: number;
+    desiredRetention?: number;
+    rnd?: () => number;
+  },
+): Question[] {
+  if (!all.length || count <= 0) return [];
+  const now = options?.nowMs ?? Date.now();
+  const rnd = options?.rnd ?? Math.random;
+
+  // 统计每道题目的最后作答时间、错误数与受助情况
+  const statsMap = new Map<string, { lastAt: number; wrongCount: number; lastVerdict: string; helped: boolean }>();
+  for (const e of attempts) {
+    if (e.verdict === "not_attempted") continue;
+    const cur = statsMap.get(e.qid) ?? { lastAt: 0, wrongCount: 0, lastVerdict: "correct", helped: false };
+    if (e.verdict === "wrong") cur.wrongCount++;
+    if (e.ts >= cur.lastAt) {
+      cur.lastAt = e.ts;
+      cur.lastVerdict = e.verdict;
+      cur.helped = !!e.help;
+    }
+    statsMap.set(e.qid, cur);
+  }
+
+  // 计算每道题目的遗忘权重
+  const weights = all.map((q) => {
+    const stat = statsMap.get(q.id);
+    if (!stat) {
+      // 从未做过的题目给予适度探索权重
+      return 0.5;
+    }
+    const elapsedDays = Math.max(0, (now - stat.lastAt) / 86_400_000);
+    // 估算稳定性：根据错题数与最近结果
+    const baseStability = stat.lastVerdict === "wrong" ? 1.0 : Math.max(1.5, 5.0 - stat.wrongCount * 0.8);
+    const r = Math.exp(-elapsedDays / baseStability);
+    const forgetScore = Math.max(0, Math.min(1, 1 - r));
+    const wrongBonus = Math.min(1, stat.wrongCount / 4);
+
+    // 综合权重：遗忘分（60%） + 错题沉淀（30%） + 底分（10%）
+    return 0.1 + 0.6 * forgetScore + 0.3 * wrongBonus;
+  });
+
+  return weightedRoulettePick(all, weights, count, rnd);
+}
+
+/** 将一道 Question 格式化为思源笔记标准的列表闪卡 Markdown（具有完美的正反面遮挡与复习体验） */
+export function questionToFlashCardMarkdown(q: Question): string {
+  // 保持题干与选项中多行文本的列表缩进，防止多行内容被解析为列表外部段落
+  const indentLines = (text: string, indent = "  ") => String(text ?? "").trim().replace(/\r?\n/g, `\n${indent}`);
+  const stem = indentLines(q?.stem ?? "", "  ");
+  let front: string;
+  let back: string;
+
+  const rawAns = String(q?.answer ?? "").trim();
+  const opts = Array.isArray(q?.options) ? q.options : [];
+
+  switch (q.type) {
+    case "single": {
+      front = `- **【单选题】** ${stem}`;
+      if (opts.length > 0) {
+        front += "\n  " + opts.map((opt, i) => `${OPTION_LETTERS[i]}. ${indentLines(opt, "    ")}`).join("\n  ");
+      }
+      const ansLetter = rawAns.toUpperCase();
+      const ansIdx = OPTION_LETTERS.indexOf(ansLetter);
+      const ansText = ansIdx >= 0 && opts[ansIdx] ? ` (${String(opts[ansIdx]).trim()})` : "";
+      back = `  - **✔ 正确答案**：**${ansLetter}**${ansText}`;
+      break;
+    }
+    case "multiple": {
+      front = `- **【多选题】** ${stem} *（多选/少选均不得分）*`;
+      if (opts.length > 0) {
+        front += "\n  " + opts.map((opt, i) => `${OPTION_LETTERS[i]}. ${indentLines(opt, "    ")}`).join("\n  ");
+      }
+      const letters = [...new Set(rawAns.replace(/[^A-Za-z]/g, "").toUpperCase().split(""))].sort();
+      const ansDetail = letters.map((l) => {
+        const idx = OPTION_LETTERS.indexOf(l);
+        return idx >= 0 && opts[idx] ? `${l}. ${String(opts[idx]).trim()}` : l;
+      }).join("；");
+      back = `  - **✔ 正确答案**：**${letters.join(", ")}**` + (ansDetail ? `\n    > ${ansDetail}` : "");
+      break;
+    }
+    case "judge": {
+      front = `- **【判断题】** ${stem}\n  *(A) 正确  |  (B) 错误*`;
+      const isTrue = rawAns.includes("对") || rawAns.includes("正确") || rawAns.toUpperCase() === "A";
+      back = `  - **✔ 正确判断**：**${isTrue ? "正确 ✔" : "错误 ✕"}**`;
+      break;
+    }
+    case "fill": {
+      const isMulti = rawAns.includes(";;") || q.answerSpec?.kind === "multiBlank";
+      if (isMulti) {
+        front = `- **【多空填空题】** ${stem}`;
+        const blanks = rawAns.split(";;").map((b) => b.trim()).filter(Boolean);
+        back = `  - **✔ 参考填空**：\n` + blanks.map((b, i) => `    - 空 ${i + 1}：**${b}**`).join("\n");
+      } else if (q.answerSpec?.kind === "numeric") {
+        const unitTip = q.answerSpec.unit ? ` *(作答单位：${q.answerSpec.unit})*` : "";
+        front = `- **【数值计算题】** ${stem}${unitTip}`;
+        const tol = q.answerSpec.absTol ? ` *(允许误差 ±${q.answerSpec.absTol})*` : "";
+        back = `  - **✔ 正确数值**：**${rawAns}**${q.answerSpec.unit ? ` ${q.answerSpec.unit}` : ""}${tol}`;
+      } else {
+        front = `- **【填空题】** ${stem}`;
+        back = `  - **✔ 参考答案**：**${rawAns}**`;
+      }
+      break;
+    }
+    case "short": {
+      front = `- **【问答/解答题】** ${stem}`;
+      back = `  - **✔ 参考得分要点**：\n    ${indentLines(q.answer, "    ")}`;
+      break;
+    }
+    case "material": {
+      front = `- **【材料综合题】**\n  > 📎 **背景材料**：${indentLines(stem, "  > ")}`;
+      back = `  - **✔ 参考要点**：**${q.answer.trim()}**`;
+      break;
+    }
+    default: {
+      front = `- **【习题】** ${stem}`;
+      back = `  - **✔ 参考答案**：**${q.answer.trim()}**`;
+      break;
+    }
+  }
+
+  // 拼接解析与考点
+  if (q.analysis?.trim()) {
+    back += `\n    > 💡 **核心解析**：${indentLines(q.analysis, "    > ")}`;
+  }
+  if (q.kp?.trim()) {
+    back += `\n    > 🏷️ **考点归纳**：${q.kp.trim()}`;
+  }
+  if (q.source?.trim()) {
+    back += `\n    > 📖 **出处来源**：${q.source.trim()}`;
+  }
+
+  const ial = `{: custom-exam-card-qid="${q.id}" custom-exam-card-type="${q.type}"}`;
+  return `${front}\n${back}\n  ${ial}`;
+}

@@ -1,0 +1,25 @@
+.idea
+.vscode
+.DS_Store
+package-lock.json
+*.tsbuildinfo
+.svelte-check/
+package.zip
+package*.zip
+SHA256SUMS
+node_modules
+dev
+dist
+build
+tmp
+.tmp
+.tmp/
+
+# e2e 产物（playwright 痕迹/截图）
+output/
+
+# 本机扫描历史
+.mimosa/
+.jeikcode/codegraph/
+.zcode/
+.isolated-rig.json

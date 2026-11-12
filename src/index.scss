@@ -1,0 +1,733 @@
+// 小驴考试（内测版） (Lv Exam Beta)
+// 入口样式：token → 基础组件 → 屏幕级样式
+// 设计基准：design/prototype/index.html；规范：docs/12；总册：docs/13
+@use "./scss/lv-base";
+
+.lv-exam-tab {
+  &, *, *::before, *::after {
+    box-sizing: border-box;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button {
+    font-family: inherit;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  svg:not([fill]),
+  svg[fill="none"] {
+    fill: none;
+  }
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+  --lv-tasknav-height: calc(72px + env(safe-area-inset-bottom, 0px));
+  container-name: lv-exam;
+  container-type: inline-size;
+  /* 继承 lv-tokens.scss 定义的自适应暗亮色色彩系统，支持宿主模式自愈 */
+  background: var(--lv-canvas);
+  color: var(--lv-text);
+}
+
+/* A plugin tab can be narrow inside a wide SiYuan window (split panes,
+   floating panels, or settings overlays). Adapt from its own width. */
+@container lv-exam (max-width: 759px) {
+  .lv-shell {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .lv-shell > .lv-rail:not(.open) {
+    display: none;
+  }
+
+  .lv-shell > .lv-rail.open {
+    display: flex;
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(280px, calc(100% - 36px));
+    z-index: 90;
+    box-shadow: var(--lv-sh-pop);
+  }
+
+  .lv-exam-tab .lv-menu-btn {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .lv-shell .lv-rail .lv-drawer-close {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .lv-mobile-tasknav {
+    display: grid;
+    position: relative;
+    inset: auto;
+    flex-shrink: 0;
+    order: 2;
+  }
+
+  .lv-shell.lv-shell-focus .lv-mobile-tasknav,
+  .lv-shell.lv-shell-tasknav-hidden .lv-mobile-tasknav,
+  .lv-mobile-tasknav.focus {
+    display: none !important;
+  }
+
+  .lv-main {
+    flex: 1 1 0;
+    min-height: 0;
+    order: 1;
+    padding-bottom: 12px;
+  }
+
+  .lv-shell.lv-shell-focus .lv-main,
+  .lv-shell.lv-shell-tasknav-hidden .lv-main {
+    padding-bottom: 0;
+  }
+
+  .lv-exam-tab > .block__icons {
+    row-gap: 6px;
+  }
+
+  .lv-exam-tab > .block__icons .lv-crumbs {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
+@container lv-exam (max-width: 680px) {
+  .lv-exam-tab > .block__icons {
+    flex-wrap: nowrap;
+    min-height: 46px;
+    height: 46px;
+    padding: 0 6px;
+    gap: 6px;
+    row-gap: 0;
+  }
+
+  .lv-exam-tab > .block__icons :is(
+    .lv-crumbs,
+    .lv-plan-context,
+    .lv-checkin-chip,
+    .lv-palette-btn .lv-kbd,
+    .lv-palette-label,
+    .lv-scope-hint,
+    .lv-report-data-chip,
+    .lv-report-desktop-actions,
+    .lv-topbar-spacer,
+    .lv-topbar-btn-label
+  ) {
+    display: none !important;
+  }
+
+  .lv-exam-tab > .block__icons .lv-palette-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+    order: 2;
+  }
+
+  .lv-exam-tab > .block__icons .lv-mobile-close-btn {
+    order: 4;
+    margin-left: auto;
+  }
+
+  .lv-exam-tab > .block__icons :is(.lv-bank-picker-group, .lv-report-picker-group) {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-wrap: nowrap;
+    gap: 4px !important;
+  }
+
+  .lv-exam-tab > .block__icons :is(.lv-bank-picker-group, .lv-report-picker-group) .lv-select {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none !important;
+    height: 34px;
+    padding-inline: 8px 24px;
+  }
+
+  .lv-exam-tab > .block__icons .lv-report-picker-group .lv-select.lv-range-select {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 68px;
+  }
+
+  .lv-exam-tab > .block__icons :is(.lv-bank-picker-group, .lv-report-picker-group) .lv-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  .lv-exam-tab > .block__icons .lv-report-mobile-more {
+    display: inline-flex !important;
+    flex: 0 0 auto;
+    order: 3;
+  }
+
+  .lv-screen-head {
+    display: none !important;
+  }
+
+  .lv-onboard,
+  .lv-qtype-guide,
+  .lv-ecosystem-footer,
+  .lv-desktop-author-action,
+  .lv-mock-desktop-toolbar,
+  .lv-browse-desktop-only {
+    display: none !important;
+  }
+
+  .lv-exam-tab > .block__icons.lv-focus-toolbar {
+    min-height: 38px;
+    height: 38px;
+  }
+
+  .lv-pad {
+    padding: 8px 10px 12px !important;
+  }
+}
+
+@media (max-width: 759px) {
+  .lv-exam-tab {
+    --lv-card-pad: 12px;
+    --lv-font-size-h1: 16px;
+    --lv-font-size-display: 20px;
+    --lv-font-size-kpi: 18px;
+    --lv-font-size-kpi-mobile: 18px;
+  }
+
+  .lv-exam-tab .lv-screen-head,
+  .lv-exam-tab .lv-onboard,
+  .lv-exam-tab .lv-qtype-guide,
+  .lv-exam-tab .lv-ecosystem-footer,
+  .lv-exam-tab .lv-desktop-author-action,
+  .lv-exam-tab .lv-mock-desktop-toolbar,
+  .lv-exam-tab .lv-browse-desktop-only {
+    display: none !important;
+  }
+
+  .lv-exam-tab .lv-done-stats strong,
+  .lv-exam-tab .lv-quad .v {
+    font-size: 20px !important;
+  }
+
+  .lv-input, .lv-select, .lv-textarea, input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 16px !important;
+  }
+
+  .lv-exam-mobile-dialog .lv-mobile-tasknav {
+    padding-bottom: 4px !important;
+  }
+
+  .lv-exam-tab .lv-empty,
+  .lv-exam-tab .lv-ai-empty {
+    min-height: 88px !important;
+    padding: 14px 12px !important;
+  }
+
+  .b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
+    align-items: stretch !important;
+    padding: 0 !important;
+
+    .b3-dialog__container {
+      width: 100vw !important;
+      height: 100dvh !important;
+      max-width: 100vw !important;
+      max-height: 100dvh !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      border: 0 !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+      padding-left: env(safe-area-inset-left, 0px) !important;
+      padding-right: env(safe-area-inset-right, 0px) !important;
+      box-sizing: border-box !important;
+    }
+  }
+}
+
+.lv-exam-tab.lv-keyboard-open .lv-mobile-tasknav,
+.lv-exam-mobile-dialog.lv-keyboard-open .lv-mobile-tasknav {
+  display: none !important;
+}
+
+@media (max-width: 759px) and (max-height: 480px) {
+  .lv-exam-tab .lv-mobile-tasknav {
+    display: none !important;
+  }
+  .lv-exam-tab > .block__icons {
+    min-height: 38px !important;
+    height: 38px !important;
+    padding: 0 6px !important;
+  }
+}
+
+@container lv-exam (min-width: 760px) and (max-width: 1119px) {
+  .lv-shell {
+    grid-template-columns: 74px minmax(0, 1fr);
+  }
+}
+
+.lv-exam-wrongbook {
+  padding: var(--lv-space-2);
+  overflow: auto;
+}
+
+// ── body 级原生弹窗高对比度与无障碍加固 (Epoch 5) ──────────────
+@media (forced-colors: active) {
+  .b3-dialog:has(.b3-dialog__content),
+  .b3-dialog:has(.b3-dialog__action),
+  .b3-dialog {
+    .b3-dialog__container {
+      border: 2px solid CanvasText !important;
+      background: Canvas !important;
+      color: CanvasText !important;
+      box-shadow: none !important;
+    }
+
+    .b3-dialog__header {
+      background: Canvas !important;
+      color: CanvasText !important;
+      border-bottom: 1px solid CanvasText !important;
+    }
+
+    .b3-dialog__content {
+      background: Canvas !important;
+      color: CanvasText !important;
+    }
+
+    .b3-dialog__action {
+      background: Canvas !important;
+      color: CanvasText !important;
+      border-top: 1px solid CanvasText !important;
+    }
+
+    .b3-button--primary,
+    #confirmDialogConfirmBtn {
+      background: Highlight !important;
+      color: HighlightText !important;
+      border: 1px solid Highlight !important;
+    }
+
+    :is(.b3-button, .b3-text-field, .b3-select) {
+      border: 1px solid CanvasText;
+    }
+
+    :where(button, a, input, select, textarea, [tabindex="0"]):focus-visible,
+    :focus-visible {
+      outline: 2px solid Highlight !important;
+      outline-color: Highlight !important;
+      outline-offset: 2px;
+    }
+  }
+}
+
+@media (prefers-contrast: more) {
+  .b3-dialog:has(.b3-dialog__content),
+  .b3-dialog:has(.b3-dialog__action),
+  .b3-dialog {
+    .b3-dialog__container {
+      border: 2px solid var(--b3-theme-on-background) !important;
+    }
+
+    .b3-dialog__header,
+    .b3-dialog__action {
+      border-color: var(--b3-theme-on-background) !important;
+    }
+  }
+}
+
+// ── 移动端全屏宿主 Dialog 样式 (Mobile Spec v1: 100vw/100dvh + safe-area) ──────────
+.lv-exam-mobile-dialog {
+  &,
+  &.b3-dialog,
+  .b3-dialog {
+    align-items: flex-start !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .b3-dialog__container {
+    position: relative;
+    top: var(--lv-visual-viewport-top, 0px);
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: var(--lv-visual-viewport-h, 100dvh) !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: none !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    padding-left: env(safe-area-inset-left, 0px) !important;
+    padding-right: env(safe-area-inset-right, 0px) !important;
+    background: var(--lv-canvas) !important;
+    touch-action: manipulation;
+  }
+
+  .b3-dialog__header {
+    display: none !important;
+  }
+
+  .b3-dialog__container:has(.lv-mobile-close-btn) > .b3-dialog__close {
+    display: none !important;
+  }
+
+  .b3-dialog__content,
+  .b3-dialog__body {
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--lv-canvas) !important;
+  }
+
+  .lv-exam-tab {
+    padding-bottom: 0;
+  }
+
+  .lv-mobile-close-btn {
+    display: inline-flex !important;
+  }
+}
+
+/* ══════════ 小驴考试主权弹窗外壳防护 (Sovereign Modal Shell Defense) ══════════ */
+.b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  .b3-dialog__container {
+    border-radius: 16px !important;
+    background: var(--b3-theme-surface, var(--lv-surface)) !important;
+    border: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+    box-shadow: var(--b3-dialog-shadow, var(--lv-sh-pop)) !important;
+    overflow: hidden;
+    animation: exam-dialog-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: transform, opacity;
+  }
+
+  .b3-dialog__header {
+    background: transparent !important;
+    border-bottom: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+    padding: 10px 16px !important;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .b3-dialog__close {
+      cursor: pointer;
+      width: 28px;
+      height: 28px;
+      padding: 6px;
+      border-radius: 6px;
+      color: var(--b3-theme-on-surface, var(--lv-text));
+      opacity: 0.7;
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+      box-sizing: border-box;
+
+      &:hover {
+        opacity: 1;
+        background: var(--b3-theme-surface-light, var(--lv-surface-2));
+        color: var(--b3-theme-on-surface, var(--lv-text));
+        transform: scale(1.05);
+      }
+
+      &:active {
+        transform: scale(0.95);
+      }
+    }
+  }
+
+  .b3-dialog__body,
+  .b3-dialog__content {
+    background: transparent !important;
+    color: inherit;
+  }
+
+  .b3-dialog__action {
+    background: transparent !important;
+    border-top: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+  }
+
+  .b3-dialog__scrim {
+    background: var(--b3-mask-background, var(--lv-overlay));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+@keyframes exam-dialog-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab) .b3-dialog__container {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* ══════════ 小驴考试设置弹窗专有排版与双端美化 ══════════ */
+.b3-dialog:has(.lv-exam-setting-control) {
+  .b3-dialog__container {
+    max-width: min(680px, 94vw) !important;
+    border-radius: 14px !important;
+  }
+
+  .b3-label {
+    padding: 12px 14px !important;
+    border-radius: 10px !important;
+    margin-bottom: 6px !important;
+    transition: background var(--lv-motion-fast, 0.16s) ease;
+
+    &:hover {
+      background: var(--b3-theme-surface-lighter, rgba(125, 125, 125, 0.06)) !important;
+    }
+
+    .b3-label__text {
+      line-height: 1.45 !important;
+      font-size: 14px !important;
+
+      > div {
+        margin-top: 3px !important;
+        font-size: 12px !important;
+        opacity: 0.72 !important;
+        line-height: 1.4 !important;
+      }
+    }
+  }
+
+  :is(.b3-text-field, .b3-select) {
+    border-radius: 8px !important;
+  }
+
+  /* 分类徽章：由 setting-utils 将标题里的「[分组]」前缀提升为胶囊标签 */
+  .lv-exam-setting-group {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 8px;
+    padding: 1px 9px;
+    border-radius: 9999px;
+    background: var(--b3-theme-primary-lightest, rgba(125, 125, 125, 0.14));
+    color: var(--b3-theme-primary);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+
+  /* 分组首行：与上一行不同分组时拉开呼吸感并加分隔线 */
+  .b3-label.lv-exam-setting-group-start {
+    margin-top: 12px !important;
+    padding-top: 14px !important;
+    border-top: 1px solid var(--b3-border-color, var(--lv-border)) !important;
+  }
+
+  .b3-label.lv-exam-setting-group-start:first-child {
+    margin-top: 0 !important;
+    border-top: 0 !important;
+  }
+
+  /* ══ 输入框专项：光标 / 占位符 / 自旋钮 / 禁用态 ══ */
+  :is(input[type="text"], input[type="search"], input[type="number"], input[type="time"], input[type="date"], input:not([type]), textarea, .b3-text-field) {
+    caret-color: var(--b3-theme-primary, var(--lv-accent));
+    min-width: 0;
+  }
+
+  :is(input, textarea, .b3-text-field)::placeholder {
+    color: var(--b3-theme-on-surface-light, rgba(125, 125, 125, 0.6));
+    opacity: 1;
+  }
+
+  :is(input, textarea, select, .b3-text-field, .b3-select):disabled,
+  :is(input, textarea):read-only {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--b3-theme-primary, #3b82f6) 26%, transparent);
+  }
+}
+
+/* ══ 移动端：键盘弹起时原生设置弹窗按 visualViewport 收缩（守卫来自 index.ts） ══ */
+@media (max-width: 759px) {
+  .b3-dialog:has(.lv-exam-setting-control).lv-keyboard-open .b3-dialog__container {
+    height: var(--lv-vv-h, 100dvh) !important;
+    max-height: var(--lv-vv-h, 100dvh) !important;
+  }
+
+  /* iOS 聚焦自动放大防护：输入控件 ≥16px */
+  .b3-dialog:has(.lv-exam-setting-control) {
+    :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, .b3-text-field, .b3-select) {
+      font-size: 16px !important;
+    }
+
+    :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .b3-text-field, .b3-select) {
+      min-height: 38px;
+    }
+  }
+}
+
+@media (max-width: 759px) {
+  .b3-dialog:has(.lv-exam-setting-control) {
+    .b3-dialog__container {
+      width: 100vw !important;
+      height: 100dvh !important;
+      max-width: 100vw !important;
+      max-height: 100dvh !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+      padding-top: env(safe-area-inset-top, 0px) !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+      padding-left: env(safe-area-inset-left, 0px) !important;
+      padding-right: env(safe-area-inset-right, 0px) !important;
+    }
+
+    .b3-label {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 8px !important;
+
+      .lv-exam-setting-control {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 38px !important;
+      }
+    }
+  }
+}
+
+
+/* ══════════ 按钮专项：原生设置弹窗按压反馈 / 忙碌态拦截 ══════════ */
+.b3-dialog:has(.lv-exam-setting-control) {
+    /* SiYuan 原生按钮在主题下往往缺少按压反馈：补齐统一回弹 */
+    .b3-button:not(:disabled):not([aria-busy="true"]):active {
+        transform: scale(0.97);
+    }
+
+    button[aria-busy="true"] {
+        pointer-events: none;
+        opacity: 0.72;
+    }
+
+    .b3-button {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* 设置项右侧按钮：长文案单行截断 */
+    .b3-label .b3-button {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+/* 主界面自绘按钮按压回弹（考试页签域） */
+.lv-exam-tab {
+    :is(.lv-btn, .lv-topbar-btn, .lv-menu-btn, .lv-mobile-close-btn):not(:disabled):not([aria-busy="true"]):active {
+        transform: scale(0.96);
+    }
+
+    button[aria-busy="true"] {
+        pointer-events: none;
+        opacity: 0.72;
+    }
+}
+
+/* ══════════ 下拉菜单专项：选项可读性 / 光标 ══════════ */
+.lv-exam-tab,
+.b3-dialog:has(.lv-exam-setting-control) {
+    :is(select, .b3-select) {
+        cursor: pointer;
+    }
+
+    :is(select, .b3-select) :is(option, optgroup) {
+        background-color: var(--lv-surface, var(--b3-theme-background));
+        color: var(--lv-text, var(--b3-theme-on-background));
+    }
+}
+
+/* ══════════ 文字专项：等宽数字对齐 / 行高节奏 / 换行保护 ══════════ */
+.lv-exam-tab {
+    font-variant-numeric: tabular-nums;
+
+    .lv-screen-head p,
+    .lv-onboard p {
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* ══════════ 手机端专项：滚动边界防抖 / 粘滞 hover 抑制 ══════════ */
+.b3-dialog:has(.lv-exam-setting-control) .b3-dialog__body,
+.lv-exam-tab {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .lv-exam-tab {
+        :is(.lv-rail button, .lv-mobile-tasknav button, .lv-menu-btn):hover:not(.is-active):not([aria-current="true"]) {
+            background: transparent;
+        }
+    }
+}

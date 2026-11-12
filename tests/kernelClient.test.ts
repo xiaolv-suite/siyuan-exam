@@ -1,0 +1,415 @@
+// 内核客户端响应形状回归测试（2026-10-02 活内核 3.8.5 预检定案的形状锁定；
+// 内核再漂移时此处先红，避免静默失效）
+import { describe, it, expect } from "vitest";
+import { KernelApiClient, HttpTransport, parseRetryAfterMs, computeRetryDelayMs, RETRY_AFTER_MAX_MS, type KernelTransport } from "../src/kernel/client";
+
+type Call = { endpoint: string; payload: Record<string, unknown> };
+
+function makeClient(respond: (endpoint: string, payload: Record<string, unknown>) => unknown) {
+  const calls: Call[] = [];
+  const t: KernelTransport = {
+    async post(endpoint, payload) {
+      calls.push({ endpoint, payload: payload as Record<string, unknown> });
+      return { code: 0, msg: "", data: respond(endpoint, payload as Record<string, unknown>) };
+    },
+  };
+  return { client: new KernelApiClient(t), calls };
+}
+
+describe("KernelApiClient 响应形状（3.8.5 预检定案）", () => {
+  it("createRiffDeck 双形态：3.8.5 返回 {id} 对象", async () => {
+    const { client } = makeClient(() => ({ id: "deck-1", name: "x", size: 0 }));
+    await expect(client.createRiffDeck("x")).resolves.toBe("deck-1");
+  });
+  it("createRiffDeck 双形态：旧版返回裸 id 字符串", async () => {
+    const { client } = makeClient(() => "deck-legacy");
+    await expect(client.createRiffDeck("x")).resolves.toBe("deck-legacy");
+  });
+  it("getDueCards 解开 {cards} 包裹", async () => {
+    const { client } = makeClient(() => ({ cards: [{ cardID: "c1", blockID: "b1" }], unreviewedCount: 1 }));
+    const cards = await client.getDueCards("deck-1");
+    expect(cards).toHaveLength(1);
+    expect((cards[0] as { cardID: string }).cardID).toBe("c1");
+  });
+  it("getCardIDsByBlockIDs 主路径：blocks[].riffCardID", async () => {
+    const { client } = makeClient((ep) =>
+      ep === "/api/riff/getRiffCardsByBlockIDs"
+        ? {
+            blocks: [
+              { id: "b1", riffCardID: "c1" },
+              { id: "b2", riffCardID: "" },
+            ],
+          }
+        : {},
+    );
+    const map = await client.getCardIDsByBlockIDs(["b1", "b2"]);
+    expect(map.get("b1")).toBe("c1");
+    expect(map.has("b2")).toBe(false);
+  });
+  it("getCardIDsByBlockIDs 回退：blocks 索引滞后空 → getRiffDueCards 兜底（带 deckId）", async () => {
+    const { client, calls } = makeClient((ep) =>
+      ep === "/api/riff/getRiffCardsByBlockIDs"
+        ? { blocks: [{ id: "b1", riffCardID: "" }] }
+        : ep === "/api/riff/getRiffDueCards"
+          ? { cards: [{ cardID: "c-due", blockID: "b1" }] }
+          : {},
+    );
+    const map = await client.getCardIDsByBlockIDs(["b1"], "deck-9");
+    expect(map.get("b1")).toBe("c-due");
+    expect(calls.some((c) => c.endpoint === "/api/riff/getRiffDueCards" && c.payload.deckID === "deck-9")).toBe(true);
+  });
+  it("insertBlock/appendQuestions 必须带 dataType:'markdown'（3.8.5 硬要求）", async () => {
+    const { client, calls } = makeClient((ep) => {
+      if (ep === "/api/filetree/createDocWithMd") return "doc-1";
+      if (ep === "/api/block/insertBlock") return [{ doOperations: [{ id: "blk-1" }, { id: "blk-2" }] }];
+      return {};
+    });
+    const out = await client.appendQuestions("doc-1", [
+      {
+        id: "q1",
+        type: "single",
+        stem: "s",
+        options: ["a"],
+        answer: "A",
+        hash: "h1",
+        score: 1,
+        origin: "imported",
+      } as never,
+    ]);
+    expect(out).toHaveLength(1);
+    const ins = calls.find((c) => c.endpoint === "/api/block/insertBlock")!;
+    expect(ins.payload.dataType).toBe("markdown");
+  });
+  it("exportDocMarkdown 剥 YAML 头并取文档名", async () => {
+    const { client } = makeClient(() => ({
+      hPath: "/资料/2023 真题",
+      content: "---\ntitle: 2023 真题\ndate: 2026-10-02\n---\n\n# 正文\n",
+    }));
+    const r = await client.exportDocMarkdown("doc-1");
+    expect(r.title).toBe("2023 真题");
+    expect(r.content).toBe("# 正文");
+  });
+  it("setExamFav 写 custom-exam-fav 全名（attributes 表只索引 custom- 前缀）", async () => {
+    const { client, calls } = makeClient(() => ({}));
+    await client.setExamFav("blk-1", true);
+    const c = calls.find((x) => x.endpoint === "/api/attr/setBlockAttrs")!;
+    expect((c.payload.attrs as Record<string, string>)["custom-exam-fav"]).toBe("1");
+  });
+  it("setExamAttrs 裸 exam-* 名 → custom- 全名写入", async () => {
+    const { client, calls } = makeClient(() => ({}));
+    await client.setExamAttrs("blk-9", { "exam-kp": "言语", "exam-difficulty": "3" });
+    const c = calls.find((x) => x.endpoint === "/api/attr/setBlockAttrs")!;
+    expect(c.payload.attrs).toEqual({ "custom-exam-kp": "言语", "custom-exam-difficulty": "3" });
+  });
+  it("query_embed：getBlockKramdown 返回 kramdown 字段", async () => {
+    const { client } = makeClient(() => ({ kramdown: '{{SELECT 1}}\n{: id="x"}' }));
+    await expect(client.getBlockKramdown("blk-1")).resolves.toContain("SELECT 1");
+  });
+});
+
+describe("HttpTransport 429 限流处理（3.8.6 真机发现）", () => {
+  const okRes = { ok: true, status: 200, text: async () => JSON.stringify({ code: 0, msg: "", data: {} }) };
+
+  it("429 归类 retryable：重试一次后成功则不抛", async () => {
+    let calls = 0;
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return calls === 1 ? { ok: false, status: 429, text: async () => "" } : okRes;
+    }) as never, 100, 1);
+    await expect(t.post("/api/x", {})).resolves.toBeDefined();
+    expect(calls).toBe(2);
+  });
+
+  it("429 持续 → 重试耗尽后抛出（消息含 429）", async () => {
+    let calls = 0;
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return { ok: false, status: 429, text: async () => "" };
+    }) as never, 100, 1);
+    await expect(t.post("/api/x", {})).rejects.toThrow(/429/);
+    expect(calls).toBe(2);   // 首次 + 1 次重试
+  });
+
+  it("JSON 请求把 AbortSignal 传给 fetch，超时会中止底层请求", async () => {
+    let signal: AbortSignal | undefined;
+    const t = new HttpTransport(
+      "http://x",
+      "tok",
+      ((_url, init) => {
+        signal = init.signal;
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+        });
+      }) as never,
+      10,
+      0,
+    );
+    await expect(t.post("/api/slow", {})).rejects.toThrow(/Aborted|abort/i);
+    expect(signal).toBeDefined();
+    expect(signal!.aborted).toBe(true);
+  });
+
+  it("postForm 使用注入的 fetch、multipart body 和取消信号", async () => {
+    let request: { body: string | FormData; signal?: AbortSignal; headers: Record<string, string> } | undefined;
+    const t = new HttpTransport(
+      "http://x",
+      "tok",
+      ((_url, init) => {
+        request = init;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ code: 0, msg: "", data: null }),
+        });
+      }) as never,
+      100,
+      0,
+    );
+    await expect(t.postForm("/api/import/importSY", new Blob(["zip"]), "bank.sy.zip")).resolves.toMatchObject({ code: 0 });
+    expect(request?.body).toBeInstanceOf(FormData);
+    expect(request?.headers.Authorization).toBe("Token tok");
+    expect(request?.headers["Content-Type"]).toBeUndefined();
+    expect(request?.signal).toBeDefined();
+    expect(request?.signal?.aborted).toBe(false);
+    const uploaded = (request?.body as FormData).get("file");
+    expect(uploaded).toBeInstanceOf(File);
+    expect((uploaded as File).name).toBe("bank.sy.zip");
+  });
+
+  it("retryable=false 禁止写请求自动重试", async () => {
+    let calls = 0;
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return { ok: false, status: 429, text: async () => "" };
+    }) as never, 100, 3);
+    await expect(t.post("/api/write", {}, { retryable: false })).rejects.toThrow(/429/);
+    expect(calls).toBe(1);
+  });
+
+  it("外层取消会中止当前请求且不会进入下一次重试", async () => {
+    let calls = 0;
+    const ctrl = new AbortController();
+    const t = new HttpTransport(
+      "http://x",
+      "tok",
+      ((_url, init) => {
+        calls++;
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+          setTimeout(() => ctrl.abort(), 2);
+        });
+      }) as never,
+      100,
+      3,
+    );
+    await expect(t.post("/api/read", {}, { signal: ctrl.signal, retryable: true })).rejects.toThrow(/Aborted|取消|abort/i);
+    expect(calls).toBe(1);
+  });
+});
+
+describe("KernelApiClient 读取服务层（去重与 latest-wins）", () => {
+  it("相同资源的并发读取只发出一次请求", async () => {
+    let calls = 0;
+    let resolve!: (r: { code: number; msg: string; data: unknown }) => void;
+    const pending = new Promise<{ code: number; msg: string; data: unknown }>((r) => (resolve = r));
+    const t: KernelTransport = { post: async () => { calls++; return pending; } };
+    const client = new KernelApiClient(t);
+    const a = client.getNotebookConf("nb-1");
+    const b = client.getNotebookConf("nb-1");
+    resolve({ code: 0, msg: "", data: { name: "题库", conf: {} } });
+    await expect(Promise.all([a, b])).resolves.toEqual([
+      { name: "题库", dailyNoteSavePath: "" },
+      { name: "题库", dailyNoteSavePath: "" },
+    ]);
+    expect(calls).toBe(1);
+  });
+
+  it("同一 requestKey 的新读取使旧响应失效，即使底层桩忽略 AbortSignal", async () => {
+    const waits: Array<(r: { code: number; msg: string; data: unknown }) => void> = [];
+    const t: KernelTransport = {
+      post: async (_endpoint, payload) => {
+        const p = new Promise<{ code: number; msg: string; data: unknown }>((resolve) => waits.push(resolve));
+        // Keep payload referenced so this test proves two distinct requests.
+        void payload;
+        return p;
+      },
+    };
+    const client = new KernelApiClient(t);
+    const oldRead = client.sql("SELECT old", { requestKey: "questions" });
+    const newRead = client.sql("SELECT new", { requestKey: "questions" });
+    waits[1]({ code: 0, msg: "", data: [{ value: "new" }] });
+    waits[0]({ code: 0, msg: "", data: [{ value: "old" }] });
+    await expect(newRead).resolves.toEqual([{ value: "new" }]);
+    await expect(oldRead).rejects.toThrow(/取消|cancel|abort/i);
+  });
+
+  it("写请求显式关闭重试，避免重复副作用", async () => {
+    let received: Record<string, unknown> | undefined;
+    const t: KernelTransport = {
+      post: async (_endpoint, _payload, options) => {
+        received = options as Record<string, unknown>;
+        return { code: 0, msg: "", data: "nb-1" };
+      },
+    };
+    await new KernelApiClient(t).createNotebook("示例题库");
+    expect(received).toMatchObject({ retryable: false, retries: 0 });
+  });
+});
+
+describe("createNotebook 三形态（3.8.6 漂移：perf-bank 脚本实测发现；② 为旧版 preflight/mock 形态）", () => {
+  it("① 3.8.6 嵌套对象 { notebook: { id } } → 取内层 id", async () => {
+    const { client } = makeClient(() => ({ notebook: { id: "nb-386", name: "x", closed: false } }));
+    await expect(client.createNotebook("x")).resolves.toBe("nb-386");
+  });
+  it('② 嵌套字符串 { notebook: "id" }（3.8.5 mock/preflight 形态）→ 取字符串', async () => {
+    const { client } = makeClient(() => ({ notebook: "nb-nested-str" }));
+    await expect(client.createNotebook("x")).resolves.toBe("nb-nested-str");
+  });
+  it("③ 裸 id 字符串 → 原样返回", async () => {
+    const { client } = makeClient(() => "nb-legacy");
+    await expect(client.createNotebook("x")).resolves.toBe("nb-legacy");
+  });
+  it("取不到 id → 显式失败，绝不带 [object Object] 下行（3.8.6 建库 P0）", async () => {
+    const { client } = makeClient(() => ({ unexpected: true }));
+    await expect(client.createNotebook("x")).rejects.toThrow(/notebook id/);
+  });
+});
+
+describe("sqlPaged 分页取全（3.8.6 靶场实测：无 LIMIT 查询默认截断 64 行且 truncated:true，请求级 limit 无效）", () => {
+  it("行数 < 页大小：单次查询返回全量，stmt 追加 SQL 文本级 LIMIT/OFFSET", async () => {
+    const { client, calls } = makeClient(() => Array.from({ length: 5 }, (_, i) => ({ i })));
+    const rows = await client.sqlPaged("SELECT v FROM t");
+    expect(rows).toHaveLength(5);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].payload.stmt).toBe("SELECT v FROM t LIMIT 1000 OFFSET 0");
+  });
+
+  it("1000 + 500 行：两页拼出全量且顺序保持", async () => {
+    const { client, calls } = makeClient((_ep, payload) => {
+      const off = Number(/OFFSET (\d+)/.exec(String(payload.stmt))?.[1] ?? 0);
+      return off === 0
+        ? Array.from({ length: 1000 }, (_, i) => ({ i }))
+        : Array.from({ length: 500 }, (_, i) => ({ i: 1000 + i }));
+    });
+    const rows = await client.sqlPaged("SELECT v FROM t");
+    expect(rows).toHaveLength(1500);
+    expect(rows[1499]).toEqual({ i: 1499 });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("listQuestions 大题库：250 题 × 6 属性 = 1500 行跨 2 页，聚合不丢题不错位", async () => {
+    const rows: Record<string, string>[] = [];
+    for (let q = 0; q < 250; q++) {
+      const attrs: [string, string][] = [
+        ["custom-exam-id", "q" + q],
+        ["custom-exam-type", "single"],
+        ["custom-exam-answer", "A"],
+        ["custom-exam-kp", "考点" + q],
+        ["custom-exam-origin", "imported"],
+        ["custom-exam-batch", "batch-" + (q % 2)],
+      ];
+      for (const [attrName, attrValue] of attrs)
+        rows.push({ blockId: "b" + q, rootId: "r1", content: "题干\n- A. 甲\n- B. 乙", hpath: "/第一章", attrName, attrValue });
+    }
+    const { client, calls } = makeClient((_ep, payload) => {
+      const off = Number(/OFFSET (\d+)/.exec(String(payload.stmt))?.[1] ?? 0);
+      return rows.slice(off, off + 1000);
+    });
+    const qs = await client.listQuestions("bank1");
+    expect(qs).toHaveLength(250);
+    expect(qs[0].id).toBe("q0");
+    expect(qs[249].id).toBe("q249");
+    expect(qs[249].kp).toBe("考点249");
+    expect(calls).toHaveLength(2);
+  });
+});
+
+describe("718 Retry-After 契约与退避（内核 429 限流恢复）", () => {
+  it("parseRetryAfterMs：秒数形式（含小数与前后空白）转为毫秒", () => {
+    expect(parseRetryAfterMs("30")).toBe(30_000);
+    expect(parseRetryAfterMs(" 1.5 ")).toBe(1_500);
+    expect(parseRetryAfterMs("0")).toBe(0);
+  });
+
+  it("parseRetryAfterMs：HTTP-date 形式按绝对时刻换算，已过期返回 0", () => {
+    const now = () => Date.parse("2026-10-19T00:00:00Z");
+    expect(parseRetryAfterMs("Sun, 19 Oct 2026 00:00:30 GMT", now)).toBe(30_000);
+    // 过期时间 → 立即重试，不产生负等待
+    expect(parseRetryAfterMs("Sun, 19 Oct 2026 00:00:00 GMT", now)).toBe(0);
+  });
+
+  it("parseRetryAfterMs：非法/缺失返回 null（调用方回退本地退避），超上限被夹取", () => {
+    expect(parseRetryAfterMs(null)).toBeNull();
+    expect(parseRetryAfterMs(undefined)).toBeNull();
+    expect(parseRetryAfterMs("")).toBeNull();
+    expect(parseRetryAfterMs("not-a-date")).toBeNull();
+    expect(parseRetryAfterMs("-5")).toBeNull();
+    // 异常大的值不得让插件长时间挂起
+    expect(parseRetryAfterMs("3600")).toBe(RETRY_AFTER_MAX_MS);
+  });
+
+  it("computeRetryDelayMs：服务端头优先于本地退避；无头时 429 起步 1s、其余 300ms 线性递增", () => {
+    expect(computeRetryDelayMs(0, { status: 429, headerMs: 7_000 })).toBe(7_000);
+    expect(computeRetryDelayMs(1, { status: 429, headerMs: 0 })).toBe(0); // 明示可立即重试
+    expect(computeRetryDelayMs(0, { status: 429 })).toBe(1_000);
+    expect(computeRetryDelayMs(1, { status: 429 })).toBe(2_000);
+    expect(computeRetryDelayMs(0, {})).toBe(300);
+    expect(computeRetryDelayMs(2, {})).toBe(900);
+  });
+
+  it("HttpTransport：429 带 Retry-After 时按服务端时间等待（不套用固定 1s）", async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return calls === 1
+        ? { ok: false, status: 429, headers: { get: () => "2" }, text: async () => "" }
+        : { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ code: 0, msg: "", data: {} }) };
+    }) as never, 5_000, 1);
+    const t0 = Date.now();
+    await expect(t.post("/api/x", {})).resolves.toBeDefined();
+    waits.push(Date.now() - t0);
+    expect(calls).toBe(2);
+    // 服务端要求 2s，实际等待不得短于 1.8s（固定 1s 退避会在此失败）
+    expect(waits[0]).toBeGreaterThanOrEqual(1_800);
+    expect(waits[0]).toBeLessThan(4_000);
+  });
+
+  it("HttpTransport：429 无 Retry-After 头时回退本地 1s 退避（保持原有行为）", async () => {
+    let calls = 0;
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return calls === 1
+        ? { ok: false, status: 429, text: async () => "" }
+        : { ok: true, status: 200, text: async () => JSON.stringify({ code: 0, msg: "", data: {} }) };
+    }) as never, 5_000, 1);
+    await expect(t.post("/api/x", {})).resolves.toBeDefined();
+    expect(calls).toBe(2);
+  });
+
+  it("HttpTransport.postForm：429 同样读取 Retry-After 并重试成功", async () => {
+    let calls = 0;
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return calls === 1
+        ? { ok: false, status: 429, headers: { get: () => "0" }, text: async () => "" }
+        : { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ code: 0, msg: "", data: null }) };
+    }) as never, 5_000, 1);
+    await expect(t.postForm("/api/import/importSY", new Blob(["zip"]), "b.sy.zip")).resolves.toMatchObject({ code: 0 });
+    expect(calls).toBe(2);
+  });
+
+  it("HttpTransport.post：思源 3.8.9 document metadata is not ready 归类 retryable 自动重试成功", async () => {
+    let calls = 0;
+    const t = new HttpTransport("http://x", "tok", (async () => {
+      calls++;
+      return calls === 1
+        ? { ok: true, status: 200, text: async () => JSON.stringify({ code: -1, msg: "document metadata is not ready", data: null }) }
+        : { ok: true, status: 200, text: async () => JSON.stringify({ code: 0, msg: "", data: "doc-created-ok" }) };
+    }) as never, 5_000, 1);
+
+    const res = await t.post("/api/filetree/createDocWithMd", { notebook: "box1", path: "/test" });
+    expect(res).toMatchObject({ code: 0, data: "doc-created-ok" });
+    expect(calls).toBe(2);
+  });
+});
