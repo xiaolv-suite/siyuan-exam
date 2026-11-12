@@ -295,7 +295,7 @@
     try {
       const rows = await app.deps.client.sql(`SELECT box FROM blocks WHERE id = '${docId.replace(/'/g, "''")}' LIMIT 1`);
       if (rows && rows[0]?.box) nbId = String(rows[0].box);
-    } catch {}
+    } catch { /* ignore */ }
     if (nbId) {
       await showDocTreeNativeMenu({
         notebookId: nbId,

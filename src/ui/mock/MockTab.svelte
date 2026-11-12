@@ -503,13 +503,13 @@
           if (prevLeftDock) toggleNativeDock("Left", false);
           if (prevRightDock) toggleNativeDock("Right", false);
           if (prevBottomDock) toggleNativeDock("Bottom", false);
-        } catch {}
+        } catch { /* ignore */ }
       } else if (prevLeftDock || prevRightDock || prevBottomDock) {
         try {
           if (prevLeftDock) toggleNativeDock("Left", true);
           if (prevRightDock) toggleNativeDock("Right", true);
           if (prevBottomDock) toggleNativeDock("Bottom", true);
-        } catch {}
+        } catch { /* ignore */ }
         prevLeftDock = false;
         prevRightDock = false;
         prevBottomDock = false;

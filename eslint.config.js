@@ -74,7 +74,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.svelte.ts", "tests/**/*.ts", "scripts/**/*.mjs"],
+    files: ["**/*.svelte.ts", "tests/**/*.ts", "tests/**/*.cjs", "scripts/**/*.mjs"],
     languageOptions: { globals: { ...globals.node } },
   },
   prettier,

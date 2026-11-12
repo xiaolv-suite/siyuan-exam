@@ -150,8 +150,8 @@ export async function syncCheckin(
   nowMs: number,
   fallbackGoal: number,
 ): Promise<{ status: CheckinSyncStatus; event?: CheckinEventInput; autoResolvedItem?: CheckinItemSummary }> {
-  let effectiveCfg = cfg;
-  let autoResolvedItem: CheckinItemSummary | undefined;
+  const effectiveCfg = cfg;
+  const autoResolvedItem: CheckinItemSummary | undefined = undefined;
   // Discovery is a read-only suggestion. Empty configuration always means off.
   if (!bridgeEnabled(effectiveCfg)) return { status: "disabled" };
   if (!shouldCheckin(todayAttempts, effectiveCfg, fallbackGoal)) return { status: "below-threshold" };

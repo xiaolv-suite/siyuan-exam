@@ -189,7 +189,7 @@ describe("小驴生态 · 手机端完整开发 · Mobile Spec v1 规范测试",
       listBanks: () => [
         { id: "bank-xingce", name: "公务员行测题库", category: "exam" },
       ],
-      listQuestions: async (bankId: string) => [
+      listQuestions: async (_bankId: string) => [
         {
           id: "q-101",
           stem: "关于我国宪法规定的公民基本权利，下列哪一说法是正确的？",

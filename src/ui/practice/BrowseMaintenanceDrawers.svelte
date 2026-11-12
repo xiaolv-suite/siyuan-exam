@@ -222,7 +222,7 @@
               if (rows && rows[0]?.box) {
                 nbId = String(rows[0].box);
               }
-            } catch {}
+            } catch { /* ignore */ }
             if (nbId) {
               await showDocTreeNativeMenu({
                 notebookId: nbId,

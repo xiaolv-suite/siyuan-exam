@@ -63,7 +63,7 @@ export function openSiYuanTarget(
   if (typeof document !== "undefined" && document.fullscreenElement) {
     try {
       void document.exitFullscreen().catch(() => {});
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const isSplitModifier = options?.event

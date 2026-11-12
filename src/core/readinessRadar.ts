@@ -664,7 +664,7 @@ export function exportReadinessReportCsv(report: ReadinessHealthReport): string 
 
 function escapeCsv(field: string): string {
   let s = String(field ?? "");
-  if (/^\s*[=@\t]/.test(s) || (/^\s*[+\-]/.test(s) && !/^\s*[+\-]?\d+(\.\d+)?\s*$/.test(s))) {
+  if (/^\s*[=@\t]/.test(s) || (/^\s*[+-]/.test(s) && !/^\s*[+-]?\d+(\.\d+)?\s*$/.test(s))) {
     s = `'${s}`;
   }
   if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
