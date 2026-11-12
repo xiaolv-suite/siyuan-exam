@@ -9,7 +9,7 @@
 > **Personal Notes → Independent Retrieval → Honest Evidence → Wrongbook Elimination → Timed Mock Verification**  
 > Every question is a native, searchable, linkable **SiYuan block** in your own workspace — never locked in an external cloud.
 
-[![Release](https://img.shields.io/badge/release-v0.15.1-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.2-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
 [![CI](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
@@ -67,6 +67,26 @@ pnpm guard            # full quality gate (types + svelte + i18n + arch + styles
 pnpm smoke:journey    # live SiYuan kernel end-to-end 5-question journey verification
 pnpm build            # production bundle & package.zip generation
 ```
+
+---
+
+## 📝 Recent Updates
+
+- **SiYuan 3.8.10+ Native Adaptations**: Fullscreen CBT mock exam coordinates folding/restoring native docks (`toggleNativeDock`); report dashboards, review logs, and outline summaries support native document tree context menus (`showDocTreeNativeMenu`); `safeDocTitleFromHPath` protects titles with slashes.
+- **Question Drawer Ghost Gap Resolution**: Cleaned up 5 residual malformed `<span>` open tags in `QuestionPeekDrawer`, eliminating ~50px spacing artifacts; restored explicit transition properties and added inline style integrity contracts.
+- **Input Method & Touch Polish**: Import tag filter, quick-split input, and occlusion image URL input yield during IME composition; textarea resize grip disabled on touch and narrow viewports.
+- **Performance & Engineering Gates**: Info/debug logging gated behind build-time `__LV_EXAM_DEV__`; drawer doc search debounced at 300ms with out-of-order response sequence guards; clipboard error-handling coverage enforced.
+
+<details>
+<summary>View Previous Release Highlights (v0.15.1 and earlier)</summary>
+
+### v0.15.1 (2026-11-10)
+- Mobile full-screen dialog exit upon opening question notes, paper assemble user notices, Launchpad convergence, and `xiaolv-suite` organization migration.
+
+### v0.15.0 (2026-11-02)
+- 3.5s auto-next countdown, recite mode, deterministic option shuffling, scratchpad highlighters, and Public Domain MarketplaceHub.
+
+</details>
 
 ---
 

@@ -8,9 +8,9 @@
 
 笔记即题库 · 独立主动回忆 · 受助不冒充掌握 · 全真模考与 A4 双栏印卷 · FSRS 闪卡联动
 
-**当前版本：v0.15.1** ｜ [English Documentation](README.en-US.md) ｜ [更新日志](CHANGELOG.md)
+**当前版本：v0.15.2** ｜ [English Documentation](README.en-US.md) ｜ [更新日志](CHANGELOG.md)
 
-[![Release](https://img.shields.io/badge/release-v0.15.1-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.2-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
 [![思源笔记](https://img.shields.io/badge/思源笔记-%3E%3D%203.8.4-brightgreen.svg)](https://b3log.org/siyuan)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -203,6 +203,14 @@
 ---
 
 ## 📝 最近更新动态
+
+- **思源 3.8.10+ 原生特性适配**：全屏机考 CBT 模式协同原生停靠栏折叠与恢复；战报大盘、复盘日志与总览大纲支持右键呼出原生文档树菜单（`showDocTreeNativeMenu`）；半角斜杠标题防截断保护。
+- **试题抽屉选项行幽灵空隙根治**：清除历史批量替换遗留的残缺空标签，彻底消除选项行前约 50px 的异常间隙；还原显式 transition 动效属性列表并新增内联样式完整性契约。
+- **输入法与触控优化**：题库标签检索、选项快拆、遮盖图 URL 三处输入增加 IME 合成期守卫；移动端/窄屏禁用文本域右下角拖拽把手避免误触变形。
+- **性能与工程防线**：日志按构建期门控（开发环境输出，生产环境静默）；抽屉文档搜索 300ms 防抖并加入响应序列守卫杜绝乱序覆盖；全生态剪贴板写入失败覆盖契约固化。
+
+<details>
+<summary>展开查看历史版本更新（v0.15.1 及更早版本 · 完整记录见 <a href="./CHANGELOG.md">CHANGELOG.md</a>）</summary>
 
 ### v0.15.1（2026-11-10 · GitHub 组织迁移与体验加固）
 
