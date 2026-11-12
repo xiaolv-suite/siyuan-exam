@@ -75,7 +75,7 @@ try {
 // 6. 文档本地链接有效性（README/CHANGELOG/TODO/docs，七十九批加入；链接腐坏=发版门面 404）
 import { readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-const docFiles = ["README.md", "README.en-US.md", "CHANGELOG.md", "TODO.md",
+const docFiles = ["README.md", "README.en-US.md", "CHANGELOG.md", ...(existsSync("TODO.md") ? ["TODO.md"] : []),
   ...readdirSync("docs").filter((f) => f.endsWith(".md")).map((f) => join("docs", f))];
 const linkRe = /\[[^\]]*\]\(([^)\s]+)\)/g;
 const docBroken = [];
