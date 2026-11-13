@@ -573,17 +573,14 @@ export class ExamApp {
     return { notebookId, hpath: `${rootHPath}${normalizedSub}` };
   }
 
-  /** 探测当前工作区是否已存在「🐴 小驴空间 / 小驴生态统一测试空间」统一宿主笔记本 */
+  /** 探测当前工作区是否已存在「🐴 小驴生态 / 小驴空间」统一宿主笔记本 */
   private async resolveUnifiedExamHubNotebook(): Promise<{ notebookId: string; rootPrefix: string } | null> {
     if (typeof (this.deps.client as any).listNotebooks !== "function") return null;
     try {
       const notebooks = await this.deps.client.listNotebooks();
       if (!Array.isArray(notebooks) || notebooks.length === 0) return null;
       const hub = notebooks.find(
-        (n) =>
-          n.name.includes("小驴空间") ||
-          n.name.includes("小驴笔记本") ||
-          n.name.includes("小驴生态统一测试空间"),
+        (n) => /^(🐴\s*)?小驴(生态|空间|笔记本)/.test(n.name?.trim() || "")
       );
       if (hub?.id) {
         return { notebookId: hub.id, rootPrefix: "/06-小驴考试/题库中心" };
@@ -3077,7 +3074,7 @@ export class ExamApp {
     let targetNotebook = notebookId;
     if (!targetNotebook) {
       const notebooks = await this.deps.client.listNotebooks();
-      const preferredNb = notebooks.find((n) => /DailyNote|日记|小驴空间|小驴生态统一测试空间|小驴笔记本/i.test(n.name || ""))
+      const preferredNb = notebooks.find((n) => /DailyNote|日记|(🐴\s*)?小驴(生态|空间|笔记本)/i.test(n.name || ""))
         ?? notebooks.find((n) => !n.name.startsWith("题库【") && !n.name.startsWith("题库 ["));
       targetNotebook = (preferredNb ?? notebooks[0])?.id;
     }
