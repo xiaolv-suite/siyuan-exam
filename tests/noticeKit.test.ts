@@ -197,7 +197,7 @@ describe("小驴全生态统一通知套件 (Lv Notice Kit) 单元测试", () =>
     expect(card?.textContent).toContain("78 / 100");
     expect(card?.textContent).toContain("发现错题 6 道");
 
-    const buttons = card?.querySelectorAll(".lv-notice-btn");
+    const buttons = card?.querySelectorAll("[data-action-idx]");
     expect(buttons?.length).toBe(2);
     expect((buttons?.[0] as HTMLButtonElement).textContent?.trim()).toBe("查看错题解析");
 

@@ -35,6 +35,8 @@ export function showExamNotice(
   });
 }
 
+export const showMessage = showExamNotice;
+
 /**
  * 原位微动效（用于答题过程中按钮交互、选项标记、星标等，坚决不遮挡题干）
  */
@@ -192,6 +194,8 @@ export function notifyDailyReviewCard(opts: DailyReviewReminderOptions): string 
         { label: "稍后提醒 (30分钟)", durationMs: 30 * 60 * 1000 },
         { label: "稍后提醒 (2小时)", durationMs: 2 * 60 * 60 * 1000 },
         { label: "今日免打扰", muteToday: true },
+        { label: "未来3天不通知", muteDays: 3 },
+        { label: "未来一周不通知", muteDays: 7 },
       ],
     },
   });

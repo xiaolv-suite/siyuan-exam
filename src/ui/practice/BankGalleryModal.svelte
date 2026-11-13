@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { showMessage } from "siyuan";
+  import { showMessage } from "@/libs/notice";
   import Icon from "../shared/Icon.svelte";
   import type { BankInfo } from "../../app";
   import type { BankCategory, BankCategoryMeta } from "@/core/bankCategory";

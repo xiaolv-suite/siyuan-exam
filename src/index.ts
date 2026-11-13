@@ -1,4 +1,5 @@
-import { Plugin, openTab, showMessage, getFrontend, adaptHotkey, Dialog, type Menu } from "siyuan";
+import { Plugin, openTab, getFrontend, adaptHotkey, Dialog, type Menu } from "siyuan";
+import { showMessage } from "./libs/notice";
 import "./index.scss";
 
 import { SettingUtils } from "./libs/setting-utils";
@@ -136,7 +137,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     if (this.isMobile) this.installSettingKeyboardViewportGuard();
 
     // 挂载罗盘全端统一入口（Protocol v1.7.5 Unified Entry 顶栏+悬浮球收敛）
-    this.launchpadMobileCleaner = lvLaunchpad.ensureUnifiedEntry();
+    this.launchpadMobileCleaner = lvLaunchpad.ensureUnifiedEntry(this);
 
     // Epoch 7 Phase 4：注册全生态一键联合灾备切面 (lvBackup)
     this.backupCleaner = lvBackup.register(

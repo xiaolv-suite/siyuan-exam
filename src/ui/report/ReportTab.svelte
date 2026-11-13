@@ -3,7 +3,7 @@
     // 数据全部来自流水重算（可离线）；聚合逻辑见 src/core/report.ts
     import { onMount } from "svelte";
     import { SvelteMap } from "svelte/reactivity";
-    import { showMessage } from "siyuan";
+    import { showMessage } from "@/libs/notice";
     import { resolveAiKey } from "@/ai/secrets";
     import { weeklyAggregates, weekCompare, dailyTrend, weeklyTrend, monthlyTrend } from "@/core/weekly";
     import { quadrantReport, quadrantSignals, type QuadrantReport } from "@/core/quadrant";

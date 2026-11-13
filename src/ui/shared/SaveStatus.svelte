@@ -2,7 +2,7 @@
     // 对象级保存状态顶栏汇总（37-01/U06）：pending/failed/unknown 任一存在时显示；
     // 点击定位具体目标与失败原因。SaveGate 无订阅机制，4s 轮询刷新（开销可忽略）。
     import { onMount, onDestroy } from "svelte";
-    import { showMessage } from "siyuan";
+    import { showMessage } from "@/libs/notice";
     import type { SaveGate } from "../../core/saveGate";
     import Icon from "./Icon.svelte";
 
