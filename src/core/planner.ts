@@ -1,0 +1,204 @@
+// ============================================================
+// 备考计划引擎（v0.5）：考试倒计时 / 冲刺姿态 / 每日任务聚合
+// 纯函数；时区取本地；多题库由调用方传"最近考日"（docs/10 导航原则 #4）
+// ============================================================
+import type { Question } from "./types";
+
+const DAY_MS = 86400000;
+
+/** 错因权重（练题狗范式：知识不会 > 陷阱 > 粗心；加权回流排序用） */
+export const REASON_WEIGHT: Record<"careless" | "unknown" | "trap", number> = {
+  careless: 1.2,
+  trap: 1.6,
+  unknown: 2.0,
+};
+
+/** 自然日差（本地时区）：exam - today，负数=已过期；格式非法返回 null */
+export function daysUntil(examDate: string, now: Date = new Date()): number | null {
+  const parts = examDate
+    .trim()
+    .split("-")
+    .map((s) => parseInt(s, 10));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [y, mo, d] = parts;
+  if (y < 2000 || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const exam = new Date(y, mo - 1, d);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffMs = exam.getTime() - today.getTime();
+  return Math.round(diffMs / DAY_MS);
+}
+
+// ---------- 多考期（TODO 53-02 lite）：多科考生的多个考期并存，计划锚定最近未来考期 ----------
+
+export interface ExamProfile {
+  name: string;
+  date: string; // YYYY-MM-DD
+  days: number | null; // 自然日差（null=日期非法）
+}
+
+/** 解析多考期文本（每行「名称:YYYY-MM-DD」，全角冒号兼容；非法行跳过不报错） */
+export function parseExamProfiles(text: string, now: Date = new Date()): ExamProfile[] {
+  const out: ExamProfile[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*(.+?)\s*[:：]\s*(\d{4}-\d{1,2}-\d{1,2})\s*$/);
+    if (!m) continue;
+    const date = m[2];
+    const days = daysUntil(date, now);
+    if (days == null) continue;
+    out.push({ name: m[1], date, days });
+  }
+  return out.sort((a, b) => (a.days ?? 9e9) - (b.days ?? 9e9));
+}
+
+/** 最近未来考期（含今天；已过期的不锚定计划），无未来考期返回 null */
+export function nearestUpcoming(profiles: ExamProfile[]): ExamProfile | null {
+  return profiles.find((p) => p.days != null && p.days >= 0) ?? null;
+}
+
+// ---------- 昨日计划回看（TODO 44-05 lite）：缺席可见、不指数爆量（本引擎配额恒定，本就无爆量） ----------
+
+export interface PlanTrace {
+  date: string; // 该计划对应的自然日 YYYY-MM-DD
+  planned: number; // 当日计划题数
+  done: number; // 当日实际完成（按流水）
+  /** 连续缺席天数（有计划但零完成；链断即归零） */
+  absentStreak: number;
+}
+
+/** 生成今日计划轨迹（昨日轨迹 + 昨日完成数 + 今日计划数；纯函数）。
+ *  44-05 口径：缺席=有计划但零完成（完成数以调用方传入的 doneYesterday 为准）；
+ *  prev 非昨日（链断/首日）→ absentStreak 归零重新计 */
+export function nextPlanTrace(
+  prev: PlanTrace | null,
+  today: string,
+  plannedToday: number,
+  doneYesterday: number,
+): PlanTrace {
+  let absentStreak = 0;
+  if (prev && prev.planned > 0 && prev.date === yesterdayOf(today)) {
+    absentStreak = doneYesterday === 0 ? prev.absentStreak + 1 : 0;
+  }
+  return { date: today, planned: plannedToday, done: doneYesterday, absentStreak };
+}
+
+function yesterdayOf(today: string): string {
+  const parts = today.split("-").map((s) => parseInt(s, 10));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return "";
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export interface PlanInput {
+  examDate?: string; // YYYY-MM-DD（未设 = 常规模式）
+  sprintDays?: number; // 冲刺姿态阈值，默认 14
+  dailyGoal: number; // 每日配额
+  all: Question[];
+  wrongCounts: Map<string, number>; // 全库错次（含已消灭历史）
+  activeWrongIds: Set<string>; // 当前错题本在册
+  wrongReasons?: Map<string, "careless" | "unknown" | "trap">; // 错因（加权回流）
+  dueFirst?: Question[]; // FSRS 到期（有卡才有；无卡传空）
+  rnd?: () => number;
+}
+
+export interface PlanResult {
+  mode: "sprint" | "normal";
+  daysToExam: number | null;
+  queue: Question[];
+  /** 聚合说明（zh 审计口径；入口页展示走 reasonKind 本地化） */
+  reason: string;
+  /** 结构化说明口径：UI 按 kind 选 i18n 模板渲染（reason 保留原文给导出/诊断） */
+  reasonKind: "sprint" | "due" | "reflow";
+  reasonData: { days: number; cram: number; stubborn: number; due: number };
+}
+
+/**
+ * 从今日计划中剔除当天已经提交过的题目。
+ *
+ * 计划本身描述“今天应该练哪些题”，而作答流水是唯一事实来源；把两者
+ * 在入口层合并后，用户重开插件或完成一轮练习时不会再次看到已经完成的
+ * 题目。该函数保持顺序和计划元数据不变，便于离线测试及后续导出审计。
+ */
+export function remainingPlan(plan: PlanResult, completedQids: ReadonlySet<string>): PlanResult {
+  if (!completedQids.size || !plan.queue.length) return plan;
+  const queue = plan.queue.filter((q) => !completedQids.has(q.id));
+  if (queue.length === plan.queue.length) return plan;
+  return { ...plan, queue };
+}
+
+/**
+ * 每日任务聚合规则（PRD §6.10 修订版 + 练题狗加权回流）：
+ * - 冲刺姿态（距考 ≤ sprintDays）：cram 队列（错≥2，按 错次×错因权重 排序）优先占满配额，不足补每日一练（到期→高频错→随机）
+ * - 常规姿态：到期优先 → 在册错题（按 错次×错因权重 加权排序，知识不会最优先）→ 随机补足
+ * - 考日已过：回常规姿态（考后恢复）
+ */
+export function planToday(input: PlanInput, now: Date = new Date()): PlanResult {
+  const { examDate, sprintDays = 14, dailyGoal, all, wrongCounts, activeWrongIds, dueFirst = [] } = input;
+  const reasons = input.wrongReasons;
+  const rnd = input.rnd ?? Math.random;
+  const days = examDate ? daysUntil(examDate, now) : null;
+  const sprint = days != null && days >= 0 && days <= sprintDays;
+
+  const quota = Math.max(1, dailyGoal);
+  const seen = new Set<string>();
+  const queue: Question[] = [];
+  const push = (q: Question) => {
+    if (queue.length < quota && !seen.has(q.id)) {
+      seen.add(q.id);
+      queue.push(q);
+    }
+  };
+
+  /** 回流权重：错次 × 错因系数（知识不会 2.0 / 陷阱 1.6 / 粗心 1.2；未知错因取粗心档） */
+  const weight = (qid: string) => {
+    const reason = reasons?.get(qid) ?? "careless";
+    return (wrongCounts.get(qid) ?? 1) * REASON_WEIGHT[reason];
+  };
+
+  let cramUsed = 0;
+  let stubborn = 0;
+  if (sprint) {
+    const cram = all
+      .filter((q) => (wrongCounts.get(q.id) ?? 0) >= 2)
+      .sort((a, b) => weight(b.id) - weight(a.id) || (wrongCounts.get(b.id) ?? 0) - (wrongCounts.get(a.id) ?? 0));
+    for (const q of cram) {
+      if (queue.length >= quota) break;
+      push(q);
+      if (queue[queue.length - 1]?.id === q.id) cramUsed++;
+    }
+    stubborn = cram.filter((q) => (reasons?.get(q.id) ?? "careless") !== "careless").length;
+  }
+  dueFirst.forEach(push);
+  // 在册错题：加权排序替代随机（同权重内部仍随机打散）
+  const activeWrong = all
+    .filter((q) => activeWrongIds.has(q.id))
+    .map((q) => ({ q, w: weight(q.id) }))
+    .sort((a, b) => b.w - a.w || rnd() - 0.5)
+    .map((e) => e.q);
+  activeWrong.forEach(push);
+  if (!sprint) stubborn = all.filter((q) => activeWrongIds.has(q.id) && weight(q.id) >= 3.2).length;
+  const rest = shuffle(
+    all.filter((q) => !seen.has(q.id)),
+    rnd,
+  );
+  rest.forEach(push);
+
+  const reason = sprint
+    ? `冲刺 D-${days}：顽固回流优先（${cramUsed} 题${stubborn ? ` · 顽固 ${stubborn}` : ""}）+ 补足`
+    : dueFirst.length
+      ? `到期 ${Math.min(dueFirst.length, queue.length)} 优先 + 每日补足`
+      : `错题加权回流${stubborn ? `（顽固 ${stubborn}）` : ""} + 随机补足`;
+  // 结构化说明：UI 按 reasonKind 本地化渲染（reason 保留 zh 审计口径）
+  const reasonKind: PlanResult["reasonKind"] = sprint ? "sprint" : dueFirst.length ? "due" : "reflow";
+  const reasonData = { days, cram: cramUsed, stubborn, due: Math.min(dueFirst.length, queue.length) };
+  return { mode: sprint ? "sprint" : "normal", daysToExam: days, queue, reason, reasonKind, reasonData };
+}
+
+function shuffle<T>(arr: T[], rnd: () => number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}

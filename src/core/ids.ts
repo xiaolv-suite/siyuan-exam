@@ -1,0 +1,49 @@
+// 稳定 ID 生成（renderer 与 node 共用；无 crypto 依赖要求）
+const ALPHABET = "0123456789abcdef";
+let counter = 0;
+
+function rand(n: number): string {
+  const g = globalThis.crypto;
+  if (!g?.getRandomValues) {
+    throw new Error("[LvExam] WebCrypto 不可用：无法生成安全随机 ID");
+  }
+  const buf = new Uint8Array(n);
+  g.getRandomValues(buf);
+  let out = "";
+  for (let i = 0; i < n; i++) out += ALPHABET[buf[i] % 16];
+  return out;
+}
+
+/** 题目稳定 ID：q-xxxxxxxx（导入时生成，块移动/重命名不变） */
+export const newQuestionId = () => `q-${rand(8)}`;
+
+/** 资料对象 ID：m-xxxxxxxx（120-01 学习资料身份，与文件名/位置解耦） */
+export const newMaterialId = () => `m-${rand(8)}`;
+
+/** 资料笔记 ID：n-xxxxxxxx（121-03/122-03 个人笔记，绑定 materialId+revision） */
+export const newMaterialNoteId = () => `n-${rand(8)}`;
+
+/** 会话 ID：s-时间戳-序号 */
+export const newSessionId = () => `s-${Date.now().toString(36)}-${(counter++).toString(36)}`;
+
+/** 事件 ID：e-时间戳-随机（幂等回放键；同一事件重放不重复计数） */
+export const newEventId = () => `e-${Date.now().toString(36)}-${rand(8)}`;
+
+/** 设备 ID：生成一次持久化（d-xxxxxx） */
+export const newDeviceId = () => `d-${rand(6)}`;
+
+/** 模考运行 ID：r-时间戳-随机（与蓝图 id 分离，同蓝图多次考试互不覆盖） */
+export const newRunId = () => `r-${Date.now().toString(36)}-${rand(6)}`;
+
+/** 固化试卷 ID：paper-时间戳-随机（55-07 不可变试卷快照身份） */
+export const newPaperId = () => `paper-${Date.now().toString(36)}-${rand(6)}`;
+
+/** 错题自诊断记录 ID：diag-时间戳-随机（52-04 错题复盘备忘） */
+export const newDiagnosisId = () => `diag-${Date.now().toString(36)}-${rand(6)}`;
+
+/** 导入批次 ID：b-yyyyMMdd-xxxx */
+export const newBatchId = () => {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return `b-${ymd}-${rand(4)}`;
+};

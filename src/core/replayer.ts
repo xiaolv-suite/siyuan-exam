@@ -1,0 +1,185 @@
+// ============================================================
+// 幂等重算器：流水（唯一真相）→ 错题本/题目统计/日统计（派生缓存）
+// 规则（docs/02 附录 A）：答错收录；连对 ELIMINATE_STREAK 次移出；
+// not_attempted 不改变任何状态；同 eid 只计一次（AttemptLog 已去重，此处双保险）
+// ============================================================
+import type { AttemptEvent, ReplayResult, WrongItem, DayStats } from "./types";
+import { reciteStreakEffect } from "./selfRating";
+
+export const ELIMINATE_STREAK = 2;
+/** 背诵连击毕业线：连续 ≥4 次"会"从背诵池出清（形态升级回选择题） */
+export const RECITE_GRADUATE_STREAK = 4;
+
+export function replay(
+  events: readonly AttemptEvent[],
+  options: { eliminateStreak?: number } = {},
+): ReplayResult {
+  const eliminateThreshold = Math.max(1, options.eliminateStreak ?? ELIMINATE_STREAK);
+  const wrongbook = new Map<string, WrongItem>();
+  const byQuestion = new Map<string, { attempts: number; correct: number; lastAt: number }>();
+  const days = new Map<string, DayStats>();
+  const reciteStreak = new Map<string, number>();
+  const seen = new Set<string>();
+  let skipped = 0;
+  let clockAnomalies = 0;
+  let lastTs = 0;
+
+  // 时间+序号有序回放：乱序输入也得到确定性结果（TODO 26.1 幂等要求）
+  const ordered = [...events].sort((a, b) => a.ts - b.ts || a.seq - b.seq);
+
+  for (const e of ordered) {
+    if (!e || typeof e.eid !== "string" || !e.eid || typeof e.qid !== "string" || !e.qid) {
+      skipped++;
+      continue;
+    }
+    if (seen.has(e.eid)) {
+      skipped++;
+      continue;
+    }
+    seen.add(e.eid);
+    if (e.ts < lastTs - 60_000) clockAnomalies++;
+    lastTs = Math.max(lastTs, e.ts);
+
+    // 题目统计：not_attempted 不计入 attempts 分母
+    if (e.verdict !== "not_attempted") {
+      const s = byQuestion.get(e.qid) ?? { attempts: 0, correct: 0, lastAt: 0 };
+      s.attempts++;
+      s.lastAt = e.ts;
+      if (e.verdict === "correct") s.correct++;
+      byQuestion.set(e.qid, s);
+    }
+
+    // 日统计：任一事件（含背诵自评）计活动；对错仅判分口径
+    const day = localDate(e.ts);
+    const d = days.get(day) ?? { date: day, attempts: 0, correct: 0 };
+    const isActivity = e.verdict !== "not_attempted" || e.kind === "recite" || e.kind === "card" || e.selfRating != null;
+    if (isActivity) {
+      d.attempts++;
+      if (e.verdict === "correct" || e.selfRating === 3 || e.selfRating === 4) {
+        d.correct++;
+      }
+    }
+    days.set(day, d);
+
+    // 错题状态机
+    // 挑战码（友谊赛）作答不入错题本（13 组审计）：对手题不属本人题库资产，
+    // 且 exam-id 不在库中永无消灭路径，只会成为永久 active 的孤儿条目
+    const entersWrongbook = e.mode !== "challenge";
+    let w = wrongbook.get(e.qid);
+    if (e.kind === "recite" || e.kind === "card") {
+      // 形态分离：只更新背诵连击（≥4 毕业出清背诵池），不碰错题本
+      if (e.kind === "recite") {
+        const s = reciteStreak.get(e.qid) ?? 0;
+        // 39-04：连击按**自评档位**判定，不再借道面向客观判分的 verdict——
+        // 旧实现把 Hard(2) 记为 verdict=wrong 并清零连击，等于把「费力但成功回忆」
+        // 当作「未回忆成功」。现按 reciteStreakEffect：Again 清零、Hard 保持、Good/Easy 递增。
+        const effect = e.selfRating != null
+          ? reciteStreakEffect(e.selfRating)
+          : // 旧流水缺 selfRating 时按 verdict 回退（向后兼容；不新造语义）
+            e.verdict === "correct"
+            ? { action: "increment" as const }
+            : e.verdict === "wrong"
+              ? { action: "reset" as const }
+              : { action: "hold" as const };
+        if (effect.action === "increment") reciteStreak.set(e.qid, s + 1);
+        else if (effect.action === "reset") reciteStreak.set(e.qid, 0);
+        // hold：不动连击（Hard 不清零，非法值不改动）
+      }
+      continue;
+    }
+    if (e.verdict === "wrong" && entersWrongbook) {
+      if (!w) {
+        w = {
+          qid: e.qid,
+          firstWrongAt: e.ts,
+          lastWrongAt: e.ts,
+          wrongCount: 1,
+          streakCorrect: 0,
+          myAnswer: e.myAnswer,
+          status: "active",
+        };
+        wrongbook.set(e.qid, w);
+      } else if (w.status === "active") {
+        w.wrongCount++;
+        w.lastWrongAt = e.ts;
+        w.myAnswer = e.myAnswer;
+        w.streakCorrect = 0; // 39-05：active 期再答错 → 连续正确数归零（错→对→错→对仍在册，错→对→对才消灭）
+      } else if (w.status === "eliminated" || w.status === "mastered") {
+        // 消灭后再错：重新收录（新一轮）
+        w.status = "active";
+        w.wrongCount = 1;
+        w.streakCorrect = 0;
+        w.firstWrongAt = e.ts;
+        w.lastWrongAt = e.ts;
+        w.myAnswer = e.myAnswer;
+      }
+    } else if (e.verdict === "correct" && entersWrongbook) {
+      // 受助答对（看过提示/讲解/揭示）保持在册，不计入独立连续答对消灭进度
+      if (w && w.status === "active" && !e.help) {
+        w.streakCorrect++;
+        if (w.streakCorrect >= eliminateThreshold) w.status = "eliminated";
+      }
+    }
+  }
+
+  return { wrongbook, byQuestion, days, reciteStreak, skipped, clockAnomalies };
+}
+
+/** 本地时区自然日（streak/热力/每日口径；事件 ts 为 UTC） */
+export function localDate(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function activeWrongItems(r: ReplayResult): WrongItem[] {
+  return [...r.wrongbook.values()]
+    .filter((w) => w.status === "active")
+    .sort((a, b) => b.wrongCount - a.wrongCount || b.firstWrongAt - a.firstWrongAt);
+}
+
+/** 连续学习天数（自然日有任一有效事件即保号；今天进行中未作答时保留昨日连胜） */
+export function streak(r: ReplayResult, today = new Date()): number {
+  let n = 0;
+  const cur = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const todayKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+
+  // 若今天已有作答，从今天开始往前累计；
+  // 若今天尚未作答，检查昨天：若昨天有作答则从昨天开始累计（保号在途中），若昨天也没有则连击断开归零
+  if (!r.days.get(todayKey)?.attempts) {
+    cur.setDate(cur.getDate() - 1);
+    const yesterdayKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    if (!r.days.get(yesterdayKey)?.attempts) {
+      return 0;
+    }
+  }
+
+  for (;;) {
+    const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    if (!r.days.get(key)?.attempts) break;
+    n++;
+    cur.setDate(cur.getDate() - 1);
+  }
+  return n;
+}
+
+/** 错因分布（错题本假设口径）：持久化标注（reasons map）优先，WrongItem.reason 遗留字段兜底，未标注单独计桶。
+ *  供错题本分布卡与报告复习信号聚合共用——口径单一定义源。 */
+export type WrongReasonKey = "careless" | "unknown" | "trap";
+export interface WrongReasonMix {
+  careless: number;
+  unknown: number;
+  trap: number;
+  unmarked: number;
+}
+export function wrongReasonMix(
+  items: readonly { qid: string; reason?: WrongItem["reason"] }[],
+  reasons: ReadonlyMap<string, WrongReasonKey>,
+): WrongReasonMix {
+  const mix: WrongReasonMix = { careless: 0, unknown: 0, trap: 0, unmarked: 0 };
+  for (const w of items) {
+    const r = reasons.get(w.qid) ?? w.reason;
+    if (r === "careless" || r === "unknown" || r === "trap") mix[r]++;
+    else mix.unmarked++;
+  }
+  return mix;
+}

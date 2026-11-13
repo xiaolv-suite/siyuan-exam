@@ -1,0 +1,390 @@
+// ============================================================
+// 报告聚合（纯函数）：热力图/掌握度/薄弱 Top10/时段分布
+// 输入全部来自 derived() 流水重算结果 + 题库题面（可离线）
+// ============================================================
+import type { AttemptEvent, Question, ReplayResult } from "./types";
+
+export interface HeatCell {
+  date: string;
+  count: number;
+}
+
+/** 53 周热力格：以今天所在周收尾，回推 371 天；count=当日做题数 */
+export function heatmap(days: ReplayResult["days"], today: Date = new Date()): HeatCell[] {
+  const cells: HeatCell[] = [];
+  const cur = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  cur.setDate(cur.getDate() - 370);
+  for (let i = 0; i < 371; i++) {
+    const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    cells.push({ date: key, count: days.get(key)?.attempts ?? 0 });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return cells;
+}
+
+export interface KpMastery {
+  root: string; // 考点首段
+  total: number; // 作答题数
+  accuracy: number; // 加权正确率 0-1
+  /** FSRS 风格留存率：R=(1+F·t/S)^DECAY，S 由该考点平均间隔粗估 */
+  retention: number;
+  mastery: number; // mastery = accuracy × retention
+  /** 39-07：独立题数（去重 qid）——同题重复不等于多道独立题 */
+  uniqueQids: number;
+  /** 39-07：独立题口径的掌握（最近一次作答正确的去重题数） */
+  independentCorrect: number;
+  /** 39-07：覆盖率 = 已练独立题 / 该考点全部题数（题库无该考点题时 -1=未知） */
+  coverage: number;
+  /** 39-07：最新作答时间戳（毫秒） */
+  evidenceAt: number;
+  /** 39-07：有效证据时间（已练独立题的平均最后作答时刻；练单题不整体刷新考点记忆） */
+  effectiveEvidenceAt?: number;
+  /** 39-07：算法口径说明（启发式衰减 vs 样本不足） */
+  algorithm?: "heuristic-decay" | "insufficient-samples";
+}
+
+/** 39-07：判断某考点掌握度估算是否有足够独立样本支持（非同题刷数） */
+export function isMasteryConfident(m: KpMastery): boolean {
+  return m.mastery >= 0 && (m.algorithm ?? "heuristic-decay") === "heuristic-decay";
+}
+
+/** 39-07：掌握度算法与证据声明（诚实边界：不把平均间隔称作真实卡片 S 或 R） */
+export function masteryAlgorithmNote(m: KpMastery): string {
+  if (!isMasteryConfident(m)) {
+    return `考点「${m.root}」样本不足（作答 ${m.total} 次 / 独立题 ${m.uniqueQids} 道），暂无充分证据估计掌握度。`;
+  }
+  const covText = m.coverage >= 0 ? ` · 考点覆盖率 ${Math.round(m.coverage * 100)}%` : "";
+  return `考点「${m.root}」掌握度由启发式艾宾浩斯遗忘模型估算（基于 ${m.uniqueQids} 道独立题${covText}）；非内核真实 FSRS 卡片稳定性指标。`;
+}
+
+const DECAY = -0.1542;
+const FACTOR = Math.pow(0.9, 1 / DECAY) - 1;
+
+/** 考点掌握度（首段聚合）：正确率 × FSRS 式留存衰减；<3 题返回 mastery=-1（数据不足） */
+export function masteryByKp(
+  questions: Question[],
+  _byQuestion: ReplayResult["byQuestion"],
+  events: readonly AttemptEvent[],
+  now: number = Date.now(),
+): KpMastery[] {
+  const kpOf = new Map<string, string>();
+  const rootTotals = new Map<string, number>(); // 39-07：覆盖率分母（题库该考点全部题数）
+  for (const q of questions)
+    if (q.kp) {
+      kpOf.set(q.id, q.kp);
+      const root = q.kp.split("/")[0];
+      rootTotals.set(root, (rootTotals.get(root) ?? 0) + 1);
+    }
+  const agg = new Map<string, { t: number; c: number; last: number; gaps: number[]; lastTs: number[] }>();
+  const qids = new Map<string, Set<string>>(); // 39-07：考点 → 独立题集合（去重）
+  const lastVerdict = new Map<string, "correct" | "wrong" | "not_attempted">(); // 39-07：每题最近一次判定
+  const ordered = [...events]
+    .filter((e) => e.verdict !== "not_attempted" && e.kind !== "card")
+    .sort((a, b) => a.ts - b.ts);
+  const lastTsByQ = new Map<string, number>();
+  for (const e of ordered) {
+    const kp = kpOf.get(e.qid);
+    if (!kp) continue;
+    const root = kp.split("/")[0];
+    const a = agg.get(root) ?? { t: 0, c: 0, last: 0, gaps: [], lastTs: [] };
+    const prev = lastTsByQ.get(e.qid);
+    if (prev) a.gaps.push(Math.max(1, Math.round((e.ts - prev) / 86_400_000)));
+    lastTsByQ.set(e.qid, e.ts);
+    a.t++;
+    if (e.verdict === "correct") a.c++;
+    a.last = Math.max(a.last, e.ts);
+    a.lastTs.push(e.ts);
+    agg.set(root, a);
+    // 39-07：独立题集合与每题最近判定（时序遍历，后写覆盖）
+    let set = qids.get(root);
+    if (!set) { set = new Set(); qids.set(root, set); }
+    set.add(e.qid);
+    lastVerdict.set(e.qid, e.verdict);
+  }
+  const out: KpMastery[] = [];
+  for (const [root, a] of agg) {
+    // 39-07：独立题口径（去重 qid；最近判定 correct 才算独立掌握）
+    const set = qids.get(root) ?? new Set<string>();
+    const uniqueQids = set.size;
+    let independentCorrect = 0;
+    for (const qid of set) if (lastVerdict.get(qid) === "correct") independentCorrect++;
+    // 覆盖率：已练独立题 / 该考点全部题数（题库无该考点题时 -1=未知）
+    const rootTotalQ = rootTotals.get(root);
+    const coverage = rootTotalQ && rootTotalQ > 0 ? Math.min(1, uniqueQids / rootTotalQ) : -1;
+
+    // 39-07：独立题平均证据时刻（练单题不整体刷新考点记忆）
+    const qidLastTimes = [...set].map((qid) => lastTsByQ.get(qid)).filter((ts): ts is number => ts != null);
+    const effectiveEvidenceAt = qidLastTimes.length
+      ? Math.round(qidLastTimes.reduce((s, t) => s + t, 0) / qidLastTimes.length)
+      : a.last;
+
+    // 39-07：同题重复 3 次不等于 3 道独立题——考点若库内有多道题，仅练 1 道题不能宣称已掌握
+    const hasEnoughIndependent = uniqueQids >= 2 || (rootTotalQ != null && rootTotalQ <= 1);
+    if (a.t < 3 || !hasEnoughIndependent) {
+      out.push({
+        root,
+        total: a.t,
+        accuracy: 0,
+        retention: 0,
+        mastery: -1,
+        uniqueQids,
+        independentCorrect,
+        coverage,
+        evidenceAt: a.last,
+        effectiveEvidenceAt,
+        algorithm: "insufficient-samples",
+      });
+      continue;
+    }
+    const accuracy = a.c / a.t;
+    const avgGapDays = a.gaps.length ? a.gaps.reduce((x, y) => x + y, 0) / a.gaps.length : 7;
+    // 39-07：衰减依据考点下各独立题的平均证据时间，而非仅最新单题做题时刻
+    const daysSince = Math.max(0, (now - effectiveEvidenceAt) / 86_400_000);
+    const retention = Math.pow(1 + FACTOR * (daysSince / Math.max(1, avgGapDays)), DECAY);
+    out.push({
+      root,
+      total: a.t,
+      accuracy,
+      retention: Math.max(0, Math.min(1, retention)),
+      mastery: accuracy * retention,
+      uniqueQids,
+      independentCorrect,
+      coverage,
+      evidenceAt: a.last,
+      effectiveEvidenceAt,
+      algorithm: "heuristic-decay",
+    });
+  }
+  return out.sort((x, y) => y.mastery - x.mastery);
+}
+
+export interface WeakItem {
+  root: string;
+  accuracy: number;
+  total: number;
+}
+
+/** 薄弱考点（升序，仅数据足的） */
+export function weakTop(mast: KpMastery[], n = 10): WeakItem[] {
+  return mast
+    .filter((m) => m.mastery >= 0)
+    .sort((a, b) => a.mastery - b.mastery)
+    .slice(0, n)
+    .map((m) => ({ root: m.root, accuracy: m.accuracy, total: m.total }));
+}
+
+/** 学习时段分布（0-23 点做题数，Anki 式 hourly） */
+export function hourly(events: readonly AttemptEvent[]): number[] {
+  const h = new Array(24).fill(0) as number[];
+  for (const e of events) {
+    if (e.verdict === "not_attempted") continue;
+    h[new Date(e.ts).getHours()]++;
+  }
+  return h;
+}
+
+// ---------- 置信度校准（U12 最小切片）：自评信心 × 客观对错 ----------
+
+export type ConfidenceLevel = "sure" | "fuzzy" | "guess";
+
+export interface CalibrationRow {
+  confidence: ConfidenceLevel;
+  attempts: number;
+  correct: number;
+  /** 实际正确率 0-100（分母=该档作答数；无分母不显示） */
+  accuracy: number;
+  /** 受助作答数（63-02：讲解/提示后同题再答；帮助解读该档正确率时需甄别） */
+  assisted: number;
+}
+
+export interface CalibrationReport {
+  rows: CalibrationRow[];
+  unreported: number; // 未报信心的客观作答数（区分"没填"与"猜"）
+  /** 校准差：自评"确定"档正确率 − 自评"蒙"档正确率（正数越大区分度越好；样本不足为 null） */
+  spread: number | null;
+}
+
+const CONF_ORDER: ConfidenceLevel[] = ["sure", "fuzzy", "guess"];
+
+/** 校准聚合：只统计客观判分的 practice/mock 作答（recite 自评、card 不参与）；
+ *  同一事件流里 confidence 缺失 → unreported，不并入任何档。 */
+export function calibration(events: readonly AttemptEvent[]): CalibrationReport {
+  const buckets = new Map<ConfidenceLevel, { attempts: number; correct: number }>();
+  const assisted = new Map<ConfidenceLevel, number>();
+  let unreported = 0;
+  for (const e of events) {
+    if (e.verdict === "not_attempted") continue;
+    if (e.kind !== "practice" && e.kind !== "mock") continue;
+    if (!e.confidence) {
+      unreported++;
+      continue;
+    }
+    const b = buckets.get(e.confidence) ?? { attempts: 0, correct: 0 };
+    b.attempts++;
+    if (e.verdict === "correct") b.correct++;
+    buckets.set(e.confidence, b);
+    if (e.help) assisted.set(e.confidence, (assisted.get(e.confidence) ?? 0) + 1); // 63-02：受助单列
+  }
+  const rows: CalibrationRow[] = CONF_ORDER.filter((c) => buckets.has(c)).map((c) => {
+    const b = buckets.get(c)!;
+    return {
+      confidence: c,
+      attempts: b.attempts,
+      correct: b.correct,
+      accuracy: Math.round((b.correct / b.attempts) * 100),
+      assisted: assisted.get(c) ?? 0,
+    };
+  });
+  const sure = buckets.get("sure"),
+    guess = buckets.get("guess");
+  const spread =
+    sure && guess && sure.attempts >= 3 && guess.attempts >= 3
+      ? Math.round((sure.correct / sure.attempts - guess.correct / guess.attempts) * 100)
+      : null;
+  return { rows, unreported, spread };
+}
+
+/** confident-wrong 下钻清单（44-02 lite）：自评"确定"却答错的题（按 qid 去重保留最近一次）。
+ *  U12：题目/考点维度下钻的依据；样本即真实事件，不合并会话内重复刷题。 */
+export function confidentWrongList(
+  events: readonly AttemptEvent[],
+  limit = 50,
+): { qid: string; myAnswer: string | null; ts: number }[] {
+  const byQid = new Map<string, { qid: string; myAnswer: string | null; ts: number }>();
+  for (const e of events) {
+    if (e.verdict !== "wrong" || e.confidence !== "sure") continue;
+    if (e.kind !== "practice" && e.kind !== "mock") continue;
+    byQid.set(e.qid, { qid: e.qid, myAnswer: e.myAnswer, ts: e.ts }); // 后写覆盖 = 最近一次
+  }
+  return [...byQid.values()].sort((a, b) => b.ts - a.ts).slice(0, limit);
+}
+
+/** uncertain-correct 下钻清单（44-02 lite 对偶）：自评"模糊/蒙"却答对的题——
+ *  可能是运气或直觉，值得复核真实掌握；按 qid 去重保留最近一次。 */
+export function uncertainCorrectList(
+  events: readonly AttemptEvent[],
+  limit = 50,
+): { qid: string; confidence: ConfidenceLevel; myAnswer: string | null; ts: number }[] {
+  const byQid = new Map<string, { qid: string; confidence: ConfidenceLevel; myAnswer: string | null; ts: number }>();
+  for (const e of events) {
+    if (e.verdict !== "correct" || (e.confidence !== "fuzzy" && e.confidence !== "guess")) continue;
+    if (e.kind !== "practice" && e.kind !== "mock") continue;
+    byQid.set(e.qid, { qid: e.qid, confidence: e.confidence!, myAnswer: e.myAnswer, ts: e.ts });
+  }
+  return [...byQid.values()].sort((a, b) => b.ts - a.ts).slice(0, limit);
+}
+
+export interface ExposureStats {
+  /** 客观判分作答总数（分母） */
+  attempts: number;
+  /** 独立作答（无讲解/提示、非先回忆模式） */
+  independent: number;
+  /** 受助作答（作答前同题被讲解/提示过，AttemptEvent.help） */
+  assisted: number;
+  /** 先回忆作答（藏选项模式下作答，AttemptEvent.recall） */
+  recallFirst: number;
+  /** 63-02：逐暴露节点计数（布尔事实；旧事件无 exposure 字段则无键） */
+  nodes: Record<string, number>;
+}
+
+/** 暴露三口径分栏（52-02/114-01 呈现端，六三批）：独立/受助/先回忆互不混算——
+ *  help 与 recall 可同时为真（先回忆后仍看了讲解），此时计入受助与先回忆两个维度。 */
+export function exposureStats(events: readonly AttemptEvent[]): ExposureStats {
+  let attempts = 0;
+  let independent = 0;
+  let assisted = 0;
+  let recallFirst = 0;
+  const nodes: Record<string, number> = {};
+  for (const e of events) {
+    if (e.verdict === "not_attempted") continue;
+    if (e.kind !== "practice" && e.kind !== "mock") continue;
+    attempts++;
+    if (e.help) assisted++;
+    if (e.recall) recallFirst++;
+    if (!e.help && !e.recall) independent++;
+    // 63-02：逐暴露节点计数（布尔事实；既有事件无 exposure 字段则如实为空）
+    for (const node of e.exposure ?? []) nodes[node] = (nodes[node] ?? 0) + 1;
+  }
+  return { attempts, independent, assisted, recallFirst, nodes };
+}
+
+export interface DelayedRecallReport {
+  /** 有资格的配对数（错题之后隔日 ≥1 的首次作答） */
+  pairs: number;
+  /** 隔日首次作答答对且未受助（无提示独立回忆 = 39-08 的目标口径） */
+  independentRecall: number;
+  /** 答对但受助（讲解/提示后）——不计入独立回忆，单列防虚增 */
+  assistedCorrect: number;
+  /** 隔日仍错 */
+  stillWrong: number;
+  /** 独立回忆通过率（pairs=0 时为 null，不输出虚假比率） */
+  rate: number | null;
+}
+
+/** 延迟独立回忆（39-08 lite）：对每道错题的每个错误周期，取「隔日 ≥1 天」的首次同题作答为一次延迟复测——
+ *  同日反复刷不计（防虚增留存）；复测本身再错开启新周期；受助作答（AttemptEvent.help）单列不冒充无提示回忆。 */
+export function delayedRecall(events: readonly AttemptEvent[], now = Date.now()): DelayedRecallReport {
+  const DAY = 86_400_000;
+  const byQid = new Map<string, AttemptEvent[]>();
+  for (const e of events) {
+    if (e.kind !== "practice" && e.kind !== "mock") continue;
+    if (e.verdict === "not_attempted") continue;
+    const arr = byQid.get(e.qid) ?? [];
+    arr.push(e);
+    byQid.set(e.qid, arr);
+  }
+  let independentRecall = 0;
+  let assistedCorrect = 0;
+  let stillWrong = 0;
+  for (const [, arr] of byQid) {
+    arr.sort((a, b) => a.ts - b.ts);
+    let lastWrongTs: number | null = null;
+    let counted = false; // 本错误周期已计过复测（其后同日/连续作答不重复计）
+    for (const e of arr) {
+      if (e.verdict === "wrong") {
+        // 错误：若距上次错已隔日（复测资格成立）计一次仍错；任何错误都开启新周期
+        if (lastWrongTs != null && !counted && e.ts - lastWrongTs >= DAY) stillWrong++;
+        lastWrongTs = e.ts;
+        counted = false;
+        continue;
+      }
+      if (lastWrongTs != null && !counted && e.ts - lastWrongTs >= DAY) {
+        if (e.help) assistedCorrect++;
+        else independentRecall++;
+        counted = true;
+      }
+    }
+  }
+  void now;
+  const pairs = independentRecall + assistedCorrect + stillWrong;
+  return {
+    pairs,
+    independentRecall,
+    assistedCorrect,
+    stillWrong,
+    rate: pairs ? Math.round((independentRecall / pairs) * 100) : null,
+  };
+}
+
+// 39-06 导出：未来到期负荷预测与建议量
+export {
+  forecastFutureLoad,
+  exportLoadForecastCsv,
+  estimateNextDueMs,
+  type DayForecast,
+  type LoadForecastResult,
+  type LoadForecastOptions,
+} from "./loadForecast";
+
+// 51-01 导出：考点层级大纲树与掌握度穿透聚合
+export {
+  buildKpTree,
+  findKpSubtree,
+  flattenKpTree,
+  pruneKpTree,
+  normalizeKpPath,
+  type KpTreeNode,
+  type KpTreeOptions,
+} from "./kpTree";
+
+
