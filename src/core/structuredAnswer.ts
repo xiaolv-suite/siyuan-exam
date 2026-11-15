@@ -1,0 +1,356 @@
+// ============================================================
+// 结构化答案 schema（TODO 54-01）+ 数值题判分（TODO 54-02）：
+// Question.answerSpec（可选，v1 信封）承载结构化作答规则；无 spec 的旧字符串
+// 答案完全按原口径判分（54-01 验收：旧答案可读，schema 扩展不等于全题型开发）。
+// 数值判分：绝对/相对容差、等价单位换算、小数分隔宽容——不以浮点直接相等判定。
+// 纯函数无 IO；规则随题目修订冻结（spec 属于题面，questionFingerprint 需含之——
+// 当前指纹为 stem+options，spec 变化按改题处理的接线在 55-07 扩展，本批如实标注）。
+// ============================================================
+import type { Question } from "./types";
+
+export const ANSWER_SPEC_VERSION = 1;
+
+/** v1 spec：数值题（54-02）与多空题（54-03）。unit=答案主单位；altUnits=等价单位换算（值×factor→主单位）；
+ *  absTol/relTolerance 二选一或并用（并用时取更宽者）。 */
+export interface NumericAnswerSpec {
+  v: 1;
+  kind: "numeric";
+  unit?: string;
+  absTol?: number;
+  relTolerance?: number;
+  altUnits?: { unit: string; factor: number }[];
+}
+
+/** 多空题（54-03）：逐空独立身份=数组下标；answers=候选（首项主答案）；大小写策略逐空可配。
+ *  作答分段符 ";;"。orderIndependent=true 时支持无序一对一可交换判分（Perseus规范）。 */
+export interface MultiBlankSpec {
+  v: 1;
+  kind: "multiBlank";
+  blanks: { answers: string[]; caseSensitive?: boolean }[];
+  /** 允许任意顺序作答（空位可交换对齐，严禁同一词重复匹配骗分） */
+  orderIndependent?: boolean;
+}
+
+export type AnswerSpec = NumericAnswerSpec | MultiBlankSpec;
+
+/** 从题目取 spec（未带/版本不符/未知 kind → null = 按旧字符串口径） */
+export function specOf(
+  q: Question,
+): NumericAnswerSpec | MultiBlankSpec | null {
+  const spec = (q as { answerSpec?: { v?: number; kind?: string } }).answerSpec;
+  if (!spec || spec.v !== ANSWER_SPEC_VERSION) return null;
+  if (spec.kind !== "numeric" && spec.kind !== "multiBlank") return null;
+  return spec as unknown as NumericAnswerSpec | MultiBlankSpec;
+}
+
+/** 宽容数值解析：支持十进制小数、全角符号、千分位、百分号、有理分数、带分数、LaTeX 分数、π 倍数与科学计数法 */
+export function parseNumeric(raw: string): number | null {
+  if (raw == null) return null;
+  let s = String(raw).trim()
+    .replace(/．/g, ".")
+    .replace(/－/g, "-")
+    .replace(/／/g, "/")
+    .replace(/，/g, "");
+
+  if (!s) return null;
+
+  // 1. 带分数支持：例如 "1 1/2" 或 "-2 3/4"
+  const mixedMatch = s.match(/^([+-]?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mixedMatch) {
+    const whole = Number(mixedMatch[1]);
+    const num = Number(mixedMatch[2]);
+    const den = Number(mixedMatch[3]);
+    if (den === 0 || !Number.isFinite(whole) || !Number.isFinite(num) || !Number.isFinite(den)) return null;
+    return whole >= 0 ? whole + num / den : whole - num / den;
+  }
+
+  // 去除剩余普通空格与逗号千分位
+  s = s.replace(/[\s,]/g, "");
+
+  // 2. LaTeX 分数支持：\frac{a}{b}
+  const latexFracMatch = s.match(/^\\frac\{([+-]?\d+(?:\.\d+)?)\}\{(\d+(?:\.\d+)?)\}$/);
+  if (latexFracMatch) {
+    const num = Number(latexFracMatch[1]);
+    const den = Number(latexFracMatch[2]);
+    if (den === 0 || !Number.isFinite(num) || !Number.isFinite(den)) return null;
+    return num / den;
+  }
+
+  // 3. 普通有理分数支持：a/b
+  const fracMatch = s.match(/^([+-]?\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);
+  if (fracMatch) {
+    const num = Number(fracMatch[1]);
+    const den = Number(fracMatch[2]);
+    if (den === 0 || !Number.isFinite(num) || !Number.isFinite(den)) return null;
+    return num / den;
+  }
+
+  // 4. π 倍数支持：如 \pi, 2pi, 2*pi, pi/2, \frac{\pi}{2}, -3.5pi
+  // 4.1 LaTeX 分数包含 \pi：\frac{\pi}{2} 或 \frac{3\pi}{4}
+  const latexPiFracMatch = s.match(/^\\frac\{([+-]?\d*(?:\.\d+)?)\s*(?:\\pi|π|pi)\}\{(\d+(?:\.\d+)?)\}$/i);
+  if (latexPiFracMatch) {
+    const rawCoeff = latexPiFracMatch[1];
+    const coeff = rawCoeff === "" || rawCoeff === "+" ? 1 : rawCoeff === "-" ? -1 : Number(rawCoeff);
+    const den = Number(latexPiFracMatch[2]);
+    if (den === 0 || !Number.isFinite(coeff) || !Number.isFinite(den)) return null;
+    return (coeff * Math.PI) / den;
+  }
+
+  // 4.2 普通除法包含 π：pi/2 或 2pi/3
+  const piDivMatch = s.match(/^([+-]?\d*(?:\.\d+)?)\s*\*?\s*(?:\\pi|π|pi)\s*\/\s*(\d+(?:\.\d+)?)$/i);
+  if (piDivMatch) {
+    const rawCoeff = piDivMatch[1];
+    const coeff = rawCoeff === "" || rawCoeff === "+" ? 1 : rawCoeff === "-" ? -1 : Number(rawCoeff);
+    const den = Number(piDivMatch[2]);
+    if (den === 0 || !Number.isFinite(coeff) || !Number.isFinite(den)) return null;
+    return (coeff * Math.PI) / den;
+  }
+
+  // 4.3 乘积 π：2pi, -pi, 0.5pi, \pi, π
+  const piMulMatch = s.match(/^([+-]?\d*(?:\.\d+)?)\s*\*?\s*(?:\\pi|π|pi)$/i);
+  if (piMulMatch) {
+    const rawCoeff = piMulMatch[1];
+    const coeff = rawCoeff === "" || rawCoeff === "+" ? 1 : rawCoeff === "-" ? -1 : Number(rawCoeff);
+    return Number.isFinite(coeff) ? coeff * Math.PI : null;
+  }
+
+  // 5. 百分号数字支持：如 85% 或 85.5% 转换为标准数值 85
+  if (s.endsWith("%") || s.endsWith("％")) {
+    const numPart = s.slice(0, -1).trim();
+    const n = Number(numPart);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // 6. 科学计数法（1e-3 / 1.5×10^4）
+  s = s.replace(/[×xX]\s*10\s*\^?/i, "e");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+export interface NumericVerdict {
+  correct: boolean;
+  /** 判分解释（54-02 验收：得分可解释——命中了哪条规则） */
+  reason: "exact" | "abs-tolerance" | "relative-tolerance" | "unit-converted" | "no-spec" | "unparseable";
+  /** 参与比较的数值（换算到主单位后；无法解析为空） */
+  value: number | null;
+}
+
+/** 数值判分：given=用户作答文本；expected=题库答案数值文本。
+ *  规则：1) 两者解析失败 → wrong/unparseable（不做字符串巧合相等的伪装）；
+ *  2) 单位换算：given 按后缀单位匹配 altUnits 换算到主单位（无后缀视为主单位）；
+ *  3) 命中顺序 exact → absTol → relTolerance（取更宽者已由并用语义保证）。 */
+export function gradeNumeric(
+  spec: NumericAnswerSpec,
+  expectedRaw: string,
+  givenRaw: string,
+): NumericVerdict {
+  // 期望答案允许带主单位后缀（如导入识别 "340 m/s" → spec.unit="m/s"）：剥去后按纯数值比对
+  let expectedText = String(expectedRaw ?? "").trim();
+  if (spec.unit && expectedText.toLowerCase().endsWith(spec.unit.toLowerCase())) {
+    expectedText = expectedText.slice(0, expectedText.length - spec.unit.length).trim();
+  }
+  const expected = parseNumeric(expectedText);
+  // given 可能带单位后缀（如 "1.5 km"）：剥末尾单位词再解析数值
+  let givenText = String(givenRaw ?? "").trim();
+  let givenUnit = spec.unit ?? "";
+  const units = [
+    ...(spec.altUnits ?? []).map((unit) => unit.unit),
+    ...(spec.unit ? [spec.unit] : []),
+  ].sort((a, b) => b.length - a.length);
+  const matchedUnit = units.find((unit) => givenText.toLowerCase().endsWith(unit.toLowerCase()));
+  if (matchedUnit) {
+    givenUnit = matchedUnit;
+    givenText = givenText.slice(0, givenText.length - matchedUnit.length).trim();
+  }
+  const given = parseNumeric(givenText);
+  if (given == null || expected == null) {
+    return { correct: false, reason: "unparseable", value: given };
+  }
+  // 单位换算（乘在数值上：alt 值 × factor = 主单位值）
+  const alt = spec.altUnits?.find((au) => au.unit.toLowerCase() === givenUnit.toLowerCase());
+  const converted = alt ? given * alt.factor : given;
+  // 浮点 epsilon：容差比较不以浮点直接相等判定（54-02 边界）
+  const EPS = 1e-9;
+  const detail = (reason: NumericVerdict["reason"]): NumericVerdict => ({ correct: true, reason, value: converted });
+
+  if (Math.abs(converted - expected) <= EPS) return detail(alt ? "unit-converted" : "exact");
+  const diff = Math.abs(converted - expected);
+  if (spec.absTol != null && diff <= spec.absTol + EPS) return detail(alt ? "unit-converted" : "abs-tolerance");
+  if (spec.relTolerance != null && expected !== 0 && diff <= Math.abs(expected) * (spec.relTolerance / 100) + EPS) {
+    return detail(alt ? "unit-converted" : "relative-tolerance");
+  }
+  return { correct: false, reason: "no-spec", value: converted };
+}
+
+/** grade() 接线：带 spec 的题走结构化判分（在 answer.grade 开头调用） */
+export function gradeWithSpec(
+  q: Question,
+  myAnswer: string,
+): { verdict: "correct" | "wrong"; reason: string } | null {
+  const spec = specOf(q);
+  if (!spec) return null;
+  if (spec.kind === "numeric") {
+    const v = gradeNumeric(spec, q.answer, myAnswer);
+    return { verdict: v.correct ? "correct" : "wrong", reason: v.reason };
+  }
+  const mb = gradeMultiBlank(spec, myAnswer);
+  return { verdict: mb.allCorrect ? "correct" : "wrong", reason: `multi-blank ${mb.correctCount}/${mb.blanks.length}` };
+}
+
+// ---------- 多空题（54-03） ----------
+
+export const MULTI_BLANK_SEP = ";;";
+
+export interface BlankResult {
+  index: number;
+  given: string;
+  correct: boolean;
+  /** 空白/缺答（未提供该空作答） */
+  empty: boolean;
+}
+
+export interface MultiBlankVerdict {
+  blanks: BlankResult[];
+  correctCount: number;
+  filledCount: number;
+  allCorrect: boolean;
+}
+
+/** 逐空判分：作答按 ";;" 分段；orderIndependent=true 时按无序一对一匹配，否则按位置对应空位 */
+export function gradeMultiBlank(spec: MultiBlankSpec, given: string): MultiBlankVerdict {
+  // 兼容中文输入法连续全角分号 "；；" 归一化为半角 ";;"
+  const normalizedGiven = String(given ?? "").replace(/；；/g, MULTI_BLANK_SEP);
+  const parts = normalizedGiven.split(MULTI_BLANK_SEP).map((s) => s.trim());
+
+  if (spec.orderIndependent) {
+    // 无序可交换空位判分（Khan/Perseus 防作弊规范：1对1贪心对齐，严防填重复词骗分）
+    const matchedBlankIndices = new Set<number>();
+    const blanks: BlankResult[] = [];
+
+    parts.forEach((g, i) => {
+      const empty = g === "";
+      if (empty) {
+        blanks.push({ index: i, given: g, correct: false, empty: true });
+        return;
+      }
+      // 查找一个尚未被匹配的空位
+      const targetIdx = spec.blanks.findIndex((b, j) => {
+        if (matchedBlankIndices.has(j)) return false;
+        return b.answers.some((a) => (b.caseSensitive ? a === g : a.toLowerCase() === g.toLowerCase()));
+      });
+
+      if (targetIdx >= 0) {
+        matchedBlankIndices.add(targetIdx);
+        blanks.push({ index: i, given: g, correct: true, empty: false });
+      } else {
+        blanks.push({ index: i, given: g, correct: false, empty: false });
+      }
+    });
+
+    // 若提供的作答段数少于规格空数，补齐缺省空白项
+    for (let i = parts.length; i < spec.blanks.length; i++) {
+      blanks.push({ index: i, given: "", correct: false, empty: true });
+    }
+
+    const correctCount = matchedBlankIndices.size;
+    const filledCount = blanks.filter((b) => !b.empty).length;
+    return {
+      blanks,
+      correctCount,
+      filledCount,
+      allCorrect: spec.blanks.length > 0 && correctCount === spec.blanks.length && blanks.every((b) => b.correct || b.empty),
+    };
+  }
+
+  // 严格位置对应判分（默认）
+  const blanks: BlankResult[] = spec.blanks.map((b, i) => {
+    const g = parts[i] ?? "";
+    const empty = g === "";
+    const correct = !empty && b.answers.some((a) => (b.caseSensitive ? a === g : a.toLowerCase() === g.toLowerCase()));
+    return { index: i, given: g, correct, empty };
+  });
+  const correctCount = blanks.filter((b) => b.correct).length;
+  return {
+    blanks,
+    correctCount,
+    filledCount: blanks.filter((b) => !b.empty).length,
+    allCorrect: blanks.length > 0 && correctCount === blanks.length,
+  };
+}
+
+// ============================================================
+// UI 面（54 第三刀）：作答框所需的纯函数 + 导入识别
+// ============================================================
+
+/** 草稿 → 逐空数组：按 ";;" 切分，不足 n 段补空串（判分按位置对应，多余段保留如实提交） */
+export function splitBlanks(draft: string, n: number): string[] {
+  let normalized = String(draft ?? "").replace(/；；/g, MULTI_BLANK_SEP);
+  if (!normalized.includes(MULTI_BLANK_SEP) && n > 1) {
+    if (normalized.includes("\n") && normalized.split("\n").length >= n) {
+      normalized = normalized.split("\n").join(MULTI_BLANK_SEP);
+    } else if (normalized.includes("；") && normalized.split("；").length >= n) {
+      normalized = normalized.split("；").join(MULTI_BLANK_SEP);
+    }
+  }
+  const parts = normalized.split(MULTI_BLANK_SEP).map((p) => p.trim());
+  while (parts.length < n) parts.push("");
+  return parts;
+}
+
+/** 逐空数组 → 草稿（session draft 单字符串存储；判分管线无感） */
+export function joinBlanks(parts: string[]): string {
+  return parts.join(MULTI_BLANK_SEP);
+}
+
+/** 导入识别（54-01/02/03 第三刀）：填空答案 → 结构化 spec；不匹配返回 undefined=旧字符串口径。
+ *  规则：① 含 ";;" 且 ≥2 段 → multiBlank（逐段为主答案候选）；
+ *        ② 纯数值（可带一个单位词，如 "9.8 m/s²"）→ numeric（无默认容差，exact+宽容解析口径）。
+ *  识别失败不影响导入；spec 随导入写入块属性（app.commitImport 既有链路）。 */
+export function inferAnswerSpec(
+  type: string,
+  answer: string,
+): NumericAnswerSpec | MultiBlankSpec | undefined {
+  if (type !== "fill") return undefined;
+  const text = String(answer ?? "").trim();
+  if (!text) return undefined;
+  const normalizedText = text.replace(/；；/g, MULTI_BLANK_SEP);
+  if (normalizedText.includes(MULTI_BLANK_SEP)) {
+    const segs = normalizedText
+      .split(MULTI_BLANK_SEP)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (segs.length >= 2) {
+      return { v: 1, kind: "multiBlank", blanks: segs.map((x) => ({ answers: [x] })) };
+    }
+  }
+  const m = text.match(/^([-+]?[\d.,]+)\s*(\S+)?$/);
+  if (m && parseNumeric(m[1]) !== null) {
+    const spec: NumericAnswerSpec = { v: 1, kind: "numeric" };
+    if (m[2]) spec.unit = m[2];
+    return spec;
+  }
+  return undefined;
+}
+
+const CIRCLE_DIGITS = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳"];
+
+/**
+ * 格式化展示答案（针对多空填空题，将底层的 ";;" 分隔符转换为人类友好的 "空①: xx · 空②: yy" 格式）
+ */
+export function formatDisplayAnswer(raw: string | null | undefined): string {
+  if (raw == null) return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+  const normalized = s.replace(/；；/g, MULTI_BLANK_SEP);
+  if (normalized.includes(MULTI_BLANK_SEP)) {
+    const parts = normalized.split(MULTI_BLANK_SEP).map((p) => p.trim());
+    return parts
+      .map((p, idx) => {
+        const num = CIRCLE_DIGITS[idx] || `(${idx + 1})`;
+        return `空${num}: ${p || "（空）"}`;
+      })
+      .join(" · ");
+  }
+  return s;
+}
+

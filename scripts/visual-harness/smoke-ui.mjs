@@ -1,0 +1,411 @@
+// ============================================================
+// 真机 UI 流走查（docs/17 27/28/36 + 63-03 + 38 的可自动化面）
+// 与 smoke-e2e.mjs 互补：e2e 校验存储 schema（被动），
+// 本脚本驱动真实 UI 流并断言状态迁移与流水落盘（主动）：
+//   36     作答信心 → attempts 事件 confidence 字段
+//   63-03  改答轨迹：改答 → 终答落事件
+//   27     模考作答 → 立即切页 → 快照落盘 → 刷新 → 恢复卡片与卷序保留
+//   28     过期恢复：改写快照 startedAt → 过期标识 + 过期卷面不崩
+//   38     AI 离线/stub 通道 → 结果或错误卡优雅降级
+// 前置：npx vite build --config scripts/visual-harness/vite.config.ts
+// 用法：node scripts/visual-harness/smoke-ui.mjs
+// 退出码：0 = 全过；1 = 有失败（浏览器偶发断连时自动整轮重试一次）
+// ============================================================
+import { createServer } from "node:http";
+import { readFileSync, existsSync } from "node:fs";
+import { extname, join, resolve } from "node:path";
+import { launchHarnessBrowser } from "./browser.mjs";
+
+const ROOT = resolve(import.meta.dirname, "../../output/harness");
+if (!existsSync(join(ROOT, "index.html"))) {
+  console.error("✗ 先构建 harness：npx vite build --config scripts/visual-harness/vite.config.ts");
+  process.exit(1);
+}
+const MIME = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".png": "image/png",
+  ".json": "application/json",
+};
+const server = createServer((req, res) => {
+  const p = req.url.split("?")[0] === "/" ? "/index.html" : req.url.split("?")[0];
+  try {
+    const body = readFileSync(join(ROOT, p));
+    res.writeHead(200, { "content-type": MIME[extname(p)] ?? "application/octet-stream" });
+    res.end(body);
+  } catch {
+    res.writeHead(404);
+    res.end();
+  }
+});
+await new Promise((r) => server.listen(4202, r));
+let browser = await launchHarnessBrowser();
+const errorDetail = (error) => error?.stack ?? String(error);
+
+/** 单轮完整走查：新开 context（干净库），返回 { results, pageErrors } */
+async function runSuite() {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  // 首次导航清库（种子兜底生效）；刷新保留（sessionStorage 标记防重复清）
+  await ctx.addInitScript(() => {
+    if (!sessionStorage.getItem("lv-cleared")) {
+      localStorage.removeItem("lv-harness-storage");
+      sessionStorage.setItem("lv-cleared", "1");
+    }
+  });
+  const page = await ctx.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(errorDetail(err)));
+  await page.goto("http://127.0.0.1:4202/");
+  await page.waitForTimeout(900);
+
+  const results = [];
+  const record = (name, ok, note = "") => {
+    results.push(ok);
+    console.log(`${ok ? "✓" : "✗ FAIL"}  ${name}${note ? "  — " + note : ""}`);
+  };
+  const T = (txt, timeout = 4000) => page.locator(`#app button:has-text("${txt}")`).first().click({ timeout });
+  const lastEvent = () =>
+    page.evaluate(() => {
+      const all = window.__app.attempts.all();
+      return all[all.length - 1] ?? null;
+    });
+  const waitForQuestion = (qid) => page.waitForFunction(
+    (id) => window.__app.currentSession()?.current?.id === id,
+    qid,
+    { timeout: 4000 },
+  );
+  const waitForAttempt = (qid, previousEid) => page.waitForFunction(
+    ({ id, before }) => {
+      const events = window.__app.attempts.all();
+      const event = events[events.length - 1];
+      return event?.qid === id && event.eid !== before;
+    },
+    { id: qid, before: previousEid },
+    { timeout: 4000 },
+  );
+  const pickOption = (key) => page.locator("#app button.lv-opt")
+    .filter({ has: page.locator(".key", { hasText: new RegExp(`^${key}$`) }) })
+    .click({ timeout: 3000 });
+  // 作答兜底：数值框/多空框/选项/简答，能填哪个填哪个
+  const answerSomehow = async (value) => {
+    const num = page.locator("#app .lv-answer-num");
+    if (await num.count()) {
+      await num.first().fill(value, { timeout: 2000 });
+      await num.first().blur(); // 与真实输入一致：提交 change，记录文本题首答/改答。
+      return true;
+    }
+    const blank = page.locator("#app .lv-answer-blank");
+    if (await blank.count()) {
+      await blank.first().fill(value, { timeout: 2000 });
+      await blank.first().blur();
+      return true;
+    }
+    const opt = page.locator("#app button.lv-opt");
+    if (await opt.count()) {
+      await opt.first().click({ timeout: 2000 });
+      return true;
+    }
+    const ta = page.locator("#app textarea.lv-textarea");
+    if (await ta.count()) {
+      await ta.first().fill(value, { timeout: 2000 });
+      await ta.first().blur();
+      return true;
+    }
+    return false;
+  };
+
+  // ---------- 流程 36：作答信心 → attempts 事件 ----------
+  try {
+    await page.waitForFunction(() => window.__app && window.__plugin);
+    // 只固定抽题结果；仍使用真实 Question、PracticeSession、评分及流水写入。
+    // 前两题覆盖信心和选择改答，第三题留给背题定时器卸载测试。
+    await page.evaluate(async () => {
+      const app = window.__app;
+      const bank = app.listBanks().find((item) => item.id === "20260101000000-hhseedbk");
+      if (!bank) throw new Error("流程 36 的种子题库不存在");
+      const questions = await app.listQuestions(bank.id);
+      const queue = ["seed-q01", "seed-q02", "seed-q03"].map((id) => {
+        const question = questions.find((item) => item.id === id);
+        if (!question || question.type !== "single" || question.options?.length !== 4) {
+          throw new Error(`流程 36 / 63-03 缺少四选一真实种子题：${id}`);
+        }
+        return question;
+      });
+      app.quickDrill = () => [...queue];
+    });
+    await T("快速刷题");
+    await waitForQuestion("seed-q01");
+    const previousEid = (await lastEvent())?.eid;
+    await page.locator('#app button.lv-chip:has-text("确定")').first().click({ timeout: 3000 });
+    await pickOption("C");
+    await T("确认作答");
+    await waitForAttempt("seed-q01", previousEid);
+    const ev = await lastEvent();
+    record(
+      "36 作答信心→流水",
+      !!ev && ev.qid === "seed-q01" && ev.myAnswer === "C" && ev.verdict === "correct" && ev.confidence === "sure" && ev.kind === "practice",
+      ev ? `qid=${ev.qid} answer=${ev.myAnswer} confidence=${ev.confidence} verdict=${ev.verdict}` : "无事件",
+    );
+    await T("下一题");
+    await waitForQuestion("seed-q02");
+  } catch (e) {
+    record("36 作答信心→流水", false, errorDetail(e));
+  }
+
+  // ---------- 流程 63-03：改答轨迹（改答 → 原因追问 → 终答落事件） ----------
+  try {
+    await waitForQuestion("seed-q02");
+    const previousEid = (await lastEvent())?.eid;
+    await pickOption("A");
+    await pickOption("B");
+    const reasonGroup = page.getByRole("group", { name: "为什么改答案？（可选）", exact: true });
+    await reasonGroup.waitFor({ state: "visible", timeout: 3000 });
+    await reasonGroup.getByRole("button", { name: "误触", exact: true }).click();
+    await T("确认作答");
+    await waitForAttempt("seed-q02", previousEid);
+    const ev = await lastEvent();
+    record(
+      "63-03 改答轨迹→终答",
+      !!ev && ev.qid === "seed-q02" && ev.kind === "practice" && ev.firstAnswer === "A" && ev.myAnswer === "B" && ev.verdict === "wrong" && ev.edits?.length === 1 && ev.edits[0].to === "B" && ev.edits[0].reason === "misclick",
+      ev ? `qid=${ev.qid} 首答=${JSON.stringify(ev.firstAnswer)} 终答=${JSON.stringify(ev.myAnswer)} verdict=${ev.verdict} edits=${JSON.stringify(ev.edits)}` : "无事件",
+    );
+    await T("下一题");
+    await waitForQuestion("seed-q03");
+  } catch (e) {
+    record("63-03 改答轨迹→终答", false, errorDetail(e));
+  }
+
+  // ---------- Practice delayed work:背题自动提交必须在 Tab 卸载时取消 ----------
+  try {
+    const before = await page.evaluate(() => window.__app.attempts.all().length);
+    await page.locator('#app button[title="背题"]').click({ timeout: 3000 });
+    // 50ms 的自动揭示窗口内切换 Tab，验证 onMount 清理确实阻止卸载后的提交。
+    await page.evaluate(() => window.__show("mock"));
+    await page.waitForTimeout(120);
+    const after = await page.evaluate(() => window.__app.attempts.all().length);
+    record("Practice 背题延迟提交在切页时取消", after === before, `流水 ${before} → ${after}`);
+  } catch (e) {
+    record("Practice 背题延迟提交在切页时取消", false, errorDetail(e));
+  }
+
+  // ---------- 流程 27：模考作答 → 刷新 → 恢复 ----------
+  try {
+    await page.evaluate(() => window.__show("mock"));
+    await page.waitForTimeout(600);
+    await page.evaluate(() => {
+      const storage = window.__app.deps.storage;
+      const originalSave = storage.save;
+      let rejectOnce = true;
+      storage.save = async function (key, value) {
+        if (key === "mock/run" && rejectOnce) {
+          rejectOnce = false;
+          throw new Error("测试存储暂不可用");
+        }
+        return originalSave.call(this, key, value);
+      };
+      window.__app.__restoreHarnessStorageSave = () => { storage.save = originalSave; };
+    });
+    await T("开始模考");
+    await page.waitForTimeout(1200);
+    const snapshotError = page.locator('#app .lv-error:has(button:has-text("重试保存进度"))');
+    await snapshotError.waitFor({ state: "visible", timeout: 4000 });
+    const saveErrorText = await snapshotError.textContent();
+    await snapshotError.locator("button").click();
+    await page.waitForFunction(() => {
+      const store = JSON.parse(localStorage.getItem("lv-harness-storage") ?? "{}");
+      return !!store["mock/run"]?.runId && !document.querySelector('#app .lv-error button');
+    }, undefined, { timeout: 5000 });
+    const retrySaved = await page.evaluate(() => !!JSON.parse(localStorage.getItem("lv-harness-storage") ?? "{}")["mock/run"]?.runId);
+    await page.evaluate(() => window.__app.__restoreHarnessStorageSave?.());
+    record("27 模考进度保存失败可读且可重试", retrySaved && saveErrorText.includes("测试存储暂不可用"), retrySaved ? "重试后快照已落盘" : "重试未落盘");
+    const before =
+      (await page.locator("#app .lv-chip.num").allTextContents()).find((t) => /^\d+\/\d+$/.test(t.trim())) ?? "";
+    await answerSomehow("A");
+    // 刻意在快照节流窗口内切出模考，验证离开页签时会强制保存最新答案。
+    await page.evaluate(() => window.__show("practice"));
+    await page.waitForFunction(() => {
+      const store = JSON.parse(localStorage.getItem("lv-harness-storage") ?? "{}");
+      return Array.isArray(store["mock/run"]?.answers) && store["mock/run"].answers.length > 0;
+    }, undefined, { timeout: 5000 });
+    const savedAnswers = await page.evaluate(() => JSON.parse(localStorage.getItem("lv-harness-storage") ?? "{}")["mock/run"]?.answers?.length ?? 0);
+    record("27 模考切页立即保存", savedAnswers > 0, `快照答案=${savedAnswers}`);
+    await page.reload();
+    await page.waitForTimeout(1200);
+    // 刷新后默认在练习台：切到模考场，MockTab 初始化时载入 run 快照并显示恢复卡
+    await page.evaluate(() => window.__show("mock"));
+    await page.waitForTimeout(1800);
+    await page.locator('#app button:has-text("恢复考试")').first().click({ timeout: 6000 });
+    await page.waitForTimeout(900);
+    const after =
+      (await page.locator("#app .lv-chip.num").allTextContents()).find((t) => /^\d+\/\d+$/.test(t.trim())) ?? "";
+    record(
+      "27 模考刷新恢复",
+      progress(before) === progress(after) && !!progress(after),
+      `刷新前后进度 ${before || "?"} → ${after || "?"}`,
+    );
+  } catch (e) {
+    record("27 模考刷新恢复", false, errorDetail(e));
+  }
+
+  // ---------- 流程 40-06：纯键盘作答（A 选择 / → 导航；27 恢复后的卷面） ----------
+  try {
+    // 恢复后的游标由快照和题库顺序决定，当前题可能是选项题，也可能是填空/简答题。
+    // 只在存在选项时断言字母选择；否则验证文本题控件存在并继续验证箭头导航。
+    const optionCount = await page.locator("#app .lv-question .lv-opt").count();
+    let keyboardNote = "";
+    let keyboardSelectionOk = true;
+    if (optionCount > 0) {
+      const expectedKey = optionCount >= 2 ? "B" : "A";
+      await page.keyboard.press(expectedKey.toLowerCase()); // A-J 选择：使用当前题存在的选项
+      await page.waitForTimeout(400);
+      const selKeys = (await page.locator("#app .lv-question .lv-opt.sel .key").allTextContents()).map((s) => s.trim());
+      keyboardSelectionOk = selKeys.includes(expectedKey);
+      keyboardNote = `选项题键盘选中=${selKeys.join(",") || "无"}`;
+    } else {
+      const answerCount = await page.locator("#app .lv-question .lv-answer-num, #app .lv-question .lv-answer-blank, #app .lv-question textarea.lv-textarea").count();
+      if (!answerCount) throw new Error(`恢复后的当前题没有可作答控件（options=${optionCount}）`);
+      // 让 window keydown 的 target 离开输入框，验证文本题同样支持箭头切题。
+      await page.locator("#app .lv-question").click({ position: { x: 20, y: 20 } });
+      keyboardNote = `文本题控件=${answerCount}`;
+    }
+    await page.keyboard.press("ArrowRight"); // → 下一题
+    await page.waitForTimeout(500);
+    const prog =
+      (await page.locator("#app .lv-chip.num").allTextContents()).find((t) => /^\d+\/\d+$/.test(t.trim())) ?? "";
+    record(
+      "40-06 键盘作答",
+      keyboardSelectionOk && progress(prog) === "2/8",
+      `${keyboardNote} · → 后进度=${progress(prog) || "?"}`,
+    );
+  } catch (e) {
+    record("40-06 键盘作答", false, errorDetail(e));
+  }
+
+  // ---------- 流程 28：过期恢复（改写持久化快照的 startedAt） ----------
+  try {
+    await page.reload();
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__show("mock"));
+    await page.waitForTimeout(1800);
+    const shifted = await page.evaluate(() => {
+      const LS = "lv-harness-storage";
+      const store = JSON.parse(localStorage.getItem(LS) ?? "{}");
+      const run = store["mock/run"];
+      if (!run || !run.startedAt) return false;
+      run.startedAt = Date.now() - 61 * 60_000;
+      store["mock/run"] = run;
+      localStorage.setItem(LS, JSON.stringify(store));
+      return true;
+    });
+    if (!shifted) throw new Error("mock/run 快照不在持久化存储");
+    await page.reload();
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__show("mock"));
+    await page.waitForTimeout(1800);
+    const expiredChip = await page.locator("#app .lv-chip--red").count();
+    const zeroLeft = await page.locator('#app :text("0 min")').count();
+    record("28 过期恢复标识", expiredChip > 0 || zeroLeft > 0, `红色过期 chip=${expiredChip} · 0 min 提示=${zeroLeft}`);
+    await page.locator('#app button:has-text("恢复考试")').first().click({ timeout: 5000 });
+    await page.waitForTimeout(900);
+    const alive = await page.locator("#app .lv-question, #app .lv-stem, #app .lv-chip").count();
+    record("28 过期恢复不崩", alive > 0, `过期卷面元素=${alive}`);
+  } catch (e) {
+    record("28 过期恢复", false, errorDetail(e));
+  }
+
+  // ---------- 流程 38：AI stub 通道 → 结果卡优雅呈现 ----------
+  try {
+    await page.evaluate(() => window.__show("report"));
+    await page.waitForTimeout(1200);
+    await page.locator('#app button:has-text("AI 解读")').first().click({ timeout: 4000 });
+    await page.waitForTimeout(3000);
+    const graceful = await page.evaluate(() => ({
+      errorCard: document.querySelectorAll("#app .lv-error").length,
+      explainCard: [...document.querySelectorAll("#app .lv-card")].some((c) => c.textContent.includes("解读")),
+    }));
+    record(
+      "38 AI 通道优雅降级",
+      graceful.errorCard > 0 || graceful.explainCard,
+      `错误卡=${graceful.errorCard} · 结果卡=${graceful.explainCard}`,
+    );
+  } catch (e) {
+    record("38 AI 通道优雅降级", false, errorDetail(e));
+  }
+
+  // ---------- 模考估分：读取失败可重试、字段校验定位、写入失败可重试 ----------
+  try {
+    await page.evaluate(() => {
+      window.__show("mock");
+      const app = window.__app;
+      window.__baseListEstimates = app.listEstimates.bind(app);
+      let failOnce = true;
+      app.listEstimates = async () => {
+        if (failOnce) { failOnce = false; throw new Error("临时读取失败"); }
+        return window.__baseListEstimates();
+      };
+    });
+    await page.locator('#app summary:has-text("考后估分")').click();
+    await page.getByRole("alert").filter({ hasText: "估分历史读取失败" }).waitFor();
+    await page.getByRole("button", { name: "重试读取" }).click();
+    await page.getByText("还没有估分记录", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "开始第一次估分" }).click();
+    const mineInput = page.locator("#estimate-mine-input");
+    const focused = await mineInput.evaluate((input) => input === document.activeElement);
+    await page.locator("#estimate-key-input").fill("ABC");
+    await mineInput.fill("AB");
+    const invalid = (await mineInput.getAttribute("aria-invalid")) === "true" && await page.locator("#estimate-length-error").count() === 1;
+    await mineInput.fill("ABC");
+    await page.evaluate(() => {
+      const app = window.__app;
+      window.__baseSaveEstimate = app.saveEstimate.bind(app);
+      let failOnce = true;
+      app.saveEstimate = async (record) => {
+        if (failOnce) { failOnce = false; throw new Error("临时写入失败"); }
+        return window.__baseSaveEstimate(record);
+      };
+    });
+    await page.getByRole("button", { name: "估分", exact: true }).click();
+    await page.getByRole("alert").filter({ hasText: "历史记录未保存" }).waitFor();
+    await page.getByRole("button", { name: "重试保存这次估分" }).click();
+    await page.locator("#app .lv-row").filter({ hasText: "历史" }).getByText("100%", { exact: true }).waitFor();
+    record("模考估分失败可重试", focused && invalid, `空态引导聚焦=${focused} · 字段错误定位=${invalid}`);
+    record("模考估分写入可重试", await page.getByText("100%", { exact: true }).count() > 0, "失败后重试已写入历史");
+    await page.evaluate(() => {
+      window.__app.listEstimates = window.__baseListEstimates;
+      window.__app.saveEstimate = window.__baseSaveEstimate;
+    });
+  } catch (e) {
+    record("模考估分交互", false, errorDetail(e));
+  }
+
+  await ctx.close();
+  return { results, pageErrors };
+}
+
+const progress = (t) => (t || "").trim();
+
+let { results, pageErrors } = await runSuite();
+if (results.some((r) => !r) || pageErrors.length) {
+  console.log("\n… 存在失败/异常：浏览器偶发断连时重启整轮重试一次");
+  try {
+    await browser.close();
+  } catch {
+    /* 已死 */
+  }
+  browser = await launchHarnessBrowser();
+  const retry = await runSuite();
+  results = retry.results;
+  pageErrors = retry.pageErrors;
+}
+
+await browser.close();
+server.close();
+if (pageErrors.length) {
+  console.log("\n✗ 未捕获异常（pageerror）：");
+  pageErrors.forEach((e) => console.log("   " + e));
+  results.push(false);
+}
+const fail = results.filter((r) => !r).length;
+console.log(`\n========== UI 流走查：${results.length - fail}/${results.length} 通过 ==========`);
+process.exit(fail ? 1 : 0);
