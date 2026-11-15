@@ -24,6 +24,43 @@
 
 ---
 
+## 🚀 本次更新要点（v0.15.4）
+
+- **苏格拉底 AI 导师等待体验重构**：消除全屏阻断等待遮罩，换用精致局部悬浮卡与动态思考状态提示，随时可取消且不影响正文浏览；
+- **页面切换自愈防白屏**：修复切出其他工作区再切回后偶发白屏异常，完善视图生命周期自愈；
+- **移动端全场景交互优化**：解决手机端 AI 解答截断、无法下滑、退出模考按钮隐蔽等问题，操作动线顺畅自然；
+- **全生态罗盘顶栏常驻与防抖**：消除思源 3.8.x 内置重排对罗盘中枢的拉锯推挤，单插件亦可一键直达罗盘全功能；
+- **错题复训长效免打扰**：每日错题复习提醒「未来3天不提醒」与首启卡片「我知道了」跨会话跨重启严格静音。
+
+<details>
+<summary>展开查看历史版本更新记录（v0.15.3 及更早版本 · 完整记录见 CHANGELOG.md）</summary>
+
+- **v0.15.3**：全生态基础设施升级与交互打磨（罗盘启动防抖对齐、LifeLog 照片流与原子多块撤销、全生态联合灾备恢复、移动端全面去电脑化）。
+- **v0.15.2**：试题抽屉选项行间隙消除、输入法合成期全域守卫。
+- **v0.15.1**：移动端全屏退场机制闭环、组卷工坊排版修复与组织迁移。
+</details>
+
+---
+
+## 🐴 小驴思源全家桶生态矩阵与交流
+
+本插件为「小驴思源生态」8 大官方集市插件之一。所有插件共享小驴罗盘（顶栏常驻中枢）、全域穿透搜索与统一备份恢复：
+
+| 插件名称 | 核心用途 | 官方集市 / 仓库 |
+| :--- | :--- | :--- |
+| **小驴打卡** | 本地优先习惯打卡、日程提醒与多维人生热力图工作台 | [`siyuan-checkin`](https://github.com/xiaolv-suite/siyuan-checkin) |
+| **小驴管家** | 家庭成员中心视角档案、证照保单到期预警与 LifeLog 流水协同 | [`siyuan-home`](https://github.com/xiaolv-suite/siyuan-home) |
+| **小驴人脉** | 一人一文档人际管理、圈层力导向关系网络与会前破冰速览 | [`siyuan-contacts`](https://github.com/xiaolv-suite/siyuan-contacts) |
+| **小驴拾遗** | 剪藏文章深度消化、视线同焦伴生导读与 4 大学术著录 | [`siyuan-glean`](https://github.com/xiaolv-suite/siyuan-glean) |
+| **小驴闪卡** | 原生 FSRS 算法调度、文档内质感序号流与全场景极速制卡 | [`siyuan-lv-cards`](https://github.com/xiaolv-suite/siyuan-lv-cards) |
+| **小驴考试** | 全真模拟考场环境、错题靶向归因复训与苏格拉底启发式 AI 导师 | [`siyuan-exam`](https://github.com/xiaolv-suite/siyuan-exam) |
+| **小驴常用** | 代码片段工作室、零卡死安全剪贴板历史与一键记事沙盒 | [`xiaolv-common`](https://github.com/xiaolv-suite/xiaolv-common) |
+| **小驴雷切** | 毫秒级多文档穿透切换、左右双文档实时分栏对照与切片代码画板 | [`siyuan-speed-switch`](https://github.com/xiaolv-suite/siyuan-speed-switch) |
+
+💬 **官方交流与需求反馈 QQ 群**：**871707735**（开发者实时在线，欢迎反馈问题、交流使用体验与提交新功能构想）。
+
+---
+
 ## 🎯 为什么需要小驴考试？它解决什么问题？
 
 传统刷题软件与个人知识库长期割裂，导致“刷题在外部 App、笔记在思源”，看似刷了上千题，实际掌握极度浮于表面：
@@ -183,56 +220,8 @@
 
 ---
 
-## 🐴 小驴系列插件家族
-
-小驴系列插件各自独立，可按需安装和组合使用：
-
-| 插件名称 | 一句话简介 | GitHub 仓库 |
-| :--- | :--- | :--- |
-| [小驴雷切](https://github.com/xiaolv-suite/siyuan-speed-switch) | 思源中的统一导航与工作上下文平台，连接页签、工作台、片段和快捷入口。 | [xiaolv-suite/siyuan-speed-switch](https://github.com/xiaolv-suite/siyuan-speed-switch) |
-| [小驴打卡](https://github.com/xiaolv-suite/siyuan-checkin) | 本地优先的习惯、目标打卡与复盘工作台。 | [xiaolv-suite/siyuan-checkin](https://github.com/xiaolv-suite/siyuan-checkin) |
-| [小驴人脉](https://github.com/xiaolv-suite/siyuan-contacts) | 在思源中管理联系人、人际关系、组织归属和重要日期。 | [xiaolv-suite/siyuan-contacts](https://github.com/xiaolv-suite/siyuan-contacts) |
-| [小驴拾遗](https://github.com/xiaolv-suite/siyuan-glean) | 整理思源剪藏和导入文章，支持状态分拣、阅读管理与日后回顾。 | [xiaolv-suite/siyuan-glean](https://github.com/xiaolv-suite/siyuan-glean) |
-| [小驴考试（内测版）](https://github.com/xiaolv-suite/siyuan-exam) | 本地题库备考工作台，支持多格式导入、刷题、模考、错题复盘与 AI 辅助。 | [xiaolv-suite/siyuan-exam](https://github.com/xiaolv-suite/siyuan-exam) |
-| [小驴管家（内测版）](https://github.com/xiaolv-suite/siyuan-home) | 管理家庭与生活资料、成员档案、台账、到期提醒和事务跟进。 | [xiaolv-suite/siyuan-home](https://github.com/xiaolv-suite/siyuan-home) |
-| [小驴闪卡（内测版）](https://github.com/xiaolv-suite/siyuan-lv-cards) | 思源中的知识捕获、制卡、练习与复习平台，使用内核原生 FSRS 排期。 | [xiaolv-suite/siyuan-lv-cards](https://github.com/xiaolv-suite/siyuan-lv-cards) |
-| [小驴常用（内测版）](https://github.com/xiaolv-suite/xiaolv-common) | 基于思源块保存、搜索并快速调用常用语、模板、代码和链接，支持变量填充。 | [xiaolv-suite/xiaolv-common](https://github.com/xiaolv-suite/xiaolv-common) |
-
-交流与反馈 QQ 群：**871707735**（可反馈 Bug、提交需求和交流使用体验）。
-
----
-
-## 📝 最近更新动态
-
-- **思源 3.8.10+ 原生特性适配**：全屏机考 CBT 模式协同原生停靠栏折叠与恢复；战报大盘、复盘日志与总览大纲支持右键呼出原生文档树菜单（`showDocTreeNativeMenu`）；半角斜杠标题防截断保护。
-- **试题抽屉选项行幽灵空隙根治**：清除历史批量替换遗留的残缺空标签，彻底消除选项行前约 50px 的异常间隙；还原显式 transition 动效属性列表并新增内联样式完整性契约。
-- **输入法与触控优化**：题库标签检索、选项快拆、遮盖图 URL 三处输入增加 IME 合成期守卫；移动端/窄屏禁用文本域右下角拖拽把手避免误触变形。
-- **性能与工程防线**：日志按构建期门控（开发环境输出，生产环境静默）；抽屉文档搜索 300ms 防抖并加入响应序列守卫杜绝乱序覆盖；全生态剪贴板写入失败覆盖契约固化。
-
-<details>
-<summary>展开查看历史版本更新（v0.15.1 及更早版本 · 完整记录见 <a href="./CHANGELOG.md">CHANGELOG.md</a>）</summary>
-
-### v0.15.1（2026-11-10 · GitHub 组织迁移与体验加固）
-
-- **移动端全屏退场机制闭环**：错题溯源打开原笔记后，全屏考试弹窗自动优雅收起，不再遮挡底层文档；
-- **组卷工坊排版修复**：排版与导出操作恢复即时微胶囊界面提示，杜绝静默假死感；
-- **顶栏罗盘自愈守护**：启动微任务防抖收敛（重绘 8 次 → 1 次），思源重启或云同步后图标由 MutationObserver 自动自愈；
-- **输入法防误关守卫**：手机端输入法弹起或表单内滚动时不再误触发全屏关闭手势；
-- **仓库与提交身份迁移**：全量迁移至 `xiaolv-suite` 组织。
-
-<details>
-<summary>展开查看历史版本更新（v0.15.0 及更早版本 · 完整记录见 <a href="./CHANGELOG.md">CHANGELOG.md</a>）</summary>
-
-### v0.15.0（2026-11-02）
-
-- 做题心流提速：答对 3.5s 平滑倒计时自动翻题、考前背题速记模式（Recite Mode）、选项随机乱序、数理草图画板荧光笔；
-- 题库与闪卡公共集市（MarketplaceHub）：8 大公版典藏学科题库、跨学科试题篮与自由组卷、增量差量更新与无损合并、`.lvcards` 双向零损互通；
-- 采分点量规 (Rubric) 与多维报告大盘。
-
-</details>
-
----
-
 ## 📄 许可证 (License)
+
+[MIT License](LICENSE) · Copyright (c) 2026 xiaolv-suite
 
 [MIT License](LICENSE) · Copyright (c) 2026 xiaolv-suite
