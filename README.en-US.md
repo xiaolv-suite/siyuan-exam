@@ -9,7 +9,7 @@
 > **Personal Notes → Independent Retrieval → Honest Evidence → Wrongbook Elimination → Timed Mock Verification**  
 > Every question is a native, searchable, linkable **SiYuan block** in your own workspace — never locked in an external cloud.
 
-[![Release](https://img.shields.io/badge/release-v0.15.3-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.4-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
 [![CI](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)

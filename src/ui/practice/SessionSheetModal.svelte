@@ -90,3 +90,101 @@
     </div>
   </div>
 {/if}
+
+<style>
+  .lv-hotkeys-backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--lv-overlay);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 100;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    animation: lv-appear var(--lv-dur-view, 0.22s) var(--lv-ease-out);
+  }
+  .lv-hotkeys-wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 101;
+    pointer-events: none;
+    padding: var(--lv-space-3, 16px);
+  }
+  .lv-dialog-title-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--lv-font-size-title, 16px);
+    font-weight: var(--lv-font-weight-bold, 700);
+    color: var(--lv-text);
+  }
+  .lv-dialog-title-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--lv-r-2, 8px);
+    background: var(--lv-brand-soft);
+    color: var(--lv-brand);
+  }
+  .lv-dialog-title-tag {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: var(--lv-radius-pill, 9999px);
+    background: var(--lv-surface-2);
+    color: var(--lv-text-muted);
+    font-weight: 600;
+  }
+  .lv-cell {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--lv-border);
+    background: var(--lv-surface);
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--lv-font-mono, ui-monospace, monospace);
+    color: var(--lv-text);
+    cursor: pointer;
+    touch-action: manipulation;
+    display: inline-grid;
+    place-items: center;
+    box-shadow: var(--lv-sh-1);
+    transition: transform var(--lv-dur-micro, 0.15s) ease, background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease;
+  }
+  .lv-cell:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: var(--lv-brand);
+    background: var(--lv-surface-hover, var(--lv-surface));
+  }
+  .lv-cell:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+  .lv-cell.done {
+    background: var(--lv-brand-soft);
+    color: var(--lv-brand);
+    border-color: color-mix(in srgb, var(--lv-brand) 40%, transparent);
+  }
+  .lv-cell.cur {
+    background: var(--lv-brand);
+    color: var(--lv-on-accent, var(--b3-theme-on-primary, #ffffff));
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4px var(--lv-brand);
+    transform: translateY(-1px);
+    z-index: 2;
+  }
+  @media (max-width: 640px) {
+    .lv-cell {
+      min-width: 44px;
+      min-height: 44px;
+      font-size: 14px;
+    }
+  }
+</style>

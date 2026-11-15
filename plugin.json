@@ -2,7 +2,7 @@
   "name": "siyuan-exam",
   "author": "xiaolv-suite",
   "url": "https://github.com/xiaolv-suite/siyuan-exam",
-  "version": "0.15.3",
+  "version": "0.15.4",
   "minAppVersion": "3.8.4",
   "settingsWindow": true,
   "backends": [

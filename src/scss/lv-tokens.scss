@@ -260,6 +260,8 @@
 }
 
 body.dark,
+body.body--dark,
+.b3-theme-dark,
 html[data-theme="dark"],
 html[data-theme-mode="dark"] {
   --lv-accent: #818cf8;

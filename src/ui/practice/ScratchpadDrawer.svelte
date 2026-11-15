@@ -116,15 +116,17 @@
     startY = pos.y;
 
     if (sketchTool === "line") {
+      ctx.globalCompositeOperation = "source-over";
       snapshot = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
     } else {
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
+      ctx.globalCompositeOperation = sketchTool === "eraser" ? "destination-out" : "source-over";
       if (sketchTool === "highlighter") {
         ctx.strokeStyle = highlighterColor;
         ctx.lineWidth = 16;
       } else if (sketchTool === "eraser") {
-        ctx.strokeStyle = "var(--lv-surface, #ffffff)";
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 18;
       } else {
         ctx.strokeStyle = strokeColor;
@@ -322,44 +324,44 @@
           </button>
           <div style="width:1px;height:14px;background:var(--lv-border);margin:0 4px"></div>
           <span class="lv-muted" style="font-size:11px">颜色:</span>
-          {#if sketchTool === "highlighter"}
-            {#each [
-              { c: "var(--lv-hl-yellow, rgba(250, 204, 21, 0.45))", name: "明黄荧光" },
-              { c: "var(--lv-hl-green, rgba(52, 211, 153, 0.45))", name: "翠绿荧光" },
-              { c: "var(--lv-hl-blue, rgba(56, 189, 248, 0.45))", name: "冰蓝荧光" },
-              { c: "var(--lv-hl-pink, rgba(244, 63, 94, 0.45))", name: "珊瑚粉荧光" },
-            ] as opt (opt.c)}
-              <button
-                type="button"
-                style="width:18px;height:18px;border-radius:50%;background:{opt.c};border:{highlighterColor === opt.c ? '2.5px solid var(--lv-accent)' : '1px solid var(--lv-border)'};cursor:pointer;padding:0"
-                title={opt.name}
-                onclick={() => (highlighterColor = opt.c)}
-              ></button>
-            {/each}
-          {:else}
-            {#each [
-              { c: "var(--lv-brand, #1e3a8a)", name: "普鲁士蓝" },
-              { c: "var(--lv-accent-seal, #b91c1c)", name: "朱砂红" },
-              { c: "var(--lv-text, #374151)", name: "石墨黑" },
-            ] as opt (opt.c)}
-              <button
-                type="button"
-                style="width:18px;height:18px;border-radius:50%;background:{opt.c};border:{strokeColor === opt.c ? '2.5px solid var(--lv-accent)' : '1px solid var(--lv-border)'};cursor:pointer;padding:0"
-                title={opt.name}
-                onclick={() => (strokeColor = opt.c)}
-              ></button>
-            {/each}
-          {/if}
-        </div>
-        <div class="lv-row" style="margin:0;gap:4px;align-items:center">
-          <span class="lv-muted" style="font-size:11px">几何印章:</span>
-          <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:2px 6px;font-size:11px" onclick={stampAxis} title="快速印出标准 X-Y 坐标数轴">
-            ➕ 坐标轴
-          </button>
-          <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:2px 6px;font-size:11px" onclick={() => stampShape("triangle")} title="快速印出直角三角形">
-            ➕ 直角△
-          </button>
-          <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:2px 6px;font-size:11px" onclick={() => stampShape("circle")} title="快速印出标准圆">
+	          {#if sketchTool === "highlighter"}
+		            {#each [
+		              { c: "var(--lv-hl-yellow, rgba(250, 204, 21, 0.45))", name: "明黄荧光" },
+		              { c: "var(--lv-hl-green, rgba(52, 211, 153, 0.45))", name: "翠绿荧光" },
+		              { c: "var(--lv-hl-blue, rgba(56, 189, 248, 0.45))", name: "冰蓝荧光" },
+		              { c: "var(--lv-hl-pink, rgba(244, 63, 94, 0.45))", name: "珊瑚粉荧光" },
+		            ] as opt (opt.c)}
+		              <button
+		                type="button"
+		                style="width:30px;height:30px;min-width:30px;min-height:30px;border-radius:50%;background:{opt.c};border:{highlighterColor === opt.c ? '2.5px solid var(--lv-accent)' : '1px solid var(--lv-border)'};box-shadow:{highlighterColor === opt.c ? '0 0 0 2px color-mix(in srgb, var(--lv-accent) 30%, transparent)' : 'none'};cursor:pointer;padding:0;touch-action:manipulation"
+		                title={opt.name}
+		                onclick={() => (highlighterColor = opt.c)}
+		              ></button>
+		            {/each}
+		          {:else}
+		            {#each [
+		              { c: "var(--lv-brand, #1e3a8a)", name: "普鲁士蓝" },
+		              { c: "var(--lv-accent-seal, #b91c1c)", name: "朱砂红" },
+		              { c: "var(--lv-text, #374151)", name: "石墨黑" },
+		            ] as opt (opt.c)}
+		              <button
+		                type="button"
+		                style="width:30px;height:30px;min-width:30px;min-height:30px;border-radius:50%;background:{opt.c};border:{strokeColor === opt.c ? '2.5px solid var(--lv-accent)' : '1px solid var(--lv-border)'};box-shadow:{strokeColor === opt.c ? '0 0 0 2px color-mix(in srgb, var(--lv-accent) 30%, transparent)' : 'none'};cursor:pointer;padding:0;touch-action:manipulation"
+		                title={opt.name}
+		                onclick={() => (strokeColor = opt.c)}
+		              ></button>
+	            {/each}
+	          {/if}
+	        </div>
+	        <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+	          <span class="lv-muted" style="font-size:11px">几何印章:</span>
+	          <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:4px 8px;font-size:11px;min-height:28px" onclick={stampAxis} title="快速印出标准 X-Y 坐标数轴">
+	            ➕ 坐标轴
+	          </button>
+	          <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:4px 8px;font-size:11px;min-height:28px" onclick={() => stampShape("triangle")} title="快速印出直角三角形">
+	            ➕ 直角△
+	          </button>
+	          <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:4px 8px;font-size:11px;min-height:28px" onclick={() => stampShape("circle")} title="快速印出标准圆">
             ➕ 圆形
           </button>
         </div>

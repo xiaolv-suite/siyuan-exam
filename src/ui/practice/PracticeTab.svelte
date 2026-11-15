@@ -60,6 +60,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     import MarketplaceModal from "./MarketplaceModal.svelte";
     import MarketplaceStudioView from "./MarketplaceStudioView.svelte";
     import SessionSheetModal from "./SessionSheetModal.svelte";
+    import SocraticGuidanceModal from "./SocraticGuidanceModal.svelte";
     import ReciteStudioView from "./ReciteStudioView.svelte";
     import WrongbookStudioView from "./WrongbookStudioView.svelte";
     import ImportStudioView from "./ImportStudioView.svelte";
@@ -127,6 +128,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       executeAiExplain,
       executeAiHint,
       formatEnvStatusLine,
+      appendAiFailureGuidance,
       getHintButtonLabel,
       saveExplainToQuestionDoc,
       convertSingleQuestionToCard,
@@ -460,6 +462,12 @@ import { confirmDialogSync } from "@/libs/dialog";
     type View = "entry" | "session" | "browse" | "import" | "recite" | "manual" | "ai" | "materials" | "wrongbook" | "marketplace";
     let view: View = $state("entry");
     let soundEnabled = $state(readLocal("lv-exam/sound") !== "0");
+    $effect(() => {
+      // 容错防白屏自愈：若视图处于 session 态但 session 数据已失效脱靶，自动安全回退至 entry
+      if (view === "session" && !session && !loading) {
+        view = "entry";
+      }
+    });
     $effect(() => {
       writeLocal("lv-exam/sound", soundEnabled ? "1" : "0");
       if (plugin.settingUtils?.set) {
@@ -886,8 +894,8 @@ import { confirmDialogSync } from "@/libs/dialog";
           session = null;
           view = "entry";
         },
-        confirmTitle: "退出确认",
-        confirmPrompt: "考试进行中，确认退出？（进度将保存至草稿）",
+        confirmTitle: "退出做题？",
+        confirmPrompt: "做题进度已自动保存至草稿，你可以随时返回继续作答。",
       });
     }
 
@@ -1605,15 +1613,19 @@ import { confirmDialogSync } from "@/libs/dialog";
               );
               if (s) {
                 s.advancePastAnswered();                       // 37-05：恢复跳过已答位置防双计
-                if (s.allAnswered()) sessionDone = s.finish();
+                const resumedFinished = s.allAnswered();
+                if (resumedFinished) sessionDone = s.finish();
                 session = s;
                 syncSessionScratchpad(s);
-                if (!reciteIsNewer) {
+                if (!reciteIsNewer && resumedFinished) {
+                  // 已答完的会话：直接落到结果汇总屏（非做题页），保留交卷入口
                   view = "session";
                   sessionRev++;
                   armPracticeExamHistory();
                   restoreQuestionControls();
                 }
+                // 未完成会话不再自动跌入做题页（用户预期：先落入口主屏，
+                // 由「继续练习」卡片显式恢复，避免每次打开插件都被拽进答题现场）
                 if (app.lastResumeMissing.length) showMessage(t("resume.missing").replace("{n}", String(app.lastResumeMissing.length)), 4200, "info");
               }
               if (reciteIsNewer && !externalStartBusy) {
@@ -3101,6 +3113,13 @@ import { confirmDialogSync } from "@/libs/dialog";
     let explainBusy = $state(false);
     let explainQid = $state("");
     let explainHistory = $state<Record<string, import("@/ai/client").AiMessage[]>>({});
+    let socraticModalOpen = $state(false);
+    let socraticMode = $state<"socratic" | "explain" | "hint" | "dual-loop" | "storm">("socratic");
+
+    async function handleSocraticFollowUp(msg: string) {
+      explainFollowUp = msg;
+      await sendFollowUp();
+    }
     /** 多轮历史持久化（27 P3）：保存到插件存储，重载后可继续追问；仅保留最近 10 题 */
     async function persistExplainHistory() {
       await saveExplainConversationHistory(app, explainHistory);
@@ -3131,15 +3150,35 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     async function explainCurrent(mode: "explain" | "hint" | "socratic" | "dual-loop" | "storm" = "explain") {
       const q = session?.current;
-      if (!q || explainBusy || !feedback) return;
+      if (!q) {
+        showMessage("当前无进行中的题目", 2000, "info");
+        return;
+      }
+      if (explainBusy) {
+        showMessage("AI 正在思考中，请稍候…", 2000, "info");
+        return;
+      }
+      if (mode !== "socratic" && mode !== "hint" && !feedback) {
+        showMessage("请先作答提交后再查看完整解析依据，或使用提示/苏格拉底启发引导", 3000, "info");
+        return;
+      }
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
-      if (!app.kernelOnline) { explainText = t("state.offlineHint"); return; }
+      if (!app.kernelOnline) {
+        explainText = t("state.offlineHint");
+        showMessage(t("state.offlineHint"), 2500, "info");
+        return;
+      }
       explainBusy = true; explainText = ""; explainQid = q.id;
+      socraticMode = mode;
+      socraticModalOpen = true;
+      const submitted = !!feedback;
+      const learnerAns = feedback?.myAnswer ?? session?.getDraft(q.id) ?? null;
       try {
         const res = await executeAiExplain({
           q,
           mode,
-          learnerAnswer: feedback.myAnswer,
+          learnerAnswer: learnerAns,
+          submitted,
           sessionId: session?.id ?? "",
           client: app.deps.client,
           aiConfig: aiSettings(),
@@ -3151,11 +3190,15 @@ import { confirmDialogSync } from "@/libs/dialog";
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
           void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
           helpShown.set(q.id, mode === "dual-loop" || mode === "storm" ? "explain" : mode);
+          lvLaunchpad.haptic(10);
         } else {
           explainText = formatEnvStatusLine(res.env, t);
+          showMessage("AI 响应未就绪：请查看下方解决方案指引", 3200, "info");
         }
       } catch (e) {
-        explainText = String(e instanceof Error ? e.message : e);
+        const errMsg = String(e instanceof Error ? e.message : e);
+        explainText = appendAiFailureGuidance(errMsg);
+        showMessage("AI 任务失败：请检查思源设置或专属模型配置", 3600, "error");
       } finally { explainBusy = false; }
     }
 
@@ -3210,7 +3253,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           explainText = formatEnvStatusLine(res.env, t);
         }
       } catch (e) {
-        explainText = String(e instanceof Error ? e.message : e);
+        explainText = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
       } finally { explainBusy = false; }
     }
 
@@ -3234,6 +3277,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (!q || !history?.length || explainBusy || !explainFollowUp.trim()) return;
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
       explainBusy = true;
+      socraticModalOpen = true;
 
       try {
         const prompt = explainFollowUp.trim();
@@ -3259,10 +3303,10 @@ import { confirmDialogSync } from "@/libs/dialog";
           explainFollowUp = "";
           if (res.chId && res.tokens) void app.recordAiUsage(res.chId, res.tokens, 1).catch(() => undefined);
         } else if (res.error) {
-          explainText = res.error;
+          explainText = appendAiFailureGuidance(res.error);
         }
       } catch (e) {
-        explainText = String(e instanceof Error ? e.message : e);
+        explainText = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
       } finally { explainBusy = false; }
     }
 
@@ -6320,6 +6364,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       ontouchStart={onTouchStart}
       ontouchEnd={onTouchEnd}
       onopenSessionSheet={() => (sessionSheetOpen = !sessionSheetOpen)}
+      onopenSocraticModal={() => (socraticModalOpen = true)}
     />
   {:else if view === "recite"}
     <ReciteStudioView
@@ -7052,6 +7097,18 @@ import { confirmDialogSync } from "@/libs/dialog";
         }
       }}
     />
+  {:else}
+    <!-- 兜底防白屏自愈：若视图状态与数据失配，自动回退呈现安全导航 -->
+    <div class="lv-pad">
+      <div class="lv-empty">
+        <div class="lv-empty-icon"><Icon name="book" size={32} /></div>
+        <b>视图状态已安全恢复</b>
+        <p class="lv-muted" style="margin-top:6px;font-size:12.5px">检测到练习状态失配，已为您自动重置至题库首页。</p>
+        <div class="lv-row" style="justify-content:center;margin-top:14px">
+          <button class="lv-btn lv-btn--primary" onclick={() => { view = "entry"; void loadQuestions(); }}>返回题库主页</button>
+        </div>
+      </div>
+    </div>
   {/if}
     </div>
     <Palette commands={paletteCommands} bind:open={paletteOpen} {t} />
@@ -7211,6 +7268,19 @@ import { confirmDialogSync } from "@/libs/dialog";
       questions={tabAssembleQuestions}
       onclose={() => (tabAssembleOpen = false)}
       {showMessage}
+    />
+    <SocraticGuidanceModal
+      bind:open={socraticModalOpen}
+      q={session?.current ?? null}
+      mode={socraticMode}
+      busy={explainBusy}
+      text={explainText}
+      history={session?.current ? (explainHistory[session.current.id] || []) : []}
+      onclose={() => (socraticModalOpen = false)}
+      onsendFollowUp={handleSocraticFollowUp}
+      onsaveToNote={() => { void saveExplain(); }}
+      saveBusy={explainSaveBusy}
+      saved={Boolean(session?.current && explainSavedQid === session.current.id)}
     />
   </div>
 </div>

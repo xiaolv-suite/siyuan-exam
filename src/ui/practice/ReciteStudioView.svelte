@@ -259,9 +259,10 @@
       padding: 2px 3px;
     }
     .lv-recite-dock .lv-chip {
-      padding: 2px 6px;
-      height: 26px;
-      min-height: 26px;
+      padding: 2px 7px;
+      height: 28px;
+      min-height: 28px;
+      touch-action: manipulation;
     }
     .lv-recite-meta-chip {
       display: none !important;

@@ -484,7 +484,7 @@
                 type="button"
                 class="lv-chip sm"
                 class:acc={importDocProfile === mode.id}
-                style="{importDocProfile === mode.id ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}font-size:11px;padding:2px 8px;cursor:pointer"
+                style="{importDocProfile === mode.id ? 'background:var(--lv-brand);color:var(--lv-on-brand, #fff);font-weight:700;' : ''}font-size:11px;padding:2px 8px;cursor:pointer"
                 title={mode.desc}
                 onclick={() => { importDocProfile = mode.id as any; }}
               >
@@ -497,9 +497,9 @@
               <span style="position:absolute;left:8px;pointer-events:none;color:var(--lv-text-3);display:flex;align-items:center" aria-hidden="true">
                 <Icon name="search" size={13} />
               </span>
-              <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:26px" placeholder={t("import.searchDocPlaceholder")} aria-label={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
+              <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:32px" placeholder={t("import.searchDocPlaceholder")} aria-label={t("import.searchDocPlaceholder")} bind:value={docSearchQuery} oninput={(e) => handleDocSearchInput((e.target as HTMLInputElement).value)} />
               {#if docSearchQuery}
-                <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:3px;padding:2px 4px;min-width:18px;min-height:18px"><Icon name="close" size={11} /></button>
+                <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { docSearchQuery = ""; onDoSearchDocs(""); }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:3px;padding:0;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--lv-radius-control-sm,6px)"><Icon name="close" size={12} /></button>
               {/if}
             </div>
             <button class="lv-btn sm" onclick={() => { if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer); onDoSearchDocs(docSearchQuery); }} disabled={siyuanDocBusy} aria-busy={siyuanDocBusy}><Icon name="search" size={13} /> {siyuanDocBusy ? "…" : "搜索"}</button>
@@ -1038,7 +1038,7 @@
                           {@const isAns = q.answer && q.answer.includes(letter)}
                           <div class="lv-row" style="margin:0;gap:8px;align-items:center">
                             <button type="button" class="lv-chip" class:acc={isAns}
-                              style="{isAns ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}cursor:pointer;padding:2px 8px;font-size:11px"
+                              style="{isAns ? 'background:var(--lv-brand);color:var(--lv-on-brand, #fff);font-weight:700;' : ''}cursor:pointer;padding:2px 8px;font-size:11px"
                               title="点击将该选项设为正确答案"
                               onclick={() => {
                                 if (q.type === "single") q.answer = letter;

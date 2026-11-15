@@ -268,9 +268,12 @@ export async function executeSessionExit(
 
   if (!isSessionDone && session.answered?.length) {
     const ok = await confirmFn({
-      title: t("session.exit"),
-      content: t("session.exitConfirm"),
-    });
+      title: t("session.exit") || "退出做题？",
+      content: t("session.exitConfirm") || "做题进度已自动保存至草稿，你可以随时返回继续作答。",
+      confirmText: "保存并退出",
+      cancelText: "继续做题",
+      dialogClass: "lv-exam-exit-dialog",
+    } as any);
     if (!ok) return false;
   }
 

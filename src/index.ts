@@ -777,31 +777,48 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       [TAB_REPORT, ReportTab],
     ];
     for (const [type, component] of tabs) {
+      const mountTabDom = (custom: any) => {
+        if (!custom?.element) return;
+        const plugin = getPlugin();
+        const existingTab = custom.element instanceof HTMLElement ? custom.element.querySelector(".lv-exam-tab") : null;
+        if (plugin.tabApps.has(custom) && existingTab && custom.element.contains(existingTab)) {
+          return;
+        }
+        if (plugin.tabApps.has(custom)) {
+          void plugin.tabApps.destroy(custom, (instance) => {
+            try { unmount(instance); } catch {}
+          });
+        }
+        if (custom.element instanceof HTMLElement) {
+          custom.element.innerHTML = "";
+          custom.element.style.height = "100%";
+          custom.element.style.display = "flex";
+          custom.element.style.flexDirection = "column";
+        }
+        const el = document.createElement("div");
+        el.classList.add("fn__flex-1", "lv-exam-tab");
+        el.style.height = "100%";
+        custom.element.appendChild(el);
+        const instance = mount(component, {
+          target: el,
+          props: { plugin, examApp: plugin.examApp },
+        });
+        plugin.tabApps.set(custom, instance);
+      };
+
       this.addTab({
         type,
-        init() {
-          const plugin = getPlugin();
-          if (plugin.tabApps.has(this)) return;
-          if (this.element instanceof HTMLElement) {
-            this.element.style.height = "100%";
-            this.element.style.display = "flex";
-            this.element.style.flexDirection = "column";
-          }
-          const el = document.createElement("div");
-          el.classList.add("fn__flex-1", "lv-exam-tab");
-          el.style.height = "100%";
-          this.element.appendChild(el);
-          const instance = mount(component, {
-            target: el,
-            props: { plugin, examApp: plugin.examApp },
-          });
-          plugin.tabApps.set(this, instance);
+        init(custom) {
+          mountTabDom(custom || this);
         },
         destroy() {
           const plugin = getPlugin();
           void plugin.tabApps.destroy(this, (instance) => unmount(instance)).catch((error) => {
             console.error(`[LvExam] failed to unmount tab: ${type}`, error);
           });
+        },
+        update() {
+          mountTabDom(this);
         },
       });
     }
@@ -1000,6 +1017,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
 
     dialog.element.classList.add("lv-exam-mobile-dialog");
     dialog.element.querySelector?.(".b3-dialog")?.classList.add("lv-exam-mobile-dialog");
+    dialog.element.querySelector?.(".b3-dialog__container")?.classList.add("lv-exam-dialog");
     const hostEl = dialog.element.querySelector(".lv-exam-mobile-dialog-host");
     if (hostEl) {
       const el = document.createElement("div");

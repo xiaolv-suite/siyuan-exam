@@ -496,26 +496,26 @@
           </div>
           <div class="lv-home-btn-group">
             {#if session && session.phase === "running"}
-              <button class="lv-btn sm lv-btn--primary" onclick={onResume} disabled={resumeBusy || exitBusy}>
-                <Icon name="play" size={13} /> 继续上次练习 (已答 {session.progress.done}/{session.progress.total})
+              <button class="lv-btn sm lv-btn--primary" onclick={onResume} disabled={resumeBusy || exitBusy} style="display:flex;align-items:center;width:100%">
+                <Icon name="play" size={13} /> <span>继续上次练习</span> <span class="lv-chip sm num" style="margin-left:auto;font-size:11px">已答 {session.progress.done}/{session.progress.total}</span>
               </button>
             {:else}
-              <button class="lv-btn sm" disabled={!practiceQuestions.length} onclick={() => onstartDrill("quick")}>
-                <Icon name="play" size={13} /> {t("mode.quick", "快速自测 (10题)")}
+              <button class="lv-btn sm" disabled={!practiceQuestions.length} onclick={() => onstartDrill("quick")} style="display:flex;align-items:center;width:100%">
+                <Icon name="play" size={13} /> <span>快速自测</span> <span class="lv-chip sm num" style="margin-left:auto;font-size:11px">10题</span>
               </button>
             {/if}
-            <button class="lv-btn sm" disabled={!wrongList.length} onclick={() => onstartDrill("wrong")}>
-              <Icon name="xcircle" size={13} /> 错题复仇特训
-              {#if wrongList.length}<span class="lv-chip num sm" style="color:var(--lv-accent-seal)">{wrongList.length}</span>{/if}
+            <button class="lv-btn sm" disabled={!wrongList.length} onclick={() => onstartDrill("wrong")} style="display:flex;align-items:center;width:100%">
+              <Icon name="xcircle" size={13} /> <span>错题复仇特训</span>
+              {#if wrongList.length}<span class="lv-chip num sm" style="margin-left:auto;color:var(--lv-accent-seal)">{wrongList.length}</span>{/if}
             </button>
-            <button class="lv-btn sm" disabled={!cramCount && !practiceQuestions.length} onclick={() => onstartDrill("cram")}>
-              <Icon name="flame" size={13} /> 薄弱10题特训
-              {#if cramCount}<span class="lv-chip num sm">{cramCount}</span>{/if}
+            <button class="lv-btn sm" disabled={!cramCount && !practiceQuestions.length} onclick={() => onstartDrill("cram")} style="display:flex;align-items:center;width:100%">
+              <Icon name="flame" size={13} /> <span>薄弱特训</span>
+              {#if cramCount}<span class="lv-chip num sm" style="margin-left:auto">{cramCount}</span>{/if}
             </button>
             {#if favoriteCount}
-              <button class="lv-btn sm" onclick={() => onstartDrill("fav")}>
-                <Icon name="star" size={13} /> {t("mode.fav", "重点题目收藏")}
-                <span class="lv-chip num sm">{favoriteCount}</span>
+              <button class="lv-btn sm" onclick={() => onstartDrill("fav")} style="display:flex;align-items:center;width:100%">
+                <Icon name="star" size={13} /> <span>重点题目收藏</span>
+                <span class="lv-chip num sm" style="margin-left:auto">{favoriteCount}</span>
               </button>
             {/if}
           </div>
@@ -530,18 +530,18 @@
             <span class="lv-muted" style="font-size:12px">主动回忆 · 实战验真</span>
           </div>
           <div class="lv-home-btn-group">
-            <button class="lv-btn sm lv-mode" disabled={!practiceQuestions.length} onclick={onstartRecite} title="不看答案先回忆，以纸面背题模式进行记忆巩固">
-              <Icon name="rotate" size={13} /> {t("mode.recite", "纸面背诵模式")}
+            <button class="lv-btn sm lv-mode" disabled={!practiceQuestions.length} onclick={onstartRecite} title="不看答案先回忆，以纸面背题模式进行记忆巩固" style="display:flex;align-items:center;width:100%">
+              <Icon name="rotate" size={13} /> <span>纸面背诵模式</span>
             </button>
-            <button class="lv-btn sm lv-btn--primary" onclick={onopenMock} title="进入全真模拟考场">
-              <Icon name="clock" size={13} /> 进入全真模考场
+            <button class="lv-btn sm lv-btn--primary" onclick={onopenMock} title="进入全真模拟考场" style="display:flex;align-items:center;width:100%">
+              <Icon name="clock" size={13} /> <span>进入全真模考场</span>
             </button>
-            <button class="lv-btn sm" onclick={onopenReport} title="查看学情诊断报告">
-              <Icon name="chart" size={13} /> 查看学情诊断报告
+            <button class="lv-btn sm" onclick={onopenReport} title="查看学情诊断报告" style="display:flex;align-items:center;width:100%">
+              <Icon name="chart" size={13} /> <span>查看学情报告</span>
             </button>
             {#if criticalForgettingKps.length > 0}
-              <button class="lv-btn sm" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal)" title={t("entry.retestPractice")}>
-                <Icon name="flame" size={13} /> {t("entry.retestPractice")}
+              <button class="lv-btn sm" onclick={onrescueEbbinghausNow} style="color:var(--lv-accent-seal);display:flex;align-items:center;width:100%" title={t("entry.retestPractice")}>
+                <Icon name="flame" size={13} /> <span>独立复测</span> <span class="lv-chip sm num" style="margin-left:auto;font-size:11px">最多10题</span>
               </button>
             {/if}
           </div>
@@ -551,7 +551,7 @@
         <details class="lv-mobile-folded-section" bind:open={mobileToolsOpen}>
           <summary class="lv-mobile-folded-summary">
             <span style="display:inline-flex;align-items:center;gap:6px">
-              <Icon name="folder" size={15} /> 录题 · 导入 · 题库维护（建议电脑端操作）
+              <Icon name="folder" size={15} /> 题库录入与维护 <small class="lv-muted">(建议电脑端)</small>
             </span>
             <span class="lv-chip sm">{mobileToolsOpen ? "收起 ▲" : "展开 ▼"}</span>
           </summary>
@@ -746,7 +746,7 @@
   @container lv-exam (max-width: 960px) { .lv-entry-overview { grid-template-columns: minmax(0, 1fr); } }
   .lv-hero-actions { margin-top: 18px; }
   .lv-hero-actions .lv-btn--primary { box-shadow: var(--lv-btn-primary-shadow); }
-  @container lv-exam (max-width: 680px) {
+  @container lv-exam (max-width: 900px) {
     .lv-entry-overview { margin-bottom: 8px; gap: 8px; }
     .lv-entry-hero { grid-template-columns: minmax(0,1fr) auto; padding: 10px 12px; gap: 10px; border-radius: var(--lv-r-3, 14px); }
     .lv-entry-reason { font-size: 13.5px; line-height: 1.35; margin: 2px 0 6px; }
@@ -755,15 +755,22 @@
     .lv-entry-num { border-left: 1px solid var(--lv-darkcard-border); border-top: 0; padding: 2px 0 2px 10px; flex-direction: column; align-items: center; gap: 2px; justify-content: center; }
     .lv-entry-count { font-size: 20px; letter-spacing: -0.5px; }
     .lv-entry-week { display: none; }
-    .lv-home-grids { margin-top: 8px !important; gap: 8px !important; }
-    .lv-home-panel { padding: 10px 12px; border-radius: 12px; }
+    .lv-home-grids { display: flex !important; flex-direction: column !important; margin-top: 8px !important; gap: 10px !important; }
+    .lv-home-panel { padding: 10px 12px; border-radius: 12px; width: 100% !important; box-sizing: border-box !important; }
     .lv-home-panel-head { margin-bottom: 6px; padding-bottom: 4px; }
-    .lv-home-btn-group { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-    .lv-home-btn-group .lv-btn { padding: 6px 8px; font-size: 12px; min-height: 36px; height: auto; }
+    .lv-home-btn-group { display: flex !important; flex-direction: column !important; gap: 6px; width: 100% !important; }
+    .lv-home-btn-group .lv-btn { padding: 6px 12px; font-size: 13px; min-height: 38px; height: auto; width: 100% !important; justify-content: flex-start !important; }
     .lv-desktop-author-action { display: none !important; }
     .lv-entry-empty { padding: 14px 12px !important; margin: 4px auto 10px !important; }
     .lv-entry-empty h2 { font-size: 15px !important; }
     .lv-entry-empty .lv-empty-icon { width: 36px !important; height: 36px !important; margin-bottom: 6px !important; }
+  }
+
+  @media (max-width: 900px) {
+    .lv-home-grids { display: flex !important; flex-direction: column !important; margin-top: 8px !important; gap: 10px !important; }
+    .lv-home-panel { padding: 10px 12px; border-radius: 12px; width: 100% !important; box-sizing: border-box !important; }
+    .lv-home-btn-group { display: flex !important; flex-direction: column !important; gap: 6px; width: 100% !important; }
+    .lv-home-btn-group .lv-btn { padding: 6px 12px; font-size: 13px; min-height: 38px; height: auto; width: 100% !important; justify-content: flex-start !important; }
   }
   .lv-guard { max-width: 460px; width: 100%; }
   .lv-guard--welcome { max-width: 760px; }

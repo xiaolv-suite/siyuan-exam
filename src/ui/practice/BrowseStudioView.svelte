@@ -541,7 +541,7 @@
         }}
       />
       {#if searchText}
-        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { searchText = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:6px;padding:2px 6px;min-width:24px;min-height:24px"><Icon name="close" size={12} /></button>
+        <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { searchText = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:4px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;"><Icon name="close" size={12} /></button>
       {/if}
     </div>
     <button

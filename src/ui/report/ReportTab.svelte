@@ -2186,8 +2186,8 @@
   .lv-mastery-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lv-mastery-row > span.num { text-align: right; font-variant-numeric: tabular-nums; }
   @container lv-exam (max-width: 720px) {
-    .lv-mastery-row { grid-template-columns: 72px minmax(0, 1fr) 48px; }
-    .lv-mastery-row > span:last-child { grid-column: 2 / -1; padding-left: 8px; text-align: left; }
+    .lv-mastery-row { grid-template-columns: 72px minmax(0, 1fr) 44px 52px; }
+    .lv-mastery-row > span:last-child { grid-column: 2 / -1; padding-left: 0; text-align: left; }
   }
   .lv-report-more-trigger { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; justify-content: center; }
   @container lv-exam (max-width: 759px) {

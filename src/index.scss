@@ -256,9 +256,9 @@
 
     .b3-dialog__container {
       width: 100vw !important;
-      height: 100dvh !important;
+      height: var(--lv-visual-viewport-h, 100dvh) !important;
       max-width: 100vw !important;
-      max-height: 100dvh !important;
+      max-height: var(--lv-visual-viewport-h, 100dvh) !important;
       margin: 0 !important;
       border-radius: 0 !important;
       border: 0 !important;
@@ -450,9 +450,9 @@
 
     .b3-dialog__close {
       cursor: pointer;
-      width: 28px;
-      height: 28px;
-      padding: 6px;
+      width: 32px;
+      height: 32px;
+      padding: 5px;
       border-radius: 6px;
       color: var(--b3-theme-on-surface, var(--lv-text));
       opacity: 0.7;
@@ -728,6 +728,84 @@
     .lv-exam-tab {
         :is(.lv-rail button, .lv-mobile-tasknav button, .lv-menu-btn):hover:not(.is-active):not([aria-current="true"]) {
             background: transparent;
+        }
+    }
+}
+
+/* BUG-4 同类预防（2026-11-14 走查）：考试所有 Dialog 容器挂 lv-exam-dialog，
+   根节点统一抬到宿主 chrome（z:50）之上，避免被 sticky 头部截获命中测试。
+   同时修复移动端确认弹窗被拉伸为全屏页面、按钮沉到最底部的简陋体验。 */
+.b3-dialog:not(.lv-exam-mobile-dialog):has(> .b3-dialog__container.lv-exam-dialog),
+.b3-dialog:has(> .b3-dialog__container.lv-exam-exit-dialog) {
+    z-index: 999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    .b3-dialog__container:is(.lv-exam-dialog, .lv-exam-exit-dialog) {
+        width: min(400px, 92vw) !important;
+        height: auto !important;
+        max-height: min(440px, 86vh) !important;
+        position: relative !important;
+        margin: auto !important;
+        border-radius: var(--lv-r-card, 16px) !important;
+        background: var(--lv-surface, #ffffff) !important;
+        border: 1px solid var(--lv-border, rgba(0, 0, 0, 0.1)) !important;
+        box-shadow: 0 16px 40px -8px color-mix(in srgb, var(--lv-text, #0f172a) 25%, transparent) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+
+        .b3-dialog__header {
+            padding: 14px 18px 10px !important;
+            font-size: 15.5px !important;
+            font-weight: 750 !important;
+            color: var(--lv-text, #0f172a) !important;
+            border-bottom: 1px solid var(--lv-border-subtle, rgba(0, 0, 0, 0.06)) !important;
+        }
+
+        .b3-dialog__content {
+            padding: 18px 18px 16px !important;
+            font-size: 13.5px !important;
+            line-height: 1.6 !important;
+            color: var(--lv-text-2, #334155) !important;
+            flex: none !important;
+        }
+
+        .b3-dialog__action {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            gap: 10px !important;
+            padding: 12px 18px 16px !important;
+            background: var(--lv-surface-subtle, #f8fafc) !important;
+            border-top: 1px solid var(--lv-border-subtle, rgba(0, 0, 0, 0.06)) !important;
+
+            button {
+                min-height: 38px !important;
+                padding: 0 16px !important;
+                font-size: 13px !important;
+                border-radius: 9999px !important;
+                cursor: pointer !important;
+                user-select: none !important;
+                touch-action: manipulation !important;
+            }
+
+            .b3-button--cancel {
+                background: var(--lv-surface, #ffffff) !important;
+                border: 1px solid var(--lv-border, rgba(0, 0, 0, 0.15)) !important;
+                color: var(--lv-text, #0f172a) !important;
+                font-weight: 550 !important;
+            }
+
+            .b3-button--text,
+            #confirmDialogConfirmBtn {
+                background: var(--lv-accent, #6366f1) !important;
+                color: var(--lv-contrast, #ffffff) !important;
+                font-weight: 650 !important;
+                box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent, #6366f1) 28%, transparent) !important;
+            }
         }
     }
 }

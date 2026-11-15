@@ -224,7 +224,7 @@
         </span>
         <input class="lv-input sm" style="width:100%;padding-left:28px;padding-right:24px" placeholder={t("materials.search")} aria-label={t("materials.search")} bind:value={materialsSearch} disabled={materialsBusy} />
         {#if materialsSearch}
-          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { materialsSearch = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:3px;padding:2px 4px;min-width:18px;min-height:18px"><Icon name="close" size={11} /></button>
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { materialsSearch = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:4px;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation"><Icon name="close" size={12} /></button>
         {/if}
       </div>
     </div>

@@ -61,8 +61,11 @@ export function armExamHistory(config: ExamHistoryGuardConfig): void {
       try {
         const { confirmDialogSync } = await import("@/libs/dialog");
         const ok = await confirmDialogSync({
-          title: currentGuard.confirmTitle || "退出确认",
-          content: currentGuard.confirmPrompt || "考试进行中，确认退出？（进度将保存至草稿）",
+          title: currentGuard.confirmTitle || "退出做题？",
+          content: currentGuard.confirmPrompt || "做题进度已自动保存至草稿，你可以随时返回继续作答。",
+          confirmText: "保存并退出",
+          cancelText: "继续做题",
+          dialogClass: "lv-exam-exit-dialog",
         });
 
         if (ok) {
@@ -138,8 +141,11 @@ export async function requestExitExamWithConfirm(onConfirmedExit?: () => Promise
   try {
     const { confirmDialogSync } = await import("@/libs/dialog");
     const ok = await confirmDialogSync({
-      title: currentGuard.confirmTitle || "退出确认",
-      content: currentGuard.confirmPrompt || "考试进行中，确认退出？（进度将保存至草稿）",
+      title: currentGuard.confirmTitle || "退出做题？",
+      content: currentGuard.confirmPrompt || "做题进度已自动保存至草稿，你可以随时返回继续作答。",
+      confirmText: "保存并退出",
+      cancelText: "继续做题",
+      dialogClass: "lv-exam-exit-dialog",
     });
 
     if (ok) {

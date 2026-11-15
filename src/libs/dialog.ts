@@ -32,6 +32,7 @@ export const inputDialog = (args: {
     width: args.width ?? "520px",
     height: args.height,
   });
+  dialog.element.querySelector(".b3-dialog__container")?.classList.add("lv-exam-dialog");
   dialog.element.addEventListener("click", (e) => {
     if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
       dialog.destroy();
@@ -77,6 +78,9 @@ export const inputDialogSync = async (args: {
 interface IConfirmDialogArgs {
   title: string;
   content: string | HTMLElement;
+  confirmText?: string;
+  cancelText?: string;
+  dialogClass?: string;
   confirm?: (ele?: HTMLElement) => void;
   cancel?: (ele?: HTMLElement) => void;
   width?: string;
@@ -84,7 +88,10 @@ interface IConfirmDialogArgs {
 }
 
 export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () => void }) => {
-  const { title, content, confirm, cancel, width, height, destroyCallback } = args;
+  const { title, content, confirm, cancel, confirmText, cancelText, dialogClass, width, height, destroyCallback } = args;
+
+  const cancelLabel = cancelText ?? window.siyuan.languages.cancel;
+  const confirmLabel = confirmText ?? window.siyuan.languages.confirm;
 
   const dialog = new Dialog({
     title,
@@ -93,8 +100,8 @@ export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () 
     </div>
 </div>
 <div class="b3-dialog__action">
-    <button type="button" class="b3-button b3-button--cancel">${window.siyuan.languages.cancel}</button><div class="fn__space"></div>
-    <button type="button" class="b3-button b3-button--text" id="confirmDialogConfirmBtn">${window.siyuan.languages.confirm}</button>
+    <button type="button" class="b3-button b3-button--cancel">${escapeHtml(cancelLabel)}</button><div class="fn__space"></div>
+    <button type="button" class="b3-button b3-button--text" id="confirmDialogConfirmBtn">${escapeHtml(confirmLabel)}</button>
 </div>`,
     width: width,
     height: height,
@@ -103,6 +110,10 @@ export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () 
       else if (cancel) cancel(target);
     },
   });
+  dialog.element.querySelector(".b3-dialog__container")?.classList.add("lv-exam-dialog");
+  if (dialogClass) {
+    dialog.element.querySelector(".b3-dialog__container")?.classList.add(dialogClass);
+  }
   dialog.element.addEventListener("click", (e) => {
     if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
       dialog.destroy();
@@ -195,6 +206,7 @@ export const simpleDialog = (args: {
       args.callback?.();
     },
   });
+  dialog.element.querySelector(".b3-dialog__container")?.classList.add("lv-exam-dialog");
   dialog.element.addEventListener("click", (e) => {
     if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
       if (!closed) {

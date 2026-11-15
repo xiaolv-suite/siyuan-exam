@@ -386,7 +386,7 @@
         <span class="lv-muted">难度:</span>
         {#each [1, 2, 3, 4, 5] as star (star)}
           <button type="button" class="lv-btn sm lv-btn--ghost"
-            style="padding:0 1px;min-width:14px;color:{star <= (q.difficulty ?? 1) ? 'var(--lv-amber)' : 'var(--lv-text-3)'};cursor:pointer"
+            style="padding:3px 6px;min-width:30px;min-height:30px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;color:{star <= (q.difficulty ?? 1) ? 'var(--lv-amber)' : 'var(--lv-text-3)'};cursor:pointer"
             onclick={() => updateQuickDifficulty(star)}
             title={`点击设为 ${star} 星难度`}>
             ★
@@ -395,14 +395,14 @@
       </div>
 
       {#if !quickKpEditing}
-        <button type="button" class="lv-chip sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px" onclick={() => { quickKpValue = q.kp || ""; quickKpEditing = true; }} title="点击快速修改考点">
+        <button type="button" class="lv-chip sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;min-height:28px" onclick={() => { quickKpValue = q.kp || ""; quickKpEditing = true; }} title="点击快速修改考点">
           <Icon name="tag" size={11} /> 考点: <b>{q.kp || "未分类考点"}</b> <Icon name="pencil" size={10} />
         </button>
       {:else}
-        <div class="lv-row" style="margin:0;gap:3px;align-items:center">
-          <input class="lv-input sm" style="max-width:140px;height:24px;font-size:11px" bind:value={quickKpValue} placeholder="输入考点…" />
-          <button type="button" class="lv-btn sm lv-btn--primary" style="padding:1px 6px;font-size:11px" onclick={saveQuickKp}>保存</button>
-          <button type="button" class="lv-btn sm" style="padding:1px 6px;font-size:11px" onclick={() => quickKpEditing = false}>取消</button>
+        <div class="lv-row" style="margin:0;gap:4px;align-items:center">
+          <input class="lv-input sm" style="max-width:140px;height:28px;min-height:28px;font-size:12px" bind:value={quickKpValue} placeholder="输入考点…" />
+          <button type="button" class="lv-btn sm lv-btn--primary" style="padding:2px 8px;min-height:28px;font-size:11px" onclick={saveQuickKp}>保存</button>
+          <button type="button" class="lv-btn sm" style="padding:2px 8px;min-height:28px;font-size:11px" onclick={() => quickKpEditing = false}>取消</button>
         </div>
       {/if}
     </div>
@@ -524,12 +524,13 @@
     <div class="lv-detail">
       {#if editingId === q.id && editDraft}
         <div class="lv-row" style="margin:2px 0"><b>{t("edit.title")}</b><span class="lv-chip">{t("qtype." + q.type)}</span></div>
-        <textarea class="lv-input lv-textarea" rows="3" bind:value={editDraft.stem} placeholder={t("manual.stemPlaceholder")} aria-label={t("manual.stem")}></textarea>
+        <!-- textarea 无显式宽度时按浏览器默认 cols 收缩（窄面板下仅 ~230px）：编辑抽屉内强制满宽 -->
+        <textarea class="lv-input lv-textarea" rows="4" style="width:100%;display:block;box-sizing:border-box" bind:value={editDraft.stem} placeholder={t("manual.stemPlaceholder")} aria-label={t("manual.stem")}></textarea>
         {#if editDraft.options.length}
           {#each editDraft.options as _o, oi (oi)}
             <div class="lv-row" style="margin:4px 0">
               <span class="lv-chip">{String.fromCharCode(65 + oi)}</span>
-              <input class="lv-input" bind:value={editDraft.options[oi]} aria-label={`选项 ${String.fromCharCode(65 + oi)}`} />
+              <input class="lv-input" style="flex:1 1 220px;min-width:0" bind:value={editDraft.options[oi]} aria-label={`选项 ${String.fromCharCode(65 + oi)}`} />
               <button class="lv-btn sm lv-btn--ghost" aria-label={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} title={`${t("manual.removeOption", "删除选项")} ${String.fromCharCode(65 + oi)}`} onclick={() => { const next = removeChoiceOption(q.type, editDraft!.options, editDraft!.answer, oi); editDraft = { ...editDraft!, ...next }; }}><Icon name="close" size={12} /></button>
             </div>
           {/each}
@@ -539,16 +540,16 @@
         {/if}
         <div class="lv-row lv-peek-edit-meta" style="margin:6px 0">
           <label class="lv-muted" for="lv-edit-answer">{t("browse.answer")}</label>
-          <input id="lv-edit-answer" class="lv-input" style="max-width:180px" bind:value={editDraft.answer} placeholder={q.type === "judge" ? "对/错" : q.type === "multiple" ? "AB/ABC" : ""} />
+          <input id="lv-edit-answer" class="lv-input" style="flex:1 1 200px;min-width:140px;max-width:280px" bind:value={editDraft.answer} placeholder={q.type === "judge" ? "对/错" : q.type === "multiple" ? "AB/ABC" : ""} />
           <label class="lv-muted" for="lv-edit-kp">{t("manual.kp")}</label>
-          <input id="lv-edit-kp" class="lv-input" style="max-width:180px" bind:value={editDraft.kp} />
+          <input id="lv-edit-kp" class="lv-input" style="flex:2 1 220px;min-width:160px" bind:value={editDraft.kp} />
           <label class="lv-muted" for="lv-edit-diff">{t("batch.field.difficulty")}</label>
-          <select id="lv-edit-diff" class="lv-select" bind:value={editDraft.difficulty}>
+          <select id="lv-edit-diff" class="lv-select" style="flex:0 1 110px;min-width:90px" bind:value={editDraft.difficulty}>
             <option value="">—</option>
             {#each [1, 2, 3, 4, 5] as d, _i (_i)}<option value={String(d)}>{d}</option>{/each}
           </select>
           <label class="lv-muted" for="lv-edit-status">{t("browse.lifecycle")}</label>
-          <select id="lv-edit-status" class="lv-select" bind:value={editDraft.status}>
+          <select id="lv-edit-status" class="lv-select" style="flex:0 1 130px;min-width:110px" bind:value={editDraft.status}>
             <option value="published">{t("lifecycle.published")}</option>
             <option value="review">{t("lifecycle.review")}</option>
             <option value="draft">{t("lifecycle.draft")}</option>
@@ -580,7 +581,7 @@
             </div>
           {/if}
         {/if}
-        <textarea class="lv-input lv-textarea" rows="2" bind:value={editDraft.analysis} placeholder={t("manual.analysis")} aria-label={t("manual.analysis")}></textarea>
+        <textarea class="lv-input lv-textarea" rows="4" style="width:100%;display:block;box-sizing:border-box;margin-top:6px" bind:value={editDraft.analysis} placeholder={t("manual.analysis")} aria-label={t("manual.analysis")}></textarea>
         {#if editError}<div class="lv-error" role="alert">{editError}</div>{/if}
         <div class="lv-row">
           <button class="lv-btn lv-btn--primary sm" disabled={editBusy || offline} aria-busy={editBusy} onclick={() => onsaveEdit(q)}>

@@ -16,12 +16,15 @@ export interface KernelTransport {
 
 /** 请求策略由服务层统一传递给传输层。
  * retryable=false 用于写请求：网络错误不能安全判断服务端是否已落库，自动重试可能造成重复数据。
+ * affectsConnection=false 用于端点级长请求（如 AI 推理）：其超时/抖动不代表内核不可达，
+ * 不得把全站连接标志误翻为离线（真机反馈：AI 慢响应曾导致「思源内核不可达」误报横幅与 toast）。
  */
 export interface RequestOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
   retries?: number;
   retryable?: boolean;
+  affectsConnection?: boolean;
 }
 
 /** Per-call controls for reads. requestKey groups changing reads for the same view;
@@ -68,6 +71,8 @@ function classify(e: unknown): ErrKind {
 
 /** 718：退避上限（防止内核给出异常大的 Retry-After 导致长时间挂起） */
 export const RETRY_AFTER_MAX_MS = 60_000;
+/** AI 推理专用超时：LLM 生成耗时远高于通用内核请求（12s 会误杀正常回答） */
+export const AI_CHAT_TIMEOUT_MS = 120_000;
 
 /**
  * 718：解析 HTTP `Retry-After` 头。内核限流时应优先遵循服务端给出的等待时间，
@@ -333,8 +338,8 @@ export class KernelApiClient {
 
   /** All mutations disable transport retries: a lost response cannot tell us
    * whether Siyuan already committed the write. Retrying could duplicate it. */
-  private writePost(endpoint: string, payload: unknown) {
-    return this.t.post(endpoint, payload, { retries: 0, retryable: false });
+  private writePost(endpoint: string, payload: unknown, overrides: { retries?: number; retryable?: boolean; timeoutMs?: number; affectsConnection?: boolean } = {}) {
+    return this.t.post(endpoint, payload, { retries: 0, retryable: false, ...overrides });
   }
 
   /** 启动探测：任何一项失败只置位 false，不抛出（离线降级的依据） */
@@ -368,9 +373,13 @@ export class KernelApiClient {
     return r;
   }
 
-  /** 思源内置 AI（/api/ai/chatGPT 单轮 msg 语义；端点 2026-10-02 实测存在） */
+  /** 思源内置 AI（/api/ai/chatGPT 单轮 msg 语义；端点 2026-10-02 实测存在）
+   *  LLM 生成普遍需要 30~90 秒：专用 120s 超时 + 1 次自动重试。
+   *  推理调用是幂等读语义（无落库副作用），重试安全；此前沿用通用 12s 写超时
+   *  导致「逐步提示/苏格拉底」几乎必然报 timeout after 12000ms。
+   *  affectsConnection=false：AI 慢/超时是端点级现象，不得误翻全站离线标志。 */
   async aiChat(msg: string): Promise<unknown> {
-    const r = await this.writePost("/api/ai/chatGPT", { msg });
+    const r = await this.writePost("/api/ai/chatGPT", { msg }, { retries: 1, retryable: true, timeoutMs: AI_CHAT_TIMEOUT_MS, affectsConnection: false });
     return r.data;
   }
 

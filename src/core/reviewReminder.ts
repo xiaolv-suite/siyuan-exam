@@ -42,9 +42,12 @@ export function evaluateReviewWrongs(app: ExamApp, now: number = Date.now()): Re
 }
 
 export interface ReviewReminderController {
-  checkAndNotify: () => string | null;
+  checkAndNotify: (force?: boolean) => string | null;
   dispose: () => void;
 }
+
+const REMINDER_LAST_NOTIFIED_KEY = "lv_exam_review_reminder_last_ts";
+const MIN_NOTIFICATION_INTERVAL_MS = 4 * 3600 * 1000; // 提醒冷却间隔：至少 4 小时
 
 /**
  * 启动每日错题复习提醒周期调度器 (Epoch 7 Phase 2: lvTicker 统一心跳与零点跨日)
@@ -57,40 +60,66 @@ export function startReviewReminderScheduler(
   onStartReview: () => void,
   onDateCross?: (todayKey: string) => void,
 ): ReviewReminderController {
-  const checkAndNotify = (): string | null => {
-    if (!app || lvNotify.isMutedToday(CATEGORY_DAILY_REVIEW)) {
+  const checkAndNotify = (force = false): string | null => {
+    if (!app) return null;
+    if (lvNotify.isMutedToday(CATEGORY_DAILY_REVIEW) || lvNotify.isCategoryMuted?.(CATEGORY_DAILY_REVIEW)) return null;
+    if (lvNotify.isCategorySnoozed?.(CATEGORY_DAILY_REVIEW)) return null;
+
+    const now = Date.now();
+    const nowDate = new Date(now);
+    const hour = nowDate.getHours();
+
+    // 深夜防打扰 (23:00 ~ 08:00)：非强制时不主动弹送复习提醒卡片
+    if (!force && (hour >= 23 || hour < 8)) {
       return null;
     }
 
-    const stats = evaluateReviewWrongs(app);
+    // 冷却防抖：检查上次通知时间，防止每分钟心跳或定时器重复拉起高频弹出
+    try {
+      const last = Number(localStorage.getItem(REMINDER_LAST_NOTIFIED_KEY) || "0");
+      if (!force && last > 0 && now - last < MIN_NOTIFICATION_INTERVAL_MS) {
+        return null;
+      }
+    } catch { /* ignore */ }
+
+    const stats = evaluateReviewWrongs(app, now);
     if (stats.criticalDueCount <= 0) {
       return null;
     }
 
-    return notifyDailyReviewCard({
+    const cardId = notifyDailyReviewCard({
       dueCount: stats.criticalDueCount,
       onStartReview,
     });
+
+    if (cardId) {
+      try {
+        localStorage.setItem(REMINDER_LAST_NOTIFIED_KEY, String(now));
+      } catch { /* ignore */ }
+    }
+
+    return cardId;
   };
 
   // 延迟 5 秒进行首次轻量静默探测，避免阻塞插件启动瞬间的高峰渲染
   const initialTimeout = window.setTimeout(() => {
-    checkAndNotify();
+    checkAndNotify(false);
   }, 5000);
 
   // 接入 lvTicker.onMinute：对齐全局主心跳，彻底拔除分散的 setInterval
   const unsubMinute = lvTicker.onMinute("siyuan-exam", () => {
-    checkAndNotify();
+    checkAndNotify(false);
   });
 
-  // 接入 lvTicker.onDateCross：零点自动跨日更新今日待复习错题集并重新触发巡检
+  // 接入 lvTicker.onDateCross：零点自动跨日更新今日待复习错题集（静默更新，不打破深夜防打扰）
   const unsubDateCross = lvTicker.onDateCross("siyuan-exam", (todayKey) => {
     try {
       onDateCross?.(todayKey);
     } catch (e) {
       console.warn("[LvExam] onDateCross handler error:", e);
     }
-    checkAndNotify();
+    // 零点跨日更新内部待复习统计，但不强制立即弹出卡片（深夜防打扰保全）
+    checkAndNotify(false);
   });
 
   return {

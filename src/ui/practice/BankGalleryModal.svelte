@@ -171,7 +171,7 @@
           </span>
           <input class="lv-input" style="width:100%;padding-left:32px;padding-right:28px" placeholder="按题库名称快速过滤…" aria-label="按题库名称快速过滤" bind:value={bankFilterKeyword} />
           {#if bankFilterKeyword}
-            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { bankFilterKeyword = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:4px;padding:2px 4px;min-width:20px;min-height:20px"><Icon name="close" size={12} /></button>
+            <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { bankFilterKeyword = ""; }} title="清空搜索" aria-label="清空搜索" style="position:absolute;right:4px;padding:0;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--lv-radius-control-sm,6px)"><Icon name="close" size={13} /></button>
           {/if}
         </div>
         <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">

@@ -30,9 +30,19 @@ export class SiyuanAiChannel implements AiChannel {
     // 内核 API 无取消机制——signal 被忽略（长按取消仅中断本地 await，HTTP 已发出不可撤）
     const msg = messages.map((m) => (m.role === "system" ? `[指令]\n${m.content}` : m.content)).join("\n\n");
     const data = await this.kernel.aiChat(msg);
-    if (typeof data === "string") return data;
+    if (typeof data === "string") {
+      const trimmed = data.trim();
+      if (!trimmed) {
+        throw new Error("思源内置 AI 未返回内容（未在思源「设置 → AI 服务」中启用并配置模型，或该模型不可用）");
+      }
+      return trimmed;
+    }
     const rec = data as Record<string, unknown>;
-    return String(rec?.text ?? rec?.content ?? "");
+    const text = String(rec?.text ?? rec?.content ?? "").trim();
+    if (!text) {
+      throw new Error("思源内置 AI 未返回内容（未在思源「设置 → AI 服务」中启用并配置模型，或该模型不可用）");
+    }
+    return text;
   }
 }
 

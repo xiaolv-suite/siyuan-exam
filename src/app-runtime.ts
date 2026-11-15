@@ -9,7 +9,9 @@ import { ExamApp } from "./app";
 import type { ExamAppDeps } from "./app";
 import type { StorageAdapter } from "./core/attemptLog";
 
-const KERNEL_TIMEOUT_MS = 12_000;
+// 通用内核请求超时：导入/同步等较重操作在 12s 下会被误杀并误翻离线标志；
+// AI 推理走 aiChat 专用 120s 长超时（AI_CHAT_TIMEOUT_MS），不受此值约束。
+const KERNEL_TIMEOUT_MS = 30_000;
 
 async function postWithTimeout(url: string, data: unknown, options: RequestOptions = {}): Promise<{ code: number; msg: string; data: unknown }> {
   const ctrl = new AbortController();
@@ -24,15 +26,32 @@ async function postWithTimeout(url: string, data: unknown, options: RequestOptio
     else options.signal?.addEventListener("abort", abortHandler, { once: true });
   });
   try {
+    // 关键优化：AI 生成耗时较长（30~90秒），若使用 fetchSyncPost 会触发思源核心的全屏「Requesting...」阻塞遮罩，
+    // 导致用户无法操作、无法看到精细进度。针对 AI 推理等长请求，优先使用无全局遮罩的异步 fetch，并保留超时与取消控制。
+    const isAiRequest = url.startsWith("/api/ai/") || (options.affectsConnection === false && url.includes("/ai/"));
+    const requestPromise = (isAiRequest && typeof fetch === "function")
+      ? fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+          signal: ctrl.signal,
+        }).then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json() as Promise<{ code: number; msg: string; data: unknown }>;
+        })
+      : fetchSyncPost(url, data, undefined, undefined, ctrl.signal);
+
+    const effectiveTimeout = isAiRequest
+      ? Math.max(options.timeoutMs ?? 0, 90_000)
+      : (options.timeoutMs ?? KERNEL_TIMEOUT_MS);
+
     const race = await Promise.race([
-      // fetchSyncPost 的同步请求尾参数支持 AbortSignal；把超时控制器传入
-      // 内核请求，避免 Promise.race 超时后底层写请求继续执行。
-      fetchSyncPost(url, data, undefined, undefined, ctrl.signal),
+      requestPromise,
       new Promise<never>((_, rej) => {
         timer = setTimeout(() => {
           ctrl.abort();
-          rej(new Error(`timeout after ${options.timeoutMs ?? KERNEL_TIMEOUT_MS}ms`));
-        }, options.timeoutMs ?? KERNEL_TIMEOUT_MS);
+          rej(new Error(`timeout after ${effectiveTimeout}ms`));
+        }, effectiveTimeout);
       }),
       aborted,
     ]);
@@ -85,7 +104,9 @@ function makeTransport(onConnectionChange?: (ok: boolean, error?: KernelError) =
             const wasDown = down;
             mark(true, error);
             if (!wasDown) onConnectionChange?.(true, error);
-          } else {
+          } else if (options.affectsConnection !== false) {
+            // 端点级长请求（AI 推理等，affectsConnection=false）的抖动/超时
+            // 不代表内核不可达，不把全站连接标志误翻为离线。
             mark(false, error);
           }
           throw error;

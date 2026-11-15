@@ -340,8 +340,8 @@
           persistRun(true);
           view = "config";
         },
-        confirmTitle: "模考退出确认",
-        confirmPrompt: "考试进行中，确认退出？（进度将保存至草稿）",
+        confirmTitle: "退出模考？",
+        confirmPrompt: "当前模考进度与计时已保存，你可以随时返回考场继续作答。",
       });
     }
 
@@ -2774,7 +2774,7 @@
                     {:else}
                       <input
                         class="lv-input num sm"
-                        style="max-width:140px;height:26px"
+                        style="max-width:148px;height:30px;min-height:30px"
                         placeholder="输入答案…"
                         value={curAns}
                         disabled={examLocked}
@@ -2822,7 +2822,7 @@
               {:else}
                 <input
                   class="lv-input num sm"
-                  style="max-width:140px;height:26px"
+                  style="max-width:148px;height:30px;min-height:30px"
                   placeholder="输入答案…"
                   value={curAns}
                   disabled={examLocked}
@@ -2858,7 +2858,7 @@
           <button
             type="button"
             class="lv-achievement-pill"
-            style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-brand);color:var(--lv-on-accent, #fff);border-color:var(--lv-brand)"
+            style="box-shadow:var(--lv-sh-pop);cursor:pointer;font-size:12px;padding:6px 14px;border-radius:var(--lv-radius-pill, 9999px);background:var(--lv-brand);color:var(--lv-on-brand, #fff);border-color:var(--lv-brand)"
             onclick={() => (mockSweepOpen = !mockSweepOpen)}
             title="考前高危遗漏与标旗速排浮窗：集中快速补填未答题与核对存疑题"
             aria-expanded={mockSweepOpen}
@@ -2919,7 +2919,7 @@
                     {#each (q && q.type === "judge" ? ["对", "错"] : ["A", "B", "C", "D"]) as opt (opt)}
                       {@const active = curAns.includes(opt)}
                       <button type="button" class="lv-chip" class:acc={active}
-                        style="{active ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}cursor:pointer;padding:3px 10px;font-size:11px"
+                        style="{active ? 'background:var(--lv-brand);color:var(--lv-on-brand, #fff);font-weight:700;' : ''}cursor:pointer;padding:3px 10px;font-size:11px"
                         onclick={() => onBubbleFill(qid, opt, q?.type)}>
                         {opt}
                       </button>

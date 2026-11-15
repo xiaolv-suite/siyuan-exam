@@ -187,6 +187,7 @@
     ontouchStart: (e: TouchEvent) => void;
     ontouchEnd: (e: TouchEvent) => void;
     onopenSessionSheet?: () => void;
+    onopenSocraticModal?: () => void;
     trails?: Map<string, any>;
   }
 
@@ -348,6 +349,7 @@
     ontouchStart,
     ontouchEnd,
     onopenSessionSheet,
+    onopenSocraticModal,
     trails,
   }: Props = $props();
 
@@ -995,7 +997,7 @@
                 role="status"
                 aria-live="polite"
               >
-                <span style="font-weight:600;font-size:12px;color:var(--lv-brand);display:inline-flex;align-items:center;gap:4px">
+                <span style="font-weight:600;font-size:12px;font-variant-numeric:tabular-nums;color:var(--lv-brand);display:inline-flex;align-items:center;gap:4px">
                   <Icon name="clock" size={13} /> ⚡ 答对！{autoNextRemainingS.toFixed(1)}s 后自动切题
                 </span>
                 <button
@@ -1023,6 +1025,7 @@
                 {q.type === "multiple" && selected.length > 0 ? t("session.submitSelected").replace("{n}", String(selected.length)) : t("session.submit")}
               </button>
               <button class="lv-btn lv-btn--ghost" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
+              <button class="lv-btn lv-btn--ghost" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy} title="苏格拉底启发引导：围绕当前思路提问，助你自主推导出答案"><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               {#if q.type === "fill" || q.type === "short"}
                 <button class="lv-btn lv-btn--ghost" onclick={() => { lvLaunchpad.haptic(10); onsubmitAnswer(); }}>{t("session.skip")}</button>
               {/if}
@@ -1049,6 +1052,16 @@
                 </div>
                 <button class="lv-btn" onclick={onrequestHint} disabled={explainBusy} aria-busy={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
                 <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
+              {:else if !reciteToggle}
+                <div class="lv-explain-group" style="display:inline-flex;align-items:center;gap:6px">
+                  <select class="lv-select" bind:value={explainDepth} disabled={explainBusy} aria-label="选择 AI 讲解模式">
+                    <option value="explain">标准核验</option>
+                    <option value="dual-loop">分步推导</option>
+                    <option value="storm">多视角破题</option>
+                  </select>
+                  <button class="lv-btn" onclick={() => onexplainCurrent(explainDepth)} disabled={explainBusy} aria-busy={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
+                </div>
+                <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               {/if}
             {/if}
             {#if leakPending && session?.current && explainQid === session.current.id}
@@ -1060,8 +1073,24 @@
                 </div>
               </div>
             {/if}
+            {#if explainBusy && session?.current && explainQid === session.current.id}
+              <div class="lv-analysis lv-explain" role="status" aria-live="polite" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <span>⏳ AI 正在深入思考中…（启发式导学处理中）</span>
+                {#if onopenSocraticModal}
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11.5px">展开导学浮窗</button>
+                {/if}
+              </div>
+            {/if}
             {#if explainText && session?.current && explainQid === session.current.id}
-              <div class="lv-analysis lv-explain">{explainText}</div>
+              <div class="lv-analysis lv-explain">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <span style="font-weight:700">🦉 导学与启发</span>
+                  {#if onopenSocraticModal}
+                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11px"><Icon name="message" size={12} /> 浮窗追问</button>
+                  {/if}
+                </div>
+                {explainText}
+              </div>
               <div class="lv-row">
                 {#if explainSavedQid === q.id}
                   <span class="lv-muted" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> {t("explain.saved")}</span>
@@ -1107,7 +1136,7 @@
             {/if}
           </div>
         </div>
-        <div class="lv-card lv-side-card">
+        <div class="lv-card lv-side-card lv-kbd-card">
           <b class="lv-side-title">{t("session.side.kbd")}</b>
           <div class="lv-row lv-muted" style="font-size:var(--lv-font-size-label);gap:var(--lv-space-compact);flex-wrap:wrap;margin:0">
             <span class="lv-kbd">A</span>-<span class="lv-kbd">J</span> {t("session.choose")} ·
@@ -1138,15 +1167,32 @@
   .lv-session-head-bar { display: contents; }
   .lv-session-tools-collapse { display: contents; }
   .lv-session-tools-toggle { display: none; }
-  @container lv-exam (max-width: 680px) {
-    .lv-pad { padding: 8px 12px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  @media (max-width: 900px) {
+    .lv-pad { padding: 8px 12px calc(80px + env(safe-area-inset-bottom, 0px)); }
     .lv-session-grid {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      overflow-y: auto;
-      overscroll-behavior-y: contain;
-      -webkit-overflow-scrolling: touch;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+    .lv-session-main {
+      width: 100%;
+      min-width: 0;
+      overflow-y: visible;
+    }
+  }
+
+  @container lv-exam (max-width: 900px) {
+    .lv-pad { padding: 8px 12px calc(80px + env(safe-area-inset-bottom, 0px)); }
+    .lv-session-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
     }
     .lv-session-main {
       width: 100%;
@@ -1263,6 +1309,9 @@
       height: 32px;
       font-size: 13px;
     }
+    .lv-kbd-card {
+      display: none;
+    }
   }
   @media (max-width: 759px) and (max-height: 480px) {
     .lv-pad { padding: 4px 10px 8px !important; }
@@ -1373,6 +1422,7 @@
   .lv-answer-num { min-height: 48px; font-size: 16px; font-variant-numeric: tabular-nums; }
   .lv-answer-blank { min-height: 44px; margin-bottom: 10px; }
   .lv-analysis { border: 1px solid var(--lv-border); border-left: 4px solid var(--lv-accent); background: var(--lv-surface-2); border-radius: var(--lv-r-2); padding: 14px 18px; font-size: var(--lv-font-size-body); color: var(--lv-text-2); margin-bottom: 12px; white-space: pre-wrap; box-shadow: var(--lv-sh-1); }
+  .lv-analysis.lv-explain { width: 100%; box-sizing: border-box; margin-top: 10px; margin-bottom: 10px; }
   .lv-reason-btn { padding: 4px 10px; border-radius: var(--lv-r-1); cursor: pointer; touch-action: manipulation; transition: transform var(--lv-dur-micro) ease, background-color var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease; }
   .lv-reason-btn:hover { transform: translateY(-1px); border-color: var(--lv-accent); }
   .lv-reason-btn:active { transform: scale(0.96); }

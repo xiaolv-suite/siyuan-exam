@@ -405,7 +405,7 @@
       <!-- 主体分栏：左侧配置面板 + 右侧纸张拟真渲染预览 -->
       <div class="lv-assemble-body" style="flex:1;display:flex;overflow:hidden">
         <!-- 左侧排版参数调节面板 -->
-        <div class="lv-assemble-sidebar" style="width:390px;min-width:320px;border-right:1px solid var(--lv-border);background:var(--lv-surface);display:flex;flex-direction:column;overflow-y:auto;padding:16px;gap:14px">
+        <div class="lv-assemble-sidebar" style="width:clamp(280px, 32vw, 390px);min-width:0;border-right:1px solid var(--lv-border);background:var(--lv-surface);display:flex;flex-direction:column;overflow-y:auto;padding:16px;gap:14px">
           <!-- 快速排版风格预设条 -->
           <div class="lv-card" style="padding:10px 12px;background:var(--lv-surface-2);border-radius:6px;border:1px solid var(--lv-border-subtle)">
             <div class="lv-muted" style="font-size:11px;font-weight:700;margin-bottom:6px">⚡ 快速套用排版预设:</div>
@@ -623,7 +623,7 @@
         </div>
 
         <!-- 右侧拟真白底 A4 纸张实时预览区 -->
-        <div style="flex:1;background:var(--lv-surface-3, #e2e8f0);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:24px">
+        <div style="flex:1;background:var(--lv-surface-3, var(--b3-theme-background-light, var(--b3-theme-surface-lighter)));display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:24px">
           <div
             class="a4-sheet-container"
             style="width:210mm;min-height:297mm;background:var(--lv-print-paper-bg, var(--lv-surface, #ffffff));box-shadow:var(--lv-sh-pop, 0 8px 30px rgba(0,0,0,0.18));border-radius:2px;overflow:hidden;transform:scale({zoomLevel / 100});transform-origin:top center;transition:transform 0.15s ease"

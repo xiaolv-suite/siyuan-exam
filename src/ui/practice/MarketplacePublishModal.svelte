@@ -163,11 +163,11 @@
         >
           🛡️ 隐私与脱敏自检
           {#if warnings.length > 0}
-            <span class="lv-chip sm num" style="background:var(--lv-accent-seal, #ef4444);color:var(--lv-on-accent, #ffffff);padding:0 5px;font-size:10px">
+            <span class="lv-chip sm num" style="background:var(--lv-accent-seal, #ef4444);color:var(--lv-on-red, #ffffff);padding:0 5px;font-size:10px">
               {warnings.length}
             </span>
           {:else}
-            <span class="lv-chip sm num" style="background:var(--lv-green);color:var(--lv-on-accent, #ffffff);padding:0 5px;font-size:10px">
+            <span class="lv-chip sm num" style="background:var(--lv-green);color:var(--lv-on-green, #ffffff);padding:0 5px;font-size:10px">
               ✓
             </span>
           {/if}

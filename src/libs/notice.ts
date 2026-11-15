@@ -171,7 +171,10 @@ export interface DailyReviewReminderOptions {
  */
 export function notifyDailyReviewCard(opts: DailyReviewReminderOptions): string | null {
   if (opts.dueCount <= 0) return null;
-  if (lvNotify.isMutedToday(CATEGORY_DAILY_REVIEW)) {
+  if (lvNotify.isMutedToday(CATEGORY_DAILY_REVIEW) || lvNotify.isCategoryMuted?.(CATEGORY_DAILY_REVIEW)) {
+    return null;
+  }
+  if (lvNotify.isCategorySnoozed?.(CATEGORY_DAILY_REVIEW)) {
     return null;
   }
 
@@ -182,6 +185,7 @@ export function notifyDailyReviewCard(opts: DailyReviewReminderOptions): string 
     message: `题库中尚有 ${opts.dueCount} 道待消灭错题处于记忆临界期，及时复盘可巩固记忆！`,
     level: "warn",
     duration: 0, // 重点提醒常驻等待处理，或用户选择稍后/免打扰
+    firstRun: true, // 首启队列：与其他引导/提醒卡串行呈现，不同屏堆叠
     actions: [
       {
         label: `立即攻坚 (${opts.dueCount})`,

@@ -536,7 +536,7 @@
             {@const isSelected = mAnswer.includes(letter)}
             <div class="lv-row" style="margin:4px 0">
               <button type="button" class="lv-chip" class:acc={isSelected}
-                style="{isSelected ? 'background:var(--lv-brand);color:var(--lv-on-accent, #fff);font-weight:700;' : ''}cursor:pointer"
+                style="{isSelected ? 'background:var(--lv-brand);color:var(--lv-on-brand, #fff);font-weight:700;' : ''}cursor:pointer"
                 title={`${t("manual.setCorrect")} ${letter}`} aria-label={`${t("manual.setCorrect")} ${letter}`} onclick={() => { onclearManualValidation(); onsetCorrectOption(i); }} data-manual-field={i === 0 ? "answer" : undefined} aria-pressed={isSelected} aria-describedby={manualErrorField === "answer" && i === 0 ? "manual-validation-error" : undefined}>
                 {letter}
               </button>
@@ -544,15 +544,15 @@
               {#if isSelected}
                 <span class="lv-chip lv-chip--grn num sm" style="font-size:11px;padding:2px 6px">正确项</span>
               {/if}
-              <div class="lv-row" style="margin:0;gap:2px;align-items:center">
+              <div class="lv-row" style="margin:0;gap:4px;align-items:center">
                 {#if i > 0}
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => swapOptions(i, i - 1)} title="上移此选项并联动调整答案" aria-label="上移" style="padding:2px 4px;min-width:20px"><Icon name="arrow-up" size={11} /></button>
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => swapOptions(i, i - 1)} title="上移此选项并联动调整答案" aria-label="上移" style="padding:4px 6px;min-width:28px;min-height:28px"><Icon name="arrow-up" size={12} /></button>
                 {/if}
                 {#if i < mOptions.length - 1}
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => swapOptions(i, i + 1)} title="下移此选项并联动调整答案" aria-label="下移" style="padding:2px 4px;min-width:20px"><Icon name="arrow-down" size={11} /></button>
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => swapOptions(i, i + 1)} title="下移此选项并联动调整答案" aria-label="下移" style="padding:4px 6px;min-width:28px;min-height:28px"><Icon name="arrow-down" size={12} /></button>
                 {/if}
                 {#if mOptions.length > 2}
-                  <button type="button" class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${letter}`} title={`${t("manual.removeOption", "删除选项")} ${letter}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }} style="padding:2px 4px;min-width:20px"><Icon name="close" size={12} /></button>
+                  <button type="button" class="lv-btn lv-btn--ghost sm" aria-label={`${t("manual.removeOption", "删除选项")} ${letter}`} title={`${t("manual.removeOption", "删除选项")} ${letter}`} onclick={() => { const next = removeChoiceOption(mType, mOptions, mAnswer, i); mOptions = next.options; mAnswer = next.answer; }} style="padding:4px 6px;min-width:28px;min-height:28px"><Icon name="close" size={12} /></button>
                 {/if}
               </div>
             </div>
@@ -757,7 +757,7 @@
           }
           onsaveManual("published");
         }} disabled={mSaving || !hasStem} aria-busy={mSaving} title="保存题目并直接存为思源笔记题库块 (Ctrl+Enter 连录)">
-          <Icon name="save" size={14} /> {mSaving ? "正在写入思源块…" : "入库并存为思源块 (Ctrl+Enter)"}
+          <Icon name="save" size={14} /> {mSaving ? "正在写入思源块…" : "入库并存为思源块"} {#if !mSaving}<span class="lv-kbd">Ctrl+Enter</span>{/if}
         </button>
         <button class="lv-btn" onclick={() => {
           if (!hasAnswer && mType === "single" && mOptions.length >= 2) {

@@ -258,6 +258,9 @@
 /* 徽章用作切换按钮时（浏览工具条筛选等）补交互态；静态徽章不受影响 */
 button.lv-chip {
   cursor: pointer;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 var(--lv-space-3);
   transition:
     background-color var(--lv-dur-micro) var(--lv-ease-out),
     border-color var(--lv-dur-micro) var(--lv-ease-out),
@@ -829,10 +832,44 @@ details summary {
     }
   }
 
-  table {
+  .table,
+  [data-type="NodeTable"],
+  div:has(> table) {
     max-width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 8px 0;
+    border-radius: var(--lv-r-2);
+    scrollbar-width: thin;
+  }
+
+  table {
+    width: max-content;
+    min-width: 100%;
     border-collapse: collapse;
+    table-layout: auto;
+    border: 1px solid var(--lv-border-subtle);
+
+    th, td {
+      padding: 6px 10px;
+      border: 1px solid var(--lv-border-subtle);
+      min-width: 72px;
+      overflow-wrap: break-word !important;
+      word-break: break-word;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--lv-surface-2);
+      font-weight: var(--lv-font-weight-bold, 700);
+      white-space: nowrap;
+    }
+
+    td:first-child,
+    th:first-child {
+      min-width: 80px;
+      white-space: nowrap;
+    }
   }
 
   /* 行间数学公式水平横滚保护（防撑破移动端布局） */
@@ -925,6 +962,14 @@ details summary {
   border-bottom-width: 2px;
   white-space: nowrap;
   vertical-align: middle;
+}
+.lv-exam-mobile-dialog .lv-kbd {
+  display: none !important;
+}
+@media (max-width: 680px) {
+  .lv-kbd {
+    display: none !important;
+  }
 }
 
 /* —— 插件内焦点可见性（规范 v6：环形投影，随元素圆角自适应） —— */
@@ -1193,7 +1238,11 @@ input[type="range"] {
 .lv-main {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1962,8 +2011,8 @@ input[type="range"] {
   background: transparent;
   border-radius: var(--lv-r-1);
   padding: 3px 8px;
-  height: 28px;
-  min-height: 28px;
+  height: 32px;
+  min-height: 32px;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -271,7 +271,7 @@
                 <div class="lv-row" style="margin:4px 0 0">
                   <span class="lv-chip num">{String.fromCharCode(65 + i)}</span>
                   <input class="lv-input" bind:value={aiEditDraft.options[i]} aria-label={`选项 ${String.fromCharCode(65 + i)}`} />
-                  <button class="lv-btn sm lv-btn--ghost" title={t("manual.setCorrect")} aria-label={t("manual.setCorrect")} aria-pressed={aiEditDraft.answer === String.fromCharCode(65 + i)} onclick={() => { aiEditDraft.answer = String.fromCharCode(65 + i); }}><Icon name="check" size={12} /></button>
+                  <button class="lv-btn sm lv-btn--ghost" title={t("manual.setCorrect")} aria-label={t("manual.setCorrect")} aria-pressed={aiEditDraft.answer === String.fromCharCode(65 + i)} onclick={() => { aiEditDraft.answer = String.fromCharCode(65 + i); }} style="min-width:28px;min-height:28px;padding:0;display:inline-flex;align-items:center;justify-content:center"><Icon name="check" size={13} /></button>
                 </div>
               {/each}
               <div class="lv-row" style="margin:4px 0 0">

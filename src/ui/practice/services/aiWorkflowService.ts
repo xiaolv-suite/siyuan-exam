@@ -38,6 +38,30 @@ export async function createAiChannel(client: KernelApiClient, config: AiChannel
 }
 
 /**
+ * AI 任务失败后的解决方案指引（真机反馈：只报错不给路径，用户无从下手）。
+ * 识别超时/网络/鉴权类错误并附上可操作的排查与替代通道建议。
+ */
+export function appendAiFailureGuidance(message: string): string {
+  const m = message || "";
+  const timeout = /timeout|超时/i.test(m);
+  const network = /ECONN|network|fetch failed|failed to fetch|connection reset|socket/i.test(m);
+  if (timeout || network) {
+    return m +
+      "\n\n【解决方案】思源 AI 通道响应异常：" +
+      "\n① 打开思源 设置 →【AI 服务】，确认已启用并配置可用的模型与 API Key；" +
+      "\n② 或在 小驴考试 → 设置 → AI 配置 填写专属端点 + API Key（直连更快更稳，绕开思源代理）；" +
+      "\n③ 使用全生态统一 AI 网关时，确认网关 Key 有效且有余额；" +
+      "\n④ 网络波动导致的超时，可直接重新点击该按钮再试一次（现已支持 120 秒长超时与自动重试）。";
+  }
+  if (/401|403|未授权|Unauthorized|invalid[ _-]?(api[ _-]?)?key|api[ _-]?key/i.test(m)) {
+    return m +
+      "\n\n【解决方案】AI 鉴权失败：检查 API Key 是否有效、是否有额度；" +
+      "思源内置 AI 需在 设置 →【AI 服务】配置；插件专属端点在 小驴考试 → 设置 → AI 配置 中修改。";
+  }
+  return m;
+}
+
+/**
  * AI 任务信封状态格式化行
  */
 export function formatEnvStatusLine(
@@ -46,7 +70,7 @@ export function formatEnvStatusLine(
 ): string {
   const line =
     env.status === "ok" ? t("ai.emptyResponse") : env.status === "unsupported" ? t("ai.taskUnsupported") : t("ai.taskFailed");
-  return line + (env.error ? ": " + env.error : "");
+  return appendAiFailureGuidance(line + (env.error ? ": " + env.error : ""));
 }
 
 /**
@@ -87,13 +111,14 @@ export interface ExplainRequestOptions {
   client: KernelApiClient;
   aiConfig: AiChannelConfig;
   profilePrefix?: string;
+  submitted?: boolean;
 }
 
 /**
  * 执行 AI 试题详解、双环解题、STORM 破题或苏格拉底导学
  */
 export async function executeAiExplain(options: ExplainRequestOptions) {
-  const { q, mode, learnerAnswer, sessionId, client, aiConfig, profilePrefix } = options;
+  const { q, mode, learnerAnswer, sessionId, client, aiConfig, profilePrefix, submitted } = options;
   const { buildExplainMessages } = await import("@/ai/explain");
   const { AiTaskRunner } = await import("@/ai/task");
 
@@ -105,13 +130,15 @@ export async function executeAiExplain(options: ExplainRequestOptions) {
     socratic: "practice.socratic",
   };
 
+  const isSubmitted = submitted ?? (mode === "socratic" || mode === "hint" ? false : true);
+
   const reqCtx: AiTaskContext = {
     templateId: templateMap[mode] || "practice.explain",
     templateVersion: 2,
     qid: q.id,
     questionRevision: questionFingerprint(q),
     learnerAnswer,
-    submitted: true,
+    submitted: isSubmitted,
     mode: "practice",
     sessionId,
   };

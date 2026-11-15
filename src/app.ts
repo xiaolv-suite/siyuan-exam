@@ -25,7 +25,7 @@ import {
 import { SaveGate } from "./core/saveGate";
 import { normalizeAnswer, questionHash, sha1like } from "./core/answer";
 import { questionToMarkdown } from "./core/blockTemplate";
-import { withDocLock, safeDocTitleFromHPath } from "./libs/lv-notice-kit";
+import { withDocLock, safeDocTitleFromHPath, pushDiagError, lvNotify } from "./libs/lv-notice-kit";
 import { SAMPLE_BANK_NAME, SAMPLE_BANK_INTRO, sampleQuestions } from "./core/sampleBank";
 import { CANTONESE_SAMPLE_BANK_NAME, CANTONESE_SAMPLE_BANK_INTRO, cantoneseSampleQuestions } from "./core/cantoneseSample";
 import { ENGLISH_SAMPLE_BANK_NAME, ENGLISH_SAMPLE_BANK_INTRO, englishSampleQuestions } from "./core/englishSample";
@@ -390,7 +390,12 @@ export class ExamApp {
   setKernelOnline(ok: boolean) {
     if (this.kernelOnline === ok) return;
     this.kernelOnline = ok;
-    if (ok) this.lastKernelError = null;
+    if (ok) {
+      this.lastKernelError = null;
+      this.stopOfflineReprobe();
+    } else {
+      this.startOfflineReprobe();
+    }
     emitExamEvent("kernel-connection", { online: ok });
   }
 
@@ -398,8 +403,26 @@ export class ExamApp {
     this.lastKernelError = error;
     // Fatal endpoint responses (auth/permission/validation/not-found) prove
     // the host is reachable; only retryable transport failures are offline.
-    if (error.kind !== "fatal") this.kernelOnline = false;
+    if (error.kind !== "fatal") this.setKernelOnline(false);
     emitExamEvent("kernel-connection", { online: this.kernelOnline, category: error.category, code: error.code, message: error.message });
+  }
+
+  /** 离线自愈探针：误判离线（端点抖动/慢请求超时）或真实内核重启后，
+   *  每 30s 后台重探一次，恢复即自动翻回在线，用户无需重载插件。 */
+  private offlineProbeTimer: ReturnType<typeof setInterval> | null = null;
+  private startOfflineReprobe() {
+    if (this.offlineProbeTimer) return;
+    this.offlineProbeTimer = setInterval(() => {
+      void this.deps.client.probe().then((p) => {
+        if (p.kernelOk) this.setKernelOnline(true);
+      }).catch(() => undefined);
+    }, 30_000);
+  }
+  private stopOfflineReprobe() {
+    if (this.offlineProbeTimer) {
+      clearInterval(this.offlineProbeTimer);
+      this.offlineProbeTimer = null;
+    }
   }
 
   /** 面向用户的宿主恢复指引；插件不拥有思源 token，因此不伪造登录跳转。 */
@@ -444,6 +467,8 @@ export class ExamApp {
       this.kernelOnline = false;
       this.probeMessage = "内核不可达：离线降级";
     }
+    // 启动即离线：挂自愈探针，内核恢复后自动上线
+    if (!this.kernelOnline) this.startOfflineReprobe();
     await Promise.allSettled([
       (async () => {
         try { await this.attempts.load(deviceId); } catch (e) { this.noteStorageReadError("attempts/log", e); }
@@ -626,7 +651,9 @@ export class ExamApp {
         `${prefix}/首页`,
         `# 题库：${clean}\n\n> 本题库由小驴考试管理。章节文档存放题目与试卷。\n> 可在练习台导入题目，或删除「示例题」文档后自建章节。\n`,
       );
-    } catch { /* 首页失败不阻断 */ }
+    } catch (e) {
+      pushDiagError({ source: "小驴考试", message: `题库首页初始化失败：${e instanceof Error ? e.message : String(e)}` });
+    }
     // 章节骨架：按官方模板的考点分层示例（47-02 首五分钟任务的最短路径）
     try {
       const docId = await this.deps.client.createDocWithMd(
@@ -641,7 +668,9 @@ export class ExamApp {
         makeQuestion({ type: "fill", stem: "FSRS 调度唯一需要理解的参数是期望____率。", options: [], answer: "保留", kp: "示例/记忆" }),
       ];
       if (docId) await this.deps.client.appendQuestions(docId, samples);
-    } catch { /* 示例题失败不阻断建库 */ }
+    } catch (e) {
+      pushDiagError({ source: "小驴考试", message: `示例题初始化未完成：${e instanceof Error ? e.message : String(e)}` });
+    }
     const previous = this.banks;
     this.banks = [...previous, info];
     try {
@@ -1149,6 +1178,8 @@ export class ExamApp {
             this.ensuredDocIds.set(cacheKey, created);
             return created;
           }
+          // 等待 SQLite 异步索引落盘后再重查，避免因索引延迟查回空结果而重复调用 createDocWithMd 产生同名副本
+          await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
           const again = await findExisting();
           if (again) {
             this.ensuredDocIds.set(cacheKey, again);
@@ -2906,8 +2937,13 @@ export class ExamApp {
       const reportKey = `${docId}\0${ymd}`;
       const existingBlockId = this.dailyReportBlockIds.get(reportKey);
       if (existingBlockId && typeof this.deps.client.updateBlock === "function") {
-        await this.saves.run(`daily-report/${ymd}`, () => this.deps.client.updateBlock(existingBlockId, md));
-        return;
+        try {
+          await this.saves.run(`daily-report/${ymd}`, () => this.deps.client.updateBlock(existingBlockId, md));
+          return;
+        } catch {
+          // 若用户在思源日记中删除了原战报块，清理失效缓存并自动回落到下方 appendBlock 重建
+          this.dailyReportBlockIds.delete(reportKey);
+        }
       }
       const res = await this.saves.run(`daily-report/${ymd}`, () => this.deps.client.appendBlock(docId, md));
       const newBlockId = Array.isArray(res) ? res[0] : typeof res === "string" ? res : "";
@@ -3193,6 +3229,9 @@ export class ExamApp {
       }
     } catch (e) {
       console.warn("[LvExam] sync flashcards doc failed:", e);
+      /* A1 审计修复：转卡步骤失败不再静默——flashcardCount 静默为 0 会让用户看到"同步完成"但卡册缺失 */
+      pushDiagError({ source: "小驴考试", message: `活文档同步转卡失败：${e instanceof Error ? e.message : String(e)}` });
+      lvNotify.capsule({ source: "小驴考试", message: "⚠️ 转入闪卡步骤失败，题库数据已同步", level: "warn", duration: 3200, archive: false });
     }
 
     if (!overviewDocId && !bankDocId && !wrongbookDocId && !actionJournalDocId && lastError) {
@@ -3267,8 +3306,8 @@ export class ExamApp {
             hpath,
             "# 学习闪卡册\n\n> 本卡册由小驴考试自动生成（卡片与题目）。正面思考，背面核对，已送入 FSRS 间隔重复卡包。\n",
           );
-        } catch {
-          /* 创建文档失败将回退原块转卡 */
+        } catch (e) {
+          pushDiagError({ source: "小驴考试", message: `创建闪卡册文档失败，回退原块转卡：${e instanceof Error ? e.message : String(e)}` });
         }
       }
 
@@ -3281,8 +3320,8 @@ export class ExamApp {
             await this.deps.client.addRiffCards(deckId, newBlockIds);
             return questions.length;
           }
-        } catch {
-          /* appendBlock 失败回退到原题块 ID */
+        } catch (e) {
+          pushDiagError({ source: "小驴考试", message: `追加闪卡块失败，回退原块转卡：${e instanceof Error ? e.message : String(e)}` });
         }
       }
     }
