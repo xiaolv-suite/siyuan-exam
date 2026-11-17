@@ -1,0 +1,248 @@
+// ============================================================
+// 领域契约（docs/02 数据模型；docs/14 §P0-2）
+// schemaVersion: 1 —— 所有持久化结构携带版本，迁移器按版本链升级
+// ============================================================
+
+import type { QuestionDispute } from "./dispute";
+
+export const SCHEMA_VERSION = 1;
+
+export type QuestionType =
+  | "single" // 单选
+  | "multiple" // 多选
+  | "judge" // 判断
+  | "fill" // 填空
+  | "short" // 简答（展示/背诵，不做机器判分）
+  | "material"; // 共用题干材料（题组母块，不参与判分）
+
+export type QuestionLifecycleStatus = "draft" | "review" | "published" | "deprecated";
+
+/** 43-01 / 55-07 不可变题版快照：记录作答发生瞬间的题面内容指纹与标准答案 */
+export interface QuestionVersionSnapshot {
+  hash: string;
+  answer: string;
+  revTs?: number;
+  specKind?: string;
+}
+
+/** 题目（题源层的内存表示；持久化为思源块 + exam-* 属性） */
+export interface Question {
+  id: string; // 稳定 exam-id（q-xxxxxx）
+  type: QuestionType;
+  stem: string; // 题干（markdown）
+  options: string[]; // 选项文本数组（下标=0 对应 A）；judge/fill/short 为空
+  answer: string; // 规范化答案（见 answer.ts）
+  analysis?: string; // 解析（markdown）
+  /** 💡 思路拓展与秒杀技巧（AUTH-02）：考点考法拓宽、一题多解、命题陷阱与秒杀规律 */
+  expansion?: string;
+  difficulty?: number; // 1-5
+  score: number; // 分值，默认 1
+  source?: string; // 出处（"2023 国考 115 题"）
+  sourceKind?: "real" | "mock";
+  year?: string;
+  kp?: string; // 考点（"资料分析/比重计算"，/ 分层）
+  /** 辅助考查知识点（MathBank / 中学教研多考点解耦规范，可参与精准检索与图谱关联） */
+  secondaryKps?: string[];
+  /** 先修依赖前置考点/先修试题（DIAG-01，吸收 cn-math-taxonomy 先修边规范） */
+  prerequisites?: string[];
+  /** 题目标签（可选，支持多维分类与筛选） */
+  tags?: string[];
+  origin: "imported" | "ai" | "manual";
+  batch?: string; // 导入批次
+  review?: "pending" | "verified" | "edited" | "rejected";
+  /** 题目作者生命周期状态 (43-01): draft | review | published | deprecated，缺省为 published */
+  status?: QuestionLifecycleStatus;
+  /** 57-04 争议题状态与处置单记录（未解决争议默认排除在组卷/刷题池外） */
+  dispute?: QuestionDispute;
+  alt?: string[]; // fill/short 可接受答案别名
+  /** 结构化作答规则（54-01 v1 信封；kind="numeric"=数值容差/单位判分（54-02），kind="multiBlank"=多空逐空判分（54-03））。
+   *  无 spec = 旧字符串口径。规则属于题面：修订 spec 视为改题（fingerprint 接线见 55-07 扩展，本批如实标注） */
+  answerSpec?:
+    | {
+        v: 1;
+        kind: "numeric";
+        unit?: string;
+        absTol?: number;
+        relTolerance?: number;
+        altUnits?: { unit: string; factor: number }[];
+      }
+    | { v: 1; kind: "multiBlank"; blanks: { answers: string[]; caseSensitive?: boolean }[]; orderIndependent?: boolean };
+  /** 55-05 主观采分点规格（简答/论述题自评依据）；缺省 = 无 rubric，按纯展示题处理 */
+  rubric?: {
+    v: 1;
+    kind: "rubric";
+    fullScore: number;
+    criteria: { id: string; label: string; weight: number; example?: string; levels?: { key: "full" | "partial" | "none"; label: string; ratio: number }[] }[];
+    revision?: number;
+  };
+  confidence?: number; // AI 二遍核验置信度 0-1（ Quanta 范式：≥0.90 可信）
+  lintIssues?: string[]; // 试题质检异常警示清单（缺少答案/选项异常等）
+  fav?: boolean; // 收藏（exam-fav="1"，docs/02 §2.4）
+  /** 用户速记标签（如 star:好题, trap:陷阱, doubt:存疑, key:重点） */
+  userTags?: string[];
+  /** 泛学习与多语言研学元数据（方言/发音注音/音频媒体挂载/学习交互类型） */
+  studyMeta?: {
+    lang?: string; // 语言/方言标识，如 "zh-HK"（粤语）、"en-US"、"ja-JP"
+    audioUrl?: string; // 本地音频文件路径或思源资产链接
+    phonetic?: string; // 拼音/粤拼/国际音标
+  };
+  /** 非破坏性 SVG 图片遮挡题规格 (Image Occlusion，医考/地理/解剖学高频题型) */
+  occlusion?: ImageOcclusionSpec;
+  group?: string; // 共用题干组 ID（材料与子题共享，cbt 引擎）
+  /** 题族与变式关联（52-07 / 65-03，原题/近远迁移/正反向兄弟题） */
+  family?: QuestionFamilyRef;
+  hash: string; // 去重指纹（stem+options）
+  /** 思源块 ID（从块属性读入或回写） */
+  blockId?: string;
+  /** 思源文档根块 ID（所属文档） */
+  rootId?: string;
+  /** 思源文档 hpath 人类可读路径 */
+  hpath?: string;
+  /** 来源思源读书笔记块 ID（从笔记块提取或 AI 出题时记录，支持一键跳回原笔记段落） */
+  sourceBlockId?: string;
+}
+
+/** 题族与变式关联契约（52-07 / 65-03） */
+export interface QuestionFamilyRef {
+  /** 题族标识或父题目 ID */
+  parentId?: string;
+  /** 变式维度：数值变形/正反向/近迁移/远迁移/干扰项替换 */
+  variantKind?: "numeric" | "reverse" | "near_transfer" | "far_transfer" | "distractor_swap";
+  /** 是否经人工审定确认（未确认变式不当做有效迁移题） */
+  verified?: boolean;
+}
+
+/** 单个图片遮挡遮罩 (Image Occlusion Mask) */
+export interface ImageOcclusionMask {
+  id: string; // 遮罩唯一标识，如 "m-1"
+  /** 归一化矩形相对坐标 (0.0 - 1.0)，自适应任意窗口缩放 */
+  x: number; // 左上角 x 比例
+  y: number; // 左上角 y 比例
+  w: number; // 宽度比例
+  h: number; // 高度比例
+  /** 遮挡部位标准答案文本 (如 "三尖瓣", "小脑") */
+  answer: string;
+  /** 提示文本 (可选，如 "瓣膜结构") */
+  hint?: string;
+}
+
+/** 图片遮挡题规格 (非破坏性 SVG 几何遮罩，原图零篡改) */
+export interface ImageOcclusionSpec {
+  v: 1;
+  kind: "imageOcclusion";
+  /** 图片地址 (本地相对路径或网络 URL) */
+  imageUrl: string;
+  /** 当前题目聚焦遮挡的遮罩 ID (若单题考查特定单部位) */
+  activeMaskId?: string;
+  /** 全部遮罩矩形清单 */
+  masks: ImageOcclusionMask[];
+}
+
+/** 作答事件（append-only 流水；重算唯一输入） */
+export interface AttemptEvent {
+  v: number; // schema 版本
+  eid: string; // 事件唯一 ID（幂等回放键）
+  ts: number; // UTC ms
+  qid: string; // exam-id
+  kind: "practice" | "recite" | "mock" | "card";
+  mode: string; // single|special|paper|wrong|fav|cram|daily
+  verdict: "correct" | "wrong" | "not_attempted";
+  myAnswer: string | null; // 作答快照
+  selfRating?: number; // 背诵/闪卡 1-4
+  timeMs?: number;
+  sessionId: string;
+  examId?: string | null; // 模考卷 id
+  queue: "normal" | "wrong" | "cram";
+  device: string; // 设备 ID（分片合并键）
+  seq: number; // 设备内单调序号（乱序回放排序键）
+  changes?: number; // 改答次数
+  /** 43-01 / 55-07 题版不可变快照（作答瞬间题面指纹与标准答案绑定；历史作答不被未来修订静默覆盖） */
+  qVersion?: QuestionVersionSnapshot;
+  /** 44-04 延迟回炉标记：本次作答为会话内错题重排后的延迟无提示回忆，区分于首次初答 */
+  delayedReview?: boolean;
+  /** 改答轨迹（63-03）：首答与每次修改（终答=myAnswer）。可选 additive 字段；edits 上限截断如实标注。
+   *  边界：不以改答次数判定能力或粗心；输入框取消（值回到已记录值）不产生轨迹事件 */
+  firstAnswer?: string;
+  edits?: { to: string; reason?: "unsure" | "evidence" | "misclick" }[];
+  confidence?: "sure" | "fuzzy" | "guess"; // 置信度自评
+  /** 受助标记（114-01）：本次作答前该题已被讲解/提示过（同会话内）；reveal=查看被守卫拦截的疑似泄题提示（G6 正式揭示）。受助表现与独立正确分开统计的依据 */
+  help?: "explain" | "hint" | "socratic" | "reveal";
+  /** 先回忆标记（52-02 lite）：本次作答使用了「藏选项先回忆」模式；揭示可追溯，无选项回忆与选择题正确率分开报告的地基 */
+  recall?: boolean;
+  /** 暴露节点（63-02 lite）：本次作答前/后真实经历的暴露布尔事实（讲解/提示/揭示/材料展开/解析已见/AI 追问）。
+   *  只记节点名不记内容；help 字段为受助节点的向后兼容派生 */
+  exposure?: string[];
+}
+
+/** 错题派生条目（可随时从流水重建的物化视图） */
+export interface WrongItem {
+  qid: string;
+  kp?: string;
+  firstWrongAt: number;
+  lastWrongAt: number; // 最近一次答错时间（手动覆盖层时效判断依据）
+  wrongCount: number;
+  streakCorrect: number;
+  reason?: "careless" | "unknown" | "trap";
+  myAnswer: string | null;
+  status: "active" | "eliminated" | "mastered";
+}
+
+/** 练习会话（单活动；可暂停续做） */
+export interface SessionState {
+  id: string;
+  mode: string;
+  /** 题库身份（37-05）：恢复时校验会话归属，跨库不串 */
+  bankId?: string;
+  /** 材料组排序策略（44-03 lite）：adjacent=分块连排（默认）/ interleaved=交错打散；旧快照缺省 */
+  order?: "adjacent" | "interleaved";
+  /** 随机种子（65-05 lite）：会话启动时生成并持久化——同 seed+同候选池可复现卷序；结算页展示 */
+  seed?: string;
+  qids: string[];
+  cursor: number;
+  drafts: Record<string, string>;
+  startedAt: number;
+  updatedAt: number;
+  finishedAt?: number;
+  /** 已答结果快照（37-05）：pos=卷面位置（重排队可致同 qid 多位置，按位置判定已答）；
+   *  恢复后光标跳到首个未答位置，防止重复作答双计事件 */
+  answered?: {
+    qid: string;
+    pos: number;
+    verdict: "correct" | "wrong" | "not_attempted";
+    myAnswer: string | null;
+    timeMs: number;
+    delayedReview?: boolean;
+  }[];
+  /** 已重排题（答错排队尾再来一次，每题至多一次；恢复后不重复重排） */
+  requeued?: string[];
+  /** 63-02 / 114-01 会话内逐题暴露布尔事实集合（qid → ExposureNode[]），随会话落盘，重载后完整恢复 */
+  exposures?: Record<string, string[]>;
+  /** 114-01 逐层提示状态（qid → { level, texts }），重载后不从 L1 重置 */
+  hints?: Record<string, { level: 0 | 1 | 2 | 3; texts: string[] }>;
+  /** 52-02 先回忆模式已使用题目列表 */
+  recalled?: string[];
+  /** 52-08 会话演算草稿纸（随会话持久化，重载不丢） */
+  scratchpad?: {
+    store: Record<string, string>;
+    sharedText: string;
+    mode: "per_question" | "shared";
+  };
+  /** 挑战码（友谊赛）内联题目快照：不入正式题库，但支持会话中途重载恢复 */
+  inlineQuestions?: Question[];
+}
+
+export interface DayStats {
+  date: string; // YYYY-MM-DD（本地时区）
+  attempts: number;
+  correct: number;
+}
+
+export interface ReplayResult {
+  wrongbook: Map<string, WrongItem>;
+  byQuestion: Map<string, { attempts: number; correct: number; lastAt: number }>;
+  days: Map<string, DayStats>;
+  /** 背诵连击（连续"会"次数）——≥ RECITE_GRADUATE_STREAK 出清背诵池 */
+  reciteStreak: Map<string, number>;
+  skipped: number; // 坏行/重复事件数（幂等去重）
+  clockAnomalies: number; // 时钟回拨检出数
+}
