@@ -136,6 +136,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       formatHintLayersDisplay,
       applyLeakedHintToState,
       executeAiFollowUpWorkflow,
+      ExplainRequestCoordinator,
     } from "./services/aiWorkflowService";
     import {
       loadReciteModeSetting,
@@ -1370,6 +1371,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onMountCleanup?.(); onMountCleanup = null;
       clearReciteSubmitTimer();
       clearMoreFocusTimer();
+      clearAutoNext();
     });
 
     // ---------- 题目编辑（43-01 lite：块菜单「编辑」→ 浏览视图内联表单） ----------
@@ -1718,7 +1720,8 @@ import { confirmDialogSync } from "@/libs/dialog";
           mStem = request.sourceText.trim();
           if (request.sourceBlockId) {
             mSourceBlockId = request.sourceBlockId;
-            mSource = `(( ${request.sourceBlockId} '${request.sourceTitle || "来源笔记段落"}' ))`;
+            const safeTitle = (request.sourceTitle || "来源笔记段落").replace(/[\r\n]+/g, " ").replace(/'/g, "’");
+            mSource = `(( ${request.sourceBlockId} '${safeTitle}' ))`;
           }
           if (request.sourceTitle && !mKp.trim()) {
             mKp = request.sourceTitle;
@@ -1776,7 +1779,8 @@ import { confirmDialogSync } from "@/libs/dialog";
         switchView("manual");
         mStem = opts.text.trim();
         if (opts.sourceBlockId) {
-          mSource = `(( ${opts.sourceBlockId} '${opts.sourceTitle || "来源原文"}' ))`;
+          const safeTitle = (opts.sourceTitle || "来源原文").replace(/[\r\n]+/g, " ").replace(/'/g, "’");
+          mSource = `(( ${opts.sourceBlockId} '${safeTitle}' ))`;
         }
         if (opts.type === "cloze") {
           mType = "fill";
@@ -2299,8 +2303,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       return countEliminatedWrongs(app, questions);
     });
     const clearPct = $derived(calculateClearPercentage(eliminatedCount, wrongList.length));
-    /** 错题队列：错次降序 → 最近错误降序（紧迫度序）；benchmark-fusion 增补 CBM 双维分栏 */
-    let wbTab = $state<"active" | "archived" | "eliminated" | "highrisk" | "fragile" | "ebbinghaus">("active");
+    /** 错题队列：错次降序 → 最近错误降序（紧迫度序）；benchmark-fusion 增补 CBM 双维分栏；增补三阶错题消除与出库看板 */
+    let wbTab = $state<"active" | "archived" | "eliminated" | "highrisk" | "fragile" | "ebbinghaus" | "ladder">("active");
     let wbReasonFilter = $state<"all" | "careless" | "unknown" | "trap">("all");
     let wbFilterStubborn = $state(false);
     let wbKpFilter = $state("");
@@ -3113,12 +3117,27 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     // ---------- AI 讲解（v0.4：错题逐选项解释；多轮追问；可存为笔记子块） ----------
+    const explainCoordinator = new ExplainRequestCoordinator();
     let explainText = $state("");
     let explainBusy = $state(false);
     let explainQid = $state("");
+    let explainCollapsed = $state(false);
     let explainHistory = $state<Record<string, import("@/ai/client").AiMessage[]>>({});
     let socraticModalOpen = $state(false);
     let socraticMode = $state<"socratic" | "explain" | "hint" | "dual-loop" | "storm">("socratic");
+
+    function closeExplain() {
+      explainCoordinator.invalidate();
+      explainText = "";
+      explainQid = "";
+      explainBusy = false;
+      explainFollowUp = "";
+      explainSavedQid = "";
+      explainSaveError = "";
+      explainSaveErrorQid = "";
+      explainCollapsed = false;
+      leakPending = null;
+    }
 
     async function handleSocraticFollowUp(msg: string) {
       explainFollowUp = msg;
@@ -3166,12 +3185,13 @@ import { confirmDialogSync } from "@/libs/dialog";
         showMessage("请先作答提交后再查看完整解析依据，或使用提示/苏格拉底启发引导", 3000, "info");
         return;
       }
-      explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
+      explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = ""; leakPending = null;
       if (!app.kernelOnline) {
         explainText = t("state.offlineHint");
         showMessage(t("state.offlineHint"), 2500, "info");
         return;
       }
+      const token = explainCoordinator.startRequest(q.id);
       explainBusy = true; explainText = ""; explainQid = q.id;
       socraticMode = mode;
       socraticModalOpen = true;
@@ -3187,6 +3207,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           client: app.deps.client,
           aiConfig: aiSettings(),
         });
+        if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         void logAiTask({ templateId: res.env.templateId, qid: res.reqCtx.qid, status: res.env.status, tokens: res.env.tokens, messages: res.messages });
         if (res.env.status === "ok" && res.env.data.text) {
           explainText = res.env.data.text;
@@ -3200,10 +3221,15 @@ import { confirmDialogSync } from "@/libs/dialog";
           showMessage("AI 响应未就绪：请查看下方解决方案指引", 3200, "info");
         }
       } catch (e) {
+        if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         const errMsg = String(e instanceof Error ? e.message : e);
         explainText = appendAiFailureGuidance(errMsg);
         showMessage("AI 任务失败：请检查思源设置或专属模型配置", 3600, "error");
-      } finally { explainBusy = false; }
+      } finally {
+        if (explainCoordinator.isCurrent(token, session?.current?.id, q.id)) {
+          explainBusy = false;
+        }
+      }
     }
 
     function hintButtonLabel(q: { id: string; options: string[] }): string {
@@ -3218,6 +3244,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
       explainQid = q.id; leakPending = null;
       if (!app.kernelOnline) { explainText = t("state.offlineHint"); return; }
+      const token = explainCoordinator.startRequest(q.id);
       explainBusy = true; explainText = "";
       const submitted = !!feedback;
       const hintState = session.getHintState(q.id);
@@ -3235,6 +3262,8 @@ import { confirmDialogSync } from "@/libs/dialog";
           client: app.deps.client,
           aiConfig: aiSettings(),
         });
+
+        if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
 
         if (res.kind === "reveal") {
           explainText = t("explain.hintReveal");
@@ -3257,8 +3286,13 @@ import { confirmDialogSync } from "@/libs/dialog";
           explainText = formatEnvStatusLine(res.env, t);
         }
       } catch (e) {
+        if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         explainText = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
-      } finally { explainBusy = false; }
+      } finally {
+        if (explainCoordinator.isCurrent(token, session?.current?.id, q.id)) {
+          explainBusy = false;
+        }
+      }
     }
 
     /** 泄露守卫：用户明确选择查看 → 记为受助-揭示（help=reveal），层级照常推进 */
@@ -3280,6 +3314,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       const history = explainHistory[q?.id ?? ""];
       if (!q || !history?.length || explainBusy || !explainFollowUp.trim()) return;
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
+      const token = explainCoordinator.startRequest(q.id);
       explainBusy = true;
       socraticModalOpen = true;
 
@@ -3297,6 +3332,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           currentExplainText: explainText,
           t,
         });
+        if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         if (res.env) {
           void logAiTask({ templateId: res.env.templateId, qid: q.id, status: res.env.status, tokens: res.env.tokens, messages: history });
         }
@@ -3310,8 +3346,13 @@ import { confirmDialogSync } from "@/libs/dialog";
           explainText = appendAiFailureGuidance(res.error);
         }
       } catch (e) {
+        if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         explainText = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
-      } finally { explainBusy = false; }
+      } finally {
+        if (explainCoordinator.isCurrent(token, session?.current?.id, q.id)) {
+          explainBusy = false;
+        }
+      }
     }
 
     // ---------- 纯听题 lite（TTS + 遮罩） ----------
@@ -3630,6 +3671,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
       hideOptions = false; recallDraft = ""; leakPending = null;
       speechEvalResult = null; speechRecording = false;
+      explainCoordinator.invalidate();
+      explainText = ""; explainQid = ""; explainBusy = false; explainFollowUp = ""; explainCollapsed = false;
       resetRubricDraft(); // 55-05：切题/恢复不沿用上一题的自评选择
     }
     /** 55-05：重置当前题的自评 UI 草稿（选择与备注），不动已记录存档 */
@@ -3737,6 +3780,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       clearAutoNext();
       feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
       hideOptions = false; recallDraft = ""; leakPending = null; // 52-02：切题重置先回忆态（揭示/草稿不沿用上一题，U02 口径）；114-01 泄露待决随之作废
+      explainCoordinator.invalidate();
+      explainText = ""; explainQid = ""; explainBusy = false; explainFollowUp = ""; explainCollapsed = false;
       if (!session.next()) { void finishSession(); return; }
       restoreQuestionControls();
       sessionRev++; // 类实例非响应式：切题后刷新题面
@@ -3750,6 +3795,8 @@ import { confirmDialogSync } from "@/libs/dialog";
     function previousQuestion() {
       clearReciteSubmitTimer();
       clearAutoNext();
+      explainCoordinator.invalidate();
+      explainText = ""; explainQid = ""; explainBusy = false; explainFollowUp = ""; explainCollapsed = false;
       if (!session?.prev()) return;
       restoreQuestionControls();
       sessionRev++;
@@ -3757,40 +3804,48 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (reciteToggle && !feedback) scheduleReciteSubmit(); // 背题模式：切题后自动揭示答案
     }
 
+    let sessionFinishing = false;
     async function finishSession() {
-      clearReciteSubmitTimer();
-      const res = await executeSessionFinish(app, session, questions, window);
-      sessionDone = res.summary;
-      disarmExamHistory();
-      settleMode = res.settleMode;
-      rebuildPlan();
+      if (sessionFinishing) return;
+      sessionFinishing = true;
+      try {
+        clearReciteSubmitTimer();
+        closeExplain();
+        const res = await executeSessionFinish(app, session, questions, window);
+        sessionDone = res.summary;
+        disarmExamHistory();
+        settleMode = res.settleMode;
+        rebuildPlan();
 
-      // 同一会话只上报一次增量；队列持久化后才投递，重试复用原身份。
-      if (session) void runCheckinBridge({ id: session.id, total: sessionDone.total, correct: sessionDone.correct })
-        .catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
+        // 同一会话只上报一次增量；队列持久化后才投递，重试复用原身份。
+        if (session) void runCheckinBridge({ id: session.id, total: sessionDone.total, correct: sessionDone.correct })
+          .catch((e: unknown) => showMessage(String(e instanceof Error ? e.message : e), 4200, "error"));
 
-      // Epoch 7：交卷与结算成绩单重点提醒卡片（支持得分查看与【查看错题本】直达）
-      if (sessionDone) {
-        notifyPracticeFinishCard({
-          bankName: bankName || "专项练习",
-          total: sessionDone.total,
-          correct: sessionDone.correct,
-          wrong: sessionDone.wrong,
-          onViewWrongbook: () => {
-            view = "wrongbook";
-          },
-          onReviewWrongs: () => {
-            void startFilteredWrongDrill();
-          },
-        });
+        // Epoch 7：交卷与结算成绩单重点提醒卡片（支持得分查看与【查看错题本】直达）
+        if (sessionDone) {
+          notifyPracticeFinishCard({
+            bankName: bankName || "专项练习",
+            total: sessionDone.total,
+            correct: sessionDone.correct,
+            wrong: sessionDone.wrong,
+            onViewWrongbook: () => {
+              view = "wrongbook";
+            },
+            onReviewWrongs: () => {
+              void startFilteredWrongDrill();
+            },
+          });
 
-        // 广播今日全生态活动主干流 (Epoch 7 Phase 3: lvActivity)
-        lvActivity.record({
-          source: "考试",
-          category: "exam",
-          title: `完成《${bankName || "专项练习"}》结算 (正确: ${sessionDone.correct}/${sessionDone.total})`,
-          detail: `正确率 ${Math.round((sessionDone.correct / sessionDone.total) * 100)}% · 发现错题 ${sessionDone.wrong} 道`,
-        });
+          // 广播今日全生态活动主干流 (Epoch 7 Phase 3: lvActivity)
+          lvActivity.record({
+            source: "考试",
+            category: "exam",
+            title: `完成《${bankName || "专项练习"}》结算 (正确: ${sessionDone.correct}/${sessionDone.total})`,
+            detail: `正确率 ${Math.round((sessionDone.correct / sessionDone.total) * 100)}% · 发现错题 ${sessionDone.wrong} 道`,
+          });
+        }
+      } finally {
+        sessionFinishing = false;
       }
     }
 
@@ -5481,6 +5536,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           feedbackVerdict: feedback?.verdict,
           canSubmit: canSubmitAnswer,
           doneCount: session?.progress.done ?? 0,
+          hasExplain: !!((explainText || explainBusy) && curQ && explainQid === curQ.id),
         },
         recite: {
           isDone: reciteDone,
@@ -5498,6 +5554,12 @@ import { confirmDialogSync } from "@/libs/dialog";
       switch (action.type) {
         case "help":
           hotkeysHelpOpen = !hotkeysHelpOpen;
+          break;
+        case "close_explain":
+          closeExplain();
+          break;
+        case "toggle_explain_collapse":
+          explainCollapsed = !explainCollapsed;
           break;
         case "exit_session":
           if (view === "recite") void exitRecite();
@@ -6244,6 +6306,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {explainSaveError}
       {explainSaveErrorQid}
       bind:explainFollowUp
+      bind:explainCollapsed
       bind:leakPending
       bind:reasonPromptQid
       {curQStats}
@@ -6373,6 +6436,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       ontouchEnd={onTouchEnd}
       onopenSessionSheet={() => (sessionSheetOpen = !sessionSheetOpen)}
       onopenSocraticModal={() => (socraticModalOpen = true)}
+      oncloseExplain={closeExplain}
     />
   {:else if view === "recite"}
     <ReciteStudioView
@@ -6449,6 +6513,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {cramCount}
       {bulkMasterBusy}
       {questionMap}
+      {app}
       {t}
       {reasonOf}
       {isStubbornWrong}

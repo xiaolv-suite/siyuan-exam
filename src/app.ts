@@ -2,12 +2,32 @@
 // ExamApp：应用组装层（控制器）—— UI 与测试共用的唯一入口
 // 依赖全部注入（KernelApiClient / StorageAdapter），headless 可驱动
 // ============================================================
+import { localDateKeyOf } from "./core/checkinBridge";
 import { KernelApiClient, KernelError } from "./kernel/client";
 import { SESSION_CHECKIN_KEY, validateSessionLedger, assertSafeSessionLedgerRestore } from "./core/sessionCheckinLedger";
 import { withSessionCheckinLock } from "./libs/session-checkin-lock";
 import type { StorageAdapter } from "./core/attemptLog";
 import { AttemptLog } from "./core/attemptLog";
 import type { AttemptEvent, Question, ReplayResult, WrongItem, SessionState } from "./core/types";
+import {
+  BANK_REGISTRY_KEY,
+  SESSION_KEY,
+  WRONG_REASON_KEY,
+  REVISIONS_KEY,
+  MOCK_RUN_KEY,
+  ACTIONS_KEY,
+  MATERIALS_KEY,
+  MATERIAL_NOTES_KEY,
+  MATERIAL_QREFS_KEY,
+  MISDIAGNOSIS_KEY,
+  SYLLABUS_KEY,
+  KP_RELATIONS_KEY,
+  PENDING_RATING_KEY,
+  TIER1_STORE_KEYS,
+  TIER2_STORE_KEYS,
+  ALL_STORE_KEYS,
+} from "./constants";
+import { safePerfMark, safePerfMeasure } from "./core/perf";
 import { replay } from "./core/replayer";
 import { reportDateKey, reportWindowStart } from "./core/reportWindow";
 import { PracticeSession, pickRandom, groupAdjacent } from "./core/session";
@@ -248,37 +268,11 @@ export interface ExamAppDeps {
   now?: () => number;
 }
 
-const BANK_REGISTRY_KEY = "banks";
-const SESSION_KEY = "session/active";
-const WRONG_REASON_KEY = "wrongbook/reasons";
-/** 43-01 lite：题目修订时间线（revision.ts 存储键） */
-const REVISIONS_KEY = "revisions";
-const MOCK_RUN_KEY = "mock/run";
-const ACTIONS_KEY = "actions/items";
-const MATERIALS_KEY = "materials/registry";
-const MATERIAL_NOTES_KEY = "materials/notes";
-const MATERIAL_QREFS_KEY = "materials/qrefs";
-const MISDIAGNOSIS_KEY = "ai/misdiagnosis";
-const SYLLABUS_KEY = "syllabus/tree";
-const KP_RELATIONS_KEY = "kp/relations";
-/** 39-03：待确认评级队列（结果不明/失败保留，核对后再决定是否重写） */
-const PENDING_RATING_KEY = "riff/pending-ratings";
-
 /** 过期草稿（TODO 2.4）：7 天隐藏不再续做入口，30 天清理（流水保留） */
 const DRAFT_HIDE_MS = 7 * 86_400_000;
 const DRAFT_DROP_MS = 30 * 86_400_000;
 
 /** 导入提交回执（U08）：读回确认只认真实读回的 qid；verified=false = 未能核实（离线/读回失败） */
-export interface ImportCommitResult {
-  written: number;
-  docs: string[];
-  readback: { confirmed: string[]; missing: string[]; verified: boolean };
-  /** 用户取消时保留已写文档；missing 含所有尚未确认的题，便于安全重试。 */
-  cancelled?: boolean;
-  /** 尚未进入写入步骤的题目；与已提交但未读回的题目区分。 */
-  unprocessed?: string[];
-}
-
 export interface ImportCommitResult {
   written: number;
   docs: string[];
@@ -328,6 +322,31 @@ export class ExamApp {
     "mock/run",
     "mock/running",
   ]);
+  static readonly TIER1_KEYS = TIER1_STORE_KEYS;
+  static readonly TIER2_KEYS = TIER2_STORE_KEYS;
+  static readonly ALL_STORE_KEYS = ALL_STORE_KEYS;
+
+  tier2Ready = false;
+  tier2LoadingPromise?: Promise<void>;
+  tier2ScheduledTimer?: ReturnType<typeof setTimeout>;
+  tier2IdleId?: number;
+  tier2LoadGeneration = 0;
+  isUnloaded = false;
+  get isUnloading(): boolean {
+    return this.isUnloaded;
+  }
+  set isUnloading(v: boolean) {
+    this.isUnloaded = v;
+  }
+  deviceId?: string;
+
+  get lifecycleGeneration(): number {
+    return this.tier2LoadGeneration;
+  }
+  set lifecycleGeneration(v: number) {
+    this.tier2LoadGeneration = v;
+  }
+
   kernelOnline = false;
   probeMessage = "";
   /** 最近一次内核故障；保留分类让 UI 能区分离线、授权、权限和校验错误。 */
@@ -454,8 +473,9 @@ export class ExamApp {
     );
   }
 
-  /** 启动：能力探测 → 流水加载 → 重算 → 会话恢复（任何一步失败都不阻塞后续） */
-  async init(deviceId?: string): Promise<void> {
+  /** 启动：能力探测（支持 options.deferTier2 分级推迟加载） */
+  async init(deviceId?: string, options?: { deferTier2?: boolean }): Promise<void> {
+    this.deviceId = deviceId;
     try {
       const probe = await this.deps.client.probe();
       this.kernelOnline = probe.kernelOk;
@@ -469,112 +489,261 @@ export class ExamApp {
     }
     // 启动即离线：挂自愈探针，内核恢复后自动上线
     if (!this.kernelOnline) this.startOfflineReprobe();
-    await Promise.allSettled([
-      (async () => {
-        try { await this.attempts.load(deviceId); } catch (e) { this.noteStorageReadError("attempts/log", e); }
-      })(),
-      (async () => {
-        try { await this.loadWrongOverlay(); } catch (e) { this.noteStorageReadError("wrongbook/overlays", e); }
-      })(),
-      (async () => {
-        try { await this.loadWrongReasons(); } catch (e) { this.noteStorageReadError(WRONG_REASON_KEY, e); }
-      })(),
-      (async () => {
-        try { await this.loadWrongReflections(); } catch (e) { this.noteStorageReadError("wrongbook/reflections", e); }
-      })(),
-      (async () => {
-        try { await this.loadDiagnosisDoc(); } catch (e) { this.noteStorageReadError("wrongbook/diagnosis", e); }
-      })(),
-      (async () => {
+
+    if (options?.deferTier2) {
+      // 轨道 A：推迟 Tier 2 存储加载至空闲时刻或按需触发
+      this.tier2Ready = false;
+      return;
+    }
+    await this.ensureTier2Loaded();
+  }
+
+  scheduleTier2Load(): void {
+    if (this.tier2Ready || this.tier2LoadingPromise || this.isUnloaded) return;
+    this.cancelTier2Schedule();
+    const trigger = () => {
+      this.tier2ScheduledTimer = undefined;
+      this.tier2IdleId = undefined;
+      if (this.isUnloaded || this.tier2Ready) return;
+      void this.ensureTier2Loaded().catch((err) => {
+        console.warn(`[LvExam] Background Tier 2 load failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    };
+
+    // 两级延迟调度：先 setTimeout 静默期（1500ms），再转 requestIdleCallback 在浏览器空闲时刻执行
+    this.tier2ScheduledTimer = setTimeout(() => {
+      this.tier2ScheduledTimer = undefined;
+      if (this.isUnloaded || this.tier2Ready) return;
+      if (typeof window !== "undefined" && typeof (window as any).requestIdleCallback === "function") {
         try {
-          const banks = await this.deps.storage.load(BANK_REGISTRY_KEY);
-          if (Array.isArray(banks)) this.banks = banks as BankInfo[];
-        } catch (e) {
-          this.noteStorageReadError(BANK_REGISTRY_KEY, e);
-        }
-      })(),
-      (async () => {
+          this.tier2IdleId = (window as any).requestIdleCallback(() => trigger(), { timeout: 2000 });
+          return;
+        } catch { /* ignore and fallback */ }
+      }
+      this.tier2ScheduledTimer = setTimeout(trigger, 120);
+    }, 1500);
+  }
+
+  cancelTier2Schedule(): void {
+    if (this.tier2ScheduledTimer) {
+      clearTimeout(this.tier2ScheduledTimer);
+      this.tier2ScheduledTimer = undefined;
+    }
+    if (this.tier2IdleId !== undefined) {
+      if (typeof window !== "undefined" && typeof (window as any).cancelIdleCallback === "function") {
         try {
-          const parsed = parseRegistry(await this.deps.storage.load(MATERIALS_KEY));
-          this.materialsRegistry = parsed.registry;
-          this.materialsVersionTooNew = parsed.versionTooNew;
-        } catch (e) {
-          this.noteStorageReadError(MATERIALS_KEY, e);
-        }
-      })(),
-      (async () => {
-        try {
-          const parsedNotes = parseNoteStore(await this.deps.storage.load(MATERIAL_NOTES_KEY));
-          this.materialNoteStore = parsedNotes.store;
-        } catch (e) {
-          this.noteStorageReadError(MATERIAL_NOTES_KEY, e);
-        }
-      })(),
-      (async () => {
-        try {
-          const parsedLinks = parseLinkStore(await this.deps.storage.load(MATERIAL_QREFS_KEY));
-          this.materialLinkStore = parsedLinks.store;
-        } catch (e) {
-          this.noteStorageReadError(MATERIAL_QREFS_KEY, e);
-        }
-      })(),
-      (async () => {
-        try {
-          const parsedMis = parseMisdiagnosis(await this.deps.storage.load(MISDIAGNOSIS_KEY));
-          this.misdiagnosisStore = parsedMis.store;
-        } catch (e) {
-          this.noteStorageReadError(MISDIAGNOSIS_KEY, e);
-        }
-      })(),
-      (async () => {
-        try {
-          const parsedSyl = parseSyllabusDoc(await this.deps.storage.load(SYLLABUS_KEY));
-          this.syllabus = parsedSyl.doc;
-          this.syllabusTooNew = parsedSyl.versionTooNew;
-        } catch (e) {
-          this.noteStorageReadError(SYLLABUS_KEY, e);
-        }
-      })(),
-      (async () => {
-        try {
-          const parsedKpRel = parseRelations(await this.deps.storage.load(KP_RELATIONS_KEY));
-          this.kpRelations = parsedKpRel.doc;
-          this.kpRelationsTooNew = parsedKpRel.versionTooNew;
-        } catch (e) {
-          this.noteStorageReadError(KP_RELATIONS_KEY, e);
-        }
-      })(),
-    ]);
-    if (this.kernelOnline && this.banks.length > 0 && typeof (this.deps.client as any).listAllNotebooks === "function") {
+          (window as any).cancelIdleCallback(this.tier2IdleId);
+        } catch { /* ignore */ }
+      }
+      this.tier2IdleId = undefined;
+    }
+  }
+
+  ensureTier2Loaded(): Promise<void> {
+    if (this.tier2Ready) return Promise.resolve();
+    if (this.tier2LoadingPromise) return this.tier2LoadingPromise;
+    this.cancelTier2Schedule();
+    const flight = (async () => {
       try {
-        const allNotebooks = await (this.deps.client as any).listAllNotebooks();
-        if (Array.isArray(allNotebooks) && allNotebooks.length > 0) {
-          const nbMap = new Map(allNotebooks.map((n: { id: string; closed?: boolean }) => [n.id, n]));
-          const aliveBanks = this.banks.filter((b) => nbMap.has(b.notebookId || b.id));
-          if (aliveBanks.length !== this.banks.length) {
-            this.banks = aliveBanks;
-            void this.saveBankRegistry().catch(() => undefined);
+        await this.loadTier2Storage();
+      } finally {
+        if (this.tier2LoadingPromise === flight) {
+          this.tier2LoadingPromise = undefined;
+        }
+      }
+    })();
+    this.tier2LoadingPromise = flight;
+    return flight;
+  }
+
+  async loadTier2Storage(): Promise<void> {
+    if (this.isUnloaded) return;
+    const currentGen = ++this.tier2LoadGeneration;
+    safePerfMark("siyuan-exam-tier2-start");
+    try {
+      const deviceId = this.deviceId;
+      const readErrors: Array<{ key: string; error: unknown }> = [];
+
+      await Promise.allSettled([
+        (async () => {
+          try {
+            await this.attempts.load(deviceId);
+            this.storageReadErrors.delete("attempts/log");
+          } catch (e) {
+            this.noteStorageReadError("attempts/log", e);
+            readErrors.push({ key: "attempts/log", error: e });
           }
-          if (typeof (this.deps.client as any).openNotebook === "function") {
-            for (const b of this.banks) {
-              const targetNbId = b.notebookId || b.id;
-              const nb = nbMap.get(targetNbId);
-              if (nb?.closed) {
-                await (this.deps.client as any).openNotebook(targetNbId).catch(() => undefined);
-              }
+        })(),
+        (async () => {
+          try {
+            await this.loadWrongOverlay();
+            this.storageReadErrors.delete("wrongbook/overlays");
+          } catch (e) {
+            this.noteStorageReadError("wrongbook/overlays", e);
+            readErrors.push({ key: "wrongbook/overlays", error: e });
+          }
+        })(),
+        (async () => {
+          try {
+            await this.loadWrongReasons();
+            this.storageReadErrors.delete(WRONG_REASON_KEY);
+          } catch (e) {
+            this.noteStorageReadError(WRONG_REASON_KEY, e);
+            readErrors.push({ key: WRONG_REASON_KEY, error: e });
+          }
+        })(),
+        (async () => {
+          try {
+            await this.loadWrongReflections();
+            this.storageReadErrors.delete("wrongbook/reflections");
+          } catch (e) {
+            this.noteStorageReadError("wrongbook/reflections", e);
+            readErrors.push({ key: "wrongbook/reflections", error: e });
+          }
+        })(),
+        (async () => {
+          try {
+            await this.loadDiagnosisDoc();
+            this.storageReadErrors.delete("wrongbook/diagnosis");
+          } catch (e) {
+            this.noteStorageReadError("wrongbook/diagnosis", e);
+            readErrors.push({ key: "wrongbook/diagnosis", error: e });
+          }
+        })(),
+        (async () => {
+          try {
+            const banks = await this.deps.storage.load(BANK_REGISTRY_KEY);
+            if (Array.isArray(banks)) this.banks = banks as BankInfo[];
+            this.storageReadErrors.delete(BANK_REGISTRY_KEY);
+          } catch (e) {
+            this.noteStorageReadError(BANK_REGISTRY_KEY, e);
+            readErrors.push({ key: BANK_REGISTRY_KEY, error: e });
+          }
+        })(),
+        (async () => {
+          try {
+            const parsed = parseRegistry(await this.deps.storage.load(MATERIALS_KEY));
+            this.materialsRegistry = parsed.registry;
+            this.materialsVersionTooNew = parsed.versionTooNew;
+            this.storageReadErrors.delete(MATERIALS_KEY);
+          } catch (e) {
+            this.noteStorageReadError(MATERIALS_KEY, e);
+          }
+        })(),
+        (async () => {
+          try {
+            const parsedNotes = parseNoteStore(await this.deps.storage.load(MATERIAL_NOTES_KEY));
+            this.materialNoteStore = parsedNotes.store;
+            this.storageReadErrors.delete(MATERIAL_NOTES_KEY);
+          } catch (e) {
+            this.noteStorageReadError(MATERIAL_NOTES_KEY, e);
+          }
+        })(),
+        (async () => {
+          try {
+            const parsedLinks = parseLinkStore(await this.deps.storage.load(MATERIAL_QREFS_KEY));
+            this.materialLinkStore = parsedLinks.store;
+            this.storageReadErrors.delete(MATERIAL_QREFS_KEY);
+          } catch (e) {
+            this.noteStorageReadError(MATERIAL_QREFS_KEY, e);
+          }
+        })(),
+        (async () => {
+          try {
+            const parsedMis = parseMisdiagnosis(await this.deps.storage.load(MISDIAGNOSIS_KEY));
+            this.misdiagnosisStore = parsedMis.store;
+            this.storageReadErrors.delete(MISDIAGNOSIS_KEY);
+          } catch (e) {
+            this.noteStorageReadError(MISDIAGNOSIS_KEY, e);
+          }
+        })(),
+        (async () => {
+          try {
+            const parsedSyl = parseSyllabusDoc(await this.deps.storage.load(SYLLABUS_KEY));
+            this.syllabus = parsedSyl.doc;
+            this.syllabusTooNew = parsedSyl.versionTooNew;
+            this.storageReadErrors.delete(SYLLABUS_KEY);
+          } catch (e) {
+            this.noteStorageReadError(SYLLABUS_KEY, e);
+          }
+        })(),
+        (async () => {
+          try {
+            const parsedKpRel = parseRelations(await this.deps.storage.load(KP_RELATIONS_KEY));
+            this.kpRelations = parsedKpRel.doc;
+            this.kpRelationsTooNew = parsedKpRel.versionTooNew;
+            this.storageReadErrors.delete(KP_RELATIONS_KEY);
+          } catch (e) {
+            this.noteStorageReadError(KP_RELATIONS_KEY, e);
+          }
+        })(),
+      ]);
+
+      if (this.isUnloading || this.isUnloaded || currentGen !== this.tier2LoadGeneration) {
+        return;
+      }
+
+      if (readErrors.length > 0) {
+        this.tier2Ready = false;
+        const first = readErrors[0];
+        throw first.error instanceof Error ? first.error : new Error(`Failed to load Tier 2 slot: ${first.key}`);
+      }
+
+      // 轨道 A：移除强制遍历全部笔记本的 openNotebook 保活循环，仅保留合法题库过滤
+      if (this.kernelOnline && this.banks.length > 0 && typeof (this.deps.client as any).listAllNotebooks === "function") {
+        try {
+          const allNotebooks = await (this.deps.client as any).listAllNotebooks();
+          if (Array.isArray(allNotebooks) && allNotebooks.length > 0) {
+            const nbMap = new Map(allNotebooks.map((n: { id: string; closed?: boolean }) => [n.id, n]));
+            const aliveBanks = this.banks.filter((b) => nbMap.has(b.notebookId || b.id));
+            if (aliveBanks.length !== this.banks.length) {
+              this.banks = aliveBanks;
+              void this.saveBankRegistry().catch(() => undefined);
             }
           }
+        } catch {
+          /* 离线或模拟环境静默跳过 */
         }
-      } catch {
-        /* 离线或模拟环境静默跳过 */
       }
+
+      this.tier2Ready = true;
+      safePerfMark("siyuan-exam-tier2-end");
+      safePerfMeasure("siyuan-exam-tier2-load", "siyuan-exam-tier2-start", "siyuan-exam-tier2-end");
+      this.invalidate();
+    } catch (err) {
+      if (this.tier2LoadGeneration === currentGen && !this.isUnloaded) {
+        this.tier2Ready = false;
+      }
+      throw err;
     }
-    this.invalidate();
   }
 
   // ---------- 题库 ----------
   listBanks(): BankInfo[] {
     return [...this.banks];
+  }
+
+  private lastActiveBankId?: string;
+
+  /** 记录当前活跃题库 */
+  recordActiveBank(bankId: string): void {
+    if (bankId && this.banks.some((b) => b.id === bankId)) {
+      this.lastActiveBankId = bankId;
+    }
+  }
+
+  /** 获取智能优选题库：优先按当前笔记本/文档范围匹配题库，其次按最近活跃题库，最后兜底首个题库 */
+  resolvePreferredBank(notebookIdOrDocId?: string): BankInfo | null {
+    if (!this.banks.length) return null;
+    if (notebookIdOrDocId) {
+      const matched = this.banks.find((b) => (b.notebookId && b.notebookId === notebookIdOrDocId) || b.id === notebookIdOrDocId);
+      if (matched) return matched;
+    }
+    if (this.lastActiveBankId) {
+      const active = this.banks.find((b) => b.id === this.lastActiveBankId);
+      if (active) return active;
+    }
+    return this.banks[0] ?? null;
   }
 
   /** 解析题库物理归属范围：支持「一树八脉」统一小驴空间子树题库与旧版独立笔记本题库 */
@@ -617,7 +786,8 @@ export class ExamApp {
   }
 
   /** 题库注册表保存：同 key 的后续快照排队，避免旧 banks 覆盖新增/删除结果。 */
-  private saveBankRegistry(): Promise<void> {
+  private async saveBankRegistry(): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     return this.saves.runLatest(BANK_REGISTRY_KEY, () =>
       this.deps.storage.save(
@@ -911,6 +1081,9 @@ export class ExamApp {
           }
         }
       });
+      // 5. 级联修剪做题事件流水，清理已移除题库的作答记录
+      this.attempts.pruneQuestions(qids);
+      await this.attempts.flush().catch(() => undefined);
     } catch {
       /* 辅助数据清理属于尽力而为的 GC，不阻断主流程 */
     }
@@ -1689,6 +1862,7 @@ export class ExamApp {
 
   /** 顽固题封存归档（52-06）：彻底移出刷题与模考回流，但历史与统计完整保留 */
   async archiveWrong(qid: string): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     const key = "wrongbook/overlays";
     await this.queueStorageWrite(key, async () => {
@@ -1718,6 +1892,7 @@ export class ExamApp {
 
   /** 手动处置（docs/02 附录 A）：mastered=已掌握 / removed=永久移除；此后更新的错误自动清覆盖 */
   async setWrongStatus(qid: string, status: "mastered" | "removed" | "active"): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     const key = "wrongbook/overlays";
     await this.queueStorageWrite(key, async () => {
@@ -1752,6 +1927,7 @@ export class ExamApp {
   /** 顽固题暂缓（52-06 lite）：days 天内不进错题重练/每日计划，到期自动回册；期间再错立即回册 */
   async snoozeWrong(qid: string, days = 7): Promise<void> {
     if (!Number.isFinite(days) || days < 1 || days > 3650) throw new Error("暂缓天数应为 1–3650 的有限数字");
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     const key = "wrongbook/overlays";
     await this.queueStorageWrite(key, async () => {
@@ -1788,6 +1964,7 @@ export class ExamApp {
 
   /** 保存自诊断复盘（兼容旧版纯文本接口，内部同步升级至四要素结构，并同步回写思源源题块属性与子块） */
   async saveWrongReflection(qid: string, text: string): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     const key = "wrongbook/reflections";
     const trimmed = text.trim();
@@ -1822,7 +1999,19 @@ export class ExamApp {
         .map((line, i) => (i === 0 ? `> ✍️ 【我的复盘反思】${line}` : `> ${line}`))
         .join("\n");
       const noteMd = `{{{row\n${quoted}\n}}}\n{: custom-exam-note-id="${qid}-reflection" custom-exam-note-kind="note"}`;
-      const prevNoteBlockId = this.reflectionNoteBlockIds.get(qid);
+      let prevNoteBlockId = this.reflectionNoteBlockIds.get(qid);
+      if (!prevNoteBlockId && typeof (this.deps.client as any).querySql === "function") {
+        try {
+          const safeQid = qid.replace(/'/g, "''");
+          const rows = await (this.deps.client as any).querySql(
+            `SELECT id FROM blocks WHERE instr(ial, 'custom-exam-note-id="${safeQid}-reflection"') > 0 LIMIT 1`
+          );
+          if (Array.isArray(rows) && rows[0]?.id) {
+            prevNoteBlockId = String(rows[0].id);
+            this.reflectionNoteBlockIds.set(qid, prevNoteBlockId);
+          }
+        } catch { /* 忽略查询异常 */ }
+      }
       try {
         if (prevNoteBlockId && typeof this.deps.client.updateBlock === "function") {
           await this.deps.client.updateBlock(prevNoteBlockId, noteMd);
@@ -1830,6 +2019,8 @@ export class ExamApp {
           const added = await this.deps.client.appendBlock(blockId, noteMd);
           if (Array.isArray(added) && added[0]) {
             this.reflectionNoteBlockIds.set(qid, added[0]);
+          } else if (typeof added === "string" && added) {
+            this.reflectionNoteBlockIds.set(qid, added);
           }
         }
       } catch {
@@ -1867,6 +2058,7 @@ export class ExamApp {
   private wrongReasons = new Map<string, "careless" | "unknown" | "trap">();
 
   async saveWrongReason(qid: string, reason: "careless" | "unknown" | "trap"): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     await this.queueStorageWrite(WRONG_REASON_KEY, async () => {
       const map = { ...((await this.loadAux<Record<string, { reason: string; at: number }>>(WRONG_REASON_KEY)) ?? {}) };
@@ -2254,6 +2446,7 @@ export class ExamApp {
   /** 数据出库（58-01 lite）：核心学习资产 JSON（流水/题库注册表/错题处置/错因/行动/资料登记表）。
    *  红线：不含 AI Key（存宿主 getSecret，不在插件 storage）；题干不入包（流水只含 qid）。 */
   async exportAllData(): Promise<string> {
+    await this.ensureTier2Loaded();
     const [overlays, reasons, actions] = await Promise.all([
       this.loadAux("wrongbook/overlays"),
       this.loadAux("wrongbook/reasons"),
@@ -2281,6 +2474,7 @@ export class ExamApp {
 
   /** 全生态联合灾备 (lvBackup) 导出切面：题库索引、错题本数据与模拟考试历史记录 */
   async dumpData(): Promise<Record<string, unknown>> {
+    await this.ensureTier2Loaded();
     const sessionCheckin = await withSessionCheckinLock(async () => validateSessionLedger(await this.loadAux(SESSION_CHECKIN_KEY)));
     const [overlays, reasons, reflections, actions, mockResults, mockBlueprint, misdiagnoses, syllabus, kpRelations] =
       await Promise.all([
@@ -2319,6 +2513,7 @@ export class ExamApp {
   /** 全生态联合灾备 (lvBackup) 恢复切面：按模块幂等合并恢复题库、错题与模考数据 */
   async restoreData(data: Record<string, unknown>): Promise<boolean> {
     if (!data || typeof data !== "object") return false;
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
 
     try {
@@ -2482,6 +2677,7 @@ export class ExamApp {
   }
 
   private async saveMaterialsRegistry(): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     await this.saves.runLatest(MATERIALS_KEY, () =>
       this.deps.storage.save(MATERIALS_KEY, serializeRegistry(this.materialsRegistry)),
@@ -2607,6 +2803,7 @@ export class ExamApp {
   }
 
   private async saveMaterialNotes(): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     await this.saves.runLatest(MATERIAL_NOTES_KEY, () =>
       this.deps.storage.save(MATERIAL_NOTES_KEY, serializeNoteStore(this.materialNoteStore)),
@@ -2656,6 +2853,7 @@ export class ExamApp {
     if (this.materialsReadonly) throw new Error("存储版本较新：只读（降级回滚场景），写入已拒绝");
     const material = this.materialsRegistry.materials.find((m) => m.id === materialId);
     if (!material) throw new Error("资料不存在");
+    await this.ensureTier2Loaded();
     const r = linkQuestion(
       this.materialLinkStore,
       { qid, materialId, revision: material.revision, locator },
@@ -2673,6 +2871,7 @@ export class ExamApp {
   }
 
   async unlinkQuestionMaterial(qid: string): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     if (this.materialsReadonly) throw new Error("存储版本较新：只读（降级回滚场景），删除已拒绝");
     const r = unlinkQuestion(this.materialLinkStore, qid);
@@ -2695,6 +2894,7 @@ export class ExamApp {
 
   /** 生成成功后落库（同题保留最新）；纯本地存储，离线也可写 */
   async saveMisdiagnosis(rec: MisdiagnosisRecord): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     if (this.materialsReadonly) throw new Error("存储版本较新：只读（降级回滚场景），写入已拒绝");
     const previous = this.misdiagnosisStore;
@@ -2709,6 +2909,7 @@ export class ExamApp {
 
   /** 采纳打点（用户并入复盘时调用；只记时间戳，不改假设原文） */
   async markMisdiagnosisAdopted(qid: string): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     if (this.materialsReadonly) throw new Error("存储版本较新：只读（降级回滚场景），写入已拒绝");
     const previous = this.misdiagnosisStore;
@@ -2738,6 +2939,7 @@ export class ExamApp {
 
   /** 导入/更新考纲（meta=发行方/年份/来源 51-01 字段） */
   async setSyllabusDoc(meta: SyllabusMeta, roots: SyllabusNode[]): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     if (this.syllabusTooNew) throw new Error("考纲存储版本较新：只读（降级回滚场景），写入已拒绝");
     if (!roots.length) throw new Error("考纲为空（解析后无节点）");
@@ -2761,6 +2963,7 @@ export class ExamApp {
 
   /** 批量更新考点先修关系集合（51-04） */
   async setKpRelations(relations: KpRelation[]): Promise<void> {
+    await this.ensureTier2Loaded();
     this.assertStorageWritable();
     if (this.kpRelationsTooNew) throw new Error("考点关系存储版本较新：只读（降级回滚场景），写入已拒绝");
     const previous = this.kpRelations;
@@ -2910,7 +3113,7 @@ export class ExamApp {
       .map((w) => qById.get(w.qid))
       .filter((q): q is NonNullable<typeof q> => Boolean(q));
     const ymd = reportDateKey(now);
-    const mdLines = [
+    const innerLines = [
       `# 📝 小驴考试 · 今日备考战报 · ${ymd}`,
       ``,
       `- 刷题：**${attempts}** 题 · 正确率 **${attempts ? Math.round((correct / attempts) * 100) : 0}%**`,
@@ -2919,23 +3122,36 @@ export class ExamApp {
       `- 统计范围：本题库 ${ymd} 的作答记录（含重复作答）`,
     ];
     if (todayWrongQs.length > 0) {
-      mdLines.push(
+      innerLines.push(
         `- 📌 **今日错题双链溯源（点击直达源题块）**：`,
         ...todayWrongQs.slice(0, 10).map((q) => `  - ${formatSiyuanBlockRef(q.blockId, q.stem || q.id, 38)}${q.kp ? `（\`${q.kp}\`）` : ""}`),
       );
     }
     if (todayEliminatedQs.length > 0) {
-      mdLines.push(
+      innerLines.push(
         `- 🎯 **今日新攻克错题**：`,
         ...todayEliminatedQs.slice(0, 10).map((q) => `  - ${formatSiyuanBlockRef(q.blockId, q.stem || q.id, 38)}`),
       );
     }
-    mdLines.push(``);
-    const md = mdLines.join("\n");
+    const md = `{{{row\n${innerLines.join("\n")}\n}}}\n{: custom-exam-report="1" custom-exam-report-date="${ymd}" custom-exam-bank="${bankId}"}`;
 
     const writeOrUpdateReportBlock = async (docId: string) => {
-      const reportKey = `${docId}\0${ymd}`;
-      const existingBlockId = this.dailyReportBlockIds.get(reportKey);
+      const reportKey = `${docId}\0${ymd}\0${bankId}`;
+      let existingBlockId = this.dailyReportBlockIds.get(reportKey);
+      if (!existingBlockId && typeof (this.deps.client as any).querySql === "function") {
+        try {
+          const safeDocId = docId.replace(/'/g, "''");
+          const safeYmd = ymd.replace(/'/g, "''");
+          const safeBankId = bankId.replace(/'/g, "''");
+          const rows = await (this.deps.client as any).querySql(
+            `SELECT id FROM blocks WHERE root_id = '${safeDocId}' AND instr(ial, 'custom-exam-report-date="${safeYmd}"') > 0 AND instr(ial, 'custom-exam-bank="${safeBankId}"') > 0 LIMIT 1`
+          );
+          if (Array.isArray(rows) && rows[0]?.id) {
+            existingBlockId = String(rows[0].id);
+            this.dailyReportBlockIds.set(reportKey, existingBlockId);
+          }
+        } catch { /* 忽略查询异常 */ }
+      }
       if (existingBlockId && typeof this.deps.client.updateBlock === "function") {
         try {
           await this.saves.run(`daily-report/${ymd}`, () => this.deps.client.updateBlock(existingBlockId, md));
@@ -3187,7 +3403,7 @@ export class ExamApp {
     const md = wrongbookToMarkdown(validPairs, { bankName, exportedAt: new Date() });
     await this.ensureDoc(bankId, "/导出");
     const tag = [opts.kpRoot, opts.reason, opts.sinceDays ? `${opts.sinceDays}d` : ""].filter(Boolean).join("-");
-    const ymd = new Date().toISOString().slice(0, 10);
+    const ymd = localDateKeyOf(Date.now());
     const name = tag ? `/导出/错题册 ${ymd} ${tag}` : `/导出/错题册 ${ymd}`;
     return await this.upsertDocWithMd(bankId, name, md);
   }

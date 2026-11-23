@@ -1,8 +1,19 @@
 // ============================================================
 // 官方导入模板生成（docs/15 规范的落地物）：运行时构建 xlsx 供下载
 // Sheet1=示例题（含材料组三行）；Sheet2=填写说明
+// 轨道 A：SheetJS 动态加载准备，切断顶层静态打包强绑定
 // ============================================================
-import * as XLSX from "xlsx";
+export type XlsxModule = typeof import("xlsx");
+
+let cachedXlsx: XlsxModule | null = null;
+
+export async function getXlsx(): Promise<XlsxModule> {
+  if (!cachedXlsx) {
+    const mod = await import("xlsx");
+    cachedXlsx = (mod.default ?? mod) as XlsxModule;
+  }
+  return cachedXlsx;
+}
 
 const HEADERS = [
   "题号",
@@ -174,7 +185,18 @@ const GUIDE = [
   ["导入路径：练习台 → 导入题库 → 选择本文件 → 预览校对 → 入库"],
 ];
 
-export function buildTemplateWorkbook(): { buffer: ArrayBuffer; filename: string } {
+export function buildTemplateWorkbook(providedXlsx: XlsxModule): { buffer: ArrayBuffer; filename: string };
+export function buildTemplateWorkbook(providedXlsx?: XlsxModule): Promise<{ buffer: ArrayBuffer; filename: string }>;
+export function buildTemplateWorkbook(
+  providedXlsx?: XlsxModule,
+): { buffer: ArrayBuffer; filename: string } | Promise<{ buffer: ArrayBuffer; filename: string }> {
+  if (providedXlsx) {
+    return generateWorkbookSync(providedXlsx);
+  }
+  return getXlsx().then((mod) => generateWorkbookSync(mod));
+}
+
+function generateWorkbookSync(XLSX: XlsxModule): { buffer: ArrayBuffer; filename: string } {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([HEADERS, ...ROWS]);
   ws["!cols"] = HEADERS.map((_, i) => ({ wch: i === 2 ? 40 : i === 10 ? 30 : 12 }));

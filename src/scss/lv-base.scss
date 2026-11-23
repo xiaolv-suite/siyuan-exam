@@ -628,6 +628,15 @@ details summary {
   }
 }
 
+/* DL2 阶段3：空态吉祥物（受 mascot 偏好门控，关闭回退线性图标） */
+.lv-empty-mascot {
+  color: var(--lv-accent);
+}
+.lv-empty-mascot svg {
+  width: 64px;
+  height: 57px;
+}
+
 .lv-empty-icon {
   display: grid;
   place-items: center;

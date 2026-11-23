@@ -18,6 +18,8 @@ export type KeyboardAction =
   | { type: "next_question" }
   | { type: "prev_question" }
   | { type: "toggle_scratchpad" }
+  | { type: "close_explain" }
+  | { type: "toggle_explain_collapse" }
   | { type: "record_wrong_reason"; reason: WrongReasonKey }
   | { type: "pick_choice"; key: string }
   | { type: "set_confidence"; confidence: ConfidenceKey }
@@ -48,6 +50,7 @@ export interface SessionContext {
   canSubmit: boolean;
   doneCount: number;
   choiceCount?: number;
+  hasExplain?: boolean;
 }
 
 export interface ReciteContext {
@@ -125,10 +128,17 @@ export function resolveKeyboardAction(ctx: KeyboardDispatchContext): KeyboardAct
       return { type: "undo_submit" };
     }
 
+    if (session.hasExplain && e.altKey && e.key.toLowerCase() === "x") {
+      return { type: "toggle_explain_collapse" };
+    }
+
     // 忽略其他附带 Ctrl/Meta/Alt 的按键
     if (e.ctrlKey || e.metaKey || e.altKey) return null;
 
     if (e.key === "Escape") {
+      if (session.hasExplain) {
+        return { type: "close_explain" };
+      }
       return { type: "exit_session" };
     }
 

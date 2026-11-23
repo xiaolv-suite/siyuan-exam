@@ -25,8 +25,9 @@ export interface CheckinEventInput {
 }
 
 export function localDateKeyOf(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const d = Number.isFinite(ts) ? new Date(ts) : new Date();
+  const safeDate = Number.isNaN(d.getTime()) ? new Date() : d;
+  return `${safeDate.getFullYear()}-${String(safeDate.getMonth() + 1).padStart(2, "0")}-${String(safeDate.getDate()).padStart(2, "0")}`;
 }
 
 /** 桥是否生效（用户配置了 itemId 才算开启；阈值 ≤0 回退默认值由调用方决定） */

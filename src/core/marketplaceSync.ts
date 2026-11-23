@@ -9,6 +9,7 @@
  * 4. 题库发布向导：隐私脱敏扫描与标准集市源 JSON 构建。
  */
 
+import { localDateKeyOf } from "./checkinBridge";
 import type { Question } from "./types";
 import type { MarketplaceCategory, MarketplaceItem, MarketplaceCatalog } from "./marketplace";
 
@@ -288,7 +289,7 @@ export function buildMarketplaceItemFromBank(
     license: options.license,
     downloadUrl: `embedded:${options.id.trim()}`,
     verified: false,
-    updatedAt: new Date().toISOString().slice(0, 10),
+    updatedAt: localDateKeyOf(Date.now()),
     previewItems,
     embeddedQuestions: safeEmbedded,
   };
@@ -306,7 +307,7 @@ export function buildMarketplaceCatalogJson(
     v: 1,
     name: catalogName.trim(),
     description: catalogDesc.trim(),
-    updatedAt: new Date().toISOString().slice(0, 10),
+    updatedAt: localDateKeyOf(Date.now()),
     items,
   };
   return JSON.stringify(catalog, null, 2);

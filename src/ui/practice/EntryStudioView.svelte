@@ -450,7 +450,7 @@
             <span class="lv-streak-flame lv-streak-flame--clock"><Icon name="clock" size={22} /></span>
             <div class="lv-widget-body">
               <div class="lv-widget-title">{plan.mode === "sprint" ? t("entry.sprint") : t("entry.examCountdown")}</div>
-              <strong class="num">{plan.daysToExam} {t("entry.days")}</strong>
+              <strong class="num">{plan.daysToExam < 0 ? "已结束" : `${plan.daysToExam} ${t("entry.days")}`}</strong>
               <span class="lv-muted">{plan.mode === "sprint" ? t("entry.sprintModeHint") : t("entry.steadyModeHint")}</span>
             </div>
           </div>

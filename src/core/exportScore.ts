@@ -16,13 +16,19 @@ export function scoreToMarkdown(
   score: MockScore,
   startedAt: number,
   details?: ScoreMarkdownDetails,
+  submittedAt?: number,
 ): string {
   const d = new Date(startedAt);
   const when = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // 2026-11-21 走查修复（P2）：「用时」原先误填得分百分比（total/full×100 与下行重复）。
+  // 补 submittedAt 形参，用时 = 交卷时刻 − 开考时刻；缺失时如实显示 —。
+  const durationText = submittedAt && submittedAt > startedAt
+    ? `${Math.max(1, Math.round((submittedAt - startedAt) / 1000))}s`
+    : "—";
   const lines = [
     `# 模考成绩单 · ${bp.name}`,
     ``,
-    `- 考试时间：${when} · 用时 ${Math.round((score.full ? score.total / score.full : 0) * 100)}%`,
+    `- 考试时间：${when} · 用时 ${durationText}`,
     `- **总分：${score.total} / ${score.full}（${score.percent}%）**`,
     `- 判定：${score.pass ? "✅ 通过" : "❌ 未通过"}（及格线 ${bp.passLine}）`,
     ``,

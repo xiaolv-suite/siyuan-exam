@@ -2,6 +2,9 @@
     // 模考场（v0.3）：蓝图配置器 → 全真考试（计时/答题卡/标旗）→ 成绩单
     // 规格见 docs/11 S5/S6/S7；引擎见 src/core/mock.ts（53 项单测覆盖）
     import { onDestroy, onMount } from "svelte";
+    // DL2 阶段3：空态吉祥物（mascot 偏好门控，关闭回退线性图标）
+    import { lvMascot } from "../../libs/ui/mascots";
+    import { resolveEffectiveMotion } from "../../libs/lv-ui-prefs";
     import { armExamHistory, disarmExamHistory } from "../../core/examHistoryGuard";
 
     /** 切屏计数（docs/11 S6：失焦与后台切屏计次进报告，不阻断） */
@@ -82,7 +85,11 @@
     let appOverride = $state<ExamApp | null>(null);
     const app = $derived<ExamApp | null>(appOverride ?? examApp ?? plugin?.examApp ?? null);
     const i18n = $derived(plugin?.i18n ?? {});
-    const t = (k: string, fb = "") => i18n[k] ?? fb;
+    const t = (k: string, fb = "", vars?: Record<string, string | number>): string => {
+    let v = i18n[k] ?? fb;
+    if (vars) for (const [name, value] of Object.entries(vars)) v = v.split(`{${name}}`).join(String(value));
+    return v;
+};
 
     /** 侧栏项目卡显示名：当前题库（无题库时回退建库引导文案） */
     let activeBankName = $state("");
@@ -154,7 +161,7 @@
         await navigator.clipboard.writeText(text);
         showMessage(t("scratchpad.copied"), 2000, "info");
       } catch {
-        showMessage("复制失败，请手动选择复制", 3000, "error");
+        showMessage(t("mock2.clipboardCopyFailed", "复制失败，请手动选择复制"), 3000, "error");
       }
     }
 
@@ -175,9 +182,9 @@
       const nextVal = !mockEliminatedChoices[val];
       mockEliminatedChoices[val] = nextVal;
       if (targetEl) {
-        notifyInline(targetEl, nextVal ? "已划线排除" : "已恢复选项");
+        notifyInline(targetEl, nextVal ? t("mock2.eliminatedInline", "已划线排除") : t("mock2.restoredInline", "已恢复选项"));
       } else {
-        notifyCapsule(nextVal ? `已划线排除选项 ${val}` : `已恢复选项 ${val}`, 1200);
+        notifyCapsule(nextVal ? t("mock2.eliminatedCapsule", "已划线排除选项 {letter}", {letter: val}) : t("mock2.restoredCapsule", "已恢复选项 {letter}", {letter: val}), 1200);
       }
       if (nextVal) {
         if (currentQ.type === "multiple" && (answeredMap[current] ?? "").includes(val)) {
@@ -340,8 +347,8 @@
           persistRun(true);
           view = "config";
         },
-        confirmTitle: "退出模考？",
-        confirmPrompt: "当前模考进度与计时已保存，你可以随时返回考场继续作答。",
+        confirmTitle: t("mock2.exitConfirmTitle", "退出模考？"),
+        confirmPrompt: t("mock2.exitConfirmBody", "当前模考进度与计时已保存，你可以随时返回考场继续作答。"),
       });
     }
 
@@ -531,7 +538,7 @@
           bp = plugin.pendingMockBlueprint;
           plugin.pendingMockBlueprint = undefined;
           view = "config";
-          showMessage(`已载入试卷蓝图：${bp.name}`, 3000, "info");
+          showMessage(t("mock2.blueprintLoaded", "已载入试卷蓝图：{name}", {name: bp.name}), 3000, "info");
         }
       };
       if (app) initMock();
@@ -549,7 +556,7 @@
               activeBankId = event.payload.bankId;
             }
             view = "config";
-            showMessage(`已载入试卷蓝图：${bp.name}`, 3000, "info");
+            showMessage(t("mock2.blueprintLoaded", "已载入试卷蓝图：{name}", {name: bp.name}), 3000, "info");
           }
         }),
         onExamEvent<{ bank: string }>("bank-changed", (event) => {
@@ -921,7 +928,7 @@
 
         showMessage(`${res.diffSummary} 已开始下载 A/B 双卷！`, 3500, "info");
       } catch (e) {
-        showMessage(`生成 A/B 卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        showMessage(t("mock2.abGenerateFailed", "生成 A/B 卷失败：{reason}", {reason: String(e instanceof Error ? e.message : e)}), 4000, "error");
       } finally {
         abBusy = false;
       }
@@ -943,7 +950,7 @@
           "info",
         );
       } catch (e) {
-        showMessage(`冲刺密卷装配失败：${String(e instanceof Error ? e.message : e)}`, 4200, "error");
+        showMessage(t("mock2.sprintAssembleFailed", "冲刺密卷装配失败：{reason}", {reason: String(e instanceof Error ? e.message : e)}), 4200, "error");
       } finally {
         sprintBusy = false;
       }
@@ -995,10 +1002,10 @@
         } else {
           const blob = new Blob([html], { type: "text/html;charset=utf-8" });
           downloadBlob(blob, `${bp.name || "试卷"}-${suffix}.html`);
-          showMessage(`已生成${suffix}文件`, 3000, "info");
+          showMessage(t("mock2.printGenerated", "已生成{kind}文件", {kind: suffix}), 3000, "info");
         }
       } catch (e) {
-        showMessage(`生成打印卷失败：${String(e instanceof Error ? e.message : e)}`, 4200, "error");
+        showMessage(t("mock2.printFailed", "生成打印卷失败：{reason}", {reason: String(e instanceof Error ? e.message : e)}), 4200, "error");
       } finally {
         printBusy = false;
       }
@@ -1028,7 +1035,7 @@
           showMessage("已生成错题精练试卷文件", 3000, "info");
         }
       } catch (e) {
-        showMessage(`打印错题卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        showMessage(t("mock2.wrongPrintFailed", "打印错题卷失败：{reason}", {reason: String(e instanceof Error ? e.message : e)}), 4000, "error");
       } finally {
         printBusy = false;
       }
@@ -1051,12 +1058,12 @@
           lvActivity.record({
             source: "考试",
             category: "exam",
-            title: `生成错题攻坚手册《${res.title}》`,
-            detail: `收录 ${wrongQuestions.length} 道错题`,
+            title: t("mock2.wrongHandbookActivity", "生成错题攻坚手册《{title}》", {title: res.title}),
+            detail: t("mock2.wrongHandbookActivityDetail", "收录 {n} 道错题", {n: wrongQuestions.length}),
             linkBlockId: res.docId,
           });
         }
-        showMessage(`已在思源中生成错题集文档：《${res.title}》✓`, 3500, "info");
+        showMessage(t("mock2.wrongDocSaved", "已在思源中生成错题集文档：《{title}》✓", {title: res.title}), 3500, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4000, "error");
       }
@@ -1141,11 +1148,11 @@
           if (remainMs <= 300_000 && remainMs > 240_000 && !warned5Min) {
             warned5Min = true;
             lvLaunchpad.haptic(20);
-            notifyCapsule("⏱️ 考试剩余时间不足 5 分钟，请抓紧涂卡与核对", 3500);
+            notifyCapsule(t("mock2.warn5min", "⏱️ 考试剩余时间不足 5 分钟，请抓紧涂卡与核对"), 3500);
           } else if (remainMs <= 60_000 && remainMs > 10_000 && !warned1Min) {
             warned1Min = true;
             lvLaunchpad.haptic(35);
-            notifyCapsule("🚨 考试剩余最后 1 分钟，准备自动交卷！", 4000);
+            notifyCapsule(t("mock2.warn1min", "🚨 考试剩余最后 1 分钟，准备自动交卷！"), 4000);
           }
         }
 
@@ -1292,11 +1299,11 @@
           .filter(Boolean);
         const sampleStr = missingNos.length <= 6
           ? missingNos.join("、")
-          : missingNos.slice(0, 5).join("、") + ` 等共 ${missingNos.length} 题`;
+          : missingNos.slice(0, 5).join("、") + t("mock2.handInSampleMore", " 等共 {n} 题", {n: missingNos.length});
         try {
           const { confirmDialogSync } = await import("../../libs/dialog");
           const prompt = unanswered > 0
-            ? t("mock.confirmHandIn").replace("{n}", String(unanswered)) + `（未答题号：第 ${sampleStr}）`
+            ? t("mock.confirmHandIn").replace("{n}", String(unanswered)) + t("mock2.handInUnansweredNos", "（未答题号：第 {list}）", {list: sampleStr})
             : t("mock.confirmHandInAll", "所有题目均已填写，确认交卷？");
           if (!(await confirmDialogSync({ title: t("mock.handIn"), content: prompt + "\n" + t("mock.confirmHandInImpact", "交卷后答案将锁定、计时停止；未答题按 0 分计入本卷成绩。") }))) return;
         } finally { handInConfirming = false; }
@@ -1387,8 +1394,8 @@
           lvActivity.record({
             source: "考试",
             category: "exam",
-            title: `完成模拟试卷交卷 (得分: ${score.total}/${score.full})`,
-            detail: `正确率 ${score.percent}% · ${score.pass ? "达标合格" : "未及格"} · 错题 ${wrongCount} 道`,
+            title: t("mock2.activityHandIn", "完成模拟试卷交卷 (得分: {score}/{full})", {score: score.total, full: score.full}),
+            detail: t("mock2.activityHandInDetail", "正确率 {percent}% · {verdict} · 错题 {wrong} 道", {percent: score.percent, verdict: score.pass ? t("mock2.verdictPass", "达标合格") : t("mock2.verdictFail", "未及格"), wrong: wrongCount}),
             linkBlockId: lastSavedMockDoc?.docId,
           });
         }
@@ -1447,8 +1454,8 @@
           lvActivity.record({
             source: "考试",
             category: "exam",
-            title: `完成模拟试卷交卷 (得分: ${score.total}/${score.full})`,
-            detail: `正确率 ${score.percent}% · ${score.pass ? "达标合格" : "未及格"} · 错题 ${wrongCount} 道`,
+            title: t("mock2.activityHandIn", "完成模拟试卷交卷 (得分: {score}/{full})", {score: score.total, full: score.full}),
+            detail: t("mock2.activityHandInDetail", "正确率 {percent}% · {verdict} · 错题 {wrong} 道", {percent: score.percent, verdict: score.pass ? t("mock2.verdictPass", "达标合格") : t("mock2.verdictFail", "未及格"), wrong: wrongCount}),
             linkBlockId: lastSavedMockDoc?.docId,
           });
         }
@@ -1463,9 +1470,9 @@
       session.toggleFlag(current);
       persistRun();
       if (targetEl) {
-        notifyInline(targetEl, nextFlagged ? "已标记本题" : "已取消标记");
+        notifyInline(targetEl, nextFlagged ? "已标记本题" : t("mock2.unflagged", "已取消标记"));
       } else {
-        notifyCapsule(nextFlagged ? "已标记本题（存疑备查）" : "已取消标记", 1800);
+        notifyCapsule(nextFlagged ? t("mock2.flaggedCapsule", "已标记本题（存疑备查）") : t("mock2.unflagged", "已取消标记"), 1800);
       }
     }
 
@@ -1497,7 +1504,7 @@
         const m = await import("@/core/exportScore");
         const md = m.scoreToMarkdown(bp, score!, startedAt, buildScoreDetailsSnapshot());
         const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-        downloadBlob(blob, `模考成绩单 ${bp.name}.md`);
+        downloadBlob(blob, t("mock2.scoreSheetFile", "模考成绩单 {name}.md", {name: bp.name}));
         showMessage(t("mock.exportReady", "已开始下载文件。"), 3000, "info");
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
@@ -1520,12 +1527,12 @@
           return await app.writeScoreDoc(targetBankId, scoreToMarkdown(blueprint, result, resultStartedAt, details));
         });
         if (docId) {
-          lastSavedMockDoc = { docId, title: `模考成绩单 · ${blueprint.name}` };
+          lastSavedMockDoc = { docId, title: t("mock2.scoreDocTitle", "模考成绩单 · {name}", {name: blueprint.name}) };
           lvActivity.record({
             source: "考试",
             category: "exam",
-            title: `完成模拟试卷交卷 (得分: ${result.total}/${result.full})`,
-            detail: `成绩单已写入题库导出区 · 正确率 ${result.percent}%`,
+            title: t("mock2.activityHandIn", "完成模拟试卷交卷 (得分: {score}/{full})", {score: result.total, full: result.full}),
+            detail: t("mock2.scoreDocActivity", "成绩单已写入题库导出区 · 正确率 {percent}%", {percent: result.percent}),
             linkBlockId: docId,
           });
         }
@@ -1557,7 +1564,7 @@
         });
         showMessage("模考战绩已成功追加写入今日日记文档！✓", 3200, "info");
       } catch (e) {
-        showMessage(`写入日记失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        showMessage(t("mock2.dailyWriteFailed", "写入日记失败：{reason}", {reason: String(e instanceof Error ? e.message : e)}), 4000, "error");
       } finally {
         insertDailyBusy = false;
       }
@@ -1605,7 +1612,7 @@
             if (!w.userTags.includes(tag)) w.userTags.push(tag);
           }
         }
-        showMessage(`已为 ${wrongs.length} 道错题打上「${tag}」专场标签，立即开启靶向攻坚！`, 3500, "info");
+        showMessage(t("mock2.targetTagged", "已为 {n} 道错题打上「{tag}」专场标签，立即开启靶向攻坚！", {n: wrongs.length, tag}), 3500, "info");
         await app.startSession(wrongs, "wrong", activeBankId);
         if (plugin) {
           plugin.pendingPractice = wrongs;
@@ -1614,7 +1621,7 @@
         emitExamEvent("open-practice-questions", { qids: wrongs.map((q) => q.id), bank: activeBankId });
         openPractice();
       } catch (e) {
-        showMessage(`生成专属攻坚卷失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        showMessage(t("mock2.targetDrillFailed", "生成专属攻坚卷失败：{reason}", {reason: String(e instanceof Error ? e.message : e)}), 4000, "error");
       } finally {
         targetDrillBusy = false;
       }
@@ -1661,7 +1668,7 @@
           extraTimeS: session.state.extraTimeS,
         });
         await reloadMockHistory();
-        showMessage(`主观大题得分已重新结算！当前卷面总分：${score.total} / ${score.full}（${score.percent}%）`, 2200, "info");
+        showMessage(t("mock2.subjectiveRescored", "主观大题得分已重新结算！当前卷面总分：{score} / {full}（{percent}%）", {score: score.total, full: score.full, percent: score.percent}), 2200, "info");
       }
     }
     let mockActionNote = $state("");
@@ -2076,14 +2083,14 @@
             }
           }}
           disabled={view === "exam"}
-          title={view === "exam" ? "模考进行中不可切换题库" : "选择模考目标题库"}
+          title={view === "exam" ? t("mock2.bankLockedTip", "模考进行中不可切换题库") : "选择模考目标题库"}
         >
           {#each banksList as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
         </select>
       {:else if activeBankName}
         <span class="lv-chip sm">{activeBankName}</span>
       {/if}
-      <button class="lv-btn sm lv-btn--ghost" onclick={() => { plugin.openPractice?.(); }} title="打开题库画廊管理" aria-label="打开题库画廊管理">
+      <button class="lv-btn sm lv-btn--ghost" onclick={() => { plugin.openPractice?.(); }} title={t("mock2.openBankHub", "打开题库画廊管理")} aria-label="打开题库画廊管理">
         <Icon name="folder" size={13} /> <span class="lv-topbar-btn-label">{t("bank.hubTitle", "题库管理")}</span>
       </button>
     </div>
@@ -2132,7 +2139,13 @@
     </div>
   {:else if !questions.length}
     <div class="lv-empty" role="status">
-      <div class="lv-empty-icon"><Icon name="book" size={26} /></div>
+      <div class="lv-empty-icon">
+        {#if resolveEffectiveMotion().mascot}
+          {@html lvMascot("study", { class: "lv-empty-mascot" })}
+        {:else}
+          <Icon name="book" size={26} />
+        {/if}
+      </div>
       <b>{t("state.emptyBank")}</b>
       <p class="lv-muted">{t("mock.emptyBankDesc")}</p>
       <button class="lv-btn lv-btn--primary sm" onclick={() => plugin.openPractice?.()}>{t("mock.goPractice")}</button>
@@ -2218,8 +2231,8 @@
         <button class="lv-btn sm lv-btn--ghost" onclick={saveMockExamAsDoc} disabled={!questions.length} title="将当前模考试卷整套排版存为思源笔记原生文档，折叠答案与解析，即使卸载插件考卷与作答永久保留"><Icon name="folder" size={13} /> {t("mock.saveAsSiyuanDoc")}</button>
         <button class="lv-btn sm lv-btn--ghost" onclick={generateABMockPapers} disabled={abBusy || !questions.length} aria-busy={abBusy} title="一键生成同考点但单选/多选选项智能洗牌防作弊的 A 卷与 B 卷"><Icon name="shuffle" size={13} /> {abBusy ? "…" : t("mock.generateAB")}</button>
         <button class="lv-btn sm lv-btn--ghost" onclick={exportPaperAuditReport} disabled={!questions.length} title="基于全题库实测P值预测整卷难度系数，检出大纲空白考点与偏科考点"><Icon name="chart" size={13} /> {t("mock.paperAudit")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={saveBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="保存当前组卷蓝图"><Icon name="save" size={13} /> {blueprintBusy ? "…" : t("mock.bpSave")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={restoreBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title="恢复默认组卷蓝图"><Icon name="rotate" size={13} /> {blueprintBusy ? "…" : t("mock.bpRestore")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={saveBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title={t("mock2.bpSaveTip", "保存当前组卷蓝图")}><Icon name="save" size={13} /> {blueprintBusy ? "…" : t("mock.bpSave")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={restoreBlueprint} disabled={blueprintBusy || starting || resumeBusy || discardBusy} aria-busy={blueprintBusy} title={t("mock2.bpRestoreTip", "恢复默认组卷蓝图")}><Icon name="rotate" size={13} /> {blueprintBusy ? "…" : t("mock.bpRestore")}</button>
       </div>
     </div>
     {#if lastSavedMockDoc?.docId}
@@ -2249,7 +2262,7 @@
             <input class="lv-input" style="flex:1;min-width:90px" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
               aria-label={t("mock.secKp")}
               oninput={(e) => updateSection(i, { kp: (e.target as HTMLInputElement).value.trim() || undefined })} />
-            <label class="lv-chip sm" style="cursor:pointer;margin:0;padding:2px 5px" title="允许匹配题目的辅助考查知识点 (secondaryKps)">
+            <label class="lv-chip sm" style="cursor:pointer;margin:0;padding:2px 5px" title={t("mock2.secondaryKpTip", "允许匹配题目的辅助考查知识点 (secondaryKps)")}>
               <input type="checkbox" checked={!!s.matchSecondaryKp} onchange={(e) => updateSection(i, { matchSecondaryKp: (e.target as HTMLInputElement).checked })} />
               <span style="font-size:10px">辅考点</span>
             </label>
@@ -2440,11 +2453,11 @@
       <span class="lv-chip num">{cursor + 1}/{session.state.qids.length}</span>
       <span class="fn__flex-1"></span>
       {#if ttsSupported()}
-        <button class="lv-btn sm lv-btn--ghost" title="朗读题干与选项（外语听读伴读）" aria-label="朗读本题" disabled={examLocked} onclick={() => ttsSpeak([currentQ.stem, ...currentQ.options].join(" "), { lang: currentQ.studyMeta?.lang })}>
+        <button class="lv-btn sm lv-btn--ghost" title={t("mock2.ttsTip", "朗读题干与选项（外语听读伴读）")} aria-label={t("mock2.ttsAria", "朗读本题")} disabled={examLocked} onclick={() => ttsSpeak([currentQ.stem, ...currentQ.options].join(" "), { lang: currentQ.studyMeta?.lang })}>
           <Icon name="volume" size={13} />
         </button>
       {/if}
-      <button type="button" class="lv-btn sm lv-btn--ghost num" onclick={cycleExamFontSize} title="切换题干字号大小（标准 16px / 大号 19px / 特大 22px）" aria-label="切换题干字号大小">
+      <button type="button" class="lv-btn sm lv-btn--ghost num" onclick={cycleExamFontSize} title={t("mock2.fontSizeTip", "切换题干字号大小（标准 16px / 大号 19px / 特大 22px）")} aria-label={t("mock2.fontSizeAria", "切换题干字号大小")}>
         A{examFontSize === "normal" ? "" : examFontSize === "large" ? "⁺" : "²⁺"}
       </button>
       <button class="lv-btn sm lv-flag-btn" class:lv-flag-btn--on={session.flags.has(current)} title={`${t("mock.flag")} (F)`} aria-label={`${t("mock.flag")} (F)`} aria-pressed={session.flags.has(current)} disabled={examLocked} onclick={(e) => handleToggleFlag(e.currentTarget)}><Icon name="pin" size={14} /> <span class="lv-kbd sm">F</span></button>
@@ -2461,10 +2474,10 @@
     {#if restoreNote}<div class="lv-error" role="alert">{restoreNote}</div>{/if}
     <div class="lv-card lv-question">
       {#if !currentQ}
-        <div class="lv-empty" style="padding:48px 16px">
-          <div class="lv-empty-icon"><Icon name="alert-triangle" size={26} /></div>
-          <p style="margin:12px 0 16px">{t("mock.emptyPaper", "当前考卷试题内容为空或无法读取")}</p>
-          <button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button>
+        <div class="lvx-error" role="alert" style="padding:48px 16px">
+          <span class="lvx-error__icon"><Icon name="alert-triangle" size={26} /></span>
+          <span class="lvx-error__title">{t("mock.emptyPaper", "当前考卷试题内容为空或无法读取")}</span>
+          <span class="lvx-error__actions"><button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button></span>
         </div>
       {:else}
         <!-- 52-08 模考电子草稿纸与数理手绘板浮层 -->
@@ -2578,7 +2591,7 @@
                 字数统计：<strong class="num">{words.examWords}</strong> 字（中文 {words.chineseChars} · 英文 {words.englishWords} · {words.paragraphs} 段）
               </span>
               <div class="lv-row" style="margin:0;gap:6px">
-                <button type="button" class="lv-btn sm lv-btn--ghost" class:acc={shortLinedPaper} style="padding:1px 6px;font-size:11px" aria-pressed={shortLinedPaper} onclick={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }} title="切换稿纸横线背景模式（28px 行高对齐）">
+                <button type="button" class="lv-btn sm lv-btn--ghost" class:acc={shortLinedPaper} style="padding:1px 6px;font-size:11px" aria-pressed={shortLinedPaper} onclick={() => { shortLinedPaper = !shortLinedPaper; writeLocal("lv-exam/lined-paper", shortLinedPaper ? "1" : "0"); }} title={t("mock2.linedPaperTip", "切换稿纸横线背景模式（28px 行高对齐）")}>
                   <Icon name="file-text" size={11} /> {shortLinedPaper ? "稿纸线开" : "稿纸线"}
                 </button>
                 <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px" aria-expanded={mockPaperGridOpen} onclick={() => (mockPaperGridOpen = !mockPaperGridOpen)} title={t("session.gridPreview")}>
@@ -2775,7 +2788,7 @@
                       <input
                         class="lv-input num sm"
                         style="max-width:148px;height:30px;min-height:30px"
-                        placeholder="输入答案…"
+                        placeholder={t("mock2.bubbleInputPlaceholder", "输入答案…")}
                         value={curAns}
                         disabled={examLocked}
                         oninput={(e) => {
@@ -2823,7 +2836,7 @@
                 <input
                   class="lv-input num sm"
                   style="max-width:148px;height:30px;min-height:30px"
-                  placeholder="输入答案…"
+                  placeholder={t("mock2.bubbleInputPlaceholder", "输入答案…")}
                   value={curAns}
                   disabled={examLocked}
                   oninput={(e) => {
@@ -2926,7 +2939,7 @@
                     {/each}
                   </div>
                 {:else}
-                  <input class="lv-input sm" style="width:100%;margin-top:4px" placeholder="填入作答…" value={curAns} oninput={(e) => {
+                  <input class="lv-input sm" style="width:100%;margin-top:4px" placeholder={t("mock2.sweepInputPlaceholder", "填入作答…")} value={curAns} oninput={(e) => {
                     const val = (e.target as HTMLInputElement).value;
                     session?.setAnswer(qid, val, Date.now());
                     answeredMap = { ...answeredMap, [qid]: val };
@@ -2938,7 +2951,7 @@
               <div class="lv-empty" style="padding:24px 0;font-size:12px">🎉 所有题目均已完成作答，且无存疑标记！可安心交卷。</div>
             {/each}
           </div>
-          <div class="lv-row" style="position:sticky;bottom:0;background:var(--lv-surface, var(--b3-theme-surface));padding-top:10px;margin-top:10px;border-top:1px solid var(--lv-border-subtle);z-index:2;justify-content:space-between;align-items:center">
+          <div class="lv-row" style="position:sticky;bottom:0;background:var(--lv-surface, var(--lv-surface));padding-top:10px;margin-top:10px;border-top:1px solid var(--lv-border-subtle);z-index:2;justify-content:space-between;align-items:center">
             <button class="lv-btn sm" onclick={() => (mockSweepOpen = false)}>关闭速排</button>
             <button class="lv-btn sm lv-btn--primary" onclick={() => { mockSweepOpen = false; void finishExam(false); }}>
               确认无误，立即交卷
@@ -3405,11 +3418,11 @@
     {/if}
     <div class="lv-row" style="flex-wrap:wrap;gap:6px">
       {#if wrongList.length}
-        <button class="lv-btn sm lv-btn--primary" onclick={createMockTargetDrill} disabled={targetDrillBusy} title="为本次所有做错的试题打上专场靶向标签，并一键开启二刷靶向攻坚"><Icon name="target" size={13} /> {targetDrillBusy ? "…" : "🎯 生成本场专属攻坚卷"}</button>
-        <button class="lv-btn sm lv-btn--primary" onclick={printMockWrongSheet} disabled={printBusy} title="将本次模考全部错题排版生成 A4 双栏精练卷"><Icon name="file" size={13} /> {t("mock.printWrongSheet", "打印本次错题精练卷")}</button>
-        <button class="lv-btn sm lv-btn--ghost" onclick={saveMockWrongsAsDoc} title="将本次模考错题存为思源原生笔记文档"><Icon name="book" size={13} /> {t("mock.saveWrongsToDoc", "存为错题集笔记")}</button>
+        <button class="lv-btn sm lv-btn--primary" onclick={createMockTargetDrill} disabled={targetDrillBusy} title={t("mock2.targetDrillTip", "为本次所有做错的试题打上专场靶向标签，并一键开启二刷靶向攻坚")}><Icon name="target" size={13} /> {targetDrillBusy ? "…" : "🎯 生成本场专属攻坚卷"}</button>
+        <button class="lv-btn sm lv-btn--primary" onclick={printMockWrongSheet} disabled={printBusy} title={t("mock2.wrongSheetTip", "将本次模考全部错题排版生成 A4 双栏精练卷")}><Icon name="file" size={13} /> {t("mock.printWrongSheet", "打印本次错题精练卷")}</button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={saveMockWrongsAsDoc} title={t("mock2.wrongDocTip", "将本次模考错题存为思源原生笔记文档")}><Icon name="book" size={13} /> {t("mock.saveWrongsToDoc", "存为错题集笔记")}</button>
       {/if}
-      <button class="lv-btn sm" onclick={insertScoreToDailyNote} disabled={insertDailyBusy} title="将本次模考得分率、耗时与及格判定以引用块格式追加写入思源今日日记文档"><Icon name="calendar" size={13} /> {insertDailyBusy ? "…" : "插入今日日记"}</button>
+      <button class="lv-btn sm" onclick={insertScoreToDailyNote} disabled={insertDailyBusy} title={t("mock2.dailyBtnTip", "将本次模考得分率、耗时与及格判定以引用块格式追加写入思源今日日记文档")}><Icon name="calendar" size={13} /> {insertDailyBusy ? "…" : "插入今日日记"}</button>
       <button class="lv-btn lv-btn--ghost sm" onclick={exportScoreMd} disabled={scoreExportBusy}><Icon name="table" size={13} /> {scoreExportBusy ? "…" : t("mock.exportScore")}</button>
       <select class="lv-select sm" bind:value={reportPrintFormat} disabled={printBusy} aria-label="选择考后打印版式">
         <option value="answer">独立答案册</option>
@@ -3421,7 +3434,7 @@
       <button class="lv-btn lv-btn--ghost sm" onclick={openMockAssemble} disabled={!questions.length} title="进入专业组卷排版工坊，自定义 A4 纸面大标题、密封线、总分表与答题留白并直接打印">
         <Icon name="printer" size={13} /> 🖨️ 组卷排版
       </button>
-      <button class="lv-btn lv-btn--ghost sm" onclick={() => void printMockByFormat(reportPrintFormat)} disabled={printBusy} title="按所选版式打印答案册、授课讲义或测试卷"><Icon name="file" size={13} /> {t("mock.printAnswerSheet")}</button>
+      <button class="lv-btn lv-btn--ghost sm" onclick={() => void printMockByFormat(reportPrintFormat)} disabled={printBusy} title={t("mock2.reportPrintTip", "按所选版式打印答案册、授课讲义或测试卷")}><Icon name="file" size={13} /> {t("mock.printAnswerSheet")}</button>
       {#if activeBankId}
         <button class="lv-btn lv-btn--ghost sm" onclick={writeScoreDoc} disabled={scoreWriteBusy} aria-busy={scoreWriteBusy}><Icon name="book" size={14} /> {scoreWriteBusy ? t("mock.scoreWriting", "正在写入成绩单…") : scoreWriteError ? t("mock.scoreWriteRetry", "重试写入成绩单") : t("mock.exportToDoc")}</button>
       {/if}

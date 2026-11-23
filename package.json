@@ -1,6 +1,6 @@
 {
   "name": "siyuan-exam",
-  "version": "0.15.5",
+  "version": "0.15.6",
   "type": "module",
   "description": "小驴考试 (Lv Exam (Beta)) — Local-first question bank & exam prep workspace in SiYuan: import, active-recall practice, wrongbook, mock exam, FSRS flashcards, AI. 思源笔记本地题库与备考工作台",
   "repository": "https://github.com/xiaolv-suite/siyuan-exam",
@@ -36,6 +36,7 @@
     "e2e:keep:run": "node ./scripts/e2e-isolated.mjs --keep",
     "rig": "run-s e2e:keep",
     "smoke:ui": "node ./scripts/visual-harness/smoke-ui.mjs",
+    "smoke:explain": "node ./scripts/visual-harness/smoke-explain-interaction.mjs",
     "smoke:recite-responsive": "run-s build:harness smoke:recite-responsive:run",
     "smoke:recite-responsive:run": "node ./scripts/visual-harness/smoke-recite-responsive.mjs",
     "smoke:report-actions": "node ./scripts/visual-harness/smoke-report-actions.mjs",

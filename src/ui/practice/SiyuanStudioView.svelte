@@ -4,6 +4,7 @@
    * 聚合所有基于思源笔记正文文档、划重点高光、#考点# 标签以及小驴拾遗剪藏的出题方式
    * 一级页面架构 · 与【手工录题】、【外部导入】、【AI 出题】平级
    */
+  import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import type { BankInfo } from "../../app";
   import type { ParsedClozeItem } from "@/core/cloze";
@@ -98,6 +99,11 @@
   let subMode = $state<"docs" | "tags" | "cloze" | "glean">("docs");
 
   let docSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  onDestroy(() => {
+    if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer);
+  });
+
   function handleDocSearchInput(val: string) {
     if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer);
     docSearchDebounceTimer = setTimeout(() => {
@@ -595,13 +601,13 @@
     padding: var(--lv-space-4, 16px);
   }
 
-  // 二级分面胶囊切换栏
+  /* 二级分面胶囊切换栏 */
   .lv-siyuan-subtabs {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 4px;
-    background: var(--lv-surface-2, var(--b3-theme-surface));
+    background: var(--lv-surface-2, var(--lv-surface));
     border-radius: var(--lv-r-2, 10px);
     border: 1px solid var(--lv-border-subtle);
     margin-bottom: 14px;
@@ -617,7 +623,7 @@
       font-weight: 500;
       border-radius: var(--lv-r-1, 6px);
       border: 1px solid transparent;
-      color: var(--lv-text-2, var(--b3-theme-on-surface));
+      color: var(--lv-text-2, var(--lv-text-2));
       background: transparent;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -629,7 +635,7 @@
       }
 
       &.acc {
-        background: var(--lv-brand, var(--b3-theme-primary));
+        background: var(--lv-brand, var(--lv-accent));
         color: var(--lv-on-brand, #ffffff);
         font-weight: 600;
         box-shadow: var(--lv-sh-1);
@@ -637,12 +643,12 @@
     }
   }
 
-  // 指引提示卡
+  /* 指引提示卡 */
   .lv-guide-card {
     margin: 2px 0 8px;
     padding: 12px 14px;
     background: color-mix(in srgb, var(--lv-accent-soft, rgba(66, 133, 244, 0.08)) 30%, var(--lv-surface));
-    border-left: 4px solid var(--lv-brand, var(--b3-theme-primary));
+    border-left: 4px solid var(--lv-brand, var(--lv-accent));
     border-radius: var(--lv-r-2, 8px);
     box-shadow: var(--lv-sh-subtle, none);
 
@@ -650,7 +656,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      color: var(--lv-text, var(--b3-theme-on-surface));
+      color: var(--lv-text, var(--lv-text-2));
       font-size: 13px;
       margin-bottom: 4px;
     }
@@ -658,7 +664,7 @@
     .lv-guide-desc {
       font-size: 12px;
       line-height: 1.6;
-      color: var(--lv-text-2, var(--b3-theme-on-surface));
+      color: var(--lv-text-2, var(--lv-text-2));
       margin: 0;
 
       code {
@@ -680,7 +686,7 @@
     }
   }
 
-  // 场景预设模式行
+  /* 场景预设模式行 */
   .lv-profile-row {
     margin: 6px 0 10px;
     gap: 6px;
@@ -711,7 +717,7 @@
     }
   }
 
-  // 搜索栏
+  /* 搜索栏 */
   .lv-search-row {
     margin: 0 0 10px;
     gap: 8px;
@@ -727,7 +733,7 @@
         position: absolute;
         left: 10px;
         pointer-events: none;
-        color: var(--lv-text-3, var(--b3-theme-on-surface));
+        color: var(--lv-text-3, var(--lv-text-2));
         display: flex;
         align-items: center;
       }
@@ -767,7 +773,7 @@
     }
   }
 
-  // 文档列表容器
+  /* 文档列表容器 */
   .lv-doc-list-box {
     max-height: 380px;
     overflow-y: auto;
@@ -819,7 +825,7 @@
     }
   }
 
-  // 每一张文档卡片
+  /* 每一张文档卡片 */
   .lv-doc-card {
     justify-content: space-between;
     align-items: center;
@@ -882,7 +888,7 @@
     }
   }
 
-  // 标签块卡片
+  /* 标签块卡片 */
   .lv-tag-block-card {
     padding: 8px 12px;
     border-bottom: 1px solid var(--lv-border-subtle);

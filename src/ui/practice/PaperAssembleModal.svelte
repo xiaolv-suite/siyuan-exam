@@ -16,6 +16,7 @@
     type SecretLevel,
   } from "@/core/printPro";
   import { openOrDownloadHtml, type MessageReporter } from "./services/printPaperService";
+  import { localDateKeyOf } from "@/core/checkinBridge";
 
   type PaperFormat = "exam" | "card" | "lecture" | "homework" | "answer" | "interactive";
 
@@ -69,7 +70,7 @@
       mainTitle = label;
       const totalScore = activeQuestions.reduce((sum, q) => sum + (q.score || 1), 0);
       subtitle = `考试时长：120 分钟 · 满分：${totalScore} 分 · 适用年级/范围：全卷综合`;
-      paperNo = `EXAM-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`;
+      paperNo = `EXAM-${localDateKeyOf(Date.now()).replace(/-/g, "")}`;
     }
   });
 
@@ -623,7 +624,7 @@
         </div>
 
         <!-- 右侧拟真白底 A4 纸张实时预览区 -->
-        <div style="flex:1;background:var(--lv-surface-3, var(--b3-theme-background-light, var(--b3-theme-surface-lighter)));display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:24px">
+        <div style="flex:1;background:var(--lv-surface-3, var(--b3-theme-background-light, var(--lv-surface-2)));display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:24px">
           <div
             class="a4-sheet-container"
             style="width:210mm;min-height:297mm;background:var(--lv-print-paper-bg, var(--lv-surface, #ffffff));box-shadow:var(--lv-sh-pop, 0 8px 30px rgba(0,0,0,0.18));border-radius:2px;overflow:hidden;transform:scale({zoomLevel / 100});transform-origin:top center;transition:transform 0.15s ease"

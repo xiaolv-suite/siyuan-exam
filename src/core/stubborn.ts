@@ -81,10 +81,12 @@ export function getStubbornRemediation(
   let primaryAction: RemediationAction = "snooze";
   let reasonText = `已累计做错 ${w.wrongCount} 次且未消灭，建议暂缓 7 天冷却或封存归档`;
 
+  // 2026-11-21 走查修复：与 isStubbornWrong 同口径解析阈值（用户自定义 extremeTimeMs 原被默认常量顶替）
+  const extremeTime = opts?.threshold?.extremeTimeMs ?? DEFAULT_EXTREME_TIME_MS;
   if (w.wrongCount >= 5) {
     primaryAction = "archive";
     reasonText = `反复做错达到 ${w.wrongCount} 次，疑似超出当前备考阶段或题干存疑，建议直接归档或排查争议`;
-  } else if (typeof opts?.avgTimeMs === "number" && opts.avgTimeMs >= DEFAULT_EXTREME_TIME_MS) {
+  } else if (typeof opts?.avgTimeMs === "number" && opts.avgTimeMs >= extremeTime) {
     primaryAction = "prerequisite";
     reasonText = `平均耗时超过 ${(opts.avgTimeMs / 1000).toFixed(0)} 秒且反复出错，建议补充前置知识点或拆分子题`;
   }

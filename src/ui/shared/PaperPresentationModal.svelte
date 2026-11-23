@@ -256,8 +256,8 @@
     position: fixed;
     inset: 0;
     z-index: 999;
-    background: var(--lv-surface, var(--b3-theme-surface));
-    color: var(--lv-text, var(--b3-theme-on-surface));
+    background: var(--lv-surface, var(--lv-surface));
+    color: var(--lv-text, var(--lv-text-2));
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -268,14 +268,14 @@
     align-items: center;
     padding: 12px 24px;
     border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border));
-    background: var(--lv-surface-2, var(--b3-theme-surface-lighter));
+    background: var(--lv-surface-2, var(--lv-surface-2));
     flex-shrink: 0;
     gap: 12px;
   }
   .lv-present-title {
     font-size: var(--lv-font-size-body, 14px);
     font-weight: 600;
-    color: var(--lv-text-2, var(--b3-theme-on-surface-light));
+    color: var(--lv-text-2, var(--lv-text-3));
     display: flex;
     align-items: center;
     gap: 6px;
@@ -303,13 +303,13 @@
     border-radius: var(--lv-r-3, 16px);
     box-shadow: var(--lv-sh-2, 0 4px 16px rgba(0,0,0,0.06));
     border: 1px solid var(--lv-border-subtle, var(--lv-border));
-    background: var(--lv-surface, var(--b3-theme-surface));
+    background: var(--lv-surface, var(--lv-surface));
   }
   .lv-present-stem {
     font-size: 21px;
     font-weight: 600;
     line-height: 1.6;
-    color: var(--lv-text, var(--b3-theme-on-surface));
+    color: var(--lv-text, var(--lv-text-2));
     margin-bottom: 24px;
   }
   .lv-present-occlusion {
@@ -332,7 +332,7 @@
     padding: 12px 18px;
     border: 1.5px solid var(--lv-border);
     border-radius: var(--lv-r-2, 10px);
-    background: var(--lv-surface-2, var(--b3-theme-surface-lighter));
+    background: var(--lv-surface-2, var(--lv-surface-2));
     font-size: 17px;
     line-height: 1.5;
   }
@@ -348,17 +348,17 @@
     margin-top: 24px;
     padding: 18px 22px;
     border-radius: var(--lv-r-2, 12px);
-    background: var(--lv-surface-2, var(--b3-theme-surface-lighter));
+    background: var(--lv-surface-2, var(--lv-surface-2));
     border-left: 4px solid var(--lv-brand, var(--lv-accent, #1e3a8a));
     animation: lv-appear 0.2s ease-out;
   }
   .lv-present-ans-row {
     font-size: 17px;
     margin-bottom: 10px;
-    color: var(--lv-text, var(--b3-theme-on-surface));
+    color: var(--lv-text, var(--lv-text-2));
   }
   .ans-label {
-    color: var(--lv-text-muted, var(--b3-theme-on-surface-light));
+    color: var(--lv-text-muted, var(--lv-text-3));
   }
   .ans-val {
     color: var(--lv-accent-seal, var(--lv-accent, #b91c1c));

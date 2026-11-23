@@ -6,6 +6,11 @@
   import PaperPresentationModal from "../shared/PaperPresentationModal.svelte";
   import PaperAssembleModal from "./PaperAssembleModal.svelte";
   import { showExamNotice } from "../../libs/notice";
+  import {
+    getEliminationStage,
+    summarizeEliminationLadder,
+  } from "../../core/eliminationLadder";
+  import VariantDrillModal from "./VariantDrillModal.svelte";
 
   interface Props {
     wrongList: any[];
@@ -13,7 +18,8 @@
     clearPct: number;
     streakDays: number;
     reasonCounts: { unknown: number; careless: number; trap: number; unmarked: number };
-    wbTab: "active" | "archived" | "eliminated" | "highrisk" | "fragile" | "ebbinghaus";
+    wbTab: "active" | "archived" | "eliminated" | "highrisk" | "fragile" | "ebbinghaus" | "ladder";
+    app?: any;
     wbReasonFilter: "all" | "careless" | "unknown" | "trap";
     wbFilterStubborn: boolean;
     wbKpOptions: string[];
@@ -145,6 +151,7 @@
     oneditReflection,
     reflections = {},
     lastSavedWrongbookDoc = null,
+    app = undefined,
   }: Props = $props();
 
   const qOf = (qid: string) => questionMap.get(qid);
@@ -156,6 +163,37 @@
     cbmHighrisk.length > 0 ||
     cbmFragile.length > 0,
   );
+
+  // 错题消除阶梯统计
+  const ladderSummary = $derived.by(() => {
+    return summarizeEliminationLadder(
+      wrongList,
+      undefined,
+      effectiveEliminateStreak,
+    );
+  });
+
+  // 变式题机弹窗状态
+  let variantModalOpen = $state(false);
+  let variantModalSeed = $state<Question | null>(null);
+  let variantModalWrongItem = $state<any>(null);
+
+  function openVariantModal(q: Question, w?: any) {
+    variantModalSeed = q;
+    variantModalWrongItem = w ?? wrongList.find((x) => x.qid === q.id) ?? null;
+    variantModalOpen = true;
+    void ondrillVariantFor;
+  }
+
+  async function handleSaveVariantToBank(variantQ: Question) {
+    if (!app) return;
+    const targetBank = variantQ.rootId || app.listBanks?.()[0]?.id;
+    if (!targetBank) throw new Error("未定位到有效题库");
+    if (app.deps?.client?.appendQuestions) {
+      await app.deps.client.appendQuestions(targetBank, [variantQ]);
+      showExamNotice("💾 变式题已成功保存至题库！", 2500, "info");
+    }
+  }
 
   const now = Date.now();
   const ebbinghausBuckets = $derived.by(() => {
@@ -247,6 +285,31 @@
             <span class="lv-chip lv-chip--amb num">{t("wrongbook.eliminated.note").replace("{e}", String(eliminatedCount)).replace("{a}", String(wrongList.length))}</span>
           </div>
           <div class="lv-progress"><i style="width:{clearPct}%;background:var(--lv-data-accent)"></i></div>
+          <!-- 三级错题消除阶梯分布与综合攻坚进度 -->
+          <div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--lv-border-subtle)">
+            <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
+              <span style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px">
+                <Icon name="layers" size={12} /> 错题消除阶梯
+              </span>
+              <span class="lv-muted" style="font-size:11px">综合攻克度 {ladderSummary.weightedProgress}%</span>
+            </div>
+            <div style="display:flex;height:8px;border-radius:var(--lv-radius-pill);overflow:hidden;background:var(--lv-border-subtle);margin:6px 0 8px;gap:2px">
+              {#if ladderSummary.toConquerCount > 0}
+                <div style="flex:{ladderSummary.toConquerCount};background:var(--lv-red);border-radius:var(--lv-radius-pill)" title={`🔴 待攻克: ${ladderSummary.toConquerCount} 题`}></div>
+              {/if}
+              {#if ladderSummary.strengtheningCount > 0}
+                <div style="flex:{ladderSummary.strengtheningCount};background:var(--lv-amber);border-radius:var(--lv-radius-pill)" title={`🟡 强化中: ${ladderSummary.strengtheningCount} 题`}></div>
+              {/if}
+              {#if eliminatedCount > 0}
+                <div style="flex:{eliminatedCount};background:var(--lv-green);border-radius:var(--lv-radius-pill)" title={`🟢 已掌握出库: ${eliminatedCount} 题`}></div>
+              {/if}
+            </div>
+            <div class="lv-row" style="justify-content:space-between;font-size:11px;margin:0">
+              <span style="color:var(--lv-red);font-weight:600">🔴 待攻克 {ladderSummary.toConquerCount}</span>
+              <span style="color:var(--lv-amber);font-weight:600">🟡 强化中 {ladderSummary.strengtheningCount}</span>
+              <span style="color:var(--lv-green);font-weight:600">🟢 已掌握 {eliminatedCount}</span>
+            </div>
+          </div>
           <div class="divider" style="margin:16px 0 12px"></div>
           <b class="lv-block-title">{t("wrongbook.reasons")}</b>
           <!-- 多段全圆角比例条（一目了然看清错因结构） -->
@@ -319,6 +382,9 @@
               </button>
               <button type="button" role="tab" tabindex={wbTab === "ebbinghaus" ? 0 : -1} class="lv-chip" class:acc={wbTab === "ebbinghaus"} aria-selected={wbTab === "ebbinghaus"} title="按艾宾浩斯 1/3/7/15 天记忆周期自动归集错题，分列看板攻坚" onclick={() => wbTab = "ebbinghaus"}>
                 <Icon name="clock" size={12} /> 遗忘周期看板
+              </button>
+              <button type="button" role="tab" tabindex={wbTab === "ladder" ? 0 : -1} class="lv-chip" class:acc={wbTab === "ladder"} aria-selected={wbTab === "ladder"} title="三阶错题消除与出库看板：待攻克 -> 强化中 -> 已掌握" onclick={() => wbTab = "ladder"}>
+                <Icon name="layers" size={12} /> 错题消除阶梯 ({ladderSummary.toConquerCount + ladderSummary.strengtheningCount})
               </button>
             </div>
             <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
@@ -428,6 +494,7 @@
             {#each shownWrongQueue as w, wi (w.qid)}
               {@const q = qOf(w.qid)}
               {@const stubborn = isStubbornWrong(w)}
+              {@const stage = getEliminationStage(w, effectiveEliminateStreak)}
               <div class="lv-wrong-row">
                 <div class="lv-wrong-header">
                   <span class="task-number num">{wi + 1}</span>
@@ -447,7 +514,19 @@
                           <Icon name="xcircle" size={11} /> {t("cbm.highrisk", "高危盲区")}
                         </span>
                       {/if}
-                      {#if w.streakCorrect > 0}<span class="lv-chip lv-chip--grn num">{t("wrongbook.reClear").replace("{n}", String(effectiveEliminateStreak - w.streakCorrect))}</span>{/if}
+                      {#if stage === "to_conquer"}
+                        <span class="lv-chip lv-chip--red sm" title={`🔴 待攻克：近期做错，连对 0/${effectiveEliminateStreak}`}>
+                          <Icon name="target" size={11} /> 待攻克
+                        </span>
+                      {:else if stage === "strengthening"}
+                        <span class="lv-chip lv-chip--amb sm" title={`🟡 强化中：已答对 1 次，连对 ${w.streakCorrect}/${effectiveEliminateStreak}，再对 1 次彻底出库`}>
+                          <Icon name="zap" size={11} /> 强化中 ({w.streakCorrect}/{effectiveEliminateStreak})
+                        </span>
+                      {:else}
+                        <span class="lv-chip lv-chip--grn sm" title="🟢 已掌握：达成连续答对出库标准">
+                          <Icon name="check" size={11} /> 已掌握
+                        </span>
+                      {/if}
                       {#if reasonOf(w.qid)}<span class="lv-chip num">{t("reason." + reasonOf(w.qid))}</span>{/if}
                       <span>{t("wrongbook.lastWrong")} {new Date(w.lastWrongAt).toLocaleDateString()}</span>
                       {#if q?.kp}
@@ -506,8 +585,13 @@
                     <button class="lv-btn sm lv-btn--ghost" title={t("wrongbook.traceMother")} onclick={() => { const q = qOf(w.qid); if (q) ontraceMotherQuestion(q); }}>
                       <Icon name="compass" size={12} /> 母题
                     </button>
-                    <button class="lv-btn sm lv-btn--ghost" title={t("session.drillVariantTip")} onclick={() => { const q = qOf(w.qid); if (q) ondrillVariantFor(q); }}>
-                      <Icon name="layers" size={12} /> 变式
+                    <button
+                      class="lv-btn sm lv-btn--ghost"
+                      style="color:var(--lv-brand);font-weight:600"
+                      title="✨ AI 考点变式衍生题机：4维换元变式测验与阶梯攻坚"
+                      onclick={() => { const q = qOf(w.qid); if (q) openVariantModal(q, w); }}
+                    >
+                      <Icon name="zap" size={12} /> 变式题机
                     </button>
                     {#if ondiagnosePrereqs}
                       <button class="lv-btn sm lv-btn--ghost" title="自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径" onclick={() => { const q = qOf(w.qid); if (q) ondiagnosePrereqs(q); }}>
@@ -783,6 +867,124 @@
                 <div class="lv-muted" style="padding:16px 0;text-align:center">{t("browse.empty")}</div>
               {/each}
             </div>
+          {:else if wbTab === "ladder"}
+            <!-- 错题消除阶梯三栏弹性看板（Level 1 待攻克 -> Level 2 强化中 -> Level 3 已掌握） -->
+            <div class="lv-ladder-kanban" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:12px;margin-top:12px">
+              <!-- 第一阶：待攻克 -->
+              <div class="lv-card" style="padding:12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);display:flex;flex-direction:column;gap:8px">
+                <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0">
+                  <div>
+                    <b style="font-size:13px;display:flex;align-items:center;gap:6px">
+                      <span class="lv-dot" style="background:var(--lv-red)"></span>
+                      <span>🔴 待攻克 (Level 1)</span>
+                    </b>
+                    <div class="lv-muted" style="font-size:11px;margin-top:2px">近期做错，连对 0 次，核心失分薄弱点</div>
+                  </div>
+                  <span class="lv-chip sm num lv-chip--red">{ladderSummary.toConquerCount}</span>
+                </div>
+                {#if ladderSummary.toConquerCount > 0}
+                  <button class="lv-btn sm lv-btn--primary" style="width:100%;margin-top:2px" onclick={() => onstartCustomDrill?.(ladderSummary.byStage.to_conquer.map(it => it.qid))}>
+                    <Icon name="play" size={12} /> 一键攻坚全部待攻克题 ({ladderSummary.toConquerCount})
+                  </button>
+                {/if}
+                <div style="max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-top:4px">
+                  {#each ladderSummary.byStage.to_conquer as w (w.qid)}
+                    {@const q = qOf(w.qid)}
+                    <div class="lv-card" style="padding:10px 12px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-1, 8px);font-size:12px">
+                      <div style="font-weight:600;line-height:1.45" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 65) ?? w.qid}</div>
+                      <div class="lv-row" style="justify-content:space-between;align-items:center;margin:6px 0">
+                        <span class="lv-muted" style="font-size:11px">{w.wrongCount} 次错 · {q?.kp || "核心考点"}</span>
+                      </div>
+                      <div class="lv-row" style="justify-content:flex-end;gap:6px;margin:0">
+                        <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-brand);font-weight:600;font-size:11px;padding:2px 8px;height:24px" onclick={() => { if (q) openVariantModal(q, w); }}>
+                          <Icon name="zap" size={11} /> 变式攻坚
+                        </button>
+                        <button class="lv-btn sm lv-btn--ghost" style="font-size:11px;padding:2px 8px;height:24px" onclick={() => onstartWrongFor(w.qid)}>
+                          <Icon name="play" size={11} /> 原题重练
+                        </button>
+                      </div>
+                    </div>
+                  {:else}
+                    <div class="lv-empty" style="padding:32px 0;font-size:12px">🎉 太棒了！暂无待攻克错题！</div>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- 第二阶：强化中 -->
+              <div class="lv-card" style="padding:12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);display:flex;flex-direction:column;gap:8px">
+                <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0">
+                  <div>
+                    <b style="font-size:13px;display:flex;align-items:center;gap:6px">
+                      <span class="lv-dot" style="background:var(--lv-amber)"></span>
+                      <span>🟡 强化中 (Level 2)</span>
+                    </b>
+                    <div class="lv-muted" style="font-size:11px;margin-top:2px">已独立答对 1 次，差 1 次彻底出库</div>
+                  </div>
+                  <span class="lv-chip sm num lv-chip--amb">{ladderSummary.strengtheningCount}</span>
+                </div>
+                {#if ladderSummary.strengtheningCount > 0}
+                  <button class="lv-btn sm lv-btn--primary" style="width:100%;margin-top:2px" onclick={() => onstartCustomDrill?.(ladderSummary.byStage.strengthening.map(it => it.qid))}>
+                    <Icon name="play" size={12} /> 一键冲刺强化题目 ({ladderSummary.strengtheningCount})
+                  </button>
+                {/if}
+                <div style="max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-top:4px">
+                  {#each ladderSummary.byStage.strengthening as w (w.qid)}
+                    {@const q = qOf(w.qid)}
+                    <div class="lv-card" style="padding:10px 12px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-1, 8px);font-size:12px">
+                      <div style="font-weight:600;line-height:1.45" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 65) ?? w.qid}</div>
+                      <div class="lv-row" style="justify-content:space-between;align-items:center;margin:6px 0">
+                        <span class="lv-muted" style="font-size:11px">连对进度 {w.streakCorrect}/{effectiveEliminateStreak} · {q?.kp || "核心考点"}</span>
+                      </div>
+                      <div class="lv-row" style="justify-content:flex-end;gap:6px;margin:0">
+                        <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-data-accent);font-weight:600;font-size:11px;padding:2px 8px;height:24px" onclick={() => { if (q) openVariantModal(q, w); }}>
+                          <Icon name="zap" size={11} /> 变式冲刺出库
+                        </button>
+                        <button class="lv-btn sm lv-btn--ghost" style="font-size:11px;padding:2px 8px;height:24px" onclick={() => onstartWrongFor(w.qid)}>
+                          <Icon name="play" size={11} /> 巩固
+                        </button>
+                      </div>
+                    </div>
+                  {:else}
+                    <div class="lv-empty" style="padding:32px 0;font-size:12px">暂无强化中错题</div>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- 第三阶：已掌握 -->
+              <div class="lv-card" style="padding:12px;background:var(--lv-surface-2);border-radius:var(--lv-r-2, 10px);border:1px solid var(--lv-border-subtle);display:flex;flex-direction:column;gap:8px">
+                <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0">
+                  <div>
+                    <b style="font-size:13px;display:flex;align-items:center;gap:6px">
+                      <span class="lv-dot" style="background:var(--lv-green)"></span>
+                      <span>🟢 已掌握 (Level 3)</span>
+                    </b>
+                    <div class="lv-muted" style="font-size:11px;margin-top:2px">达成连续答对标准，已移出常驻错题池</div>
+                  </div>
+                  <span class="lv-chip sm num" style="background:color-mix(in srgb, var(--lv-green) 12%, transparent);color:var(--lv-green)">{eliminatedCount}</span>
+                </div>
+                <div style="max-height:516px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-top:4px">
+                  {#each eliminatedWrongList as w (w.qid)}
+                    {@const q = qOf(w.qid)}
+                    <div class="lv-card" style="padding:10px 12px;background:var(--lv-surface);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-1, 8px);font-size:12px;opacity:0.9">
+                      <div style="font-weight:600;line-height:1.45" title={q?.stem ?? w.qid}>{q?.stem.slice(0, 65) ?? w.qid}</div>
+                      <div class="lv-row" style="justify-content:space-between;align-items:center;margin:6px 0">
+                        <span class="lv-muted" style="font-size:11px">已出库 · 曾错 {w.wrongCount} 次 · {q?.kp || "核心考点"}</span>
+                      </div>
+                      <div class="lv-row" style="justify-content:flex-end;gap:6px;margin:0">
+                        <button class="lv-btn sm lv-btn--ghost" style="font-size:11px;padding:2px 8px;height:24px" onclick={() => { if (q) openVariantModal(q, w); }}>
+                          <Icon name="zap" size={11} /> 变式复测
+                        </button>
+                        <button class="lv-btn sm lv-btn--ghost" style="font-size:11px;padding:2px 8px;height:24px" onclick={() => onrestoreWrongToActive(w.qid)}>
+                          <Icon name="rotate" size={11} /> 恢复在册
+                        </button>
+                      </div>
+                    </div>
+                  {:else}
+                    <div class="lv-empty" style="padding:32px 0;font-size:12px">暂无已掌握出库题目</div>
+                  {/each}
+                </div>
+              </div>
+            </div>
           {/if}
         </div>
       </div>
@@ -826,5 +1028,26 @@
     questions={wbAssembleQuestions}
     onclose={() => (wbAssembleOpen = false)}
     showMessage={(msg, timeout, type) => showExamNotice(msg, timeout, type)}
+  />
+
+  <VariantDrillModal
+    bind:open={variantModalOpen}
+    seed={variantModalSeed}
+    wrongItem={variantModalWrongItem}
+    eliminateThreshold={effectiveEliminateStreak}
+    {app}
+    onclose={() => (variantModalOpen = false)}
+    onpromoted={(res) => {
+      showExamNotice(
+        res.isMastered
+          ? `🏆 变式连续攻坚通过！该错题已晋级【🟢 已掌握】，正式出库！`
+          : res.streak > 0
+            ? `🎉 变式强化通过！错题阶梯晋升至【🟡 强化中】（连对 ${res.streak}/${effectiveEliminateStreak}）！`
+            : `⚠️ 变式失分，阶梯连对已重置回【🔴 待攻克】！`,
+        3000,
+        res.isMastered ? "info" : "warn"
+      );
+    }}
+    onsaveVariantToBank={handleSaveVariantToBank}
   />
 </div>

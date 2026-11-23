@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import { showDocTreeNativeMenu } from "@/libs/lv-notice-kit";
   import type { Question, QuestionLifecycleStatus } from "../../core/types";
@@ -262,6 +263,10 @@
 
   let drawerDocSearchTimer: ReturnType<typeof setTimeout> | undefined;
   let drawerDocSearchSeq = 0;
+
+  onDestroy(() => {
+    if (drawerDocSearchTimer) clearTimeout(drawerDocSearchTimer);
+  });
 
   /* 输入防抖 300ms：连续敲键只发一次文档搜索请求；手动「搜索」按钮仍即时触发 */
   function scheduleDrawerDocSearch(query: string) {

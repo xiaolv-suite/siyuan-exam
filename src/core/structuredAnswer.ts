@@ -217,10 +217,28 @@ export interface MultiBlankVerdict {
 }
 
 /** 逐空判分：作答按 ";;" 分段；orderIndependent=true 时按无序一对一匹配，否则按位置对应空位 */
+function foldBlankText(s: string): string {
+  return String(s ?? "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\u3000/g, " ")
+    .replace(/[\uff01-\uff5e]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function gradeMultiBlank(spec: MultiBlankSpec, given: string): MultiBlankVerdict {
   // 兼容中文输入法连续全角分号 "；；" 归一化为半角 ";;"
   const normalizedGiven = String(given ?? "").replace(/；；/g, MULTI_BLANK_SEP);
-  const parts = normalizedGiven.split(MULTI_BLANK_SEP).map((s) => s.trim());
+  const parts = normalizedGiven.split(MULTI_BLANK_SEP).map(foldBlankText);
+
+  const matchBlank = (b: { answers: string[]; caseSensitive?: boolean }, g: string): boolean => {
+    const foldedG = foldBlankText(g);
+    if (!foldedG) return false;
+    return b.answers.some((a) => {
+      const foldedA = foldBlankText(a);
+      return b.caseSensitive ? foldedA === foldedG : foldedA.toLowerCase() === foldedG.toLowerCase();
+    });
+  };
 
   if (spec.orderIndependent) {
     // 无序可交换空位判分（Khan/Perseus 防作弊规范：1对1贪心对齐，严防填重复词骗分）
@@ -236,7 +254,7 @@ export function gradeMultiBlank(spec: MultiBlankSpec, given: string): MultiBlank
       // 查找一个尚未被匹配的空位
       const targetIdx = spec.blanks.findIndex((b, j) => {
         if (matchedBlankIndices.has(j)) return false;
-        return b.answers.some((a) => (b.caseSensitive ? a === g : a.toLowerCase() === g.toLowerCase()));
+        return matchBlank(b, g);
       });
 
       if (targetIdx >= 0) {
@@ -266,7 +284,7 @@ export function gradeMultiBlank(spec: MultiBlankSpec, given: string): MultiBlank
   const blanks: BlankResult[] = spec.blanks.map((b, i) => {
     const g = parts[i] ?? "";
     const empty = g === "";
-    const correct = !empty && b.answers.some((a) => (b.caseSensitive ? a === g : a.toLowerCase() === g.toLowerCase()));
+    const correct = !empty && matchBlank(b, g);
     return { index: i, given: g, correct, empty };
   });
   const correctCount = blanks.filter((b) => b.correct).length;

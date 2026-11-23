@@ -186,6 +186,11 @@ export function notifyDailyReviewCard(opts: DailyReviewReminderOptions): string 
     level: "warn",
     duration: 0, // 重点提醒常驻等待处理，或用户选择稍后/免打扰
     firstRun: true, // 首启队列：与其他引导/提醒卡串行呈现，不同屏堆叠
+    onDismiss: () => {
+      // 当用户手动关掉卡片（点击右上角✕或滑走关闭），
+      // 认定为今日已查看并关闭，自动触发今日免打扰，避免日内重复弹窗打扰！
+      lvNotify.muteToday(CATEGORY_DAILY_REVIEW);
+    },
     actions: [
       {
         label: `立即攻坚 (${opts.dueCount})`,
@@ -200,6 +205,7 @@ export function notifyDailyReviewCard(opts: DailyReviewReminderOptions): string 
         { label: "今日免打扰", muteToday: true },
         { label: "未来3天不通知", muteDays: 3 },
         { label: "未来一周不通知", muteDays: 7 },
+        { label: "永久不再通知", muteDays: 3650 },
       ],
     },
   });

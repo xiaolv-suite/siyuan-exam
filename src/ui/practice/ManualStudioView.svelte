@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import { validateLatexSyntax } from "@/core/math";
   import { computeStemSimilarity, splitRawOptionsText } from "@/core/textDiff";
@@ -132,13 +133,19 @@
   let docPickerCandidates = $state<Array<{ id: string; title: string; hpath: string }>>([]);
   let docPickerBusy = $state(false);
   let syncAppendToNote = $state(false);
+  let manualDocSearchSeq = 0;
 
   async function searchDocsForManual(q: string) {
+    const seq = ++manualDocSearchSeq;
     docPickerBusy = true;
     try {
-      docPickerCandidates = await onsearchSiyuanDocs(q);
+      const res = await onsearchSiyuanDocs(q);
+      if (seq !== manualDocSearchSeq) return;
+      docPickerCandidates = res;
     } finally {
-      docPickerBusy = false;
+      if (seq === manualDocSearchSeq) {
+        docPickerBusy = false;
+      }
     }
   }
 
@@ -190,6 +197,10 @@
   let nearDupeMatched = $state<Question | null>(null);
   let nearDupeSimilarity = $state<number>(0);
   let checkTimer: ReturnType<typeof setTimeout> | null = null;
+
+  onDestroy(() => {
+    if (checkTimer) clearTimeout(checkTimer);
+  });
 
   function runNearDupeCheck() {
     if (checkTimer) clearTimeout(checkTimer);

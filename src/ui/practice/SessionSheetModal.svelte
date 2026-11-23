@@ -174,7 +174,7 @@
   }
   .lv-cell.cur {
     background: var(--lv-brand);
-    color: var(--lv-on-accent, var(--b3-theme-on-primary, #ffffff));
+    color: var(--lv-on-accent, var(--lv-on-accent, #ffffff));
     border-color: transparent;
     box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4px var(--lv-brand);
     transform: translateY(-1px);

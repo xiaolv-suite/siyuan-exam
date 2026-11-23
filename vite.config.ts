@@ -7,7 +7,6 @@ import zipPack from "vite-plugin-zip-pack";
 import fg from "fast-glob";
 
 import vitePluginYamlI18n from "./yaml-plugin.js";
-import { useLiveReload } from "./scripts/siyuan_live_reload.js";
 
 const env = process.env;
 const isSrcmap = env.VITE_SOURCEMAP === "inline";
@@ -78,8 +77,7 @@ export default defineConfig({
         },
         rollupOptions: {
             plugins: isDev ? [
-                useLiveReload({ outputDir }),
-                watchExternalFiles([
+                                watchExternalFiles([
                     "public/i18n/**",
                     "./README*.md",
                     "./plugin.json"

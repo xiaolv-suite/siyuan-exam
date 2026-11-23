@@ -8,7 +8,7 @@ import type { MessageReporter } from "./printPaperService";
  */
 export async function downloadImportTemplate(): Promise<void> {
   const { buildTemplateWorkbook } = await import("@/importer/template");
-  const { buffer, filename } = buildTemplateWorkbook();
+  const { buffer, filename } = await buildTemplateWorkbook();
   downloadBlobFile(
     buffer as unknown as string,
     filename,

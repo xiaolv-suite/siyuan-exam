@@ -5,9 +5,6 @@ import "./index.scss";
 import { SettingUtils } from "./libs/setting-utils";
 import { mount, unmount, type Component } from "svelte";
 import manifest from "../plugin.json";
-import PracticeTab from "@/ui/practice/PracticeTab.svelte";
-import MockTab from "@/ui/mock/MockTab.svelte";
-import ReportTab from "@/ui/report/ReportTab.svelte";
 import { createExamApp } from "./app-runtime";
 import type { ExamApp } from "./app";
 import { streak } from "./core/replayer";
@@ -18,13 +15,30 @@ import { registerExamDailySummary } from "./ecosystem/speedSwitch";
 import { TabAppRegistry } from "./core/tabAppRegistry";
 import { mountLvExamBridge } from "./core/examBridge";
 import type { Question } from "./core/types";
-import { lvNotify, lvBackup, lvLaunchpad, lvOmnisearch, lvSurfaceStack, type LvSearchResultItem } from "./libs/lv-notice-kit";
+import { lvNotify, lvBackup, lvLaunchpad, lvOmnisearch, lvSurfaceStack, getCleanBlockText, type LvSearchResultItem } from "./libs/lv-notice-kit";
 import { startReviewReminderScheduler, type ReviewReminderController } from "./core/reviewReminder";
 import { disarmExamHistory, isExamHistoryArmed, requestExitExamWithConfirm } from "./core/examHistoryGuard";
+import { TIER1_STORE_KEYS, TIER2_STORE_KEYS, ALL_STORE_KEYS } from "./constants";
+import { safePerfMark, safePerfMeasure } from "./core/perf";
 
 const TAB_PRACTICE = "exam-practice";
 const TAB_MOCK = "exam-mock";
 const TAB_REPORT = "exam-report";
+
+type ExamTabComponent = Component<any>;
+
+/** 轨道 A 业务页签惰性工厂：按需动态加载组件，削减冷启动 AST 内存占用 */
+const loadTabComponent = async (type: string): Promise<ExamTabComponent> => {
+  switch (type) {
+    case TAB_MOCK:
+      return (await import("@/ui/mock/MockTab.svelte")).default as unknown as ExamTabComponent;
+    case TAB_REPORT:
+      return (await import("@/ui/report/ReportTab.svelte")).default as unknown as ExamTabComponent;
+    case TAB_PRACTICE:
+    default:
+      return (await import("@/ui/practice/PracticeTab.svelte")).default as unknown as ExamTabComponent;
+  }
+};
 
 /** 上次打开的页签（SiYuan 重启/刷新后布局恢复不带回插件自定义页签——真机走查两次复现，
  *  用 localStorage 记忆并在 onLayoutReady 时恢复，行为对标编辑器恢复标签页） */
@@ -40,6 +54,25 @@ function rememberOpenTab(type: string) {
 }
 
 export default class LvExamPlugin extends Plugin implements ExamPluginLike {
+  static readonly TIER1_KEYS = TIER1_STORE_KEYS;
+  static readonly TIER2_KEYS = TIER2_STORE_KEYS;
+  static readonly STORE_KEYS = ALL_STORE_KEYS;
+  static readonly safePerfMark = safePerfMark;
+  static readonly safePerfMeasure = safePerfMeasure;
+
+  tier2Ready = false;
+  tier2LoadingPromise?: Promise<void>;
+  tier2ScheduledTimer?: ReturnType<typeof setTimeout>;
+  tier2IdleId?: number;
+  tier2LoadGeneration = 0;
+
+  get lifecycleGeneration(): number {
+    return this.tier2LoadGeneration;
+  }
+  set lifecycleGeneration(v: number) {
+    this.tier2LoadGeneration = v;
+  }
+
   /** siyuan 1.2.9 将基类 i18n 宽化为 Record<string, JSONValue>；本项目 i18n 文件为平铺
    *  string→string（scripts/check-i18n.mjs 强制非空字符串），此处收窄回字符串字典 */
   declare i18n: Record<string, string>;
@@ -86,6 +119,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   private noticeHubCleaner?: () => void;
   /** Epoch 7：每日错题复习巡检控制器 */
   private reviewReminderCtrl?: ReviewReminderController;
+  /** 永久免打扰广播事件注销句柄 */
+  private muteForeverCleaner?: () => void;
   /** Epoch 7 Phase 4：全生态一键灾备切面注销句柄 */
   private backupCleaner?: () => void;
   /** Epoch 7 Phase 5：小驴罗盘注册注销句柄 */
@@ -131,6 +166,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onload() {
+    safePerfMark("siyuan-exam-onload-start");
     this.isMobile = getFrontend() === "mobile" || getFrontend() === "browser-mobile" || lvLaunchpad.isMobileFrontend();
 
     // 移动端原生设置弹窗软键盘避让（visualViewport 守卫，仅移动端需要）
@@ -152,7 +188,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       name: "考试",
       fullName: "小驴考试",
       svgIcon: "icon-lv-exam",
-      color: "var(--lv-brand, var(--b3-theme-primary))",
+      color: "var(--lv-brand, var(--lv-accent))",
       desc: "题库刷题 · 错题特训",
       digit: 5,
       badge: "今日待测",
@@ -281,6 +317,14 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       direction: "row",
     });
     this.settingUtils.addItem({
+      title: `[提醒与通知] ${this.i18n["setting.reviewReminder.title"] ?? "每日错题到期提醒"}`,
+      description: this.i18n["setting.reviewReminder.desc"] ?? "题库中存在艾宾浩斯临界衰减期错题时，在桌面右上角弹窗提醒复习巩固（关闭后彻底静默）",
+      type: "checkbox",
+      key: "reviewReminderEnabled",
+      value: true,
+      direction: "row",
+    });
+    this.settingUtils.addItem({
       title: `[生态联动] ${this.i18n["setting.checkinItemId.title"]}`,
       description: this.i18n["setting.checkinItemId.desc"],
       type: "textinput",
@@ -403,6 +447,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         }
       }, 1500);
     }
+    safePerfMark("siyuan-exam-onload-end");
+    safePerfMeasure("siyuan-exam-onload", "siyuan-exam-onload-start", "siyuan-exam-onload-end");
   }
 
   /**
@@ -427,9 +473,14 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   private async runLayoutReady() {
+    safePerfMark("siyuan-exam-layoutready-start");
+    safePerfMark("siyuan-exam-tier1-start");
     try {
       await this.settingUtils.load();
+      safePerfMark("siyuan-exam-tier1-ready");
+      safePerfMeasure("siyuan-exam-tier1-load", "siyuan-exam-tier1-start", "siyuan-exam-tier1-ready");
     } catch (e) {
+      safePerfMark("siyuan-exam-tier1-ready");
       // A corrupt/blocked settings file must not prevent the exam app from
       // starting with shipped defaults. SettingUtils keeps invalid fields at
       // their defaults; this catch covers host I/O failures.
@@ -438,6 +489,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     }
     try {
       this.examApp = await createExamApp(this);
+      this.scheduleTier2Load();
       emitExamEvent("app-ready", { ready: true });
     } catch (e) {
       console.error("[LvExam] app init failed", e);
@@ -469,7 +521,23 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         (todayKey) => {
           emitExamEvent("date-crossed", { today: todayKey });
         },
+        () => this.settingUtils?.get?.("reviewReminderEnabled") !== false,
       );
+
+      const handleMuteForever = (e: any) => {
+        const cat = e?.detail?.category;
+        if (cat === "exam-daily-review" || cat === "exam" || cat === "siyuan-exam") {
+          try {
+            this.settingUtils?.set?.("reviewReminderEnabled", false);
+            void this.settingUtils?.save?.();
+            localStorage.setItem("lv_exam_review_reminder_disabled", "true");
+          } catch { /* ignore */ }
+        }
+      };
+      window.addEventListener("lv-notice-mute-forever", handleMuteForever);
+      this.muteForeverCleaner = () => {
+        window.removeEventListener("lv-notice-mute-forever", handleMuteForever);
+      };
     }
     // 47-04/48-06/Epoch 6：挂载考试服务桥公开 API（多别名 + 稳定命令入口 + 按需脱敏统计快照 + 概览）
     this.disposeLvExamBridge = mountLvExamBridge({
@@ -554,6 +622,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
 
     // Epoch 6：监听闪卡学习完成事件（刷新跨插件学习统计 + 错题掌握状态双向联动消灭）
     this.cardsReviewedHandler = async (evt: Event) => {
+      void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] cardsReviewedHandler ensureTier2Loaded catch:", err));
       this.dispatchPublicStats();
       try {
         const custom = evt as CustomEvent<{
@@ -609,6 +678,9 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     // Epoch 7：去中心化自协商统一通知系统生命周期接入
     this.noticeHubCleaner = lvNotify.registerPlugin("siyuan-exam");
     this.dispatchPublicStats();
+    safePerfMark("siyuan-exam-layoutready-end");
+    safePerfMeasure("siyuan-exam-layoutready", "siyuan-exam-layoutready-start", "siyuan-exam-layoutready-end");
+    safePerfMeasure("siyuan-exam-startup-total", "siyuan-exam-onload-start", "siyuan-exam-layoutready-end");
   }
 
   private speedSwitchHandle: { dispose: () => void } | null = null;
@@ -637,8 +709,81 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     }
   }
 
+  scheduleTier2Load(): void {
+    if (this.tier2Ready || this.tier2LoadingPromise || this.isUnloaded) return;
+    this.cancelTier2Schedule();
+    const trigger = () => {
+      this.tier2ScheduledTimer = undefined;
+      this.tier2IdleId = undefined;
+      if (this.isUnloaded || this.tier2Ready) return;
+      void this.ensureTier2Loaded().catch((err) => {
+        console.warn(`[LvExam] Background Tier 2 load failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    };
+
+    // 两级延迟调度：先 setTimeout 静默期（1500ms），再转 requestIdleCallback 在浏览器空闲时刻执行
+    this.tier2ScheduledTimer = setTimeout(() => {
+      this.tier2ScheduledTimer = undefined;
+      if (this.isUnloaded || this.tier2Ready) return;
+      if (typeof window !== "undefined" && typeof (window as any).requestIdleCallback === "function") {
+        try {
+          this.tier2IdleId = (window as any).requestIdleCallback(() => trigger(), { timeout: 2000 });
+          return;
+        } catch { /* ignore and fallback */ }
+      }
+      this.tier2ScheduledTimer = setTimeout(trigger, 120);
+    }, 1500);
+  }
+
+  cancelTier2Schedule(): void {
+    if (this.tier2ScheduledTimer) {
+      clearTimeout(this.tier2ScheduledTimer);
+      this.tier2ScheduledTimer = undefined;
+    }
+    if (this.tier2IdleId !== undefined) {
+      if (typeof window !== "undefined" && typeof (window as any).cancelIdleCallback === "function") {
+        try {
+          (window as any).cancelIdleCallback(this.tier2IdleId);
+        } catch { /* ignore */ }
+      }
+      this.tier2IdleId = undefined;
+    }
+    if (typeof this.examApp?.cancelTier2Schedule === "function") {
+      this.examApp.cancelTier2Schedule();
+    }
+  }
+
+  ensureTier2Loaded(): Promise<void> {
+    if (this.isUnloaded) return Promise.resolve();
+    if (this.tier2Ready) return Promise.resolve();
+    if (this.tier2LoadingPromise) return this.tier2LoadingPromise;
+    this.cancelTier2Schedule();
+    const flight = (async () => {
+      try {
+        if (!this.examApp && !this.isUnloaded) {
+          await this.onLayoutReady();
+        }
+        if (typeof this.examApp?.ensureTier2Loaded === "function") {
+          await this.examApp.ensureTier2Loaded();
+        }
+        if (this.isUnloaded) return;
+        this.tier2Ready = this.examApp?.tier2Ready ?? true;
+      } catch (err) {
+        this.tier2Ready = false;
+        throw err;
+      } finally {
+        if (this.tier2LoadingPromise === flight) {
+          this.tier2LoadingPromise = undefined;
+        }
+      }
+    })();
+    this.tier2LoadingPromise = flight;
+    return flight;
+  }
+
   /** 全生态联合灾备切面：导出本插件核心学习资产（题库索引、错题本数据与模拟考试历史记录） */
   async dumpData(): Promise<Record<string, unknown>> {
+    await this.ensureTier2Loaded();
     if (this.examApp) {
       return this.examApp.dumpData();
     }
@@ -653,6 +798,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
 
   /** 全生态联合灾备切面：恢复本插件数据 */
   async restoreData(data: Record<string, unknown>): Promise<boolean> {
+    if (!data || typeof data !== "object") return false;
+    await this.ensureTier2Loaded();
     if (this.examApp) {
       const ok = await this.examApp.restoreData(data);
       if (ok) {
@@ -664,6 +811,17 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   async onunload() {
+    this.cancelTier2Schedule();
+    this.tier2LoadGeneration++;
+    this.tier2Ready = false;
+    if (this.examApp) {
+      if (typeof this.examApp.cancelTier2Schedule === "function") {
+        this.examApp.cancelTier2Schedule();
+      }
+      this.examApp.tier2LoadGeneration = (this.examApp.tier2LoadGeneration || 0) + 1;
+      this.examApp.isUnloaded = true;
+    }
+
     // 移动端宿主全屏 Dialog 清理（卸载期无条件同步销毁，禁止弹 confirm 阻塞）
     this.forceDestroyMobileDialog();
 
@@ -688,6 +846,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     // Epoch 7：去中心化统一通知系统生命周期交棒与复习定时器清理
     this.reviewReminderCtrl?.dispose();
     this.reviewReminderCtrl = undefined;
+    this.muteForeverCleaner?.();
+    this.muteForeverCleaner = undefined;
     this.noticeHubCleaner?.();
     this.noticeHubCleaner = undefined;
 
@@ -741,6 +901,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
    * 使得思源官方设置面板齿轮按钮与 PracticeTab/命令面板均可直接拉起小驴考试设置面板
    */
   openSetting(): void {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] openSetting ensureTier2Loaded catch:", err));
     if (this.setting) {
       this.setting.open(this.name || "siyuan-exam");
     }
@@ -780,15 +941,9 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     // 页签工厂闭包持有运行时实例；custom.data 会被思源保存布局并 JSON 序列化，
     // 因此不能把 Plugin / ExamApp 放进其中（Plugin.app.plugins 会形成循环引用）。
     const getPlugin = () => this;
-    type ExamTabProps = { plugin: LvExamPlugin; examApp: ExamApp | null };
-    type ExamTabComponent = Component<ExamTabProps>;
-    const tabs: Array<[string, ExamTabComponent]> = [
-      [TAB_PRACTICE, PracticeTab],
-      [TAB_MOCK, MockTab],
-      [TAB_REPORT, ReportTab],
-    ];
-    for (const [type, component] of tabs) {
-      const mountTabDom = (custom: any) => {
+    const tabs: string[] = [TAB_PRACTICE, TAB_MOCK, TAB_REPORT];
+    for (const type of tabs) {
+      const mountTabDom = async (custom: any) => {
         if (!custom?.element) return;
         const plugin = getPlugin();
         const existingTab = custom.element instanceof HTMLElement ? custom.element.querySelector(".lv-exam-tab") : null;
@@ -810,6 +965,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         el.classList.add("fn__flex-1", "lv-exam-tab");
         el.style.height = "100%";
         custom.element.appendChild(el);
+        const component = await loadTabComponent(type);
+        if (plugin.isUnloaded) return;
         const instance = mount(component, {
           target: el,
           props: { plugin, examApp: plugin.examApp },
@@ -898,7 +1055,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           showMessage(this.i18n["state.offlineHint"] ?? "请稍候，应用初始化中…", 3000, "info");
           return;
         }
-        const bank = this.examApp.listBanks()[0];
+        const bank = this.examApp.resolvePreferredBank();
         if (!bank) {
           showMessage(this.i18n["guard.needBankFirst"] ?? "请先创建一个题库", 3600, "error");
           return;
@@ -909,7 +1066,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           const blockTitle = (nodeElement?.getAttribute?.("aria-label") || nodeElement?.getAttribute?.("data-type") || "笔记段落").trim();
           openPracticeView(this, "manual", {
             bankId: bank.id,
-            sourceText: source.text || nodeElement.textContent?.trim() || "",
+            sourceText: source.text || getCleanBlockText(nodeElement),
             sourceTitle: blockTitle,
             sourceKind: "block",
             sourceBlockId: blockId,
@@ -917,7 +1074,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         } catch {
           openPracticeView(this, "manual", {
             bankId: bank.id,
-            sourceText: nodeElement.textContent?.trim() || "",
+            sourceText: getCleanBlockText(nodeElement),
             sourceKind: "block",
             sourceBlockId: blockId,
           });
@@ -927,6 +1084,8 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   private openTabByType(type: string, icon: string, title: string): boolean {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] openTabByType ensureTier2Loaded catch:", err));
+
     // 早于应用就绪的点击延后执行，避免把 null app 固定传入永久报错的页签。
     if (this.appInitializing) {
       this.queuedTab = { type, icon, title };
@@ -1009,13 +1168,6 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       void this.closeMobileDialog();
     }
 
-    const componentMap: Record<string, Component<any>> = {
-      [TAB_PRACTICE]: PracticeTab,
-      [TAB_MOCK]: MockTab,
-      [TAB_REPORT]: ReportTab,
-    };
-    const ComponentClass = componentMap[type] || PracticeTab;
-
     const dialog = new Dialog({
       title: title || manifest.displayName["zh-CN"] || "小驴考试",
       content: `<div class="lv-exam-mobile-dialog-host" style="width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:contain;"></div>`,
@@ -1040,9 +1192,12 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
       el.style.overflow = "hidden";
       hostEl.appendChild(el);
 
-      this.mobileComponent = mount(ComponentClass, {
-        target: el,
-        props: { plugin: this, examApp: this.examApp },
+      void loadTabComponent(type).then((ComponentClass) => {
+        if (!dialog.element.isConnected || this.isUnloaded) return;
+        this.mobileComponent = mount(ComponentClass, {
+          target: el,
+          props: { plugin: this, examApp: this.examApp },
+        });
       });
     }
 
@@ -1194,13 +1349,17 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     const el = detail.blockElements?.[0];
     if (el?.getAttribute?.("data-type") === "query_embed" && this.examApp) {
       // 3.8.5 实测：query_embed 的 content 为空、无 data-query 属性，SQL 只在 kramdown 的 {{...}} 内
-      let stmt = el.getAttribute("data-query") || (el.textContent ?? "").trim();
+      let stmt = (el.getAttribute("data-query") || "").trim();
+      if (!stmt) {
+        const text = getCleanBlockText(el);
+        if (/^\s*SELECT\b/i.test(text)) stmt = text;
+      }
       detail.menu.addItem({
         icon: "iconExam",
         label: this.i18n["blockMenu.queryPractice"] ?? "小驴考试：用此查询开始练习",
         click: async () => {
           try {
-            const bank = this.examApp!.listBanks()[0];
+            const bank = this.examApp!.resolvePreferredBank();
             if (!bank) {
               showMessage(this.i18n["guard.needBankFirst"], 3600, "error");
               return;
@@ -1244,7 +1403,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
         icon: "iconExam",
         label: this.i18n["blockMenu.convertToQuestion"] ?? "小驴考试：转为小驴试题（录入题库）",
         click: async () => {
-          let bank = exam.listBanks()[0];
+          let bank = exam.resolvePreferredBank();
           if (!bank) {
             try {
               bank = await exam.createBank("默认题库");
@@ -1258,7 +1417,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
             const source = combineBlockSources([kramdown]);
             openPracticeView(this, "manual", {
               bankId: bank.id,
-              sourceText: source.text || el?.textContent?.trim() || "",
+              sourceText: source.text || getCleanBlockText(el),
               sourceTitle: blockTitle,
               sourceKind: "block",
               sourceBlockId: blockId,
@@ -1266,7 +1425,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           } catch {
             openPracticeView(this, "manual", {
               bankId: bank.id,
-              sourceText: el?.textContent?.trim() || "",
+              sourceText: getCleanBlockText(el),
               sourceTitle: blockTitle,
               sourceKind: "block",
               sourceBlockId: blockId,
@@ -1282,7 +1441,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
             showMessage(this.i18n["state.offlineHint"], 3600, "error");
             return;
           }
-          const bank = exam.listBanks()[0];
+          const bank = exam.resolvePreferredBank();
           if (!bank) {
             showMessage(this.i18n["guard.needBankFirst"], 3600, "error");
             return;
@@ -1318,7 +1477,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
             showMessage(this.i18n["state.offlineHint"], 3600, "error");
             return;
           }
-          const bank = exam.listBanks()[0];
+          const bank = exam.resolvePreferredBank();
           if (!bank) {
             showMessage(this.i18n["guard.needBankFirst"], 3600, "error");
             return;
@@ -1363,7 +1522,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
             showMessage(this.i18n["state.offlineHint"], 3600, "error");
             return;
           }
-          const bank = exam.listBanks()[0];
+          const bank = exam.resolvePreferredBank();
           if (!bank) {
             showMessage(this.i18n["guard.needBankFirst"], 3600, "error");
             return;
@@ -1545,7 +1704,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           const cleanPath = src.startsWith("assets/") ? src : src.includes("/assets/") ? `assets/${src.split("/assets/").pop()}` : src;
           const q = await this.examApp.ocrAndParseQuestion(cleanPath);
           q.status = "draft";
-          const bank = this.examApp.listBanks()[0];
+          const bank = this.examApp.resolvePreferredBank();
           if (bank) {
             await this.examApp.writeManualQuestion(bank.id, q);
             this.pendingEditQid = q.id;
@@ -1596,7 +1755,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           showMessage(this.i18n["state.offlineHint"] ?? "请稍候，应用初始化中…", 3000, "info");
           return;
         }
-        let bank = this.examApp.listBanks()[0];
+        let bank = this.examApp.resolvePreferredBank();
         if (!bank) {
           try {
             bank = await this.examApp.createBank("默认题库");
@@ -1622,7 +1781,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
           showMessage(this.i18n["state.offlineHint"] ?? "请稍候，应用初始化中…", 3000, "info");
           return;
         }
-        const bank = this.examApp.listBanks()[0];
+        const bank = this.examApp.resolvePreferredBank();
         if (!bank) {
           showMessage(this.i18n["guard.needBankFirst"] ?? "请先创建一个题库", 3600, "error");
           return;
@@ -1687,12 +1846,15 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
   }
 
   openPractice(): boolean {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] openPractice ensureTier2Loaded catch:", err));
     return this.openTabByType(TAB_PRACTICE, "iconExam", this.i18n["tab.practice"]);
   }
   openWrongbook(): void {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] openWrongbook ensureTier2Loaded catch:", err));
     openPracticeView(this, "wrongbook");
   }
   openMock(blueprint?: import("./core/mock").Blueprint) {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] openMock ensureTier2Loaded catch:", err));
     if (blueprint) {
       this.pendingMockBlueprint = blueprint;
       emitExamEvent("apply-blueprint", { blueprint });
@@ -1700,16 +1862,19 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike {
     this.openTabByType(TAB_MOCK, "iconMock", this.i18n["tab.mock"]);
   }
   openReport() {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] openReport ensureTier2Loaded catch:", err));
     this.openTabByType(TAB_REPORT, "iconReport", this.i18n["tab.report"]);
   }
 
   /** 小驴罗盘入口：直达考试主页 */
   openExamHome(): boolean {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] openExamHome ensureTier2Loaded catch:", err));
     return this.openPractice();
   }
 
   /** 小驴罗盘极速二级行动派发 */
   handleQuickAction(action: string): void {
+    void this.ensureTier2Loaded().catch((err) => console.warn("[LvExam] handleQuickAction ensureTier2Loaded catch:", err));
     switch (action) {
       case "继续上次练习":
         this.resumeLastPractice();

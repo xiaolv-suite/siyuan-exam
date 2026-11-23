@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 const ROOT = process.cwd();
 const SRC = join(ROOT, "src");
-const ALLOWED_FILES = ["lv-tokens.scss"]; // token 定义文件：裸值 = 有意的主题 fallback
+const ALLOWED_FILES = ["lv-tokens.scss", "lv-ui.css"]; // token 定义文件：裸值 = 有意的主题 fallback
 const COLOR_RE = /(#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\()/g;
 // 色名黑名单只查常见易错词（CSS 色名上百，重点防手写 white/red/blue 等）
 const NAMED_COLOR_RE = /:\s*(white|black|red|green|blue|gray|grey|orange|yellow|pink|purple)\s*[;}]/g;

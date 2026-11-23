@@ -216,6 +216,32 @@ export class AttemptLog {
     return count;
   }
 
+  /** 删除题库或批量清理试题时：修剪移除属于指定 qids 的历史作答事件流水，返回清除条数 */
+  pruneQuestions(qids: Set<string>): number {
+    if (!qids.size || !this.events.length) return 0;
+    const before = this.events.length;
+    this.events = this.events.filter((e) => {
+      if (qids.has(e.qid)) {
+        this.seen.delete(e.eid);
+        return false;
+      }
+      return true;
+    });
+    const pruned = before - this.events.length;
+    if (pruned > 0) {
+      this.generation++;
+      this.dirty = true;
+      this.flushTimer ??= setTimeout(
+        () =>
+          void this.flush().catch(() => {
+            /* 保持 dirty */
+          }),
+        this.flushDelayMs,
+      );
+    }
+    return pruned;
+  }
+
   /** 灾备恢复/跨端合并：批量合并历史作答事件（按 eid 去重），返回新增事件数 */
   mergeEvents(events: AttemptEvent[]): number {
     let added = 0;

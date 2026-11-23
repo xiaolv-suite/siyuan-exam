@@ -7,6 +7,7 @@
  * 4. 纯函数领域层，支持无头测试。
  */
 
+import { localDateKeyOf } from "./checkinBridge";
 import type { Question } from "./types";
 
 export interface SiyuanDocExportOptions {
@@ -27,7 +28,7 @@ const TYPE_CN_MAP: Record<string, string> = {
 };
 
 function escIal(v: string): string {
-  return String(v ?? "").replace(/"/g, '\\"');
+  return String(v ?? "").replace(/[\r\n]+/g, " ").replace(/"/g, '\\"');
 }
 
 /**
@@ -207,7 +208,7 @@ export function buildSiyuanBankOverviewDocMarkdown(params: BankOverviewDocParams
     mockCount,
     updatedAt = new Date(),
   } = params;
-  const ymd = updatedAt.toISOString().slice(0, 10);
+  const ymd = localDateKeyOf(updatedAt.getTime());
   const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0;
 
   const kpMap = new Map<string, { count: number; sample?: Question }>();
@@ -253,15 +254,16 @@ export function buildSiyuanBankOverviewDocMarkdown(params: BankOverviewDocParams
     lines.push(``);
   }
 
+  const safeBankId = bankId.replace(/'/g, "''");
   lines.push(
     `## 🔍 思源原生 SQL 动态检索视图（可复制到任意思源笔记中使用）`,
     ``,
     `- **实时聚合本题库所有在册错题块**（基于小驴自动回写的 \`custom-exam-wrong-status\` 块属性）：`,
-    `  \`{{SELECT * FROM blocks WHERE box='${bankId}' AND ial LIKE '%custom-exam-wrong-status="active"%'}}\``,
+    `  \`{{SELECT * FROM blocks WHERE box='${safeBankId}' AND ial LIKE '%custom-exam-wrong-status="active"%'}}\``,
     `- **实时聚合本题库所有重点收藏题块**（基于 \`custom-exam-fav\` 块属性）：`,
-    `  \`{{SELECT * FROM blocks WHERE box='${bankId}' AND ial LIKE '%custom-exam-fav="1"%'}}\``,
+    `  \`{{SELECT * FROM blocks WHERE box='${safeBankId}' AND ial LIKE '%custom-exam-fav="1"%'}}\``,
     `- **实时聚合已写个人复盘反思的题块**（基于 \`custom-exam-reflection\` 块属性）：`,
-    `  \`{{SELECT * FROM blocks WHERE box='${bankId}' AND ial LIKE '%custom-exam-reflection=%'}}\``,
+    `  \`{{SELECT * FROM blocks WHERE box='${safeBankId}' AND ial LIKE '%custom-exam-reflection=%'}}\``,
     ``,
   );
 
@@ -293,7 +295,7 @@ export interface ActionJournalDocParams {
  */
 export function buildSiyuanActionJournalDocMarkdown(params: ActionJournalDocParams): string {
   const { bankName, actions, reflections, questionMap, updatedAt = new Date() } = params;
-  const ymd = updatedAt.toISOString().slice(0, 10);
+  const ymd = localDateKeyOf(updatedAt.getTime());
 
   const lines: string[] = [
     `# 📋 ${bankName} · 备考行动与复盘日志`,
@@ -332,7 +334,7 @@ export function buildSiyuanActionJournalDocMarkdown(params: ActionJournalDocPara
         : r.qid;
       const kpBadge = q?.kp ? ` · 考点：\`${q.kp}\`` : "";
       const reasonBadge = r.reason ? ` · 错因：\`${r.reason}\`` : "";
-      const dateStr = new Date(r.at).toISOString().slice(0, 10);
+      const dateStr = localDateKeyOf(r.at);
       lines.push(
         `### ${idx + 1}. ${titleRef}`,
         `- **记录时间**：\`${dateStr}\`${kpBadge}${reasonBadge}`,

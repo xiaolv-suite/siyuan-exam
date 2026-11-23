@@ -8,6 +8,7 @@
  * 3. 开放订阅源扩展：支持类似《阅读》App 的第三方 URL 订阅源机制，用户自愿添加。
  */
 
+import { localDateKeyOf } from "./checkinBridge";
 import type { Question } from "./types";
 
 export type MarketplaceItemKind = "exam_bank" | "flashcard_deck" | "both";
@@ -683,7 +684,7 @@ export function validateMarketplaceCatalog(raw: unknown): {
       license: safeLicense,
       downloadUrl: String(item.downloadUrl || "").trim(),
       previewItems: Array.isArray(item.previewItems) ? (item.previewItems as MarketplaceItem["previewItems"]) : undefined,
-      updatedAt: String(item.updatedAt || new Date().toISOString().slice(0, 10)),
+      updatedAt: String(item.updatedAt || localDateKeyOf(Date.now())),
       sizeKb: item.sizeKb ? Number(item.sizeKb) : undefined,
       verified: Boolean(item.verified),
       embeddedQuestions: Array.isArray(item.embeddedQuestions) ? (item.embeddedQuestions as Question[]) : undefined,
@@ -696,7 +697,7 @@ export function validateMarketplaceCatalog(raw: unknown): {
       v: 1,
       name: String(rawObj.name),
       description: String(rawObj.description || ""),
-      updatedAt: String(rawObj.updatedAt || new Date().toISOString().slice(0, 10)),
+      updatedAt: String(rawObj.updatedAt || localDateKeyOf(Date.now())),
       items: validItems,
     },
     errors,

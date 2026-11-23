@@ -8,6 +8,8 @@
  */
 
 import { Plugin, Setting } from "siyuan";
+// DL2 阶段0：生态统一「外观与动效」偏好分组（庆祝/吉祥物/光效可关）
+import { mountLvUiPrefsSection } from "./lv-ui-prefs";
 
 /**
  * The default function to get the value of the element
@@ -199,6 +201,19 @@ export class SettingUtils {
           this.updateElementFromValue(key);
         }
       },
+    });
+    // DL2 阶段0：生态「外观与动效」偏好分组（custom 项懒构建 DOM，不落盘、不影响 load/save）。
+    // 注意：位于 items 首位；任何按序号取项的消费方应按 key 或取末项，不要假设 items[0]。
+    this.addItem({
+      title: "[外观与动效] 庆祝 / 吉祥物 / 光效",
+      description: "庆祝动画、吉祥物与装饰光效统一由生态偏好管理，对本机全部小驴插件生效。",
+      type: "custom",
+      key: "lvUiPrefsSection",
+      value: undefined,
+      direction: "column",
+      createElement: () => mountLvUiPrefsSection(document.createElement("div")),
+      getEleVal: () => undefined,
+      setEleVal: () => undefined,
     });
   }
 

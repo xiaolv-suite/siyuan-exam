@@ -19,7 +19,13 @@ function mondayOf(d: Date): Date {
 }
 
 function keyOf(monday: Date): string {
-  return `${monday.getFullYear()}-W${String(Math.ceil((monday.getTime() - new Date(monday.getFullYear(), 0, 1).getTime()) / 86_400_000 / 7) + 1).padStart(2, "0")}`;
+  const thursday = new Date(monday);
+  thursday.setDate(monday.getDate() + 3);
+  const targetYear = thursday.getFullYear();
+  const firstJan = new Date(targetYear, 0, 1);
+  const dayDiff = Math.round((thursday.getTime() - firstJan.getTime()) / 86_400_000);
+  const weekNumber = Math.floor((dayDiff + ((firstJan.getDay() + 6) % 7)) / 7) + 1;
+  return `${targetYear}-W${String(weekNumber).padStart(2, "0")}`;
 }
 
 /** 最近 n 周（含本周）聚合，旧→新 */

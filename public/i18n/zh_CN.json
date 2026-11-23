@@ -45,6 +45,8 @@
   "setting.ttsRate.desc": "朗读播放速度（默认 1.0x，支持 0.8x-1.5x）。",
   "setting.soundEnabled.title": "成就音效",
   "setting.soundEnabled.desc": "答对与错题消灭时的提示音效。",
+  "setting.reviewReminder.title": "每日错题到期提醒",
+  "setting.reviewReminder.desc": "题库中存在艾宾浩斯临界衰减期错题时，在桌面右上角弹窗提醒复习巩固（关闭后彻底静默）。",
   "mode.practice": "刷题",
   "mode.browse": "浏览",
   "mode.quick": "快速刷题",

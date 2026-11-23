@@ -196,15 +196,58 @@ export function drawGeometryShape(
   ctx.restore();
 }
 
+const MAX_CACHED_SKETCHES = 6;
+const SKETCH_INDEX_KEY = "lv-exam-sketch-index";
+
+function updateSketchIndex(newKey: string): void {
+  try {
+    let index: string[] = [];
+    const raw = localStorage.getItem(SKETCH_INDEX_KEY);
+    if (raw) {
+      try { index = JSON.parse(raw); } catch { index = []; }
+    }
+    index = index.filter((k) => k !== newKey);
+    index.push(newKey);
+    while (index.length > MAX_CACHED_SKETCHES) {
+      const oldestKey = index.shift();
+      if (oldestKey) {
+        localStorage.removeItem(SKETCH_STORAGE_PREFIX + oldestKey);
+      }
+    }
+    localStorage.setItem(SKETCH_INDEX_KEY, JSON.stringify(index));
+  } catch { /* ignore */ }
+}
+
+function pruneAllOldSketches(excludeKey?: string): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(SKETCH_STORAGE_PREFIX) && (!excludeKey || k !== SKETCH_STORAGE_PREFIX + excludeKey)) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+    localStorage.removeItem(SKETCH_INDEX_KEY);
+  } catch { /* ignore */ }
+}
+
 /**
- * 本地持久化手绘草图
+ * 本地持久化手绘草图（带最大 6 道题严格 LRU 淘汰机制与 800KB 单图配额保护，防挤爆 localStorage）
  */
 export function saveSketchToStorage(key: string, dataUrl: string): void {
-  if (typeof localStorage === "undefined" || !key) return;
+  if (typeof localStorage === "undefined" || !key || !dataUrl) return;
+  if (dataUrl.length > 800 * 1024) return;
   try {
+    updateSketchIndex(key);
     localStorage.setItem(SKETCH_STORAGE_PREFIX + key, dataUrl);
   } catch {
-    /* 避免配额满时抛错 */
+    try {
+      pruneAllOldSketches(key);
+      localStorage.setItem(SKETCH_STORAGE_PREFIX + key, dataUrl);
+    } catch {
+      /* 避免配额满时抛错 */
+    }
   }
 }
 
@@ -227,6 +270,13 @@ export function clearSketchFromStorage(key: string): void {
   if (typeof localStorage === "undefined" || !key) return;
   try {
     localStorage.removeItem(SKETCH_STORAGE_PREFIX + key);
+    const raw = localStorage.getItem(SKETCH_INDEX_KEY);
+    if (raw) {
+      try {
+        const index: string[] = JSON.parse(raw);
+        localStorage.setItem(SKETCH_INDEX_KEY, JSON.stringify(index.filter((k) => k !== key)));
+      } catch { /* ignore */ }
+    }
   } catch {
     /* ignore */
   }

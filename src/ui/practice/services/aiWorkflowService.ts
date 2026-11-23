@@ -397,5 +397,54 @@ export async function executeAiFollowUpWorkflow(options: {
   };
 }
 
+/**
+ * 导学与启发异步请求调度器（epoch/token 状态守卫）
+ *
+ * 核心设计：
+ * 彻底消除异步竞态（Race Conditions）：
+ * 1. 发起请求时递增 epoch 生成唯一 token；
+ * 2. 关闭 (closeExplain)、切题 (next/previous)、生命周期重置 (restoreControls) 时递增 epoch；
+ * 3. 异步 Promise resolve / catch / finally 返回时，必须严格满足双重校验：
+ *    - token === currentEpoch (当前请求依然是最新的，未被后续请求或关闭动作作废)
+ *    - currentQid === requestQid (当前题目依然处于发起该请求的同一道题目)
+ * 杜绝旧题目晚返回的解析内容覆盖新题，杜绝旧 finally 把新题的 busy 状态提前清零。
+ */
+export class ExplainRequestCoordinator {
+  private epoch = 0;
+  private activeQid = "";
+
+  get currentEpoch(): number {
+    return this.epoch;
+  }
+
+  get currentQid(): string {
+    return this.activeQid;
+  }
+
+  /**
+   * 发起请求：推进 epoch 并记录当前发起的题目 ID，返回对应的 request token
+   */
+  startRequest(qid: string): number {
+    this.activeQid = qid;
+    return ++this.epoch;
+  }
+
+  /**
+   * 使在途请求彻底失效：递增 epoch 并清空 activeQid
+   */
+  invalidate(): number {
+    this.activeQid = "";
+    return ++this.epoch;
+  }
+
+  /**
+   * 核验证明：token 与当前题目是否依然合法有效
+   */
+  isCurrent(token: number, currentQid: string | null | undefined, requestQid: string): boolean {
+    return token === this.epoch && Boolean(currentQid) && currentQid === requestQid;
+  }
+}
+
+
 
 

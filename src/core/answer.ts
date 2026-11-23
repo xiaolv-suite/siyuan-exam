@@ -62,11 +62,11 @@ export function foldText(s: string): string {
     .trim();
 }
 
-/** 判断题答案方言归一化：对/T/F/√/×/true/false/是/否 → "对"|"错" */
+/** 判断题答案方言归一化：对/T/F/√/×/true/false/是/否/A/B → "对"|"错" */
 export function normalizeJudge(raw: string): "对" | "错" | null {
   const s = foldText(raw).toLowerCase().replace(/^[（([【]\s*|\s*[)）\]】]$/g, "");
-  if (["对", "t", "true", "√", "v", "是", "y", "yes", "正确", "○", "r", "right"].includes(s)) return "对";
-  if (["错", "f", "false", "×", "x", "否", "n", "no", "错误", "●", "w", "wrong"].includes(s)) return "错";
+  if (["对", "t", "true", "√", "v", "是", "y", "yes", "正确", "○", "r", "right", "a"].includes(s)) return "对";
+  if (["错", "f", "false", "×", "x", "否", "n", "no", "错误", "●", "w", "wrong", "b"].includes(s)) return "错";
   return null;
 }
 
@@ -100,8 +100,9 @@ export interface GradeResult {
 /** 判分：myAnswer 为空/仅空白 → not_attempted（不计入正确率分母的口径见统计说明）。
  *  54-01/02：带 numeric answerSpec 的题走数值容差/单位判分（structuredAnswer），其余按字符串口径。 */
 export function grade(q: Question, myAnswerRaw: string | null | undefined): GradeResult {
-  const myAnswer = myAnswerRaw == null || myAnswerRaw === "" ? null : myAnswerRaw;
-  if (myAnswer == null) return { verdict: "not_attempted", myAnswer: null };
+  const isBlank = myAnswerRaw == null || (typeof myAnswerRaw === "string" && foldText(myAnswerRaw) === "");
+  if (isBlank) return { verdict: "not_attempted", myAnswer: null };
+  const myAnswer = myAnswerRaw!;
   if (q.type === "short") {
     // 简答题：机器不判分，作答即计入尝试；对错由自评/背诵回路决定，此处按 not_attempted 语义返回 correct-by-self 由 UI 决定
     return { verdict: "not_attempted", myAnswer };

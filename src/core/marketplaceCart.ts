@@ -8,6 +8,7 @@
  * 3. 题库品质画像、题型构成与难度梯队分布统计引擎。
  */
 
+import { localDateKeyOf } from "./checkinBridge";
 import type { Question, QuestionType } from "./types";
 import type { MarketplaceCategory, MarketplaceItem } from "./marketplace";
 import type { LvCardsPackage } from "./lvcardsBridge";
@@ -187,7 +188,7 @@ export function cartItemsToLvCardsPackage(
   packName?: string,
 ): LvCardsPackage {
   const questions = cartItemsToQuestions(cart);
-  const nowStr = new Date().toISOString().slice(0, 10);
+  const nowStr = localDateKeyOf(Date.now());
   const distinctSources = Array.from(new Set(cart.map((c) => c.sourceTitle)));
   const title = packName || `小驴精选题卡集 (${nowStr})`;
   const description = `由小驴考试公共集市挑选组卷，汇集 ${distinctSources.join("、")} 等 ${cart.length} 道精选题卡。`;

@@ -15,7 +15,7 @@ export function downloadBlobFile(content: string, filename: string, mimeType: st
   a.href = url;
   a.download = filename;
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  setTimeout(() => URL.revokeObjectURL(url), 1000); // 2026-11-21 走查修复：0ms 回收时序敏感，对齐同仓 1000ms 约定
 }
 
 /**

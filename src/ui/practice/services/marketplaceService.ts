@@ -118,7 +118,17 @@ export async function installMarketplaceItem(
       questionsToInstall = item.embeddedQuestions;
     } else if (item.downloadUrl.startsWith("http://") || item.downloadUrl.startsWith("https://")) {
       // 2. 外部 URL 动态拉取
-      const resp = await fetch(item.downloadUrl);
+      // 2026-11-21 走查修复（P3）：补 30s 超时——死链/大响应原先无限等待且 installingId 永久占用安装队列
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 30_000) : null;
+      let resp: Response;
+      try {
+        resp = await fetch(item.downloadUrl, { signal: controller?.signal });
+      } catch (e) {
+        if (timer) clearTimeout(timer);
+        throw new Error(`下载失败：${e instanceof Error && e.name === "AbortError" ? "请求超时（30s）" : String(e instanceof Error ? e.message : e)}`);
+      }
+      if (timer) clearTimeout(timer);
       if (!resp.ok) throw new Error(`下载失败 HTTP ${resp.status}`);
       const text = await resp.text();
 
@@ -153,13 +163,25 @@ export async function installMarketplaceItem(
     }
 
     // 3. 在思源笔记中创建独立题库
+    // 2026-11-21 走查修复（P2）：安装幂等——先按名复用既有题库（原先 createBank 恒新建，
+    // 重装/中断重试会成对出现同名题库），且复用路径按 hash 去重防题内重复
     const bankName = (targetBankTitle || item.title).trim();
-    const newBank = await app.createBank(bankName);
+    const existingBank = typeof app.listBanks === "function" ? app.listBanks().find((b) => b.name === bankName) : undefined;
+    const existingHashes = new Set<string>();
+    if (existingBank?.id && typeof app.listQuestions === "function") {
+      try {
+        for (const q of await app.listQuestions(existingBank.id)) {
+          if (q.hash) existingHashes.add(q.hash);
+        }
+      } catch { /* 读取失败视为无既有题 */ }
+    }
+    const newBank = existingBank ?? (await app.createBank(bankName));
     if (!newBank || !newBank.id) {
       throw new Error("创建思源本地题库失败");
     }
 
     // 4. 批量写入试题到新题库
+    let written = 0;
     for (const q of questionsToInstall) {
       const qWithOrigin: Question = {
         ...q,
@@ -167,13 +189,17 @@ export async function installMarketplaceItem(
         source: item.title,
         sourceKind: "mock",
       };
+      if (existingBank?.id && qWithOrigin.hash && existingHashes.has(qWithOrigin.hash)) {
+        continue; // 断点续装：该题已在复用题库中，跳过防重复
+      }
       await app.writeManualQuestion(newBank.id, qWithOrigin);
+      written += 1;
     }
 
     return {
       success: true,
       bankId: newBank.id,
-      count: questionsToInstall.length,
+      count: written,
     };
   } catch (err) {
     return {

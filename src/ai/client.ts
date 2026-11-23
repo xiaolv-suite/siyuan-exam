@@ -6,6 +6,7 @@
 // ============================================================
 import type { KernelApiClient } from "../kernel/client";
 
+
 export interface OpenAiConfig {
   endpoint: string; // https://.../v1/chat/completions
   apiKey: string;

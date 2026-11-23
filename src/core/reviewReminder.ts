@@ -54,14 +54,26 @@ const MIN_NOTIFICATION_INTERVAL_MS = 4 * 3600 * 1000; // 提醒冷却间隔：�
  * @param app 考试应用实例
  * @param onStartReview 用户点击【立即攻坚】时的回调
  * @param onDateCross 可选零点跨日回调，用于更新今日待复习错题集
+ * @param isEnabled 可选持久化开关判定（免疫重启与端口隔离，彻底静默）
  */
 export function startReviewReminderScheduler(
   app: ExamApp,
   onStartReview: () => void,
   onDateCross?: (todayKey: string) => void,
+  isEnabled?: () => boolean,
 ): ReviewReminderController {
+  // 启动即主动预热拉取磁盘免打扰表，确保端口漂移后第一时间感知持久化配置
+  if (typeof lvNotify.syncMuteFromDisk === "function") {
+    void lvNotify.syncMuteFromDisk();
+  }
+
   const checkAndNotify = (force = false): string | null => {
     if (!app) return null;
+    // 物理持久化配置硬门禁（读取插件配置落盘文件，关闭后彻底静默）
+    if (typeof isEnabled === "function" && !isEnabled()) return null;
+    try {
+      if (localStorage.getItem("lv_exam_review_reminder_disabled") === "true") return null;
+    } catch { /* ignore */ }
     if (lvNotify.isMutedToday(CATEGORY_DAILY_REVIEW) || lvNotify.isCategoryMuted?.(CATEGORY_DAILY_REVIEW)) return null;
     if (lvNotify.isCategorySnoozed?.(CATEGORY_DAILY_REVIEW)) return null;
 

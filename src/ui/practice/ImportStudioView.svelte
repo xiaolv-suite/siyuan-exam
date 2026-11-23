@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import type { BankInfo } from "../../app";
   import type { ImportReport, ImportCheckpoint } from "../../importer/pipeline";
@@ -230,6 +231,11 @@
   }: Props = $props();
 
   let docSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  onDestroy(() => {
+    if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer);
+  });
+
   function handleDocSearchInput(val: string) {
     if (docSearchDebounceTimer) clearTimeout(docSearchDebounceTimer);
     docSearchDebounceTimer = setTimeout(() => {

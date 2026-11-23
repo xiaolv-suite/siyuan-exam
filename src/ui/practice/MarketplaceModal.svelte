@@ -15,6 +15,7 @@
     saveMarketplaceSources,
     type CustomMarketplaceSource,
   } from "./services/marketplaceService";
+  import { localDateKeyOf } from "@/core/checkinBridge";
   import type { ExamApp } from "@/app";
 
   interface Props {
@@ -129,7 +130,7 @@
       name,
       url,
       enabled: true,
-      addedAt: new Date().toISOString().slice(0, 10),
+      addedAt: localDateKeyOf(Date.now()),
     };
     customSources = [...customSources, newSrc];
     saveMarketplaceSources(writeLocal, customSources);

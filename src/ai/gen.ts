@@ -334,10 +334,13 @@ export async function generate(channel: AiChannel, sourceText: string, opt: GenO
       const verdicts = await reviewQuestions(channel, candidates, chunk);
       if (opt.signal?.aborted) break;
       for (const q of candidates) {
+        // 2026-11-21 走查修复（P3）：淘汰序号原引用分片循环外的全局计数 idx（恒同值），
+        // 改为候选题局部序号，AI 待审队列可对照原始题序
+        const localIdx = candidates.indexOf(q) + 1;
         const v = verdicts.get(q.id) ?? { confidence: 0, pass: false, reason: "未核验" };
         if (!v.pass || v.confidence < REVIEW_CONFIDENCE_MIN) {
           rejected.push({
-            index: idx,
+            index: localIdx,
             reason: `二遍核验淘汰：置信 ${v.confidence.toFixed(2)}${v.reason ? " · " + v.reason : ""}`,
             raw: rawOf(q),
           });

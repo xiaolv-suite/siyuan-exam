@@ -1,11 +1,14 @@
 // ============================================================
 // 线性图标语言（V03）：与原型 .icon 同规格——24 viewBox / stroke 1.7 /
 // round cap/join / currentColor 取色。替代 UI 中的 emoji 占位。
-// 用法：<Icon name="zap" />；装饰性图标 aria-hidden 由组件默认处理。
 // 图形来源：lucide（MIT）风格自绘路径，仅形状不含主题色。
 // ============================================================
 
+import { LV_ICON_PATHS } from "../../libs/ui/icons";
+
 const P: Record<string, string> = {
+// DL2 阶段3 图标 5→1：跨仓基础集上收 packages/lv-kit/ui/icons.ts（单 path 形态）；
+// 考试业务扩展集（多元素 lucide 形态）保留在下方 P 中，iconSvg 合并查找。
   // 核心主任务导航图标（现代极简线性，高透气性，与思源笔记原生 litheness 线框体系 100% 对齐）：
   home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
   book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h8M6 10h8M6 14h5"/>',
@@ -89,6 +92,11 @@ export type IconName = keyof typeof P;
 
 /** 线性 SVG 图标（fill:none / stroke:currentColor，规格对齐思源笔记原生 litheness 线框体系） */
 export function iconSvg(name: string, size = 18): string {
+  // kit 基础集优先（单 path 形态，与仓内同规格渲染包装）
+  if (name in LV_ICON_PATHS) {
+    const body = `<path d="${LV_ICON_PATHS[name as keyof typeof LV_ICON_PATHS]}" fill="none" />`;
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="fill:none!important;stroke:currentColor!important;stroke-width:1.7!important;display:inline-block;vertical-align:-0.15em;" aria-hidden="true">${body}</svg>`;
+  }
   const body = P[name] ?? P.check;
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="fill:none!important;stroke:currentColor!important;stroke-width:1.7!important;display:inline-block;vertical-align:-0.15em;" aria-hidden="true">${body}</svg>`;
 }

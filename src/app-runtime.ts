@@ -183,7 +183,7 @@ function readOrCreateDeviceId(): string {
   }
 }
 
-export async function createExamApp(plugin: Plugin): Promise<ExamApp> {
+export async function createExamApp(plugin: Plugin, options?: { deferTier2?: boolean }): Promise<ExamApp> {
   // 运行时连接标记：retryable 失败翻离线、成功翻回在线（离线横幅与降级提示依赖它；
   // 启动初值仍由 init 的能力探针设定）
   let appRef: ExamApp | null = null;
@@ -200,6 +200,6 @@ export async function createExamApp(plugin: Plugin): Promise<ExamApp> {
   };
   const app = new ExamApp(deps);
   appRef = app;
-  await app.init(readOrCreateDeviceId());
+  await app.init(readOrCreateDeviceId(), { deferTier2: options?.deferTier2 ?? true });
   return app;
 }

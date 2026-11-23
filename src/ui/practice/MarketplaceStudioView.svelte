@@ -31,6 +31,7 @@
     saveMarketplaceSources,
     type CustomMarketplaceSource,
   } from "./services/marketplaceService";
+  import { localDateKeyOf } from "@/core/checkinBridge";
   import PaperAssembleModal from "./PaperAssembleModal.svelte";
   import type { ExamApp } from "@/app";
 
@@ -199,15 +200,31 @@
 
     installingId = item.id;
     try {
-      const { mergeQuestionDelta } = await import("@/core/marketplaceSync");
       const localQs = await app.listQuestions(localBank.id);
-      const merged = mergeQuestionDelta(localQs, delta);
-
-      for (const q of merged) {
-        await app.writeManualQuestion(localBank.id, q);
+      // 2026-11-21 走查修复（P2）：原实现把合并结果全量走 writeManualQuestion 逐题「追加」——
+      // 修订项被复制成第二份（旧版本原地保留），题库块数翻倍、同 qid 双块，练习/组卷全部出现重复。
+      // 改为：修订项走 updateQuestionContent 原位更新（携带本地 blockId，答题历史完整保留），
+      // 仅对新增项追加写入。
+      let updatedCount = 0;
+      let addedCount = 0;
+      for (const upd of delta.updated) {
+        const local = localQs.find((x) => x.id === upd.local.id);
+        if (!local?.blockId) continue;
+        await app.updateQuestionContent(local as Question & { blockId: string }, {
+          stem: upd.remote.stem,
+          options: [...(upd.remote.options || [])],
+          answer: upd.remote.answer,
+          analysis: upd.remote.analysis || "",
+          kp: upd.remote.kp || local.kp || "",
+        });
+        updatedCount += 1;
+      }
+      for (const add of delta.added) {
+        await app.writeManualQuestion(localBank.id, { ...add, origin: "imported" });
+        addedCount += 1;
       }
       deltaMap[item.id] = null;
-      showMessage(`已为《${item.title}》无损合入更新（新增 ${delta.addedCount} 题，修订 ${delta.updatedCount} 题，答题历史完整保留）✓`, 3500, "info");
+      showMessage(`已为《${item.title}》无损合入更新（新增 ${addedCount} 题，原位修订 ${updatedCount} 题，答题历史完整保留）✓`, 3500, "info");
       onbankCreated?.(localBank.id);
     } catch (err) {
       showMessage(`合入更新异常：${String(err instanceof Error ? err.message : err)}`, 3500, "error");
@@ -228,7 +245,7 @@
       name,
       url,
       enabled: true,
-      addedAt: new Date().toISOString().slice(0, 10),
+      addedAt: localDateKeyOf(Date.now()),
     };
     customSources = [...customSources, newSrc];
     saveMarketplaceSources(writeLocal, customSources);
@@ -287,7 +304,7 @@
       const { downloadBlobFile } = await import("./services/bankExportService");
       const pkg = cartItemsToLvCardsPackage(cartItems);
       const json = serializeLvCardsPackage(pkg);
-      const nowStr = new Date().toISOString().slice(0, 10);
+      const nowStr = localDateKeyOf(Date.now());
       downloadBlobFile(json, `小驴精选题卡集-${nowStr}.lvcards`, "application/json;charset=utf-8;");
       showMessage(`已成功导出 ${cartItems.length} 张跨学科小驴闪卡包 (.lvcards) ✓`, 3000, "info");
     } catch (e) {

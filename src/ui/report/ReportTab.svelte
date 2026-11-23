@@ -31,7 +31,11 @@
     let appOverride = $state<ExamApp | null>(null);
     const app = $derived<ExamApp | null>(appOverride ?? examApp ?? (plugin?.examApp as ExamApp | undefined) ?? null);
     const i18n = $derived(plugin?.i18n ?? {});
-    const t = (k: string, fb = "") => i18n[k] ?? fb;
+    const t = (k: string, fb = "", vars?: Record<string, string | number>): string => {
+    let v = i18n[k] ?? fb;
+    if (vars) for (const [name, value] of Object.entries(vars)) v = v.split(`{${name}}`).join(String(value));
+    return v;
+};
     const writeLocal = (key: string, value: string | null) => {
       try {
         if (value == null) globalThis.localStorage?.removeItem(key);
@@ -197,7 +201,7 @@
             label: r.label,
             score: r.score,
             fullScore: 100,
-            grade: r.score >= 80 ? "优秀" : r.score >= 60 ? "良好" : "待提升",
+            grade: r.score >= 80 ? t("report.gradeExcellent", "优秀") : r.score >= 60 ? t("report.gradeGood", "良好") : t("report.gradeNeedsWork", "待提升"),
           })),
           weakKps: weak.slice(0, 8).map((w) => ({
             kp: w.root,
@@ -223,7 +227,7 @@
           showMessage("全景学情诊断报告已生成 ✓", 3000, "info");
         }
       } catch (e) {
-        showMessage(`生成学情报告失败：${String(e instanceof Error ? e.message : e)}`, 4000, "error");
+        showMessage(t("report.fullReportFailed", "生成学情报告失败：{reason}", {reason: String(e instanceof Error ? e.message : e)}), 4000, "error");
       } finally {
         fullHtmlExportBusy = false;
       }
@@ -1084,10 +1088,10 @@
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
     <div class="lv-row lv-report-desktop-actions" style="margin:0;gap:6px;align-items:center">
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title="导出个人荣誉勋章墙 Markdown">
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title={t("report.badgeWallExportTip", "导出个人荣誉勋章墙 Markdown")}>
         <Icon name="star" size={13} /> 勋章墙
       </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title="导出备考完备度体检报告">
+      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title={t("report.readinessExportTip", "导出备考完备度体检报告")}>
         <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
       </button>
       <!-- 117-01 T11 / 117-02：AI 解读与 AI 下一行动（按当前统计范围；只解释/建议，不重算不虚构） -->
@@ -1097,7 +1101,7 @@
       <button class="lv-btn sm" onclick={() => void runNextAction()} disabled={!app || loading || reportRefreshing || scopeLoading || nextActionBusy} aria-busy={nextActionBusy}>
         <Icon name="target" size={13} /> {nextActionBusy ? "…" : t("nextAction.ask")}
       </button>
-      <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} aria-busy={fullHtmlExportBusy} title="一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）">
+      <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} aria-busy={fullHtmlExportBusy} title={t("report.fullReportTip", "一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）")}>
         <Icon name="file" size={13} /> {fullHtmlExportBusy ? "导出中…" : t("report.fullHtmlReport")}
       </button>
     </div>
@@ -1873,14 +1877,14 @@
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px;flex-wrap:wrap;gap:6px">
           <b style="margin:0">{t("action.title")}（{openActionList.length}）</b>
           <div class="lv-row" style="margin:0;gap:6px">
-            <button type="button" class="lv-btn sm lv-btn--ghost" disabled={syncReportDocsBusy} onclick={pullDocActions} title="从思源《03 备考行动与复盘日志》拉取任务块勾选完成状态">
+            <button type="button" class="lv-btn sm lv-btn--ghost" disabled={syncReportDocsBusy} onclick={pullDocActions} title={t("report.pullCheckedTip", "从思源《03 备考行动与复盘日志》拉取任务块勾选完成状态")}>
               <Icon name="check" size={12} /> 从思源拉取勾选
             </button>
-            <button type="button" class="lv-btn sm lv-btn--ghost" disabled={syncReportDocsBusy} onclick={syncReportDocsToSiYuan} title="将待办行动清单与错题反思同步至《03 备考行动与复盘日志》思源文档">
+            <button type="button" class="lv-btn sm lv-btn--ghost" disabled={syncReportDocsBusy} onclick={syncReportDocsToSiYuan} title={t("report.syncJournalTip", "将待办行动清单与错题反思同步至《03 备考行动与复盘日志》思源文档")}>
               <Icon name="save" size={12} /> {syncReportDocsBusy ? "…" : "同步至思源日志"}
             </button>
             {#if lastJournalDocId}
-              <button type="button" class="lv-btn sm lv-btn--ghost" title="打开复盘日志（右键呼出原生菜单）" onclick={() => openInSiYuan(lastJournalDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastJournalDocId)}>
+              <button type="button" class="lv-btn sm lv-btn--ghost" title={t("report.openJournalTip", "打开复盘日志（右键呼出原生菜单）")} onclick={() => openInSiYuan(lastJournalDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastJournalDocId)}>
                 <Icon name="link" size={12} /> 打开复盘日志 ↗
               </button>
             {/if}
@@ -1893,7 +1897,7 @@
             <span class="lv-chip num">{t("action.kind." + a.kind)}</span>
             <span style="flex:1;min-width:140px">{a.detail}</span>
             {#if aq?.blockId}
-              <button type="button" class="lv-btn sm lv-btn--ghost" title="在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开，右键呼出原生菜单）" onclick={(e) => openInSiYuan(aq.rootId || "", aq.blockId, { event: e })} oncontextmenu={(e) => void openNativeDocMenu(e, aq.rootId || aq.blockId)}>
+              <button type="button" class="lv-btn sm lv-btn--ghost" title={t("report.openBlockTip", "在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开，右键呼出原生菜单）")} onclick={(e) => openInSiYuan(aq.rootId || "", aq.blockId, { event: e })} oncontextmenu={(e) => void openNativeDocMenu(e, aq.rootId || aq.blockId)}>
                 <Icon name="pin" size={12} /> 原题 ↗
               </button>
             {/if}
@@ -2005,17 +2009,17 @@
           <Icon name="book" size={14} /> {syncReportDocsBusy ? "…" : "同步总览与复盘日志到思源"}
         </button>
         {#if lastDailyDocId}
-          <button type="button" class="lv-btn sm lv-btn--ghost" title="打开今日战报（右键呼出原生菜单）" onclick={() => openInSiYuan(lastDailyDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastDailyDocId)}>
+          <button type="button" class="lv-btn sm lv-btn--ghost" title={t("report.openDailyTip", "打开今日战报（右键呼出原生菜单）")} onclick={() => openInSiYuan(lastDailyDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastDailyDocId)}>
             <Icon name="link" size={12} /> 打开今日战报 ↗
           </button>
         {/if}
         {#if lastOverviewDocId}
-          <button type="button" class="lv-btn sm lv-btn--ghost" title="打开题库总览（右键呼出原生菜单）" onclick={() => openInSiYuan(lastOverviewDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastOverviewDocId)}>
+          <button type="button" class="lv-btn sm lv-btn--ghost" title={t("report.openOverviewTip", "打开题库总览（右键呼出原生菜单）")} onclick={() => openInSiYuan(lastOverviewDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastOverviewDocId)}>
             <Icon name="compass" size={12} /> 打开题库总览 ↗
           </button>
         {/if}
         {#if lastJournalDocId}
-          <button type="button" class="lv-btn sm lv-btn--ghost" title="打开复盘日志（右键呼出原生菜单）" onclick={() => openInSiYuan(lastJournalDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastJournalDocId)}>
+          <button type="button" class="lv-btn sm lv-btn--ghost" title={t("report.openJournalTip", "打开复盘日志（右键呼出原生菜单）")} onclick={() => openInSiYuan(lastJournalDocId)} oncontextmenu={(e) => void openNativeDocMenu(e, lastJournalDocId)}>
             <Icon name="clipboard" size={12} /> 打开复盘日志 ↗
           </button>
         {/if}

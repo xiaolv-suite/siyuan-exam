@@ -8,9 +8,9 @@
 
 笔记即题库 · 独立主动回忆 · 受助不冒充掌握 · 全真模考与 A4 双栏印卷 · FSRS 闪卡联动
 
-**当前版本：v0.15.5** ｜ [English Documentation](README.en-US.md) ｜ [更新日志](CHANGELOG.md)
+**当前版本：v0.15.6** ｜ [English Documentation](README.en-US.md) ｜ [更新日志](CHANGELOG.md)
 
-[![Release](https://img.shields.io/badge/release-v0.15.5-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.6-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
 [![思源笔记](https://img.shields.io/badge/思源笔记-%3E%3D%203.8.4-brightgreen.svg)](https://b3log.org/siyuan)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -24,7 +24,7 @@
 
 ---
 
-## 🚀 本次更新要点（v0.15.5 · 累积迭代汇总）
+## 🚀 本次更新要点（v0.15.6 · 累积迭代汇总）
 
 - **苏格拉底 AI 导师体验重构**：消除全屏阻断等待遮罩，换用精致局部悬浮卡与动态思考状态提示，随时可取消且不影响试卷与正文浏览；
 - **页面切换自愈与模考防白屏**：修复切出其他工作区再切回后偶发白屏异常，完善视图生命周期自愈与试卷状态记忆；

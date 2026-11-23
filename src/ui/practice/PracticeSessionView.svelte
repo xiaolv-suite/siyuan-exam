@@ -69,6 +69,7 @@
     explainSaveError: string;
     explainSaveErrorQid: string;
     explainFollowUp: string;
+    explainCollapsed?: boolean;
     leakPending: any;
     reasonPromptQid: string;
     curQStats: any;
@@ -188,6 +189,7 @@
     ontouchEnd: (e: TouchEvent) => void;
     onopenSessionSheet?: () => void;
     onopenSocraticModal?: () => void;
+    oncloseExplain?: () => void;
     trails?: Map<string, any>;
   }
 
@@ -232,6 +234,7 @@
     explainSaveError,
     explainSaveErrorQid,
     explainFollowUp = $bindable(),
+    explainCollapsed = $bindable(false),
     leakPending = $bindable(),
     reasonPromptQid = $bindable(),
     curQStats,
@@ -350,6 +353,7 @@
     ontouchEnd,
     onopenSessionSheet,
     onopenSocraticModal,
+    oncloseExplain,
     trails,
   }: Props = $props();
 
@@ -370,6 +374,8 @@
     stageHintOpen = Boolean(qid && session?.getExposures?.(qid).includes("hint"));
     stageAnalysisOpen = true;
     stageSourceOpen = false;
+    void explainText;
+    explainCollapsed = false;
   });
 
   let eliminatedChoices = $state<Record<string, boolean>>({});
@@ -1064,7 +1070,7 @@
                 <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               {/if}
             {/if}
-            {#if leakPending && session?.current && explainQid === session.current.id}
+            {#if leakPending && q && explainQid === q.id}
               <div class="lv-analysis lv-explain">
                 <Icon name="alert-triangle" size={13} /> {t("explain.hintLeak").replace("{r}", leakPending.reasons)}
                 <div class="lv-row">
@@ -1073,41 +1079,64 @@
                 </div>
               </div>
             {/if}
-            {#if explainBusy && session?.current && explainQid === session.current.id}
+            {#if explainBusy && q && explainQid === q.id}
               <div class="lv-analysis lv-explain" role="status" aria-live="polite" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
                 <span>⏳ AI 正在深入思考中…（启发式导学处理中）</span>
-                {#if onopenSocraticModal}
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11.5px">展开导学浮窗</button>
-                {/if}
+                <div style="display:inline-flex;align-items:center;gap:6px">
+                  {#if onopenSocraticModal}
+                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11.5px">展开导学浮窗</button>
+                  {/if}
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { if (oncloseExplain) oncloseExplain(); }} style="font-size:11.5px" title="取消并关闭" aria-label="取消并关闭"><Icon name="close" size={12} /> {t("menu.close", "关闭")}</button>
+                </div>
               </div>
             {/if}
-            {#if explainText && session?.current && explainQid === session.current.id}
+            {#if explainText && q && explainQid === q.id}
               <div class="lv-analysis lv-explain">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:{explainCollapsed ? '0' : '6px'}">
                   <span style="font-weight:700">🦉 导学与启发</span>
-                  {#if onopenSocraticModal}
-                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11px"><Icon name="message" size={12} /> 浮窗追问</button>
-                  {/if}
+                  <div style="display:inline-flex;align-items:center;gap:6px">
+                    {#if onopenSocraticModal}
+                      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11px"><Icon name="message" size={12} /> 浮窗追问</button>
+                    {/if}
+                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => explainCollapsed = !explainCollapsed} style="font-size:11px" title={explainCollapsed ? "展开导学与启发" : "收起导学与启发 (Alt+X)"} aria-expanded={!explainCollapsed}>
+                      {explainCollapsed ? "展开" : "收起"}
+                    </button>
+                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { if (oncloseExplain) oncloseExplain(); else explainCollapsed = true; }} style="font-size:11px" title="关闭导学与启发 (Esc)" aria-label="关闭导学与启发">
+                      <Icon name="close" size={12} /> {t("menu.close", "关闭")}
+                    </button>
+                  </div>
                 </div>
-                {explainText}
-              </div>
-              <div class="lv-row">
-                {#if explainSavedQid === q.id}
-                  <span class="lv-muted" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> {t("explain.saved")}</span>
-                {:else}
-                  <button class="lv-btn sm" onclick={onsaveExplain} disabled={explainSaveBusy} aria-busy={explainSaveBusy}><Icon name="pin" size={13} /> {explainSaveBusy ? "…" : explainSaveError ? t("explain.retrySave") : t("explain.save")}</button>
+                {#if !explainCollapsed}
+                  {explainText}
                 {/if}
-                <button class="lv-btn sm" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-                <button class="lv-btn sm" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               </div>
-              {#if explainSaveErrorQid === q.id && explainSaveError}<div class="lv-error" role="alert">{t("explain.saveFailed").replace("{message}", explainSaveError)}</div>{/if}
-              <div class="lv-row">
-                <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("explain.followUp")}
-                  aria-label={t("explain.followUp")}
-                  bind:value={explainFollowUp}
-                  onkeydown={(e) => !e.isComposing && e.keyCode !== 229 && e.key === "Enter" && onsendFollowUp()} />
-                <button class="lv-btn sm" onclick={onsendFollowUp} disabled={explainBusy || !explainFollowUp.trim()}>{t("explain.send")}</button>
-              </div>
+              {#if !explainCollapsed}
+                <div class="lv-row">
+                  {#if explainSavedQid === q.id}
+                    <span class="lv-muted" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> {t("explain.saved")}</span>
+                  {:else}
+                    <button class="lv-btn sm" onclick={onsaveExplain} disabled={explainSaveBusy} aria-busy={explainSaveBusy}><Icon name="pin" size={13} /> {explainSaveBusy ? "…" : explainSaveError ? t("explain.retrySave") : t("explain.save")}</button>
+                  {/if}
+                  <button class="lv-btn sm" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
+                  <button class="lv-btn sm" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
+                </div>
+                {#if explainSaveErrorQid === q.id && explainSaveError}<div class="lv-error" role="alert">{t("explain.saveFailed").replace("{message}", explainSaveError)}</div>{/if}
+                <div class="lv-row">
+                  <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("explain.followUp")}
+                    aria-label={t("explain.followUp")}
+                    bind:value={explainFollowUp}
+                    onkeydown={(e) => {
+                      if (e.key === "Escape") {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        oncloseExplain ? oncloseExplain() : (explainCollapsed = true);
+                      } else if (!e.isComposing && e.keyCode !== 229 && e.key === "Enter") {
+                        onsendFollowUp();
+                      }
+                    }} />
+                  <button class="lv-btn sm" onclick={onsendFollowUp} disabled={explainBusy || !explainFollowUp.trim()}>{t("explain.send")}</button>
+                </div>
+              {/if}
             {/if}
           </div>
           {#if reasonPromptQid === q.id && !feedback}
