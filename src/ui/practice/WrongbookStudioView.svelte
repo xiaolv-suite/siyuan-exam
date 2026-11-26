@@ -19,6 +19,7 @@
     streakDays: number;
     reasonCounts: { unknown: number; careless: number; trap: number; unmarked: number };
     wbTab: "active" | "archived" | "eliminated" | "highrisk" | "fragile" | "ebbinghaus" | "ladder";
+    activeBankId?: string;
     app?: any;
     wbReasonFilter: "all" | "careless" | "unknown" | "trap";
     wbFilterStubborn: boolean;
@@ -151,6 +152,7 @@
     oneditReflection,
     reflections = {},
     lastSavedWrongbookDoc = null,
+    activeBankId = "",
     app = undefined,
   }: Props = $props();
 
@@ -187,10 +189,26 @@
 
   async function handleSaveVariantToBank(variantQ: Question) {
     if (!app) return;
-    const targetBank = variantQ.rootId || app.listBanks?.()[0]?.id;
-    if (!targetBank) throw new Error("未定位到有效题库");
-    if (app.deps?.client?.appendQuestions) {
-      await app.deps.client.appendQuestions(targetBank, [variantQ]);
+    const banks: Array<{ id: string }> = app.listBanks?.() ?? [];
+    const bankIdSet = new Set(banks.map((b) => b.id));
+    const targetBankId = (activeBankId && bankIdSet.has(activeBankId) ? activeBankId : "") || banks[0]?.id || "";
+    const docIdFromSeed = variantQ.rootId && !bankIdSet.has(variantQ.rootId) ? variantQ.rootId : "";
+
+    if (targetBankId && typeof app.writeManualQuestion === "function") {
+      await app.writeManualQuestion(targetBankId, variantQ);
+      showExamNotice("💾 变式题已成功保存至题库！", 2500, "info");
+      return;
+    }
+
+    let targetDocId = docIdFromSeed;
+    if (!targetDocId && targetBankId && typeof app.ensureDoc === "function") {
+      targetDocId = await app.ensureDoc(targetBankId, variantQ.kp ? `/${variantQ.kp.split("/")[0]}` : "/变式特训");
+    }
+    if (!targetDocId || bankIdSet.has(targetDocId)) {
+      throw new Error("未定位到有效题库文档（禁止将笔记本 ID 直接作为块父级）");
+    }
+    if (app.bridge?.appendQuestions) {
+      await app.bridge.appendQuestions(targetDocId, [variantQ]);
       showExamNotice("💾 变式题已成功保存至题库！", 2500, "info");
     }
   }
@@ -412,7 +430,7 @@
                 style={!hasCardsPlugin ? "opacity: 0.45;" : ""}
                 onclick={onsyncWrongbookToCards}
                 disabled={!filteredWrongQueue.length}
-                title={hasCardsPlugin ? (wbFilterStubborn ? "将当前筛选的顽疾错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行 FSRS 重点强化" : "将当前筛选的错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行 FSRS 间隔复习") : "未检测到小驴闪卡插件（siyuan-lv-cards），安装后可一键将错题同步至 FSRS 卡包复习；当前内置错题重练 100% 独立可用"}
+                title={hasCardsPlugin ? (wbFilterStubborn ? "将当前筛选的顽疾错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行重点强化复习" : "将当前筛选的错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行智能间隔复习") : "未检测到小驴闪卡插件（siyuan-lv-cards），安装后可一键将错题同步至闪卡包复习；当前内置错题重练 100% 独立可用"}
               >
                 <Icon name="layers" size={13} /> {wbFilterStubborn ? "顽疾推闪卡" : t("wrongbook.pushCards")}
               </button>
@@ -519,7 +537,7 @@
                           <Icon name="target" size={11} /> 待攻克
                         </span>
                       {:else if stage === "strengthening"}
-                        <span class="lv-chip lv-chip--amb sm" title={`🟡 强化中：已答对 1 次，连对 ${w.streakCorrect}/${effectiveEliminateStreak}，再对 1 次彻底出库`}>
+                        <span class="lv-chip lv-chip--amb sm" title={`🟡 强化中：连对 ${w.streakCorrect}/${effectiveEliminateStreak}，再对 ${Math.max(1, effectiveEliminateStreak - w.streakCorrect)} 次彻底出库`}>
                           <Icon name="zap" size={11} /> 强化中 ({w.streakCorrect}/{effectiveEliminateStreak})
                         </span>
                       {:else}
@@ -578,7 +596,7 @@
                   </div>
                   <div class="lv-row" style="margin:0;gap:4px;align-items:center">
                     {#if w.wrongCount >= 2}
-                      <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-brand-deep);font-weight:600" title="顽疾错题：推送到小驴闪卡卡包进行 FSRS 间隔复习" onclick={() => onsyncSingleWrongToCard(w.qid)}>
+                      <button class="lv-btn sm lv-btn--ghost" style="color:var(--lv-brand-deep);font-weight:600" title="顽疾错题：推送到小驴闪卡卡包进行智能间隔复习" onclick={() => onsyncSingleWrongToCard(w.qid)}>
                         <Icon name="layers" size={12} /> 推闪卡
                       </button>
                     {/if}
@@ -679,7 +697,7 @@
                   </div>
                 </div>
               {:else}
-                <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.highrisk.empty", "暂无高危盲区——作答时按 1/2/3 自评确定度即可积累 CBM 信号")}</div>
+                <div class="lv-muted" style="padding:16px 0;text-align:center">{t("cbm.highrisk.empty", "暂无高危盲区——作答时按 1/2/3 自评确定度即可积累作答把握度记录")}</div>
               {/each}
             </div>
           {:else if wbTab === "fragile"}
@@ -994,7 +1012,7 @@
           <div class="stack-sm" style="margin-top:10px">
             <button class="lv-btn lv-btn--primary" style="width:100%" onclick={() => void onstartDrill("wrong")}><Icon name="rotate" size={15} /> {t("wrongbook.strategy.weighted")}</button>
             <button class="lv-btn" style="width:100%" onclick={onbrowseWrongFilter}><Icon name="table" size={15} /> {t("wrongbook.strategy.browse")}</button>
-            <button class="lv-btn" style="width:100%" disabled={!cramCount} title={!cramCount ? t("state.noCram") : ""} onclick={() => void onstartDrill("cram")}><Icon name="flame" size={15} /> {t("mode.cram")}{!cramCount ? ` (${t("state.noCram")})` : ""}</button>
+            <button class="lv-btn" style="width:100%;white-space:normal;height:auto;min-height:36px;line-height:1.35;text-align:center" disabled={!cramCount} title={!cramCount ? t("state.noCram") : ""} onclick={() => void onstartDrill("cram")}><Icon name="flame" size={15} /> {t("mode.cram")}{!cramCount ? `（暂无 ≥2 次错题）` : ""}</button>
           </div>
           <div class="divider" style="margin:12px 0 10px"></div>
           <button class="lv-btn lv-btn--ghost" style="width:100%;color:var(--lv-text-3)" disabled={!wrongList.length || bulkMasterBusy} onclick={onmasterAllWrong}>

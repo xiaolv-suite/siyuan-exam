@@ -318,7 +318,7 @@ export function exportBankQuestionsCsvFile(
   questions: Question[],
   bankName: string,
 ): void {
-  const csv = "\uFEFF" + questionsToCsv(questions);
+  const csv = questionsToCsv(questions);
   downloadBlobFile(
     csv,
     `${bankName || "题库"}-${new Date().toISOString().slice(0, 10)}.csv`,

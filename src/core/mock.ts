@@ -8,6 +8,7 @@ import { grade, type GradeResult } from "./answer";
 import { gradeIndefinite, guardLockout } from "./cbt";
 import { isQuestionDisputed } from "./dispute";
 import { calculateItemScore, DEFAULT_SCORING_POLICY, applyScoreRounding, type ScoringPolicy } from "./scoringPolicy";
+import { specOf, inferAnswerSpec, gradeMultiBlank } from "./structuredAnswer";
 
 // ---------- 蓝图 ----------
 export type SectionSource = "real" | "mock" | "mixed";
@@ -125,7 +126,8 @@ export function assemble(
 
   const matchesSource = (q: Question, s: BlueprintSection) =>
     s.source === "mixed" || (q.sourceKind ?? "mock") === s.source;
-  const matchesTypes = (q: Question, s: BlueprintSection) => !s.types.length || s.types.includes(q.type);
+  const matchesTypes = (q: Question, s: BlueprintSection) =>
+    q.type !== "material" && (!s.types.length || s.types.includes(q.type));
   // 55-02 lite：考点配额按前缀命中（"资料" 命中 "资料/比重"）；即使 source=mixed 补齐也必须满足考点——
   // 配额缺口宁可短缺显式报告，不用其他考点偷偷补齐（55-02 验收口径）
   const matchesKp = (q: Question, s: BlueprintSection) => {
@@ -265,6 +267,7 @@ export class MockSession {
   screenSwitches = 0;
   /** 当前题索引（人机对话导航） */
   cursor = 0;
+  private lockoutFloor = 0;
   readonly byId: Map<string, Question>;
   private readonly indefinite: Set<string>;
   readonly sectionStart: Record<string, number> = {}; // 兼容旧快照：section 名 → 进入时刻（相对 ms）
@@ -294,7 +297,7 @@ export class MockSession {
       const secName = assembleInfo.sectionOf.get(q.id);
       const sec = bp.sections.find((s) => s.name === secName);
       if (sec?.indefinite || bp.scoringPolicy?.kind === "partial_indefinite" || bp.scoringPolicy?.kind === "partial_all") {
-        if (q.type === "multiple" || sec?.indefinite) {
+        if (q.type === "multiple") {
           this.indefinite.add(q.id);
         }
       }
@@ -376,10 +379,10 @@ export class MockSession {
   /** 导航：lockout 蓝图下强制顺序作答（cbt.guardLockout）；普通蓝图自由跳题。
    *  切题即结算上一题驻留（40-03 真实用时，替代固定 +500ms） */
   navigateTo(index: number, now: number): boolean {
-    const last = this.state.qids.length - 1;
+    const last = Math.max(0, this.state.qids.length - 1);
     if (this.bp.lockout) {
       const flags = this.state.qids.map((id) => this.answers.has(id));
-      this.cursor = guardLockout(index, flags, this.cursor);
+      this.cursor = guardLockout(index, flags, this.cursor, this.lockoutFloor);
     } else {
       this.cursor = Math.max(0, Math.min(last, index));
     }
@@ -388,6 +391,19 @@ export class MockSession {
     const secName = this.sectionOf.get(qid ?? "");
     if (secName) this.enterSection(secName, now);
     return true;
+  }
+
+  /** 分段计时超时自动跳段：同步提升 lockoutFloor，防止 guardLockout 把游标钳回旧段引起死跳 */
+  advanceSectionOnTimeout(index: number, now: number): number {
+    const last = Math.max(0, this.state.qids.length - 1);
+    const target = Math.max(0, Math.min(last, index));
+    this.lockoutFloor = Math.max(this.lockoutFloor, target);
+    this.cursor = Math.max(this.lockoutFloor, target);
+    const qid = this.state.qids[this.cursor];
+    if (qid) this.enterQuestion(qid, now);
+    const secName = this.sectionOf.get(qid ?? "");
+    if (secName) this.enterSection(secName, now);
+    return this.cursor;
   }
 
   cursorIndex(): number {
@@ -420,6 +436,12 @@ export class MockSession {
       const gi = gradeIndefinite(q, answer);
       g = { verdict: gi.verdict, myAnswer: gi.myAnswer };
       factor = gi.factor;
+    } else if (q.type === "fill" && g.verdict === "wrong" && answer != null && answer.trim() !== "") {
+      const spec = specOf(q) ?? inferAnswerSpec(q.type, q.answer);
+      if (spec?.kind === "multiBlank" && spec.blanks.length > 0) {
+        const mb = gradeMultiBlank(spec, answer);
+        factor = mb.correctCount / spec.blanks.length;
+      }
     }
     this.answers.set(qid, {
       qid,
@@ -625,6 +647,7 @@ export class MockSession {
       answers: [...this.answers.values()],
       flags: [...this.flags],
       cursor: this.cursor,
+      ...(this.lockoutFloor > 0 ? { lockoutFloor: this.lockoutFloor } : {}),
       sectionStart: { ...this.sectionStart },
       sectionDwell: Object.fromEntries(this.sectionDwell),
       screenSwitches: this.screenSwitches,
@@ -665,6 +688,7 @@ export class MockSession {
     for (const a of snap.answers) session.answers.set(a.qid, a);
     for (const f of snap.flags) session.flags.add(f);
     session.cursor = Math.max(0, Math.min(found.length - 1, snap.cursor));
+    session.lockoutFloor = Math.max(0, Math.min(Math.max(0, found.length - 1), snap.lockoutFloor ?? 0));
     for (const [k, v] of Object.entries(snap.sectionStart)) session.sectionStart[k] = v;
     if (snap.sectionDwell) {
       for (const [k, v] of Object.entries(snap.sectionDwell)) session.sectionDwell.set(k, v);
@@ -735,6 +759,7 @@ export interface MockRunSnapshot {
   answers: MockAnswer[];
   flags: string[];
   cursor: number;
+  lockoutFloor?: number;
   sectionStart: Record<string, number>;
   /** 分段累计驻留毫秒（支持多段反复切换复查，旧快照缺省） */
   sectionDwell?: Record<string, number>;

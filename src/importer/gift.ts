@@ -7,8 +7,8 @@
 import type { Question } from "../core/types";
 import { normalizeAnswer, questionHash, OPTION_LETTERS } from "../core/answer";
 import { newQuestionId, newBatchId } from "../core/ids";
-import type { ImportOptions, ImportReport, ImportError } from "./pipeline";
-import { validate } from "./pipeline";
+import type { ImportOptions, ImportReport, ImportError } from "./types";
+import { validate } from "./validator";
 
 interface GiftParsed {
   type: Question["type"];
@@ -18,24 +18,52 @@ interface GiftParsed {
   analysis: string;
 }
 
+function findUnescapedBrace(s: string, target: "{" | "}", fromEnd = false): number {
+  const indices: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "\\") {
+      i++;
+      continue;
+    }
+    if (s[i] === target) indices.push(i);
+  }
+  if (!indices.length) return -1;
+  return fromEnd ? indices[indices.length - 1] : indices[0];
+}
+
+function findUnescapedChar(s: string, target: string): number {
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "\\") {
+      i++;
+      continue;
+    }
+    if (s[i] === target) return i;
+  }
+  return -1;
+}
+
+function unescapeGiftText(s: string): string {
+  return s.replace(/\\([{}~#=:\\])/g, "$1");
+}
+
 /** 解析单题 GIFT 块（{...} 内的选项区） */
 function parseGiftBody(body: string): GiftParsed | null {
-  // 分离题干与选项区：第一个 { ... } 为答案区
-  const braceStart = body.indexOf("{");
-  const braceEnd = body.lastIndexOf("}");
+  // 分离题干与选项区：首个未转义 { 到最后一个未转义 } 为答案区
+  const braceStart = findUnescapedBrace(body, "{", false);
+  const braceEnd = findUnescapedBrace(body, "}", true);
   if (braceStart < 0 || braceEnd <= braceStart) return null;
-  const stem = body.slice(0, braceStart).trim();
+  const stem = unescapeGiftText(body.slice(0, braceStart).trim());
   // Moodle 常见行内选择式 {=对~错}：非转义 ~ 归一为换行，统一按多行解析
   const inner = body
     .slice(braceStart + 1, braceEnd)
     .trim()
-    .replace(/(^|[^\\])~/g, "$1\n~");
+    .replace(/((?:^|[^\\])(?:\\\\)*)~/g, "$1\n~");
 
   // 判断题：TRUE/FALSE（支持带 # 反馈解析，如 {TRUE#解析} 或 {FALSE#解析}）
   const judgeMatch = inner.match(/^(TRUE|FALSE|T|F)(?:#([\s\S]*))?$/i);
   if (judgeMatch) {
     const isTrue = /t/i.test(judgeMatch[1][0]);
-    const feedback = judgeMatch[2] ? judgeMatch[2].trim() : "";
+    const feedback = judgeMatch[2] ? unescapeGiftText(judgeMatch[2].trim()) : "";
     return { type: "judge", stem, options: [], answer: isTrue ? "对" : "错", analysis: feedback };
   }
 
@@ -48,11 +76,14 @@ function parseGiftBody(body: string): GiftParsed | null {
     const shorts: string[] = [];
     const analysisParts: string[] = [];
     for (const line of rawOpts) {
-      if (!line.startsWith("=")) continue;
-      const hashIdx = line.indexOf("#");
-      const ans = hashIdx > 0 ? line.slice(1, hashIdx).trim() : line.slice(1).trim();
+      if (!line.startsWith("=")) {
+        if (analysisParts.length > 0) analysisParts[analysisParts.length - 1] += `\n${unescapeGiftText(line)}`;
+        continue;
+      }
+      const hashIdx = findUnescapedChar(line, "#");
+      const ans = unescapeGiftText((hashIdx > 0 ? line.slice(1, hashIdx) : line.slice(1)).trim());
       shorts.push(ans);
-      if (hashIdx > 0) analysisParts.push(line.slice(hashIdx + 1).trim());
+      if (hashIdx > 0) analysisParts.push(unescapeGiftText(line.slice(hashIdx + 1).trim()));
     }
     if (!shorts.length) return null;
     return { type: "short", stem, options: [], answer: shorts.join("|"), analysis: analysisParts.join(" ") };
@@ -62,10 +93,13 @@ function parseGiftBody(body: string): GiftParsed | null {
   const opts: { text: string; correct: boolean }[] = [];
   const analysisParts: string[] = [];
   for (const line of rawOpts) {
+    if (!line.startsWith("=") && !line.startsWith("~")) {
+      if (analysisParts.length > 0) analysisParts[analysisParts.length - 1] += `\n${unescapeGiftText(line)}`;
+      continue;
+    }
     let isCorrect = line.startsWith("=");
     let lineRest = line.slice(1).trim();
     if (!isCorrect) {
-      if (!line.startsWith("~")) continue;
       // 兼容 Moodle GIFT 多选加权分值语法，如 ~%50% 或 ~%50.00% 表示正确选项
       const weightMatch = lineRest.match(/^%(-?\d+(?:\.\d+)?)%/);
       if (weightMatch) {
@@ -77,13 +111,14 @@ function parseGiftBody(body: string): GiftParsed | null {
       }
     }
     let text = lineRest;
-    const hashIdx = text.indexOf("#");
+    const hashIdx = findUnescapedChar(text, "#");
     if (hashIdx > 0) {
-      const fb = text.slice(hashIdx + 1).trim();
+      const fb = unescapeGiftText(text.slice(hashIdx + 1).trim());
       if (isCorrect && fb) analysisParts.push(fb);
       text = text.slice(0, hashIdx).trim();
     }
-    if (text) opts.push({ text, correct: isCorrect });
+    const cleanText = unescapeGiftText(text);
+    if (cleanText) opts.push({ text: cleanText, correct: isCorrect });
   }
 
   if (opts.filter((o) => o.correct).length > 1) {
@@ -101,8 +136,21 @@ export function parseGift(text: string, opt: ImportOptions = {}): ImportReport {
   let duplicates = 0;
   const batch = newBatchId();
 
-  // 按_blank行分隔题目块；块内合并换行
-  const blocks = text.split(/\n\s*\n/).map((b) => b.replace(/\r/g, "").trim()).filter(Boolean);
+  // 按空行分隔题目块；若某块 { 尚未闭合且后续块包含闭合 }（如多段解析），合并为同一题块
+  const rawBlocks = text.replace(/\r/g, "").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  const blocks: string[] = [];
+  for (const b of rawBlocks) {
+    if (blocks.length > 0) {
+      const prev = blocks[blocks.length - 1];
+      const prevOpen = findUnescapedBrace(prev, "{", false);
+      const prevClose = findUnescapedBrace(prev, "}", true);
+      if (prevOpen >= 0 && prevClose < prevOpen && findUnescapedBrace(b, "{", false) < 0 && findUnescapedBrace(b, "}", true) >= 0) {
+        blocks[blocks.length - 1] = `${prev}\n${b}`;
+        continue;
+      }
+    }
+    blocks.push(b);
+  }
   for (let bi = 0; bi < blocks.length; bi++) {
     const block = blocks[bi];
     const rowNo = bi + 1;

@@ -11,6 +11,7 @@
 import type { Question, QuestionType } from "./types";
 import type { MarketplaceItem } from "./marketplace";
 import { makeQuestion } from "./blockTemplate";
+import { normalizeJudge } from "./answer";
 import { PLUGIN_VERSION } from "../libs/const";
 
 export type LvCardKind = "qa" | "cloze" | "code" | "list";
@@ -100,7 +101,7 @@ export function questionToLvPackageCard(q: Question): LvPackageCard {
   // 提炼答案呈现
   let answerPart: string;
   if (q.type === "judge") {
-    const isTrue = q.answer === "T" || q.answer === "true" || q.answer === "正确" || q.answer === "1";
+    const isTrue = normalizeJudge(q.answer) === "对" || q.answer === "1";
     answerPart = `**判断结果**：${isTrue ? "正确 ✓" : "错误 ✕"}`;
   } else if (q.type === "single" || q.type === "multiple") {
     answerPart = `**正确答案**：${q.answer}`;

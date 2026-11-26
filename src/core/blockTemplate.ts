@@ -99,6 +99,32 @@ export interface FromBlockInput {
 
 const stripCustom = (k: string) => (k.startsWith("custom-") ? k.slice(7) : k);
 
+const KRAMDOWN_INLINE_IAL_RE = /\{:\s*(?:[a-zA-Z_][\w-]*="(?:[^"\\]|\\.)*"\s*)+\}/g;
+
+/**
+ * 剥离思源 Kramdown 行首/行内块属性 IAL（如 `{: id="..." updated="..."}`、`{: style="..."}`），
+ * 保护代码围栏、行内代码、LaTeX 公式与图片语法，避免污染题干、选项、表格单元格与答案。
+ */
+export function stripInlineKramdownIal(text: string): string {
+  if (!text || !text.includes("{:")) return text;
+  const spans: string[] = [];
+  const tokenOf = (raw: string) => {
+    const idx = spans.length;
+    spans.push(raw);
+    return `@@IALMASK_${idx}@@`;
+  };
+  let masked = text;
+  masked = masked.replace(/```[\s\S]*?```/g, tokenOf);
+  masked = masked.replace(/`[^`\n\r]+?`/g, tokenOf);
+  masked = masked.replace(/\$\$[\s\S]*?\$\$/g, tokenOf);
+  masked = masked.replace(/\\\[[\s\S]*?\\\]/g, tokenOf);
+  masked = masked.replace(/!\[[^\]]*\]\([^)]*\)/g, tokenOf);
+  masked = masked.replace(/(?<!\\)\$[^$\n\r]+?\$/g, tokenOf);
+  masked = masked.replace(/\\\([^\n\r]+?\\\)/g, tokenOf);
+  masked = masked.replace(KRAMDOWN_INLINE_IAL_RE, "");
+  return masked.replace(/@@IALMASK_(\d+)@@/g, (_m, i: string) => spans[Number(i)] ?? _m);
+}
+
 /** 块属性+文本 → Question（读取路径；hash 重算） */
 export function questionFromBlock(input: FromBlockInput): Question | null {
   const attrs: Record<string, string> = {};
@@ -107,54 +133,137 @@ export function questionFromBlock(input: FromBlockInput): Question | null {
   const type = attrs["exam-type"] as QuestionType;
   if (!id || !QUESTION_TYPES.includes(type)) return null;
 
-  // 每个子块都可能带 IAL；历史属性值还可能含换行。跳过完整属性段后继续
-  // 读取后续选项，且引号内的 JSON 花括号不算属性段结束。
+  // 每个子块都可能带 IAL；历史属性值还可能含换行；思源还可能在段落/列表行首内联 `{: id="..." updated="..."}正文本`。
+  // 跳过完整属性段后保留同行剩余正文，且引号内的 JSON 花括号不算属性段结束。
   let inIal = false;
   let inQuote = false;
   let escaped = false;
-  const rawLines = input.text.split("\n").filter((raw) => {
-    let line = raw;
+  let scanCodeFence = false;
+  let scanDisplayMath: "$$" | "\\]" | null = null;
+  const rawLines: string[] = [];
+  for (const raw of input.text.split("\n")) {
+    const trimmedRaw = raw.trim();
+    if (!inIal && !scanDisplayMath && trimmedRaw.startsWith("```")) {
+      scanCodeFence = !scanCodeFence;
+      rawLines.push(raw);
+      continue;
+    }
+    if (scanCodeFence) {
+      rawLines.push(raw);
+      continue;
+    }
+    if (!inIal && !scanDisplayMath && trimmedRaw.startsWith("$$") && !trimmedRaw.slice(2).includes("$$")) {
+      scanDisplayMath = "$$";
+      rawLines.push(raw);
+      continue;
+    }
+    if (!inIal && !scanDisplayMath && trimmedRaw.startsWith("\\[") && !trimmedRaw.includes("\\]")) {
+      scanDisplayMath = "\\]";
+      rawLines.push(raw);
+      continue;
+    }
+    if (scanDisplayMath) {
+      rawLines.push(raw);
+      if ((scanDisplayMath === "$$" && trimmedRaw.includes("$$")) || (scanDisplayMath === "\\]" && trimmedRaw.includes("\\]"))) {
+        scanDisplayMath = null;
+      }
+      continue;
+    }
+    let idx = 0;
     if (!inIal) {
-      if (!/^\s*\{:\s/.test(raw)) return true;
+      if (!/^\s*\{:\s/.test(raw)) {
+        rawLines.push(raw);
+        continue;
+      }
       inIal = true;
       inQuote = false;
       escaped = false;
-      line = raw.trimStart().slice(2);
+      idx = raw.indexOf("{:") + 2;
     }
-    for (const ch of line) {
+    let closeIdx = -1;
+    for (let i = idx; i < raw.length; i++) {
+      const ch = raw[i];
       if (escaped) escaped = false;
       else if (ch === "\\" && inQuote) escaped = true;
       else if (ch === '"') inQuote = !inQuote;
-      else if (ch === "}" && !inQuote) { inIal = false; break; }
+      else if (ch === "}" && !inQuote) {
+        inIal = false;
+        closeIdx = i;
+        break;
+      }
     }
-    return false;
-  });
+    if (!inIal && closeIdx >= 0) {
+      const rest = raw.slice(closeIdx + 1).trimStart();
+      if (rest) rawLines.push(rest);
+    }
+  }
   // 题块内容有两种来源：SQL content 通常只有外层 row 的文本，
   // 而 kramdown/fixture 可能包含完整的嵌套 row。只有明确进入第二层 row
-  // 时才把引用行当解析，避免把题干中的 Markdown blockquote 误吞掉。
+  // 时才把内容当解析，避免把题干中的 Markdown blockquote 误吞掉。
   const hasNestedRow = rawLines.filter((l) => l.trim() === "{{{row").length > 1;
   let rowDepth = 0;
+  let inCodeFence = false;
+  let inDisplayMath: "$$" | "\\]" | null = null;
   const analysisLines: string[] = [];
   const options: string[] = [];
   const stemLines: string[] = [];
   for (const raw of rawLines) {
     const l = raw.trim();
-    if (!l || l.startsWith("{: ")) continue;
-    if (l === "{{{row") {
+    if (!inDisplayMath && l.startsWith("```")) {
+      inCodeFence = !inCodeFence;
+      if (hasNestedRow && rowDepth >= 2) analysisLines.push(raw.trimEnd());
+      else stemLines.push(raw.trimEnd());
+      continue;
+    }
+    if (inCodeFence) {
+      if (hasNestedRow && rowDepth >= 2) analysisLines.push(raw.trimEnd());
+      else stemLines.push(raw.trimEnd());
+      continue;
+    }
+    if (!inDisplayMath && l.startsWith("$$") && !l.slice(2).includes("$$")) {
+      inDisplayMath = "$$";
+      if (hasNestedRow && rowDepth >= 2) analysisLines.push(raw.trimEnd());
+      else stemLines.push(raw.trimEnd());
+      continue;
+    }
+    if (!inDisplayMath && l.startsWith("\\[") && !l.includes("\\]")) {
+      inDisplayMath = "\\]";
+      if (hasNestedRow && rowDepth >= 2) analysisLines.push(raw.trimEnd());
+      else stemLines.push(raw.trimEnd());
+      continue;
+    }
+    if (inDisplayMath) {
+      if (hasNestedRow && rowDepth >= 2) analysisLines.push(raw.trimEnd());
+      else stemLines.push(raw.trimEnd());
+      if ((inDisplayMath === "$$" && l.includes("$$")) || (inDisplayMath === "\\]" && l.includes("\\]"))) {
+        inDisplayMath = null;
+      }
+      continue;
+    }
+    if (!l) continue;
+    // 清理思源 Kramdown 段落/列表项/引用块/表格单元格中嵌入的行内 IAL（如 `{: id="..."}题干`、`* {: id="..."}A. 选项`、`> {: id="..."}解析`）
+    const cleanedLine = stripInlineKramdownIal(l)
+      .replace(/^([-*+]\s+)\{:\s*(?:[a-zA-Z_][\w-]*="(?:[^"\\]|\\.)*"\s*)+\}\s*/, "$1")
+      .replace(/^(>\s*)\{:\s*(?:[a-zA-Z_][\w-]*="(?:[^"\\]|\\.)*"\s*)+\}\s*/, "$1")
+      .replace(/^\s*\{:\s*(?:[a-zA-Z_][\w-]*="(?:[^"\\]|\\.)*"\s*)+\}\s*/, "")
+      .replace(/\s*\{:\s*(?=[^}]*\bid=")(?:[a-zA-Z_][\w-]*="(?:[^"\\]|\\.)*"\s*)+\}\s*$/g, "")
+      .trim();
+    if (!cleanedLine) continue;
+    if (cleanedLine === "{{{row") {
       rowDepth += 1;
       continue;
     }
-    if (l === "}}}") {
+    if (cleanedLine === "}}}") {
       rowDepth = Math.max(0, rowDepth - 1);
       continue;
     }
-    if (hasNestedRow && rowDepth >= 2 && l.startsWith(">")) {
-      analysisLines.push(l.replace(/^>\s?/, ""));
+    if (hasNestedRow && rowDepth >= 2) {
+      analysisLines.push(cleanedLine.startsWith(">") ? cleanedLine.replace(/^>\s?/, "") : cleanedLine);
       continue;
     }
-    const m = l.match(/^[-*]\s*([A-J])[.)]\s*(.+)$/);
+    const m = cleanedLine.match(/^[-*+]\s*([A-J])[.)、]\s*(.+)$/);
     if (m) options[letterIdx(m[1])] = m[2];
-    else stemLines.push(l);
+    else stemLines.push(cleanedLine);
   }
   // 压缩稀疏数组
   const denseOptions: string[] = [];

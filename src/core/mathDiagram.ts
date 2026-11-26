@@ -7,6 +7,8 @@
  * 4. 纯函数领域层，支持深浅主题自适应与 A4 双栏印刷出版级输出。
  */
 
+import { renderMathInText } from "./math";
+
 export interface PlotOptions {
   width?: number; // 默认 320
   height?: number; // 默认 220
@@ -517,4 +519,44 @@ export function renderMathDiagramsInText(text: string): string {
   });
 
   return s;
+}
+
+const MATH_DIAGRAM_FENCE_RE = /```math-(?:plot|diagram|bar|pie|numberline)[\s\S]*?```/g;
+
+/**
+ * 组合渲染文本中的数学公式与数学图表代码块：
+ * 先切分出图表代码块并直接生成 SVG（不经 escapeHtml），
+ * 仅对非图表文本段运行 renderMathInText，彻底避免 <svg> 被转义为源码。
+ */
+export function renderMathAndDiagramsInText(
+  text: string,
+  mathRenderer: (s: string) => string = renderMathInText,
+  diagramRenderer: (s: string) => string = renderMathDiagramsInText,
+): string {
+  if (!text) return "";
+  if (
+    !text.includes("```math-plot") &&
+    !text.includes("```math-diagram") &&
+    !text.includes("```math-bar") &&
+    !text.includes("```math-pie") &&
+    !text.includes("```math-numberline")
+  ) {
+    return mathRenderer(text);
+  }
+
+  let out = "";
+  let lastIndex = 0;
+  MATH_DIAGRAM_FENCE_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = MATH_DIAGRAM_FENCE_RE.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      out += mathRenderer(text.slice(lastIndex, match.index));
+    }
+    out += diagramRenderer(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    out += mathRenderer(text.slice(lastIndex));
+  }
+  return out;
 }

@@ -19,8 +19,10 @@ export interface GenOptions {
   customHint?: string; // 用户自定义命题要求（追加到系统提示）
   quality?: "standard" | "economy"; // 标准=二遍换角色核验（默认）；经济=单遍
   existingHashes?: Set<string>;
-  /** 取消信号：每个分片完成后检查，中止后续分片（已完成分片保留） */
-  signal?: { aborted: boolean };
+  /** 取消信号：支持 `{ aborted }` 或直接传入标准 `AbortSignal`，可真中断底层请求 */
+  signal?: { aborted: boolean; controller?: AbortController } | AbortSignal;
+  /** 可选底层网络中止信号（若 signal 已为 AbortSignal 则自动透传） */
+  abortSignal?: AbortSignal;
   /** 材料精确定位信息（DeepTutor 规范：引文锚定与防幻觉出题） */
   locator?: {
     materialId?: string;
@@ -236,10 +238,23 @@ function rawOf(q: Question): string {
 /** 二遍核验（换角色）：严格审题人对每题打置信度；<0.85 或 pass=false 淘汰（research/08 Quanta+QuizAPI 范式） */
 export const REVIEW_CONFIDENCE_MIN = 0.85;
 
+function resolveAbortSignal(opt: Pick<GenOptions, "signal" | "abortSignal">): AbortSignal | undefined {
+  if (opt.abortSignal) return opt.abortSignal;
+  const sig = opt.signal as unknown as { addEventListener?: unknown; controller?: AbortController } | undefined;
+  if (sig && typeof sig.addEventListener === "function") return sig as unknown as AbortSignal;
+  return sig?.controller?.signal;
+}
+
+function isGenAborted(opt: Pick<GenOptions, "signal" | "abortSignal">): boolean {
+  const sig = opt.signal as { aborted?: boolean } | undefined;
+  return Boolean(sig?.aborted || opt.abortSignal?.aborted);
+}
+
 export async function reviewQuestions(
   channel: AiChannel,
   questions: Question[],
   sourceChunk: string,
+  abortSignal?: AbortSignal,
 ): Promise<Map<string, { confidence: number; pass: boolean; reason?: string }>> {
   const out = new Map<string, { confidence: number; pass: boolean; reason?: string }>();
   if (!questions.length) return out;
@@ -260,7 +275,7 @@ export async function reviewQuestions(
     },
     { role: "user", content: `【材料】\n${sourceChunk.slice(0, 3000)}\n\n【待核题目】\n${JSON.stringify(compact)}` },
   ];
-  const raw = await channel.chat(messages);
+  const raw = await channel.chat(messages, abortSignal);
   const arr = extractJsonArray(raw);
   if (!arr) {
     // 核验失败不吞题：全部标低置信待人工（降级语义）
@@ -295,16 +310,23 @@ export async function generate(channel: AiChannel, sourceText: string, opt: GenO
   let idx = 0;
   const batch = newBatchId();
   const quality = opt.quality ?? "standard";
-  // 超量 1.2×：分片自然超量（每片按 count 出，收满即停）；取消信号每片间检查
+  const abortSignal = resolveAbortSignal(opt);
+  // 超量 1.2×：分片自然超量（每片按 count 出，收满即停）；取消信号每片间检查并透传至底层 fetch
   for (const chunk of chunks) {
-    if (opt.signal?.aborted) break;
+    if (isGenAborted(opt)) break;
     const messages = buildPrompt(chunk, opt);
-    const raw = await channel.chat(messages);
+    let raw: string;
+    try {
+      raw = await channel.chat(messages, abortSignal);
+    } catch (e) {
+      if (isGenAborted(opt)) break;
+      throw e;
+    }
     // A channel may not support transport-level cancellation (for example the
     // SiYuan kernel proxy). Ignore a response that arrived after the user
     // cancelled while it was in flight; completed earlier chunks remain in
     // `pending` and are returned below.
-    if (opt.signal?.aborted) break;
+    if (isGenAborted(opt)) break;
     const arr = extractJsonArray(raw);
     if (!arr) {
       rejected.push({ index: ++idx, reason: "响应不是有效 JSON 数组", raw: raw.slice(0, 120) });
@@ -330,9 +352,15 @@ export async function generate(channel: AiChannel, sourceText: string, opt: GenO
     }
     // 标准档：二遍换角色核验
     if (quality === "standard" && candidates.length) {
-      if (opt.signal?.aborted) break;
-      const verdicts = await reviewQuestions(channel, candidates, chunk);
-      if (opt.signal?.aborted) break;
+      if (isGenAborted(opt)) break;
+      let verdicts: Map<string, { confidence: number; pass: boolean; reason?: string }>;
+      try {
+        verdicts = await reviewQuestions(channel, candidates, chunk, abortSignal);
+      } catch (e) {
+        if (isGenAborted(opt)) break;
+        throw e;
+      }
+      if (isGenAborted(opt)) break;
       for (const q of candidates) {
         // 2026-11-21 走查修复（P3）：淘汰序号原引用分片循环外的全局计数 idx（恒同值），
         // 改为候选题局部序号，AI 待审队列可对照原始题序
@@ -384,7 +412,8 @@ export async function repairIssues(
   const rejected: GenIssue[] = [];
   let duplicates = 0;
   const quality = opt.quality ?? "standard";
-  if (opt.signal?.aborted) return { pending, rejected: issues, duplicates, batch };
+  const abortSignal = resolveAbortSignal(opt);
+  if (isGenAborted(opt)) return { pending, rejected: issues, duplicates, batch };
 
   const unfixable = issues.filter((i) => !i.raw.trim().startsWith("{"));
   const fixable = issues.filter((i) => i.raw.trim().startsWith("{"));
@@ -401,7 +430,7 @@ export async function repairIssues(
   }
   let completedFixable = 0;
   for (let ci = 0; ci < chunks.length; ci++) {
-    if (opt.signal?.aborted) break;
+    if (isGenAborted(opt)) break;
     const group = fixable.slice(ci * 5, ci * 5 + 5);
     // Commit each group only after its response and optional review finish.
     // Cancelling an in-flight group retains its original issues for retry.
@@ -415,8 +444,14 @@ export async function repairIssues(
       },
       { role: "user", content: `【材料】\n${sourceText.slice(0, 3000)}\n\n【待修复题目】\n${chunks[ci]}` },
     ];
-    const raw = await channel.chat(messages);
-    if (opt.signal?.aborted) break;
+    let raw: string;
+    try {
+      raw = await channel.chat(messages, abortSignal);
+    } catch (e) {
+      if (isGenAborted(opt)) break;
+      throw e;
+    }
+    if (isGenAborted(opt)) break;
     const arr = extractJsonArray(raw);
     if (!arr) {
       group.forEach((f) => rejected.push({ index: f.index, reason: f.reason + "（修复响应不可解析）", raw: f.raw }));
@@ -438,9 +473,15 @@ export async function repairIssues(
       candidates.push(r.q);
     }
     if (quality === "standard" && candidates.length) {
-      if (opt.signal?.aborted) break;
-      const verdicts = await reviewQuestions(channel, candidates, sourceText.slice(0, 3000));
-      if (opt.signal?.aborted) break;
+      if (isGenAborted(opt)) break;
+      let verdicts: Map<string, { confidence: number; pass: boolean; reason?: string }>;
+      try {
+        verdicts = await reviewQuestions(channel, candidates, sourceText.slice(0, 3000), abortSignal);
+      } catch (e) {
+        if (isGenAborted(opt)) break;
+        throw e;
+      }
+      if (isGenAborted(opt)) break;
       for (const q of candidates) {
         const v = verdicts.get(q.id) ?? { confidence: 0, pass: false, reason: "未核验" };
         if (!v.pass || v.confidence < REVIEW_CONFIDENCE_MIN) {

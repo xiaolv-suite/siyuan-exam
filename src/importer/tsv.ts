@@ -6,8 +6,9 @@
 //   3. 否则每行恰好 2 列 → Anki 问答卡：front=题干、back=答案，按填空题入库（#html:true 或检测到标签时剥 HTML）
 //   4. 其余 → 报错并给出可行动提示（需要表头行或两列问答格式）
 // ============================================================
-import type { ImportOptions, ImportReport, ImportError } from "./pipeline";
-import { parseExcelRows, autoMapExcel, validate, type ExcelColumnMap } from "./pipeline";
+import type { ImportOptions, ImportReport, ImportError, ExcelColumnMap } from "./types";
+import { parseExcelRows, autoMapExcel } from "./tabular";
+import { validate } from "./validator";
 import { newQuestionId, newBatchId } from "../core/ids";
 import { foldText, questionHash } from "../core/answer";
 import type { Question } from "../core/types";

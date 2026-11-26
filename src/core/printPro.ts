@@ -10,7 +10,7 @@
 
 import type { Question } from "./types";
 import { renderMathInText, getMathPrintStyles } from "./math";
-import { renderMathDiagramsInText } from "./mathDiagram";
+import { renderMathAndDiagramsInText } from "./mathDiagram";
 import { renderOcclusionSvg } from "./imageOcclusion";
 import { formatDisplayAnswer } from "./structuredAnswer";
 
@@ -745,7 +745,7 @@ export function buildCompactQuestionSheetPro(
       scoreBoxHtml = `<div class="q-score-box"><table><tr><td>得分</td></tr><tr><td>&nbsp;</td></tr></table><table><tr><td>评卷人</td></tr><tr><td>&nbsp;</td></tr></table></div>`;
     }
     parts.push(`<div class="q-head">${scoreBoxHtml}<span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreHtml}</div>`);
-    parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
+    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
@@ -961,7 +961,7 @@ export function buildTeacherLectureSheetPro(
     if (materialHtml) parts.push(materialHtml);
     const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
-    parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
+    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
@@ -1048,7 +1048,7 @@ export function buildStudentHomeworkSheetPro(
     if (materialHtml) parts.push(materialHtml);
     const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
-    parts.push(`<div class="q-stem">${renderMathInText(renderMathDiagramsInText(q.stem))}</div>`);
+    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
@@ -1131,7 +1131,7 @@ export function buildWrongbookRetestSheetPro(
     parts.push(`<div class="q">`);
     if (materialHtml) parts.push(materialHtml);
     parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}. <span class="lv-chip sm" style="font-size:8pt;color:#d97706;border:1px solid #fde68a;padding:0 3px">错题重练</span></div>`);
-    parts.push(`<div class="q-stem">${renderMathInText(q.stem)}</div>`);
+    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
@@ -1286,7 +1286,7 @@ export function buildInteractiveReviewSheetPro(
           <span class="q-verdict-badge" style="display:none"></span>
         </div>
         <div class="q-card-stem">
-          ${renderMathInText(renderMathDiagramsInText(q.stem))}
+          ${renderMathAndDiagramsInText(q.stem)}
         </div>
         ${q.occlusion ? `<div class="q-card-occlusion">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>` : ""}
         ${optionsMarkup}
@@ -1304,8 +1304,8 @@ export function buildInteractiveReviewSheetPro(
               <span class="ans-label">参考标准答案：</span>
               <span class="ans-val">${escapeHtml(formattedAnswer || "（主观作答题，见解析）")}</span>
             </div>
-            ${q.analysis ? `<div class="analysis-body"><b>【深度解析】</b> ${renderMathInText(renderMathDiagramsInText(q.analysis))}</div>` : ""}
-            ${q.expansion ? `<div class="expansion-body" style="margin-top:8px;padding:8px 12px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:6px;color:#78350f;font-size:13px;line-height:1.6"><b style="color:#b45309">【💡 思路拓展与秒杀技巧】</b> ${renderMathInText(renderMathDiagramsInText(q.expansion))}</div>` : ""}
+            ${q.analysis ? `<div class="analysis-body"><b>【深度解析】</b> ${renderMathAndDiagramsInText(q.analysis)}</div>` : ""}
+            ${q.expansion ? `<div class="expansion-body" style="margin-top:8px;padding:8px 12px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:6px;color:#78350f;font-size:13px;line-height:1.6"><b style="color:#b45309">【💡 思路拓展与秒杀技巧】</b> ${renderMathAndDiagramsInText(q.expansion)}</div>` : ""}
             ${rubricHtml}
           </div>
         </div>

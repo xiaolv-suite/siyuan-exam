@@ -12,9 +12,11 @@ export const RECITE_GRADUATE_STREAK = 4;
 
 export function replay(
   events: readonly AttemptEvent[],
-  options: { eliminateStreak?: number } = {},
+  options: { eliminateStreak?: number; reopenAt?: ReadonlyMap<string, number> } = {},
 ): ReplayResult {
   const eliminateThreshold = Math.max(1, options.eliminateStreak ?? ELIMINATE_STREAK);
+  const reopenAt = options.reopenAt;
+  const reopenApplied = new Set<string>();
   const wrongbook = new Map<string, WrongItem>();
   const byQuestion = new Map<string, { attempts: number; correct: number; lastAt: number }>();
   const days = new Map<string, DayStats>();
@@ -66,6 +68,15 @@ export function replay(
     // 且 exam-id 不在库中永无消灭路径，只会成为永久 active 的孤儿条目
     const entersWrongbook = e.mode !== "challenge";
     let w = wrongbook.get(e.qid);
+    const reopenTs = reopenAt?.get(e.qid);
+    if (reopenTs !== undefined && !reopenApplied.has(e.qid) && e.ts > reopenTs) {
+      if (w && (w.status === "eliminated" || w.status === "mastered")) {
+        w.status = "active";
+        w.streakCorrect = 0;
+        w.eliminatedAt = undefined;
+      }
+      reopenApplied.add(e.qid);
+    }
     if (e.kind === "recite" || e.kind === "card") {
       // 形态分离：只更新背诵连击（≥4 毕业出清背诵池），不碰错题本
       if (e.kind === "recite") {
@@ -109,6 +120,7 @@ export function replay(
         w.status = "active";
         w.wrongCount = 1;
         w.streakCorrect = 0;
+        w.eliminatedAt = undefined;
         w.firstWrongAt = e.ts;
         w.lastWrongAt = e.ts;
         w.myAnswer = e.myAnswer;
@@ -117,7 +129,22 @@ export function replay(
       // 受助答对（看过提示/讲解/揭示）保持在册，不计入独立连续答对消灭进度
       if (w && w.status === "active" && !e.help) {
         w.streakCorrect++;
-        if (w.streakCorrect >= eliminateThreshold) w.status = "eliminated";
+        if (w.streakCorrect >= eliminateThreshold) {
+          w.status = "eliminated";
+          w.eliminatedAt = e.ts;
+        }
+      }
+    }
+  }
+
+  if (reopenAt) {
+    for (const [qid] of reopenAt) {
+      if (reopenApplied.has(qid)) continue;
+      const w = wrongbook.get(qid);
+      if (w && (w.status === "eliminated" || w.status === "mastered")) {
+        w.status = "active";
+        w.streakCorrect = 0;
+        w.eliminatedAt = undefined;
       }
     }
   }

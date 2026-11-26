@@ -1,5 +1,5 @@
 // ============================================================
-// 小驴考试（内测版） · 基础组件层（对照 design/prototype 组件库 ⑭）
+// 小驴考试 · 基础组件层（对照 design/prototype 组件库 ⑭）
 // 每个 Svelte 组件只消费这里的 lv-* 类与 lv-tokens 变量，
 // 颜色/圆角/阴影/动效不得在本文件之外定义。
 // ============================================================
@@ -12,12 +12,24 @@
 .lv-exam-tab::after,
 .lv-exam-tab *,
 .lv-exam-tab *::before,
-.lv-exam-tab *::after {
+.lv-exam-tab *::after,
+.lv-exam-root,
+.lv-exam-root::before,
+.lv-exam-root::after,
+.lv-exam-root *,
+.lv-exam-root *::before,
+.lv-exam-root *::after {
   box-sizing: border-box;
 }
 
 /* —— 现代平滑细滚动条（遵从设计系统 Token，替换 Windows 粗灰原生条） —— */
-:where(.lv-exam-tab, .lv-palette, .lv-hotkeys-wrap, .lv-modal, .lv-drawer) {
+:where(
+  .lv-exam-tab,
+  .lv-exam-root,
+  .lv-exam-dialog,
+  .lv-exam-mobile-dialog,
+  .lv-exam-dialog-host
+) {
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -38,6 +50,81 @@
     scrollbar-color: color-mix(in srgb, var(--lv-text) 16%, transparent) transparent;
   }
 }
+
+/* —— 考试容器专属顶栏与焦点可见性（顶层根选择器，防止误匹配嵌套） —— */
+.lv-exam-mobile-dialog .lv-kbd {
+  display: none !important;
+}
+.lv-exam-tab:focus-visible,
+.lv-exam-tab :focus-visible,
+.lv-exam-root:focus-visible,
+.lv-exam-root :focus-visible,
+.lv-exam-dialog :focus-visible,
+.lv-exam-mobile-dialog :focus-visible {
+  outline: none;
+  box-shadow: var(--lv-ring);
+}
+.lv-exam-tab > .block__icons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--lv-space-2);
+  row-gap: var(--lv-space-compact);
+  border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border));
+  background: var(--lv-surface);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--lv-text) 4%, transparent);
+  padding: 5px 14px;
+  min-height: 44px;
+}
+.lv-exam-tab > .block__icons .lv-crumbs {
+  display: inline-flex;
+  align-items: center;
+}
+.lv-exam-tab > .block__icons .lv-role-segmented {
+  margin-left: 4px;
+}
+.lv-exam-tab > .block__icons .lv-crumb-current {
+  white-space: nowrap;
+}
+.lv-exam-tab > .block__icons .lv-muted {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+@container lv-exam (max-width: 1023px) {
+  .lv-exam-tab > .block__icons {
+    row-gap: var(--lv-space-compact);
+  }
+  .lv-exam-tab > .block__icons .lv-crumbs {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+@container lv-exam (max-width: 600px) {
+  .lv-exam-tab > .block__icons .lv-palette-label {
+    display: none;
+  }
+}
+.lv-exam-tab,
+.lv-exam-root {
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+  overflow-wrap: anywhere;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* —— 全组件样式严格收敛至考试专属根容器作用域，绝不污染宿主页或其他插件 —— */
+:where(
+  .lv-exam-tab,
+  .lv-exam-root,
+  .lv-exam-dialog,
+  .lv-exam-mobile-dialog,
+  .lv-exam-mobile-dialog-host,
+  .lv-exam-exit-dialog,
+  .lv-exam-dialog-host
+) {
 
 /* —— 卡片（static / hover 抬升 / 沉浸浮层）
    动效统一走 --lv-ease-out（规范 v6：同一条曲线，禁回弹） —— */
@@ -240,8 +327,7 @@
     background: color-mix(in srgb, var(--lv-accent-soft) 60%, transparent);
   }
 
-  &:focus-visible,
-  .lv-exam-tab &:focus-visible {
+  &:focus-visible {
     outline: 2px solid var(--lv-accent);
     outline-offset: 2px;
   }
@@ -825,6 +911,7 @@ details summary {
   }
 
   /* AUTH-04：暗黑模式下试题数学插图/几何线稿智能去刺眼白底与柔和反色 */
+  [data-lv-theme="dark"] &,
   [data-theme-mode="dark"] &,
   [data-theme="dark"] &,
   .theme--dark & {
@@ -843,7 +930,7 @@ details summary {
 
   .table,
   [data-type="NodeTable"],
-  div:has(> table) {
+  .lv-table-scroll-wrap {
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -882,11 +969,13 @@ details summary {
   }
 
   /* 行间数学公式水平横滚保护（防撑破移动端布局） */
+  .lv-math-block-wrap,
   .katex-display,
   .math-display {
     max-width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
     padding: 4px 0;
     scrollbar-width: thin;
   }
@@ -926,25 +1015,16 @@ details summary {
     display: block;
     height: 100%;
     border-radius: var(--lv-radius-pill);
-    background: var(--lv-accent-grad);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--lv-accent) 30%, transparent);
+    background: var(--lv-accent);
     transition: width var(--lv-dur-view) var(--lv-ease-out);
   }
   &--sheen i {
     position: relative;
     overflow: hidden;
     &::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      transform: translateX(-100%);
-      background: linear-gradient(
-        100deg,
-        transparent 30%,
-        var(--b3-theme-primary-lighter, rgba(255, 255, 255, 0.45)) 50%,
-        transparent 70%
-      );
-      animation: lv-sheen 2.6s ease-in-out infinite;
+      content: none;
+      display: none;
+      animation: none;
     }
   }
 }
@@ -972,20 +1052,10 @@ details summary {
   white-space: nowrap;
   vertical-align: middle;
 }
-.lv-exam-mobile-dialog .lv-kbd {
-  display: none !important;
-}
 @media (max-width: 680px) {
   .lv-kbd {
     display: none !important;
   }
-}
-
-/* —— 插件内焦点可见性（规范 v6：环形投影，随元素圆角自适应） —— */
-.lv-exam-tab:focus-visible,
-.lv-exam-tab :focus-visible {
-  outline: none;
-  box-shadow: var(--lv-ring);
 }
 
 /* —— 触控目标基线（对齐原型：交互控件 ≥44px；徽章/键帽除外） ——
@@ -1078,9 +1148,9 @@ input[type="range"] {
   }
 }
 
-/* —— Hero 卡（原型 home 首屏：渐变纸面 + focus-label 引导 + 大数字预算位） —— */
+/* —— Hero 卡（doc#22 v2 克制白底 + 柔和 1px 细边，去渐变噪音） —— */
 .lv-hero {
-  background: linear-gradient(135deg, var(--lv-surface), color-mix(in srgb, var(--lv-brand) 7%, var(--lv-surface)));
+  background: var(--lv-surface);
   border: 1px solid var(--lv-border);
   box-shadow: var(--lv-sh-card);
 }
@@ -1350,37 +1420,6 @@ input[type="range"] {
   }
 }
 
-/* —— Tab 顶栏（规范 v6 app-top：面包屑/工具条行，三 Tab 同构） —— */
-.lv-exam-tab > .block__icons {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--lv-space-2);
-  row-gap: var(--lv-space-compact);
-  border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border));
-  background: var(--lv-surface);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--lv-text) 4%, transparent);
-  padding: 5px 14px;
-  min-height: 44px;
-}
-.lv-exam-tab > .block__icons .lv-crumbs {
-  display: inline-flex;
-  align-items: center;
-}
-.lv-exam-tab > .block__icons .lv-role-segmented {
-  margin-left: 4px;
-}
-/* 桌面工具行拥挤时也允许换行：报告中心控件多（筛选/刷新/AI 双按钮/库切换/提示），
-   无 wrap 时 flex 挤压面包屑与提示文本竖排（真机走查发现） */
-.lv-exam-tab > .block__icons .lv-crumb-current {
-  white-space: nowrap;
-}
-.lv-exam-tab > .block__icons .lv-muted {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-}
 /* R54 focus toolbar: task context stays in the content, while the top bar
    keeps only save/offline/search affordances during continuous answering. */
 .lv-focus-toolbar .lv-focus-context {
@@ -1396,21 +1435,6 @@ input[type="range"] {
   gap: var(--lv-space-2);
   color: var(--lv-text);
   font-size: var(--lv-font-size-body-compact);
-}
-@container lv-exam (max-width: 1023px) {
-  /* 窄屏：chips 允许换行，面包屑占满首行可收缩（修复 390px 溢出撑宽整页） */
-  .lv-exam-tab > .block__icons {
-    row-gap: var(--lv-space-compact);
-  }
-  .lv-exam-tab > .block__icons .lv-crumbs {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-}
-@container lv-exam (max-width: 600px) {
-  .lv-exam-tab > .block__icons .lv-palette-label {
-    display: none; /* 搜索按钮收敛为图标 + ⌘K */
-  }
 }
 
 /* —— 共用原语（上收自三 Tab 的逐字重复定义；改一处三处生效） —— */
@@ -1563,21 +1587,19 @@ input[type="range"] {
     white-space: nowrap;
   }
 }
-
-/* —— 长文本溢出（V08：无空格英文/URL/公式不撑破布局） —— */
-:where(.lv-exam-tab, .lv-pad, .lv-detail, .lv-qrow-stem) {
-  overflow-wrap: anywhere;
-}
-
-/* —— 移动端安全区（V10：底部手势/Home 条不遮挡主操作） —— */
-.lv-exam-tab {
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* —— 高对比/强制色模式（对齐原型 forced-colors 与舰队 a11y 规范） —— */
 @media (forced-colors: active) {
-  :root,
-  .lv-exam-tab {
+  :where(
+    .lv-exam-tab,
+    .lv-exam-root,
+    .lv-exam-dialog,
+    .lv-exam-mobile-dialog,
+    .lv-exam-mobile-dialog-host,
+    .lv-exam-exit-dialog,
+    .lv-exam-dialog-host
+  ) {
     --lv-accent: Highlight;
     --lv-accent-hi: Highlight;
     --lv-accent-strong: Highlight;
@@ -1633,7 +1655,6 @@ input[type="range"] {
     --b3-theme-surface-light: Canvas;
     --b3-theme-on-background: CanvasText;
     --b3-border-color: CanvasText;
-  }
 
   .lv-card,
   .lv-chip,
@@ -1723,18 +1744,26 @@ input[type="range"] {
   svg {
     forced-color-adjust: none;
   }
+  }
 }
 
 /* —— 用户高对比度偏好（prefers-contrast: more）：强化边框、选项区隔与焦点环 —— */
 @media (prefers-contrast: more) {
-  .lv-exam-tab {
+  :where(
+    .lv-exam-tab,
+    .lv-exam-root,
+    .lv-exam-dialog,
+    .lv-exam-mobile-dialog,
+    .lv-exam-mobile-dialog-host,
+    .lv-exam-exit-dialog,
+    .lv-exam-dialog-host
+  ) {
     --lv-border: color-mix(in srgb, var(--lv-text) 45%, transparent);
     --lv-ctl-border: var(--lv-text);
     --lv-border-subtle: color-mix(in srgb, var(--lv-text) 35%, transparent);
     --lv-text-2: var(--lv-text);
     --lv-text-3: var(--lv-text);
     --b3-border-color: var(--b3-theme-on-background);
-  }
 
   .lv-card,
   .lv-chip,
@@ -1771,8 +1800,18 @@ input[type="range"] {
     outline: 3px solid var(--b3-theme-primary);
     outline-offset: 2px;
   }
+  }
 }
 
+:where(
+  .lv-exam-tab,
+  .lv-exam-root,
+  .lv-exam-dialog,
+  .lv-exam-mobile-dialog,
+  .lv-exam-mobile-dialog-host,
+  .lv-exam-exit-dialog,
+  .lv-exam-dialog-host
+) {
 /* —— 命令面板（规范 v6 §5.2：⌘K 全局命令；键盘优先） —— */
 .lv-palette-overlay {
   position: fixed;
@@ -2272,7 +2311,7 @@ input[type="range"] {
     display: none !important;
   }
 
-  .lv-studio-nav + .lv-row:has(.lv-mobile-back):not(:has(.lv-btn--primary)) {
+  .lv-studio-nav + .lv-row.lv-studio-crumb-row {
     display: none !important;
   }
 
@@ -2545,24 +2584,24 @@ input[type="range"] {
   transform: translateY(-0.5px) scale(0.985);
 }
 .lv-mode .lv-mode-icon {
-  color: var(--lv-accent);
+  color: var(--lv-text-2);
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--lv-r-2);
-  background: var(--lv-accent-soft);
+  background: var(--lv-surface-2);
+  border: 1px solid var(--lv-border);
   flex-shrink: 0;
   font-size: var(--lv-font-size-stat);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 18%, transparent);
   transition: transform var(--lv-dur-micro) var(--lv-ease-out), background-color var(--lv-dur-micro) var(--lv-ease-out);
 }
-.lv-mode-icon--quick { background: var(--lv-amber-soft) !important; color: var(--lv-amber) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-amber) 22%, transparent) !important; }
-.lv-mode-icon--daily { background: var(--lv-accent-soft) !important; color: var(--lv-accent) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 22%, transparent) !important; }
-.lv-mode-icon--wrong { background: var(--lv-red-soft) !important; color: var(--lv-red) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-red) 22%, transparent) !important; }
-.lv-mode-icon--recite { background: color-mix(in srgb, var(--lv-accent) 15%, transparent) !important; color: var(--lv-accent) !important; box-shadow: var(--lv-sh-1) !important; }
-.lv-mode-icon--cram { background: color-mix(in srgb, var(--lv-amber) 24%, var(--lv-red-soft)) !important; color: var(--lv-red) !important; box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-red) 16%, transparent) !important; }
-.lv-mode-icon--fav { background: color-mix(in srgb, var(--lv-amber) 20%, transparent) !important; color: var(--lv-amber) !important; box-shadow: var(--lv-sh-1) !important; }
+.lv-mode-icon--quick { background: var(--lv-surface-2) !important; color: var(--lv-text-2) !important; box-shadow: none !important; }
+.lv-mode-icon--daily { background: var(--lv-accent-soft) !important; color: var(--lv-accent) !important; border-color: transparent !important; box-shadow: none !important; }
+.lv-mode-icon--wrong { background: var(--lv-red-soft) !important; color: var(--lv-red) !important; border-color: transparent !important; box-shadow: none !important; }
+.lv-mode-icon--recite { background: var(--lv-surface-2) !important; color: var(--lv-accent) !important; box-shadow: none !important; }
+.lv-mode-icon--cram { background: var(--lv-amber-soft) !important; color: var(--lv-amber) !important; border-color: transparent !important; box-shadow: none !important; }
+.lv-mode-icon--fav { background: var(--lv-surface-2) !important; color: var(--lv-amber) !important; box-shadow: none !important; }
 .lv-mode:hover:not(:disabled) .lv-mode-icon {
   transform: scale(1.06);
   background: color-mix(in srgb, var(--lv-accent) 16%, var(--lv-surface));
@@ -2605,12 +2644,35 @@ input[type="range"] {
 .lv-center { margin-left: auto; margin-right: auto; }
 .lv-palette-empty { padding: 24px; text-align: center; color: var(--lv-text-3); font-size: var(--lv-font-size-body-compact); }
 
+/* —— 高 DPI 屏微细边框与纯底色差悬浮 —— */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .lv-card,
+  .lv-qrow,
+  .lv-input,
+  .lv-select {
+    border-width: 0.5px;
+  }
+}
+
+/* R14 桌面 hover 收口：可点题干行（触屏不生效） */
+@media (hover: hover) {
+    .lv-qrow-stem:hover {
+        color: var(--lv-accent);
+    }
+}
+}
+
 /* —— 移动端与触控屏最小触控目标保护（WCAG 2.5.5/2.5.8，Target Size ≥ 44px） —— */
 @media (pointer: coarse) {
-  .lv-exam-tab,
-  .lv-exam-mobile-dialog,
-  .lv-modal,
-  .lv-sheet {
+  :where(
+    .lv-exam-tab,
+    .lv-exam-root,
+    .lv-exam-dialog,
+    .lv-exam-mobile-dialog,
+    .lv-exam-mobile-dialog-host,
+    .lv-exam-exit-dialog,
+    .lv-exam-dialog-host
+  ) {
     button.lv-chip,
     .lv-chip[role="button"],
     .lv-btn--icon,
@@ -2637,21 +2699,24 @@ input[type="range"] {
 
 /* —— 动效兜底 —— */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* —— 高 DPI 屏微细边框与纯底色差悬浮 —— */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  .lv-card,
-  .lv-qrow,
-  .lv-input,
-  .lv-select {
-    border-width: 0.5px;
+  :where(
+    .lv-exam-tab,
+    .lv-exam-root,
+    .lv-exam-dialog,
+    .lv-exam-mobile-dialog,
+    .lv-exam-mobile-dialog-host,
+    .lv-exam-exit-dialog,
+    .lv-exam-dialog-host
+  ) {
+    &,
+    &::before,
+    &::after,
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+    }
   }
 }
 
@@ -2683,6 +2748,7 @@ input[type="range"] {
 
 /* —— 移动端点击高亮抑制：默认 tap 灰闪与自有 :active 按压反馈冲突，作用域内统一透明 —— */
 .lv-exam-tab,
+.lv-exam-root,
 .lv-exam-mobile-dialog,
 .lv-exam-mobile-dialog-host {
   -webkit-tap-highlight-color: transparent;
@@ -2693,14 +2759,12 @@ input[type="range"] {
    且不再受宿主换主题污染。forced-colors 块已将 lv 令牌映射为系统色，
    别名经 var(--lv-*) 运行时解析自动兼容高对比模式。 —— */
 .lv-exam-tab,
+.lv-exam-root,
 .lv-exam-dialog,
 .lv-exam-mobile-dialog,
 .lv-exam-mobile-dialog-host,
-.lv-palette,
-.lv-hotkeys-wrap,
-.lv-modal,
-.lv-drawer,
-.lv-peek-drawer {
+.lv-exam-exit-dialog,
+.lv-exam-dialog-host {
   --b3-theme-primary: var(--lv-accent);
   --b3-theme-on-primary: var(--lv-on-accent);
   --b3-theme-primary-light: var(--lv-accent-soft);
@@ -2729,11 +2793,4 @@ input[type="range"] {
     max-height: calc(100dvh - 24px) !important;
     border-radius: var(--lv-r-3) !important;
   }
-}
-
-/* R14 桌面 hover 收口：可点题干行（触屏不生效） */
-@media (hover: hover) {
-    .lv-qrow-stem:hover {
-        color: var(--lv-accent);
-    }
 }

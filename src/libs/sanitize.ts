@@ -43,7 +43,7 @@ const RICH_ALLOWED_TAGS = [
 const RICH_ALLOWED_ATTR = [
   "class", "style", "id", "href", "src", "alt", "title",
   "colspan", "rowspan", "start", "type", "checked", "disabled",
-  "data-latex",
+  "data-latex", "data-prevent-swipe",
   // 矢量图表属性
   "viewBox", "viewbox", "x1", "y1", "x2", "y2", "points", "d", "fill",
   "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "opacity",
@@ -110,6 +110,13 @@ export function sanitizeRichHtml(html: string): string {
     const style = element.getAttribute("style") ?? "";
     if (CSS_ACTIVE_TOKEN_RE.test(style) || CSS_LAYOUT_OR_INTERACTION_RE.test(style)) {
       element.removeAttribute("style");
+    }
+  }
+  // 为表格的直接 div 容器补标 lv-table-scroll-wrap，免除 CSS 父选择器查找
+  for (const table of Array.from(doc.querySelectorAll("table"))) {
+    const parent = table.parentElement;
+    if (parent && parent.tagName === "DIV") {
+      parent.classList.add("lv-table-scroll-wrap");
     }
   }
   return doc.body.innerHTML;

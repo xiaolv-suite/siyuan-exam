@@ -5,6 +5,14 @@
   import { formatDisplayAnswer } from "@/core/answer";
   import type { SpeechEvalResult } from "@/core/speechEval";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
+  import { renderMathAndDiagramsInText } from "@/core/mathDiagram";
+  import { sanitizeRichHtml } from "@/libs/sanitize";
+  import {
+    getUiFoldPref,
+    setUiFoldPref,
+    isLongAnalysisText,
+    previewLongAnalysisText,
+  } from "@/core/uiFoldPrefs";
 
   interface Props {
     reciteQueue: Question[];
@@ -83,6 +91,30 @@
     ontoggleTtsSlow,
     ontoggleHint,
   }: Props = $props();
+
+  const LONG_ANALYSIS_FOLD_KEY = "exam:analysis_long_fold";
+  let longAnalysisCollapsed = $state(getUiFoldPref(LONG_ANALYSIS_FOLD_KEY, true));
+  function toggleLongAnalysisFold() {
+    const next = !longAnalysisCollapsed;
+    longAnalysisCollapsed = next;
+    setUiFoldPref(LONG_ANALYSIS_FOLD_KEY, next);
+  }
+  function protectHorizontalScroll(node: HTMLElement, _dep?: unknown) {
+    const mark = () => {
+      node
+        .querySelectorAll<HTMLElement>(
+          '.katex-display, .math-display, .lv-math-block-wrap, .table, [data-type="NodeTable"], table, pre, svg.lv-math-diagram, svg.lv-math-plot',
+        )
+        .forEach((el) => {
+          el.setAttribute("data-prevent-swipe", "true");
+          if (el.tagName === "TABLE" && el.parentElement?.tagName === "DIV") {
+            el.parentElement.classList.add("lv-table-scroll-wrap");
+          }
+        });
+    };
+    mark();
+    return { update() { mark(); } };
+  }
 </script>
 
 <div class="lv-pad">
@@ -173,7 +205,7 @@
       {#if reciteMaterial}
         <div class="lv-analysis" style="margin-bottom:12px"><b class="lv-mat-chip"><Icon name="paperclip" size={14} /> {t("material.shared")}</b>{reciteMaterial}</div>
       {/if}
-      {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
+      <div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"} use:protectHorizontalScroll={stemHtml || q.stem}>{@html stemHtml || sanitizeRichHtml(renderMathAndDiagramsInText(q.stem))}</div>
       {#if q.occlusion}
         <div class="lv-occlusion-wrap" style="margin:10px 0 14px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
           {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: reciteRevealed ? [q.occlusion.activeMaskId || ""] : [] })}
@@ -201,7 +233,21 @@
           {:else}
             <div class="lv-analysis"><b>{t("recite.answer")}:</b> {formatDisplayAnswer(q.answer)}</div>
           {/if}
-          {#if q.analysis}<div class="lv-analysis">{q.analysis}</div>{/if}
+          {#if q.analysis}
+            {@const isLong = isLongAnalysisText(q.analysis)}
+            {@const analysisText = isLong && longAnalysisCollapsed ? previewLongAnalysisText(q.analysis) : q.analysis}
+            <div class="lv-analysis lv-rich" use:protectHorizontalScroll={analysisText}>
+              {#if isLong}
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:12px;font-weight:600;color:var(--lv-text-3)">解析</span>
+                  <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:2px 8px;font-size:12px" aria-expanded={!longAnalysisCollapsed} onclick={toggleLongAnalysisFold}>
+                    {longAnalysisCollapsed ? `展开完整解析（共 ${q.analysis.split(/\r?\n/).length} 行）` : "收起长解析"}
+                  </button>
+                </div>
+              {/if}
+              {@html sanitizeRichHtml(renderMathAndDiagramsInText(analysisText))}
+            </div>
+          {/if}
           {#if q.expansion}
             <div class="lv-analysis" style="margin-top:8px;padding:8px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);border-radius:4px">
               <b style="color:var(--lv-accent)">💡 思路拓展与秒杀技巧：</b>

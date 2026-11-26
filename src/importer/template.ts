@@ -3,14 +3,16 @@
 // Sheet1=示例题（含材料组三行）；Sheet2=填写说明
 // 轨道 A：SheetJS 动态加载准备，切断顶层静态打包强绑定
 // ============================================================
+import { loadChunk } from "../libs/chunk-loader";
+
 export type XlsxModule = typeof import("xlsx");
 
 let cachedXlsx: XlsxModule | null = null;
 
 export async function getXlsx(): Promise<XlsxModule> {
   if (!cachedXlsx) {
-    const mod = await import("xlsx");
-    cachedXlsx = (mod.default ?? mod) as XlsxModule;
+    const mod = await loadChunk<any>("sheetjs");
+    cachedXlsx = (mod?.default ?? mod) as XlsxModule;
   }
   return cachedXlsx;
 }

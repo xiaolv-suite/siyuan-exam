@@ -291,7 +291,58 @@ export class HttpTransport implements KernelTransport {
   }
 }
 
-export class KernelApiClient {
+/**
+ * 宿主调用与内核访问统一抽象（HostBridge 契约）
+ */
+export interface IHostBridge {
+  probe(options?: { light?: boolean }): Promise<ProbeResult>;
+  aiChat(msg: string, signal?: AbortSignal): Promise<unknown>;
+  getNotebookConf(notebookId: string): Promise<{ name: string; dailyNoteSavePath: string }>;
+  createDailyNote(notebookId?: string): Promise<string>;
+  exportNotebookSy(notebookId: string): Promise<{ zipPath: string }>;
+  importSyUpload(file: Blob, filename?: string): Promise<void>;
+  listNotebooks(): Promise<{ id: string; name: string }[]>;
+  listAllNotebooks(): Promise<{ id: string; name: string; closed: boolean }[]>;
+  openNotebook(notebook: string): Promise<void>;
+  exportDocMarkdown(docId: string): Promise<{ title: string; content: string }>;
+  renderMarkdown(markdown: string): Promise<string>;
+  sql<T = Record<string, unknown>>(stmt: string, options?: KernelReadOptions): Promise<T[]>;
+  sqlPaged<T = Record<string, unknown>>(stmt: string, pageSize?: number, options?: KernelReadOptions): Promise<T[]>;
+  querySql?<T = Record<string, unknown>>(stmt: string, options?: KernelReadOptions): Promise<T[]>;
+  createNotebook(name: string): Promise<string>;
+  createDocWithMd(notebook: string, hpath: string, markdown: string): Promise<string>;
+  putFile(path: string, fileOrData: string | Blob | File): Promise<void>;
+  removeFile(path: string): Promise<void>;
+  appendBlock(parentId: string, markdown: string): Promise<string[]>;
+  insertBlockAfter?(parentId: string, previousId: string, markdown: string): Promise<string[]>;
+  setBlockAttrs?(blockId: string, attrs: Record<string, string>): Promise<void>;
+  canRawPost?(): boolean;
+  rawPost?(endpoint: string, payload: unknown): Promise<{ code: number; msg: string; data: unknown }>;
+  appendQuestions(parentId: string, questions: Question[]): Promise<{ qid: string; blockId: string }[]>;
+  listQuestions(notebook: string, rootHPath?: string): Promise<(Question & { blockId: string; rootId: string; hpath: string })[]>;
+  docTree(notebook: string, rootHPath?: string): Promise<{ docs: { id: string; title: string; hpath: string }[]; headings: { id: string; text: string; hpath: string; level: number }[] }>;
+  backlinks(blockId: string): Promise<{ docId: string; title: string; content: string }[]>;
+  getBlockAttrs(blockId: string): Promise<Record<string, string>>;
+  getBlockKramdown(blockId: string): Promise<string>;
+  setExamFav(blockId: string, on: boolean): Promise<void>;
+  setExamAttrs(blockId: string, attrs: Record<string, string>): Promise<void>;
+  removeBlock(blockId: string): Promise<void>;
+  deleteBlock(blockId: string): Promise<void>;
+  updateBlock(blockId: string, markdown: string): Promise<void>;
+  getDueCards(deckId: string): Promise<unknown[]>;
+  createRiffDeck(name: string): Promise<string>;
+  addRiffCards(deckId: string, blockIds: string[]): Promise<void>;
+  getRiffDecks(): Promise<{ id: string; name: string }[]>;
+  getCardIDsByBlockIDs(blockIds: string[], deckId?: string): Promise<Map<string, string>>;
+  reviewRiffCard(cardId: string, deckId: string, rating: 1 | 2 | 3 | 4): Promise<void>;
+  assetOcr(path: string, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<{ text: string; ocrJSON: Array<Record<string, string> | null> | null }>;
+  getImageOcrText(path: string): Promise<string>;
+  setImageOcrText(path: string, text: string): Promise<void>;
+  uploadAsset(file: Blob, filename?: string, options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<string>;
+  getFileBytes(path: string): Promise<Uint8Array | null>;
+}
+
+export class KernelApiClient implements IHostBridge {
   private readonly pendingReads = new Map<string, { signature: string; controller: AbortController; promise: Promise<{ code: number; msg: string; data: unknown }> }>();
 
   constructor(private readonly t: KernelTransport) {}
@@ -338,12 +389,13 @@ export class KernelApiClient {
 
   /** All mutations disable transport retries: a lost response cannot tell us
    * whether Siyuan already committed the write. Retrying could duplicate it. */
-  private writePost(endpoint: string, payload: unknown, overrides: { retries?: number; retryable?: boolean; timeoutMs?: number; affectsConnection?: boolean } = {}) {
+  private writePost(endpoint: string, payload: unknown, overrides: { retries?: number; retryable?: boolean; timeoutMs?: number; affectsConnection?: boolean; signal?: AbortSignal } = {}) {
     return this.t.post(endpoint, payload, { retries: 0, retryable: false, ...overrides });
   }
 
-  /** 启动探测：任何一项失败只置位 false，不抛出（离线降级的依据） */
-  async probe(): Promise<ProbeResult> {
+  /** 启动探测：任何一项失败只置位 false，不抛出（离线降级的依据）
+   *  light=true 时仅探 /api/system/version，消除冷启动 4 次串行探测阻塞。 */
+  async probe(options?: { light?: boolean }): Promise<ProbeResult> {
     const r: ProbeResult = { kernelOk: false, version: "", md2html: false, query: false, riff: false };
     try {
       const v = await this.readPost("/api/system/version", {});
@@ -352,24 +404,17 @@ export class KernelApiClient {
     } catch {
       return r;
     }
-    try {
-      await this.renderMarkdown("x");
-      r.md2html = true;
-    } catch {
-      /* md2html 不可用 */
+    if (options?.light) {
+      return r;
     }
-    try {
-      await this.readPost("/api/query/sql", { stmt: "SELECT 1" });
-      r.query = true;
-    } catch {
-      /* SQL 不可用 */
-    }
-    try {
-      await this.readPost("/api/riff/getRiffDecks", {});
-      r.riff = true;
-    } catch {
-      /* riff 不可用 */
-    }
+    const [mdRes, sqlRes, riffRes] = await Promise.allSettled([
+      this.renderMarkdown("x"),
+      this.readPost("/api/query/sql", { stmt: "SELECT 1" }),
+      this.readPost("/api/riff/getRiffDecks", {}),
+    ]);
+    r.md2html = mdRes.status === "fulfilled";
+    r.query = sqlRes.status === "fulfilled";
+    r.riff = riffRes.status === "fulfilled";
     return r;
   }
 
@@ -378,8 +423,8 @@ export class KernelApiClient {
    *  推理调用是幂等读语义（无落库副作用），重试安全；此前沿用通用 12s 写超时
    *  导致「逐步提示/苏格拉底」几乎必然报 timeout after 12000ms。
    *  affectsConnection=false：AI 慢/超时是端点级现象，不得误翻全站离线标志。 */
-  async aiChat(msg: string): Promise<unknown> {
-    const r = await this.writePost("/api/ai/chatGPT", { msg }, { retries: 1, retryable: true, timeoutMs: AI_CHAT_TIMEOUT_MS, affectsConnection: false });
+  async aiChat(msg: string, signal?: AbortSignal): Promise<unknown> {
+    const r = await this.writePost("/api/ai/chatGPT", { msg }, { retries: 1, retryable: true, timeoutMs: AI_CHAT_TIMEOUT_MS, affectsConnection: false, signal });
     return r.data;
   }
 
@@ -452,6 +497,10 @@ export class KernelApiClient {
   async sql<T = Record<string, unknown>>(stmt: string, options: KernelReadOptions = {}): Promise<T[]> {
     const r = await this.readPost("/api/query/sql", { stmt }, options);
     return (r.data as T[]) ?? [];
+  }
+
+  async querySql<T = Record<string, unknown>>(stmt: string, options: KernelReadOptions = {}): Promise<T[]> {
+    return this.sql<T>(stmt, options);
   }
 
   /**
@@ -552,6 +601,32 @@ export class KernelApiClient {
     const r = await this.writePost("/api/block/insertBlock", { dataType: "markdown", data: markdown, parentID: parentId });
     const ops = (r.data as { doOperations?: { id?: string }[] }[] | null)?.[0]?.doOperations;
     return ops ? ops.map((o) => String(o.id ?? "")) : [];
+  }
+
+  async insertBlockAfter(parentId: string, previousId: string, markdown: string): Promise<string[]> {
+    const r = await this.writePost("/api/block/insertBlock", {
+      dataType: "markdown",
+      data: markdown,
+      previousID: previousId,
+      parentID: parentId,
+    });
+    const ops = (r.data as { doOperations?: { id?: string }[] }[] | null)?.[0]?.doOperations;
+    return ops ? ops.map((o) => String(o.id ?? "")) : [];
+  }
+
+  async setBlockAttrs(blockId: string, attrs: Record<string, string>): Promise<void> {
+    const r = await this.writePost("/api/attr/setBlockAttrs", { id: blockId, attrs });
+    if (r && typeof r.code === "number" && r.code !== 0) {
+      throw new KernelError("fatal", "/api/attr/setBlockAttrs", r.msg || `code ${r.code}`, undefined, r.code);
+    }
+  }
+
+  canRawPost(): boolean {
+    return typeof this.t?.post === "function";
+  }
+
+  rawPost(endpoint: string, payload: unknown): Promise<{ code: number; msg: string; data: unknown }> {
+    return this.t.post(endpoint, payload);
   }
 
   /** 批量写入题目块：返回 (qid, blockId) 对（insertBlock 响应逐操作回传） */
@@ -778,8 +853,14 @@ export class KernelApiClient {
   }
 
   /** 思源原生图片 OCR（/api/asset/ocr） */
-  async assetOcr(path: string): Promise<{ text: string; ocrJSON: Array<Record<string, string> | null> | null }> {
-    const r = await this.readPost("/api/asset/ocr", { path });
+  async assetOcr(
+    path: string,
+    options?: { signal?: AbortSignal; timeoutMs?: number },
+  ): Promise<{ text: string; ocrJSON: Array<Record<string, string> | null> | null }> {
+    const r = await this.readPost("/api/asset/ocr", { path }, {
+      signal: options?.signal,
+      timeoutMs: options?.timeoutMs,
+    });
     const data = (r.data as { text?: string; ocrJSON?: Array<Record<string, string> | null> }) ?? {};
     return {
       text: data.text ?? "",
@@ -799,18 +880,46 @@ export class KernelApiClient {
   }
 
   /** 上传文件至思源 assets 目录（/api/asset/upload） */
-  async uploadAsset(file: Blob, filename = "question.png"): Promise<string> {
+  async uploadAsset(
+    file: Blob,
+    filename = "question.png",
+    options?: { signal?: AbortSignal; timeoutMs?: number },
+  ): Promise<string> {
     if (!this.t.postForm) throw new KernelError("fatal", "/api/asset/upload", "当前 transport 不支持文件上传");
     const fd = new FormData();
     fd.append("assetsDirPath", "/assets/");
     fd.append("file[]", file, filename);
-    const r = await this.t.postForm("/api/asset/upload", fd, filename);
+    const r = await this.t.postForm("/api/asset/upload", fd, filename, {
+      signal: options?.signal,
+      timeoutMs: options?.timeoutMs,
+      affectsConnection: false,
+    });
     const succMap = (r.data as { succMap?: Record<string, string> })?.succMap ?? {};
     const assetPath = Object.values(succMap)[0];
     if (!assetPath) {
       throw new Error((r as { msg?: string }).msg || "上传文件到思源 assets 失败");
     }
     return assetPath;
+  }
+
+  /** 获取工作区文件二进制字节（/api/file/getFile 门面抽象） */
+  async getFileBytes(path: string): Promise<Uint8Array | null> {
+    const rawPath = path.startsWith("/data") ? path : `/data${path.startsWith("/") ? "" : "/"}${path}`;
+    try {
+      if (typeof fetch === "function") {
+        const res = await fetch("/api/file/getFile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: rawPath }),
+        });
+        if (!res.ok) return null;
+        const buf = await res.arrayBuffer();
+        return new Uint8Array(buf);
+      }
+    } catch {
+      return null;
+    }
+    return null;
   }
 }
 

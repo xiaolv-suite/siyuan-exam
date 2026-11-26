@@ -7,6 +7,7 @@
   import type { ParsedClozeItem } from "@/core/cloze";
   import StudioSubNav from "./StudioSubNav.svelte";
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
 
   interface Props {
     hasBank: boolean;
@@ -105,6 +106,7 @@
     paperOcrBusy?: boolean;
     onSegmentPaperText?: (text: string, name?: string) => void;
     onPaperImageUpload?: (file: File | Blob) => void;
+    onCancelPaperOcr?: () => void;
     importDocProfile?: "all" | "paper" | "notes" | "cloze" | "table";
     hasGleanPlugin?: boolean;
     gleanClipsList?: Array<{ id: string; title: string; site?: string; url?: string; summary?: string }>;
@@ -217,6 +219,7 @@
     paperOcrBusy = false,
     onSegmentPaperText = () => {},
     onPaperImageUpload = () => {},
+    onCancelPaperOcr = () => {},
     hasGleanPlugin = false,
     gleanClipsList = [],
     gleanClipsLoading = false,
@@ -408,7 +411,7 @@
     <p>{t("head.import.desc")}</p>
   </div>
   <StudioSubNav currentView="import" {t} {onchangeView} />
-  <div class="lv-row">
+  <div class="lv-row lv-studio-crumb-row">
     <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("import.back")}</button>
     <span class="lv-chip">{t("import.title")}</span>
   </div>
@@ -473,7 +476,7 @@
         <div class="stack-sm" style="margin-top:6px;min-width:0;max-width:100%">
           <div class="lv-card lv-import-guide-card" style="margin:2px 0 4px;padding:8px 12px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.5;min-width:0;max-width:100%;box-sizing:border-box">
             <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 思源原生笔记试题提取指引（本插件核心特色）：</b>
-            直接读取思源笔记正文，支持单选/多选/判断/表格题、<code>==高亮划重点填空==</code>、<code>**术语定义**</code> 以及 <code>::</code> 闪卡语法。提取后的题目自动与思源原笔记段落挂载 <code>sourceBlockId</code> 双向链接！
+            直接读取思源笔记正文，支持单选/多选/判断/表格题、<code>==高亮划重点填空==</code>、<code>**术语定义**</code> 以及 <code>::</code> 闪卡语法。提取后的题目自动与思源原笔记段落建立双向溯源链接！
           </div>
           <div class="lv-chip lv-chip--grn" style="font-size:11px;padding:4px 8px;margin-bottom:4px;white-space:normal;height:auto;line-height:1.4;max-width:100%;box-sizing:border-box" role="note">
             {t("import.siyuanDocSafety")}
@@ -755,6 +758,19 @@
               <input type="file" bind:this={paperFileInput} accept="image/*,.pdf" style="display:none" onchange={onPaperFileSelected} disabled={paperOcrBusy} />
               <span class="lv-muted" style="font-size:11.5px">或在下方直接粘贴整份试卷的文本或 OCR 结果：</span>
             </div>
+            {#if paperOcrBusy}
+              <div style="margin:8px 0">
+                <AiThinkingCard
+                  scenario="transform"
+                  defaultIcon="📄"
+                  compact={true}
+                  title="📄 正在上传整卷并执行 OCR 识别…"
+                  subtitle="自动切分大题、选项并反向缝合文末参考答案"
+                  cancelLabel="⏹ 取消识别"
+                  oncancel={onCancelPaperOcr}
+                />
+              </div>
+            {/if}
             <textarea class="lv-input lv-textarea sm" rows="5" bind:value={paperRawText} placeholder="在此粘贴整卷文本（例如：&#10;一、单选题&#10;1. 计算机中用于存放当前指令地址的寄存器是（ ） A. PC  B. IR  C. AR  D. DR&#10;二、判断题&#10;2. 虚拟内存容量不受任何硬件限制。( × )&#10;【参考答案】&#10;1. A 解析：PC 为程序计数器&#10;2. 错）" disabled={paperOcrBusy}></textarea>
             <div class="lv-row" style="margin-top:8px;justify-content:space-between;align-items:center">
               <button type="button" class="lv-btn sm lv-btn--primary" onclick={() => { onSegmentPaperText(paperRawText); paperOcrModalOpen = false; }} disabled={paperOcrBusy || !paperRawText.trim()}>
@@ -762,6 +778,18 @@
               </button>
               <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => paperOcrModalOpen = false}>取消</button>
             </div>
+          </div>
+        {:else if paperOcrBusy}
+          <div style="margin:10px 0">
+            <AiThinkingCard
+              scenario="transform"
+              defaultIcon="📄"
+              compact={true}
+              title="📄 正在上传整卷并执行 OCR 识别…"
+              subtitle="自动切分大题、选项并反向缝合文末参考答案"
+              cancelLabel="⏹ 取消识别"
+              oncancel={onCancelPaperOcr}
+            />
           </div>
         {/if}
         <div class="lv-row" style="margin:4px 0 6px;gap:6px;align-items:center;flex-wrap:wrap">
@@ -1085,9 +1113,9 @@
                       </div>
                     {/if}
 
-                    <div class="lv-row" style="margin:4px 0 0;gap:8px;align-items:center">
-                      <span class="lv-muted" style="font-size:11px;min-width:60px">💡 试题解析：</span>
-                      <input class="lv-input sm" style="flex:1;font-size:12px" bind:value={q.analysis} placeholder="试题解析与破题思路（可选）…" aria-label="试题解析" />
+                    <div class="lv-row" style="margin:4px 0 0;gap:8px;align-items:flex-start">
+                      <span class="lv-muted" style="font-size:11px;min-width:60px;padding-top:6px">💡 试题解析：</span>
+                      <textarea class="lv-input lv-textarea sm" rows={q.analysis && q.analysis.includes("\n") ? 3 : 1} style="flex:1;font-size:12px;min-height:32px;resize:vertical!important" bind:value={q.analysis} placeholder="试题解析与破题思路（可选）…" aria-label="试题解析"></textarea>
                     </div>
                   </div>
                 {/each}
@@ -1184,6 +1212,9 @@
               <button class="lv-btn sm" onclick={onCancelCommit}>{t("import.cancelCommit")}</button>
             {/if}
           </div>
+          {#if importError}
+            <div class="lv-error" role="alert" style="margin-top:8px">{importError}</div>
+          {/if}
           {#if trialNote}
             <div class="lv-row"><span class="lv-chip num">{trialNote}</span></div>
           {/if}

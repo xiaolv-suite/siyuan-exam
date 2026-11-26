@@ -7,7 +7,7 @@
  * @Description  :
  */
 
-export const PLUGIN_VERSION = "0.15.6";
+export const PLUGIN_VERSION = "0.15.7";
 
 export const BlockType2NodeType: { [key in BlockType]: string } = {
   d: "NodeDocument",

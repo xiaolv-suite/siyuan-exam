@@ -67,7 +67,7 @@ export function decodeCompactAnswerMatrix(text: string): Map<number, string> {
         const count = end - start + 1;
         if (count > 0 && count <= 50) {
           let tokens = rawAnswers.split(/[\s,，、]+/).filter(Boolean);
-          if (tokens.length === 1 && tokens[0].length === count && /^[A-Ha-h对错√×]+$/.test(tokens[0])) {
+          if (tokens.length === 1 && tokens[0].length === count && /^[A-Ja-j对错√×]+$/.test(tokens[0])) {
             tokens = tokens[0].split("");
           }
           if (tokens.length >= count) {
@@ -80,7 +80,7 @@ export function decodeCompactAnswerMatrix(text: string): Map<number, string> {
     }
 
     // 格式 2：单行密集键值对，例如 "1. A  2. B  3. C  4. D" 或 "(1) A  (2) B"
-    const denseMatches = Array.from(trimmed.matchAll(/(?:^|\s+|[;；])(?:[（(【]?(\d+)[)）】]?[.、:：\s]+)([A-Ha-h对错√×TFN]+)(?=(?:\s+[（(【]?\d+)|$)/g));
+    const denseMatches = Array.from(trimmed.matchAll(/(?:^|\s+|[;；])(?:[（(【]?(\d+)[)）】]?[.、:：\s]+)([A-Ja-j对错√×TFN]+)(?=(?:\s+[（(【]?\d+)|$)/g));
     if (denseMatches.length >= 2) {
       for (const dm of denseMatches) {
         const num = parseInt(dm[1], 10);
@@ -229,7 +229,7 @@ export function segmentExamPaper(
             target.answer = restWithoutAnalysis;
           } else {
             // 选择题与判断题：优先支持逗号/顿号分隔的多选题答案（如 "A、B、D" 或 "A, B, C"），再匹配首个选项字符
-            const multiAnsMatch = restWithoutAnalysis.match(/^([A-Ha-h](?:\s*[,，、]\s*[A-Ha-h])+)/);
+            const multiAnsMatch = restWithoutAnalysis.match(/^([A-Ja-j](?:\s*[,，、]\s*[A-Ja-j])+)/);
             if (multiAnsMatch) {
               target.answer = multiAnsMatch[1].replace(/[,，、\s]+/g, ", ").trim();
             } else {
@@ -331,8 +331,8 @@ export function segmentExamPaper(
 
       // 检查水平/单行选项（例如 "A. 3   B. -3   C. 1   D. 0" 或 "(A) 3  (B) -3" 或单个 "A. 3"）
       // 匹配当前选项标号到下一个选项标号（或行尾）之间的内容，不排斥选项文本中的任何字母（如"选项A"、"Apple"）
-      if (/^[(（]?[A-Ha-h][.、\s)）]/.test(line) || /\s+[(（]?[A-Ha-h][.、\s)）]/.test(line)) {
-        const matches = Array.from(line.matchAll(/(?:^|\s+)[(（]?([A-Ha-h])[.、\s)）]\s*(.*?)(?=(?:\s+[(（]?[A-Ha-h][.、\s)）])|$)/g));
+      if (/^[(（]?[A-Ja-j][.、\s)）]/.test(line) || /\s+[(（]?[A-Ja-j][.、\s)）]/.test(line)) {
+        const matches = Array.from(line.matchAll(/(?:^|\s+)[(（]?([A-Ja-j])[.、\s)）]\s*(.*?)(?=(?:\s+[(（]?[A-Ja-j][.、\s)）])|$)/g));
         if (matches.length > 0) {
           for (const m of matches) {
             const optText = m[2].trim();
@@ -378,11 +378,11 @@ export function segmentExamPaper(
     let answer = d.answer;
 
     if (!answer) {
-      const parenMatch = cleanStem.match(/[（(]\s*([A-Ha-h对错√×])\s*[）)]\s*$/);
+      const parenMatch = cleanStem.match(/[（(]\s*([A-Ja-j对错√×])\s*[）)]\s*$/);
       if (parenMatch) {
         answer = parenMatch[1].toUpperCase();
         // 将原题干中的答案挖空替换为标准的 (   )
-        cleanStem = cleanStem.replace(/[（(]\s*([A-Ha-h对错√×])\s*[）)]\s*$/, "（   ）");
+        cleanStem = cleanStem.replace(/[（(]\s*([A-Ja-j对错√×])\s*[）)]\s*$/, "（   ）");
       }
     }
 

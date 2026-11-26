@@ -76,9 +76,12 @@ export function calculateItemScore(
     return scoreEach;
   }
 
-  // 主观题考后采分自评（ECO-02 / TODO-09）：主观简答题按考生自评 factor 比例给分
-  if (type === "short" && typeof factor === "number" && factor > 0) {
-    return Math.round(scoreEach * factor * 100) / 100;
+  // 主观题考后采分自评（ECO-02 / TODO-09）：主观简答题按考生自评 factor 比例给分（0% 自评得 0 分，不走倒扣分）
+  if (type === "short") {
+    if (typeof factor === "number" && factor > 0) {
+      return Math.round(scoreEach * Math.min(1, factor) * 100) / 100;
+    }
+    return 0;
   }
 
   // 答错情况判定
@@ -92,14 +95,14 @@ export function calculateItemScore(
     // 仅不定项/多选少选给部分分，填空等题型不给
     if (type && type !== "multiple") return 0;
     if (typeof factor === "number" && factor > 0 && factor < 1) {
-      return scoreEach * factor;
+      return Math.round(scoreEach * factor * 100) / 100;
     }
   }
 
   if (policy.kind === "partial_all") {
     // 多选与多空均给部分分
     if (typeof factor === "number" && factor > 0 && factor < 1) {
-      return scoreEach * factor;
+      return Math.round(scoreEach * factor * 100) / 100;
     }
   }
 

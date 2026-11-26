@@ -65,6 +65,9 @@ export class PracticeSession {
   get progress() {
     return { done: this.state.cursor, total: this.state.qids.length };
   }
+  get answeredCount(): number {
+    return this.answeredPositions().size;
+  }
 
   /** 判断当前卷面位置是否为错题回炉的延迟重测（44-04） */
   isDelayedReviewAtCurrent(): boolean {

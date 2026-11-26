@@ -266,7 +266,7 @@ export async function executeSaveNamedViewWithPrompt(
     onlyDisputed?: boolean;
     lifecycle?: any;
   },
-  promptFn: (opts: { title: string; placeholder: string }) => Promise<string | undefined>,
+  promptFn: (opts: { title: string; placeholder: string }) => Promise<string | null | undefined>,
   t: (k: string) => string,
 ): Promise<{ nextViews: SmartView[]; savedName: string; toast?: string; error?: string } | null> {
   const name = (await promptFn({ title: t("view.saveTitle"), placeholder: t("view.namePlaceholder") }))?.trim();

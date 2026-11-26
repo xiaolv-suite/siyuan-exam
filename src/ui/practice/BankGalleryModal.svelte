@@ -53,17 +53,36 @@
   let wasOpen = false;
 
   $effect(() => {
-    if (open && dialogEl) {
+    if (open) {
       if (!wasOpen) {
         wasOpen = true;
-        returnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        returnFocusEl = current && current !== document.body ? current : (document.querySelector('button[aria-label*="题库管理"]') as HTMLElement);
+      }
+      if (dialogEl) {
         queueMicrotask(() => dialogEl?.focus());
       }
     } else if (!open && wasOpen) {
       wasOpen = false;
-      const target = returnFocusEl;
+      const target = returnFocusEl || (document.querySelector('button[aria-label*="题库管理"]') as HTMLElement);
       returnFocusEl = null;
-      queueMicrotask(() => target?.focus?.());
+      const restoreFocus = () => {
+        if (target && target.isConnected) {
+          target.focus();
+        } else {
+          const fallback =
+            document.querySelector<HTMLElement>('button[aria-label*="题库管理"]') ??
+            Array.from(document.querySelectorAll<HTMLElement>('.lv-topbar button')).find((btn) =>
+              Boolean(btn.querySelector('.lv-topbar-btn-label')),
+            ) ??
+            null;
+          fallback?.focus();
+        }
+      };
+      restoreFocus();
+      queueMicrotask(restoreFocus);
+      setTimeout(restoreFocus, 50);
+      setTimeout(restoreFocus, 150);
     }
   });
 

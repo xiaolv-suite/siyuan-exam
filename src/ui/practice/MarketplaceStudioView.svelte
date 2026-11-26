@@ -482,7 +482,7 @@
       <div style="position:relative;flex:1;min-width:min(220px, 100%)">
         <input
           class="lv-input"
-          style="width:100%;box-sizing:border-box;padding-left:32px;font-size:14px"
+          style="width:100%;box-sizing:border-box;padding-left:32px;padding-right:32px;font-size:14px"
           bind:value={searchQuery}
           placeholder="🔍 搜索题库、卡包或考点关键词（如：TCP、导数、四六级、民法典）..."
         />
@@ -606,21 +606,21 @@
       <p style="font-size:13px;margin-top:6px">尝试清空搜索关键词或切换上方的领域分类。</p>
     </div>
   {:else}
-    <div class="lv-marketplace-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(min(280px, 100%), 1fr));gap:18px;margin-bottom:24px">
+    <div class="lv-marketplace-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(min(260px, 100%), 1fr));gap:16px;margin-bottom:24px">
       {#each filteredItems as item (item.id)}
         {@const localBank = getLocalBankForItem(item)}
         {@const isInstalled = !!localBank || installedIds.has(item.id)}
         {@const delta = deltaMap[item.id]}
         <div
           class="lv-card lv-marketplace-card"
-          style="padding:18px;display:flex;flex-direction:column;justify-content:space-between;background:var(--lv-surface);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);border-top:4px solid {getCategoryBorderColor(item.category)};box-shadow:var(--lv-sh-1);transition:transform var(--lv-dur-micro) var(--lv-ease-out)"
+          style="min-width:0;max-width:100%;box-sizing:border-box;padding:16px;display:flex;flex-direction:column;justify-content:space-between;background:var(--lv-surface);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);border-top:4px solid {getCategoryBorderColor(item.category)};box-shadow:var(--lv-sh-1);transition:transform var(--lv-dur-micro) var(--lv-ease-out)"
         >
           <div>
-            <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px">
+            <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap;gap:6px">
               <span class="lv-chip sm lv-chip--acc" style="font-weight:700;font-size:11px">
                 {item.kind === "both" ? "题卡两用" : item.kind === "exam_bank" ? "考试题库" : "记忆闪卡"}
               </span>
-              <div class="lv-row" style="margin:0;gap:6px;align-items:center">
+              <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
                 {#if item.verified}
                   <span class="lv-chip sm num" style="color:var(--lv-green);background:var(--lv-green-soft, rgba(16,185,129,0.1));font-size:11px" title="零版权争议认证">
                     ✓ 公版认证
@@ -669,9 +669,9 @@
                       </span>
                     {/if}
                   </div>
-                  <div style="display:flex;align-items:center;gap:6px">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                     <span class="lv-muted" style="font-weight:600;white-space:nowrap">难度梯度:</span>
-                    <div style="flex:1;height:5px;border-radius:3px;background:var(--lv-border);display:flex;overflow:hidden">
+                    <div style="flex:1;min-width:60px;height:5px;border-radius:3px;background:var(--lv-border);display:flex;overflow:hidden">
                       {#each metrics.difficultyDistribution as dd (dd.label)}
                         <div style="width:{dd.pct}%;background:{dd.color};height:100%" title="{dd.label}: {dd.pct}%"></div>
                       {/each}
@@ -714,8 +714,8 @@
                 {#if previewItemId === item.id}
                   <div style="margin-top:8px;padding:10px;background:var(--lv-surface-2);border-radius:6px;border:1px solid var(--lv-border);font-size:12px;line-height:1.6;max-height:260px;overflow-y:auto">
                     <!-- 题库视角与闪卡视角形态切换 -->
-                    <div class="lv-row" style="margin:0 0 8px;gap:6px;align-items:center;justify-content:space-between">
-                      <div class="lv-row" style="margin:0;gap:6px">
+                    <div class="lv-row" style="margin:0 0 8px;gap:6px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+                      <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
                         <button
                           type="button"
                           class="lv-chip sm"
@@ -863,7 +863,7 @@
               </div>
             {/if}
 
-            <div class="lv-row" style="margin:0;gap:8px">
+            <div class="lv-row" style="margin:0;gap:8px;flex-wrap:wrap">
               {#if isInstalled}
                 {#if delta && delta.hasUpdates}
                   <!-- 发现差量更新 -->
@@ -1067,6 +1067,12 @@
     animation: lv-slide-up var(--lv-dur-fast, 180ms) cubic-bezier(0.16, 1, 0.3, 1);
   }
   @container lv-exam (max-width: 759px) {
+    .lv-marketplace-studio {
+      padding: 10px 12px 96px !important;
+      overflow-x: hidden;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
     .lv-cart-dock {
       bottom: calc(var(--lv-tasknav-height, 68px) + 10px) !important;
       right: 12px !important;

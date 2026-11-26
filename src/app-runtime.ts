@@ -5,6 +5,7 @@
 import { fetchSyncPost, Plugin } from "siyuan";
 import { KernelApiClient, KernelError } from "./kernel/client";
 import type { KernelTransport, RequestOptions } from "./kernel/client";
+import { HostBridge } from "./bridge/hostBridge";
 import { ExamApp } from "./app";
 import type { ExamAppDeps } from "./app";
 import type { StorageAdapter } from "./core/attemptLog";
@@ -13,7 +14,19 @@ import type { StorageAdapter } from "./core/attemptLog";
 // AI 推理走 aiChat 专用 120s 长超时（AI_CHAT_TIMEOUT_MS），不受此值约束。
 const KERNEL_TIMEOUT_MS = 30_000;
 
-async function postWithTimeout(url: string, data: unknown, options: RequestOptions = {}): Promise<{ code: number; msg: string; data: unknown }> {
+export function isNonBlockingKernelUrl(url: string, options: RequestOptions = {}): boolean {
+  return (
+    url.startsWith("/api/ai/") ||
+    url === "/api/asset/ocr" ||
+    url === "/api/asset/upload" ||
+    (options.affectsConnection === false && url.includes("/ai/"))
+  );
+}
+
+export async function postWithTimeout(url: string, data: unknown, options: RequestOptions = {}): Promise<{ code: number; msg: string; data: unknown }> {
+  if (options.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   const ctrl = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abortHandler: (() => void) | undefined;
@@ -22,18 +35,19 @@ async function postWithTimeout(url: string, data: unknown, options: RequestOptio
       ctrl.abort(options.signal?.reason);
       reject(new DOMException("Aborted", "AbortError"));
     };
-    if (options.signal?.aborted) abortHandler();
-    else options.signal?.addEventListener("abort", abortHandler, { once: true });
+    options.signal?.addEventListener("abort", abortHandler, { once: true });
   });
   try {
-    // 关键优化：AI 生成耗时较长（30~90秒），若使用 fetchSyncPost 会触发思源核心的全屏「Requesting...」阻塞遮罩，
-    // 导致用户无法操作、无法看到精细进度。针对 AI 推理等长请求，优先使用无全局遮罩的异步 fetch，并保留超时与取消控制。
-    const isAiRequest = url.startsWith("/api/ai/") || (options.affectsConnection === false && url.includes("/ai/"));
+    // 关键优化：AI 生成与 OCR/上传耗时较长，若使用 fetchSyncPost 会触发思源核心的全屏「Requesting...」阻塞遮罩，
+    // 导致用户无法操作、无法看到精细进度。针对 AI 推理与 /api/asset/ocr、/api/asset/upload 等长请求，
+    // 优先使用无全局遮罩的异步 fetch，并保留超时与 AbortSignal 取消控制。
+    const isAiRequest = isNonBlockingKernelUrl(url, options);
+    const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
     const requestPromise = (isAiRequest && typeof fetch === "function")
       ? fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          ...(isFormData ? {} : { headers: { "Content-Type": "application/json" } }),
+          body: isFormData ? (data as FormData) : JSON.stringify(data),
           signal: ctrl.signal,
         }).then(async (res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -187,16 +201,20 @@ export async function createExamApp(plugin: Plugin, options?: { deferTier2?: boo
   // 运行时连接标记：retryable 失败翻离线、成功翻回在线（离线横幅与降级提示依赖它；
   // 启动初值仍由 init 的能力探针设定）
   let appRef: ExamApp | null = null;
+  const client = new KernelApiClient(makeTransport((ok, error) => {
+    if (ok) {
+      appRef?.setKernelOnline(true);
+      if (error) appRef?.setKernelError(error);
+    }
+    else if (error) appRef?.setKernelError(error);
+    else appRef?.setKernelOnline(false);
+  }));
+  const bridge = new HostBridge(client);
   const deps: ExamAppDeps = {
-    client: new KernelApiClient(makeTransport((ok, error) => {
-      if (ok) {
-        appRef?.setKernelOnline(true);
-        if (error) appRef?.setKernelError(error);
-      }
-      else if (error) appRef?.setKernelError(error);
-      else appRef?.setKernelOnline(false);
-    })),
+    client,
+    bridge,
     storage: makeStorage(plugin),
+    getEliminateStreak: () => Math.max(1, Number((plugin as unknown as { settingUtils?: { get?: (k: string) => unknown } }).settingUtils?.get?.("eliminateStreak") ?? 2) || 2),
   };
   const app = new ExamApp(deps);
   appRef = app;

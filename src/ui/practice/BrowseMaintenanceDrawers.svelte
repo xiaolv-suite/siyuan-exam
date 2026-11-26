@@ -218,7 +218,7 @@
             if (!doc.id) return;
             let nbId = "";
             try {
-              const rows = await app.deps.client.sql(`SELECT box FROM blocks WHERE id = '${doc.id.replace(/'/g, "''")}' LIMIT 1`);
+              const rows = await app.bridge.sql(`SELECT box FROM blocks WHERE id = '${doc.id.replace(/'/g, "''")}' LIMIT 1`);
               if (rows && rows[0]?.box) {
                 nbId = String(rows[0].box);
               }

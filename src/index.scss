@@ -1,7 +1,14 @@
-// 小驴考试（内测版） (Lv Exam Beta)
+// 小驴考试 (Lv Exam)
 // 入口样式：token → 基础组件 → 屏幕级样式
 // 设计基准：design/prototype/index.html；规范：docs/12；总册：docs/13
 @use "./scss/lv-base";
+
+.lv-exam-tab,
+.lv-exam-root {
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+}
 
 .lv-exam-tab {
   &, *, *::before, *::after {
@@ -22,6 +29,9 @@
     fill: none;
   }
 
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -81,6 +91,7 @@
     inset: auto;
     flex-shrink: 0;
     order: 2;
+    z-index: 10;
   }
 
   .lv-shell.lv-shell-focus .lv-mobile-tasknav,
@@ -236,8 +247,10 @@
     font-size: 20px !important;
   }
 
-  .lv-input, .lv-select, .lv-textarea, input:not([type="checkbox"]):not([type="radio"]), select, textarea {
-    font-size: 16px !important;
+  :where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) {
+    .lv-input, .lv-select, .lv-textarea, input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+      font-size: 16px !important;
+    }
   }
 
   .lv-exam-mobile-dialog .lv-mobile-tasknav {
@@ -250,7 +263,7 @@
     padding: 14px 12px !important;
   }
 
-  .b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
+  .b3-dialog.lv-exam-dialog-host:not(.lv-exam-mobile-dialog) {
     align-items: stretch !important;
     padding: 0 !important;
 
@@ -298,11 +311,10 @@
   overflow: auto;
 }
 
-// ── body 级原生弹窗高对比度与无障碍加固 (Epoch 5) ──────────────
+// ── body 级原生弹窗高对比度与无障碍加固 (Epoch 5，严格限定考试自身弹窗) ──
 @media (forced-colors: active) {
-  .b3-dialog:has(.b3-dialog__content),
-  .b3-dialog:has(.b3-dialog__action),
-  .b3-dialog {
+  .b3-dialog.lv-exam-dialog-host,
+  .lv-exam-mobile-dialog {
     .b3-dialog__container {
       border: 2px solid CanvasText !important;
       background: Canvas !important;
@@ -348,9 +360,8 @@
 }
 
 @media (prefers-contrast: more) {
-  .b3-dialog:has(.b3-dialog__content),
-  .b3-dialog:has(.b3-dialog__action),
-  .b3-dialog {
+  .b3-dialog.lv-exam-dialog-host,
+  .lv-exam-mobile-dialog {
     .b3-dialog__container {
       border: 2px solid var(--lv-text) !important;
     }
@@ -391,13 +402,18 @@
     padding-right: env(safe-area-inset-right, 0px) !important;
     background: var(--lv-canvas) !important;
     touch-action: manipulation;
+    overflow-x: hidden !important;
+
+    [class*="resize__"] {
+      display: none !important;
+    }
   }
 
   .b3-dialog__header {
     display: none !important;
   }
 
-  .b3-dialog__container:has(.lv-mobile-close-btn) > .b3-dialog__close {
+  .b3-dialog__container.lv-has-mobile-close-btn > .b3-dialog__close {
     display: none !important;
   }
 
@@ -424,7 +440,7 @@
 }
 
 /* ══════════ 小驴考试主权弹窗外壳防护 (Sovereign Modal Shell Defense) ══════════ */
-.b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab):not(.lv-exam-mobile-dialog):not(.lv-exam-mobile-dialog .b3-dialog) {
+.b3-dialog.lv-exam-dialog-host:not(.lv-exam-mobile-dialog) {
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -502,14 +518,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .b3-dialog:has([class*="lv-exam-"], [id*="lv-exam-"], .lv-exam-tab) .b3-dialog__container {
+  .b3-dialog.lv-exam-dialog-host .b3-dialog__container {
     animation: none !important;
     transform: none !important;
   }
 }
 
 /* ══════════ 小驴考试设置弹窗专有排版与双端美化 ══════════ */
-.b3-dialog:has(.lv-exam-setting-control) {
+.b3-dialog.lv-exam-setting-dialog {
   .b3-dialog__container {
     max-width: min(680px, 94vw) !important;
     border-radius: 14px !important;
@@ -610,13 +626,13 @@
 
 /* ══ 移动端：键盘弹起时原生设置弹窗按 visualViewport 收缩（守卫来自 index.ts） ══ */
 @media (max-width: 759px) {
-  .b3-dialog:has(.lv-exam-setting-control).lv-keyboard-open .b3-dialog__container {
+  .b3-dialog.lv-exam-setting-dialog.lv-keyboard-open .b3-dialog__container {
     height: var(--lv-vv-h, 100dvh) !important;
     max-height: var(--lv-vv-h, 100dvh) !important;
   }
 
   /* iOS 聚焦自动放大防护：输入控件 ≥16px */
-  .b3-dialog:has(.lv-exam-setting-control) {
+  .b3-dialog.lv-exam-setting-dialog {
     :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, .b3-text-field, .b3-select) {
       font-size: 16px !important;
     }
@@ -628,7 +644,7 @@
 }
 
 @media (max-width: 759px) {
-  .b3-dialog:has(.lv-exam-setting-control) {
+  .b3-dialog.lv-exam-setting-dialog {
     .b3-dialog__container {
       width: 100vw !important;
       height: 100dvh !important;
@@ -658,7 +674,7 @@
 
 
 /* ══════════ 按钮专项：原生设置弹窗按压反馈 / 忙碌态拦截 ══════════ */
-.b3-dialog:has(.lv-exam-setting-control) {
+.b3-dialog.lv-exam-setting-dialog {
     /* SiYuan 原生按钮在主题下往往缺少按压反馈：补齐统一回弹 */
     .b3-button:not(:disabled):not([aria-busy="true"]):active {
         transform: scale(0.97);
@@ -696,7 +712,7 @@
 
 /* ══════════ 下拉菜单专项：选项可读性 / 光标 ══════════ */
 .lv-exam-tab,
-.b3-dialog:has(.lv-exam-setting-control) {
+.b3-dialog.lv-exam-setting-dialog {
     :is(select, .b3-select) {
         cursor: pointer;
     }
@@ -719,7 +735,7 @@
 }
 
 /* ══════════ 手机端专项：滚动边界防抖 / 粘滞 hover 抑制 ══════════ */
-.b3-dialog:has(.lv-exam-setting-control) .b3-dialog__body,
+.b3-dialog.lv-exam-setting-dialog .b3-dialog__body,
 .lv-exam-tab {
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -736,8 +752,8 @@
 /* BUG-4 同类预防（2026-11-14 走查）：考试所有 Dialog 容器挂 lv-exam-dialog，
    根节点统一抬到宿主 chrome（z:50）之上，避免被 sticky 头部截获命中测试。
    同时修复移动端确认弹窗被拉伸为全屏页面、按钮沉到最底部的简陋体验。 */
-.b3-dialog:not(.lv-exam-mobile-dialog):has(> .b3-dialog__container.lv-exam-dialog),
-.b3-dialog:has(> .b3-dialog__container.lv-exam-exit-dialog) {
+.b3-dialog.lv-exam-dialog-host:not(.lv-exam-mobile-dialog):not(.lv-exam-setting-dialog),
+.b3-dialog.lv-exam-exit-dialog-host {
     z-index: 999 !important;
     display: flex !important;
     align-items: center !important;
@@ -802,10 +818,10 @@
 
             .b3-button--text,
             #confirmDialogConfirmBtn {
-                background: var(--lv-accent, #6366f1) !important;
-                color: var(--lv-contrast, #ffffff) !important;
-                font-weight: 650 !important;
-                box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent, #6366f1) 28%, transparent) !important;
+                background: var(--lv-accent) !important;
+                color: var(--lv-on-accent, #ffffff) !important;
+                font-weight: 600 !important;
+                box-shadow: var(--lv-btn-primary-shadow) !important;
             }
         }
     }

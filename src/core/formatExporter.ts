@@ -149,11 +149,11 @@ export function exportQuestionsToExamDocMarkdown(
     }
 
     lines.push("");
-    lines.push(`> **【正确答案】**：\`${String(q.answer ?? "").trim()}\``);
+    lines.push(`> **【正确答案】**：\`${String(q.answer ?? "").trim().replace(/\r?\n/g, " ")}\``);
     if (q.kp) lines.push(`> **【核心考点】**：${q.kp}`);
     if (q.difficulty) lines.push(`> **【难度系数】**：${"★".repeat(Math.min(5, Math.max(1, q.difficulty)))}`);
     if (q.analysis) {
-      lines.push(`> **【试题解析】**：${String(q.analysis).trim()}`);
+      lines.push(`> **【试题解析】**：${String(q.analysis).trim().replace(/\r?\n/g, "\n> ")}`);
     }
     lines.push("\n---");
   });

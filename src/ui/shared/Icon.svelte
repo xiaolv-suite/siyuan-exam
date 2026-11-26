@@ -9,7 +9,7 @@
 <span class="lv-icon" aria-hidden="true">{@html iconSvg(name, size)}</span>
 
 <style>
-  :global(.lv-icon) {
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -17,7 +17,7 @@
     line-height: 1;
     vertical-align: -0.15em;
   }
-  :global(.lv-icon svg) {
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon svg) {
     display: block;
     fill: none !important;
     stroke: currentColor !important;
@@ -25,12 +25,12 @@
     stroke-linecap: round !important;
     stroke-linejoin: round !important;
   }
-  :global(.lv-icon svg path),
-  :global(.lv-icon svg rect),
-  :global(.lv-icon svg circle),
-  :global(.lv-icon svg line),
-  :global(.lv-icon svg polyline),
-  :global(.lv-icon svg polygon) {
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon svg path),
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon svg rect),
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon svg circle),
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon svg line),
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon svg polyline),
+  :global(:where(.lv-exam-tab, .lv-exam-root, .lv-exam-dialog, .lv-exam-mobile-dialog, .lv-exam-dialog-host, .lv-exam-setting-dialog) .lv-icon svg polygon) {
     fill: none !important;
     stroke: currentColor !important;
     stroke-width: 1.7 !important;

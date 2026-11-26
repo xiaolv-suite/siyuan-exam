@@ -36,12 +36,18 @@ export function gradeIndefinite(q: Question, myAnswerRaw: string | null | undefi
 /** 作答流锁守卫（人机对话严格顺序作答）：
  *  - 已有已答题：强制停留于"已答边界 +1"（不可回跳、不可跳过未答题）
  *  - 尚无已答题：目标索引自由（钳制在卷内） */
-export function guardLockout(targetIndex: number, answeredFlags: readonly boolean[], _current: number): number {
-  const last = answeredFlags.length - 1;
-  let max = -1;
-  for (let i = 0; i < answeredFlags.length; i++) if (answeredFlags[i]) max = i;
-  if (max < 0) return Math.max(0, Math.min(targetIndex, last));
-  return Math.min(answeredFlags.length - 1, max + 1);
+export function guardLockout(
+  targetIndex: number,
+  answeredFlags: readonly boolean[],
+  _current: number,
+  minFloor = 0,
+): number {
+  const last = Math.max(0, answeredFlags.length - 1);
+  const floor = Math.max(0, Math.min(last, minFloor));
+  let max = floor - 1;
+  for (let i = floor; i < answeredFlags.length; i++) if (answeredFlags[i]) max = i;
+  if (max < floor) return Math.max(floor, Math.min(targetIndex, last));
+  return Math.min(last, max + 1);
 }
 
 /** 材料组 ID：g-xxxxxx（子题 exam-group 关联） */

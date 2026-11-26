@@ -16,6 +16,10 @@ export const BANK_CSV_HEADERS = [
   "选项D",
   "选项E",
   "选项F",
+  "选项G",
+  "选项H",
+  "选项I",
+  "选项J",
   "答案",
   "解析",
   "难度",
@@ -34,7 +38,10 @@ const TYPE_NAMES: Record<Question["type"], string> = {
 };
 
 function csvField(v: unknown): string {
-  const s = String(v ?? "");
+  let s = String(v ?? "");
+  if (/^[=+\-@\t\r]/.test(s) && !/^-\d+(?:\.\d+)?$/.test(s)) {
+    s = "'" + s;
+  }
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -43,7 +50,7 @@ export function questionToCsvRow(q: Question, idx: number): string[] {
     idx + 1,
     TYPE_NAMES[q.type],
     q.stem,
-    ...[0, 1, 2, 3, 4, 5].map((i) => q.options[i] ?? ""),
+    ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => q.options[i] ?? ""),
     q.answer,
     q.analysis ?? "",
     q.difficulty ?? "",

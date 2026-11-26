@@ -6,6 +6,7 @@
  * 4. 聚合：错题集来源文档去重聚合 (docId + hpath) 供筛选栏组合过滤
  */
 
+import { openTab, openMobileFileById, type App } from "siyuan";
 import { lvNotify, lvLaunchpad } from "@/libs/lv-notice-kit";
 import type { Question } from "@/core/types";
 
@@ -72,9 +73,9 @@ export async function tracebackToSourceBlock(options: TracebackOptions): Promise
   if (!blockId) return false;
 
   // 1. 若内核在线，先行利用 SQL 探测原块是否存在
-  if (plugin?.examApp?.kernelOnline && plugin?.examApp?.deps?.client?.sql) {
+  if (plugin?.examApp?.kernelOnline && plugin?.examApp?.bridge?.sql) {
     try {
-      const rows = await plugin.examApp.deps.client.sql(
+      const rows = await plugin.examApp.bridge.sql(
         `SELECT id, root_id FROM blocks WHERE id = '${blockId.replace(/'/g, "''")}' LIMIT 1`
       );
       if (!rows || rows.length === 0) {
@@ -106,9 +107,8 @@ export async function tracebackToSourceBlock(options: TracebackOptions): Promise
       } else if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
       }
-      const siyuanMod = await import("siyuan");
-      if (typeof siyuanMod.openMobileFileById === "function") {
-        siyuanMod.openMobileFileById(hostApp, blockId);
+      if (typeof openMobileFileById === "function") {
+        openMobileFileById(hostApp as App, blockId);
         return true;
       }
       if (typeof window !== "undefined") {
@@ -128,10 +128,9 @@ export async function tracebackToSourceBlock(options: TracebackOptions): Promise
 
   // 3. 桌面端穿透执行：openTab({app, doc:{id: blockId}, keepCursor:false})
   try {
-    const siyuanMod = await import("siyuan");
-    if (typeof siyuanMod.openTab === "function") {
-      const tab = await siyuanMod.openTab({
-        app: hostApp,
+    if (typeof openTab === "function") {
+      const tab = await openTab({
+        app: hostApp as App,
         doc: { id: blockId },
         keepCursor: false,
       });

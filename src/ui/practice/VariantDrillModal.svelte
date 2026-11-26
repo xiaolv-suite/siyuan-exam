@@ -2,11 +2,14 @@
   import type { Question } from "@/core/types";
   import type { WrongItem } from "@/core/types";
   import Icon from "../shared/Icon.svelte";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
   import {
     type VariantKind,
     VARIANT_KINDS,
   } from "@/core/variantGenerator";
   import { generateVariantQuestion } from "@/ai/variantService";
+  import { ensureAiEndpointConsent, createBrowserConsentStorage } from "./services/aiStudioService";
+  import { confirmDialogSync } from "@/libs/dialog";
   import { grade } from "@/core/answer";
   import {
     getEliminationStage,
@@ -63,6 +66,16 @@
   let savingToBank = $state(false);
   let savedToBank = $state(false);
   let showSeedDetail = $state(false);
+  let variantAbortCtrl: AbortController | null = null;
+
+  function handleCancelGenerate() {
+    variantAbortCtrl?.abort();
+  }
+
+  function handleModalClose() {
+    variantAbortCtrl?.abort();
+    onclose();
+  }
 
   // 阶段与进度
   const currentStage = $derived.by(() => {
@@ -79,6 +92,10 @@
 
   async function handleGenerate() {
     if (!seed || generating) return;
+    const { readLocal, writeLocal } = createBrowserConsentStorage();
+    const rawEndpoint = String((app as any)?.aiEndpoint ?? "");
+    const consented = await ensureAiEndpointConsent(rawEndpoint, confirmDialogSync, readLocal, writeLocal, t);
+    if (!consented) return;
     openedAt = Date.now();
     generating = true;
     errorMessage = "";
@@ -90,17 +107,25 @@
     multiSelected = [];
     savedToBank = false;
 
+    const ctrl = new AbortController();
+    variantAbortCtrl = ctrl;
     try {
       const res = await generateVariantQuestion({
         seed,
         kind: selectedKind,
+        signal: ctrl.signal,
         allowOfflineFallback: true,
       });
+      if (ctrl.signal.aborted) return;
       generatedQuestion = res.question;
       isOfflineFallback = res.isOfflineFallback;
     } catch (e: any) {
+      if (ctrl.signal.aborted || e?.name === "AbortError") {
+        return;
+      }
       errorMessage = e?.message || t("variant.generateFailed", "生成变式题失败，请检查网络或 AI 配置");
     } finally {
+      if (variantAbortCtrl === ctrl) variantAbortCtrl = null;
       generating = false;
     }
   }
@@ -187,10 +212,10 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); onclose(); } }} />
+<svelte:window onkeydown={(e) => { if (open && e.key === "Escape") { e.stopPropagation(); handleModalClose(); } }} />
 
 {#if open && seed}
-  <button type="button" class="lv-variant-backdrop" aria-label={t("variant.closeAria", "关闭")} onclick={onclose}></button>
+  <button type="button" class="lv-variant-backdrop" aria-label={t("variant.closeAria", "关闭")} onclick={handleModalClose}></button>
   <div class="lv-variant-wrap" role="dialog" aria-modal="true" aria-labelledby="lv-variant-title">
     <div tabindex="-1" class="lv-variant-card">
       <!-- 头部 -->
@@ -202,7 +227,7 @@
             {stageConfig.badge} (连对 {ladderProgress.streakCorrect}/{ladderProgress.threshold})
           </span>
         </div>
-        <button class="lv-btn sm lv-btn--ghost" onclick={onclose} aria-label={t("variant.closeAria", "关闭")}><Icon name="close" size={14} /></button>
+        <button class="lv-btn sm lv-btn--ghost" onclick={handleModalClose} aria-label={t("variant.closeAria", "关闭")}><Icon name="close" size={14} /></button>
       </div>
 
       <!-- 原题回顾（可折叠） -->
@@ -268,6 +293,20 @@
         </button>
       </div>
 
+      {#if generating}
+        <div style="margin:10px 0 12px">
+          <AiThinkingCard
+            scenario="question-gen"
+            compact={true}
+            defaultIcon="⚡"
+            title="⚡ 正在构建高仿考点变式题…"
+            subtitle={`变式维度：${VARIANT_KINDS[selectedKind].label} · 保持同考点换情境`}
+            cancelLabel="⏹ 取消衍生"
+            oncancel={handleCancelGenerate}
+          />
+        </div>
+      {/if}
+
       <!-- 错误提示 -->
       {#if errorMessage}
         <div class="lv-variant-alert error">
@@ -289,7 +328,7 @@
         <div class="lv-variant-body">
           <div class="variant-tag-row">
             <span class="lv-chip lv-chip--amb">🎯 {t("variant.kindTag", "{kind}变式", {kind: VARIANT_KINDS[selectedKind].label})}</span>
-            <span class="lv-chip">{t("variant.typeSingle", "单选题")}</span>
+            <span class="lv-chip">{generatedQuestion.type === "multiple" ? "多选题" : generatedQuestion.type === "judge" ? "判断题" : generatedQuestion.type === "fill" ? "填空题" : generatedQuestion.type === "short" ? "简答题" : t("variant.typeSingle", "单选题")}</span>
             {#if generatedQuestion.difficulty}
               <span class="lv-chip">{t("variant.difficultyLabel", "难度：")}{generatedQuestion.difficulty}</span>
             {/if}
@@ -345,7 +384,7 @@
                 placeholder={t("variant.answerPlaceholder", "请输入你的作答答案…")}
                 bind:value={myAnswer}
                 disabled={submitted}
-                onkeydown={(e) => { if (e.key === "Enter" && !submitted && myAnswer.trim()) handleSubmitAnswer(); }}
+                onkeydown={(e) => { if (e.isComposing || e.keyCode === 229) return; if (e.key === "Enter" && !submitted && myAnswer.trim()) handleSubmitAnswer(); }}
               />
             </div>
           {/if}
@@ -442,9 +481,9 @@
 
   .lv-variant-card {
     pointer-events: auto;
-    background: var(--lv-card-surface, #ffffff);
-    border: 1px solid var(--lv-border-subtle, rgba(0, 0, 0, 0.1));
-    border-radius: var(--lv-radius-16, 16px);
+    background: var(--lv-surface);
+    border: 1px solid var(--lv-border-subtle, var(--lv-border));
+    border-radius: var(--lv-r-card, 16px);
     box-shadow: var(--lv-sh-pop), var(--lv-inset-card);
     width: 100%;
     max-width: 680px;
@@ -453,7 +492,7 @@
     padding: 20px 24px;
     display: flex;
     flex-direction: column;
-    color: var(--lv-text-primary, #1e293b);
+    color: var(--lv-text);
   }
 
   .lv-variant-header {
@@ -515,7 +554,7 @@
 
   .seed-opt-tag {
     font-weight: 700;
-    color: var(--lv-text-secondary, #64748b);
+    color: var(--lv-text-2);
   }
 
   .seed-answer {
@@ -536,22 +575,23 @@
 
   .lv-variant-kind-btn {
     text-align: left;
-    background: var(--lv-card-surface, #ffffff);
-    border: 1px solid var(--lv-border-subtle, rgba(0, 0, 0, 0.1));
+    background: var(--lv-surface);
+    color: var(--lv-text);
+    border: 1px solid var(--lv-border-subtle, var(--lv-border));
     border-radius: 10px;
     padding: 8px 12px;
     cursor: pointer;
     transition: all 0.15s ease;
 
     &:hover {
-      border-color: var(--lv-brand, #0d9488);
-      background: color-mix(in srgb, var(--lv-brand, #0d9488) 4%, transparent);
+      border-color: var(--lv-brand);
+      background: color-mix(in srgb, var(--lv-brand) 6%, var(--lv-surface));
     }
 
     &.active {
-      border-color: var(--lv-brand, #0d9488);
-      background: color-mix(in srgb, var(--lv-brand, #0d9488) 8%, transparent);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--lv-brand, #0d9488) 20%, transparent);
+      border-color: var(--lv-brand);
+      background: color-mix(in srgb, var(--lv-brand) 10%, var(--lv-surface));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--lv-brand) 20%, transparent);
     }
   }
 
@@ -565,16 +605,16 @@
   .kind-badge {
     font-size: 13px;
     font-weight: 600;
-    color: var(--lv-text-primary, #1e293b);
+    color: var(--lv-text);
   }
 
   .kind-check {
-    color: var(--lv-brand, #0d9488);
+    color: var(--lv-brand);
   }
 
   .kind-desc {
     font-size: 11px;
-    color: var(--lv-text-secondary, #64748b);
+    color: var(--lv-text-2);
     line-height: 1.35;
   }
 
@@ -632,8 +672,9 @@
     gap: 10px;
     padding: 10px 14px;
     border-radius: 10px;
-    background: var(--lv-card-surface, #ffffff);
-    border: 1px solid var(--lv-border-subtle, rgba(0, 0, 0, 0.1));
+    background: var(--lv-surface);
+    color: var(--lv-text);
+    border: 1px solid var(--lv-border-subtle, var(--lv-border));
     text-align: left;
     cursor: pointer;
     font-size: 13px;
@@ -719,15 +760,15 @@
 
   .answer-info {
     font-size: 12px;
-    color: var(--lv-text-secondary, #64748b);
+    color: var(--lv-text-2);
   }
 
   .promotion-notice {
     margin: 8px 0;
     padding: 8px 12px;
     border-radius: 8px;
-    background: color-mix(in srgb, var(--lv-data-accent, #10B981) 12%, transparent);
-    color: var(--lv-text-primary, #1e293b);
+    background: color-mix(in srgb, var(--lv-data-accent) 12%, transparent);
+    color: var(--lv-text);
     font-size: 12px;
     font-weight: 600;
     line-height: 1.45;
@@ -736,13 +777,13 @@
   .variant-analysis {
     margin-top: 10px;
     padding-top: 8px;
-    border-top: 1px dashed var(--lv-border-subtle, rgba(0, 0, 0, 0.1));
+    border-top: 1px dashed var(--lv-border-subtle, var(--lv-border));
   }
 
   .analysis-title {
     font-size: 12px;
     font-weight: 600;
-    color: var(--lv-text-secondary, #64748b);
+    color: var(--lv-text-2);
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -752,7 +793,7 @@
   .analysis-text {
     font-size: 12px;
     line-height: 1.6;
-    color: var(--lv-text-primary, #1e293b);
+    color: var(--lv-text);
     white-space: pre-wrap;
   }
 </style>

@@ -81,11 +81,13 @@ export function filterEffectiveActiveWrongs(
         result.push(w);
       }
     } else if (w.status === "eliminated" || w.status === "mastered") {
-      // 原生已被消灭或掌握：若用户手动执行过"恢复在册"（overlay status 为 active）
-      if (o && o.status === "active") {
+      // 原生已被消灭或掌握：若用户手动执行过"恢复在册"（overlay status 为 active），
+      // 且尚未在恢复后再次达标出库（eliminatedAt > o.at），恢复为 active 活跃错题
+      if (o && o.status === "active" && !(w.eliminatedAt != null && w.eliminatedAt > o.at)) {
         result.push({
           ...w,
           status: "active",
+          streakCorrect: 0,
         });
       }
     }

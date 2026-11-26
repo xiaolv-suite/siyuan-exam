@@ -238,7 +238,9 @@
     onsaveQref: (qid: string) => void;
     ontoggleReceipts: (qid: string) => void;
     onrunReceiptMisdiagnosis: (q: QuestionWithBlock, e: any) => void;
+    oncancelReceiptMisdiagnosis?: () => void;
     onmakeFlashCandidates: (q: QuestionWithBlock) => void;
+    oncancelFlashCandidates?: () => void;
     onconfirmFlashCards: (q: QuestionWithBlock) => void;
     onstartSingleById: (qid: string) => void;
     onsubmitResolveDispute: (q: QuestionWithBlock) => void;
@@ -476,7 +478,9 @@
     onsaveQref,
     ontoggleReceipts,
     onrunReceiptMisdiagnosis,
+    oncancelReceiptMisdiagnosis,
     onmakeFlashCandidates,
+    oncancelFlashCandidates,
     onconfirmFlashCards,
     onstartSingleById,
     onsubmitResolveDispute,
@@ -695,9 +699,9 @@
           <button role="menuitem" title="导出全库试题实测难度、区分度与死干扰项诊断报告" onclick={() => { onexportItemQualityReport(); moreOpen = false; }}><Icon name="chart" size={14} /> {t("health.itemQualityAudit")}</button>
           <div class="lv-more-sep" role="separator"></div>
           <button role="menuitem" title="导出为 Moodle/学习通标准试题格式" onclick={() => { onexportGiftFormat(); moreOpen = false; }}><Icon name="export" size={14} /> {t("format.exportGift")}</button>
-          <button role="menuitem" title="导出为 Anki / FSRS 问答闪卡卡包" onclick={() => { onexportAnkiFormat(); moreOpen = false; }}><Icon name="layers" size={14} /> {t("format.exportAnki")}</button>
+          <button role="menuitem" title="导出为 Anki 问答闪卡卡包" onclick={() => { onexportAnkiFormat(); moreOpen = false; }}><Icon name="layers" size={14} /> {t("format.exportAnki")}</button>
           <button role="menuitem" title="导出为标准排版 Markdown 试题手册" onclick={() => { onexportMdDocFormat(); moreOpen = false; }}><Icon name="file-text" size={14} /> {t("format.exportMdDoc")}</button>
-          <button role="menuitem" title="导出为小驴闪卡分享包 (.lvcards)，一键导入小驴闪卡进行间隔记忆与 FSRS 复习" onclick={() => { onexportLvCardsPackage(); moreOpen = false; }}><Icon name="sparkles" size={14} /> 小驴闪卡包 (.lvcards)</button>
+          <button role="menuitem" title="导出为小驴闪卡分享包 (.lvcards)，一键导入小驴闪卡进行智能间隔记忆复习" onclick={() => { onexportLvCardsPackage(); moreOpen = false; }}><Icon name="sparkles" size={14} /> 小驴闪卡包 (.lvcards)</button>
           <button role="menuitem" title="导出为标准 Agent 题卡 (QCard JSON)，供 AI 与外部工具无缝消费" onclick={() => { onexportQCardsJson(); moreOpen = false; }}><Icon name="code" size={14} /> Agent 题卡 (JSON)</button>
           <div class="lv-more-sep" role="separator"></div>
           <button role="menuitem" title="将当前题库打包并导出为公共集市订阅源 (含隐私与私有路径脱敏自检)" onclick={() => { publishModalOpen = true; moreOpen = false; }}><Icon name="package" size={14} /> 📦 打包为集市源</button>
@@ -977,7 +981,9 @@
         onsaveQref={onsaveQref}
         ontoggleReceipts={ontoggleReceipts}
         onrunReceiptMisdiagnosis={onrunReceiptMisdiagnosis}
+        oncancelReceiptMisdiagnosis={oncancelReceiptMisdiagnosis}
         onmakeFlashCandidates={onmakeFlashCandidates}
+        oncancelFlashCandidates={oncancelFlashCandidates}
         onconfirmFlashCards={onconfirmFlashCards}
         onstartSingleById={onstartSingleById}
         onsubmitResolveDispute={onsubmitResolveDispute}

@@ -57,6 +57,11 @@
     oncreateAndImport: () => void;
     onResume: () => void;
     ondiscardSession: () => void;
+    reciteQueue?: Question[];
+    reciteCursor?: number;
+    reciteDone?: boolean;
+    onResumeRecite?: () => void;
+    ondiscardRecite?: () => void;
     onstartDrill: (mode: any) => void;
     onopenReport: () => void;
     onopenMock: () => void;
@@ -138,6 +143,11 @@
     oncreateAndImport,
     onResume,
     ondiscardSession,
+    reciteQueue = [],
+    reciteCursor = 0,
+    reciteDone = false,
+    onResumeRecite,
+    ondiscardRecite,
     onstartDrill,
     onopenReport,
     onopenMock,
@@ -164,7 +174,7 @@
     onopenInSiYuan,
   }: Props = $props();
 
-  let mobileToolsOpen = $state(false);
+  let mobileToolsOpen = $state(typeof window !== "undefined" ? window.innerWidth > 600 : true);
 </script>
 
 {#if !hasBank}
@@ -205,12 +215,12 @@
     </div>
   </div>
 {:else}
-  {#if session && session.phase === "running"}
+  {#if session && session.phase === "running" && (!session.state?.bankId || session.state.bankId === activeBankId)}
     <div class="lv-pad">
       <div class="lv-card lv-resume" style="margin-bottom:12px;padding:12px 18px;background:color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface));border-left:3.5px solid var(--lv-amber);border-radius:var(--lv-r-2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
         <div>
           <b style="font-size:14px;display:flex;align-items:center;gap:6px"><Icon name="clock" size={14} /> {t("resume.title", "上次练习尚未完成")}</b>
-          <div class="lv-muted" style="font-size:12px;margin-top:2px">当前已答进度：<span class="num">{session.progress.done} / {session.progress.total}</span> 题</div>
+          <div class="lv-muted" style="font-size:12px;margin-top:2px">当前已答进度：<span class="num">{session.answeredCount ?? session.progress.done} / {session.progress.total}</span> 题</div>
         </div>
         <div class="lv-row" style="margin:0;gap:8px">
           <button class="lv-btn lv-btn--primary sm" onclick={onResume} disabled={resumeBusy || exitBusy}>
@@ -222,6 +232,26 @@
         </div>
       </div>
       {#if resumeError}<div class="lv-error" role="alert" style="margin-top:8px">{resumeError}</div>{/if}
+    </div>
+  {/if}
+  {#if reciteQueue.length > 0 && !reciteDone && onResumeRecite}
+    <div class="lv-pad" style={session && session.phase === "running" && (!session.state?.bankId || session.state.bankId === activeBankId) ? "padding-top:0" : ""}>
+      <div class="lv-card lv-resume lv-resume--recite" style="margin-bottom:12px;padding:12px 18px;background:color-mix(in srgb, var(--lv-amber-soft) 35%, var(--lv-surface));border-left:3.5px solid var(--lv-amber);border-radius:var(--lv-r-2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <b style="font-size:14px;display:flex;align-items:center;gap:6px"><Icon name="rotate" size={14} /> 上次背诵尚未完成</b>
+          <div class="lv-muted" style="font-size:12px;margin-top:2px">当前进度：第 <span class="num">{Math.min(reciteCursor + 1, reciteQueue.length)} / {reciteQueue.length}</span> 题</div>
+        </div>
+        <div class="lv-row" style="margin:0;gap:8px">
+          <button class="lv-btn lv-btn--primary sm" onclick={onResumeRecite}>
+            <Icon name="play" size={12} /> 继续背诵
+          </button>
+          {#if ondiscardRecite}
+            <button class="lv-btn lv-btn--ghost sm" onclick={ondiscardRecite} title="清空未完成背诵并重新开始" style="color:var(--lv-accent-seal)">
+              <Icon name="trash" size={12} /> 放弃该次背诵
+            </button>
+          {/if}
+        </div>
+      </div>
     </div>
   {/if}
   {#if onboarding}
@@ -495,9 +525,9 @@
             <span class="lv-muted" style="font-size:12px">即时反馈 · 靶向击破</span>
           </div>
           <div class="lv-home-btn-group">
-            {#if session && session.phase === "running"}
+            {#if session && session.phase === "running" && (!session.state?.bankId || session.state.bankId === activeBankId)}
               <button class="lv-btn sm lv-btn--primary" onclick={onResume} disabled={resumeBusy || exitBusy} style="display:flex;align-items:center;width:100%">
-                <Icon name="play" size={13} /> <span>继续上次练习</span> <span class="lv-chip sm num" style="margin-left:auto;font-size:11px">已答 {session.progress.done}/{session.progress.total}</span>
+                <Icon name="play" size={13} /> <span>继续上次练习</span> <span class="lv-chip sm num" style="margin-left:auto;font-size:11px">已答 {session.answeredCount ?? session.progress.done}/{session.progress.total}</span>
               </button>
             {:else}
               <button class="lv-btn sm" disabled={!practiceQuestions.length} onclick={() => onstartDrill("quick")} style="display:flex;align-items:center;width:100%">
@@ -720,8 +750,8 @@
   .lv-sample-welcome-lead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .lv-sample-welcome-title { font-size: var(--lv-font-size-md); font-weight: 600; color: var(--lv-text); }
   .lv-entry-overview { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr); gap: var(--lv-space-loose); align-items: stretch; margin-bottom: 18px; }
-  .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 26px 30px; position: relative; overflow: hidden; background: var(--lv-darkcard-bg); border: 1px solid var(--lv-darkcard-border); border-radius: var(--lv-r-card, 20px); box-shadow: var(--lv-darkcard-shadow); color: var(--lv-darkcard-text); }
-  .lv-entry-hero::after { content: ''; position: absolute; right: -70px; top: -70px; width: 240px; height: 240px; border-radius: var(--lv-radius-round); background: radial-gradient(closest-side, var(--lv-darkcard-accent-soft), transparent); pointer-events: none; }
+  .lv-entry-hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 24px 28px; position: relative; overflow: hidden; background: var(--lv-darkcard-bg); border: 1px solid var(--lv-darkcard-border); border-radius: var(--lv-r-card, 12px); box-shadow: var(--lv-darkcard-shadow); color: var(--lv-darkcard-text); }
+  .lv-entry-hero::after { display: none; }
   .lv-entry-main { min-width: 0; position: relative; z-index: 1; }
   .lv-entry-hero .lv-focus-label { color: var(--lv-darkcard-accent); }
   .lv-entry-reason { font-size: 20px; font-weight: var(--lv-font-weight-semibold); letter-spacing: -.3px; line-height: 1.45; margin: 8px 0 14px; overflow-wrap: anywhere; color: var(--lv-darkcard-text); }
@@ -738,9 +768,9 @@
   .lv-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 12px 0 10px; }
   .lv-week-day { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--lv-text-3); font-size: 11px; }
   .lv-week-count { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--lv-r-2, 10px); background: var(--lv-surface-2); color: var(--lv-text-3); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; transition: transform var(--lv-dur-micro) ease, background var(--lv-dur-micro) ease, border-color var(--lv-dur-micro) ease, box-shadow var(--lv-dur-micro) ease, color var(--lv-dur-micro) ease, opacity var(--lv-dur-micro) ease; }
-  .lv-week-count.has-attempts { background: var(--lv-data-accent); color: var(--lv-on-data, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-data-accent) 35%, transparent); }
-  .lv-week-day.is-today .lv-week-count { box-shadow: 0 0 0 2px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 30%, transparent); }
-  .lv-week-day.is-today:not(:has(.has-attempts)) .lv-week-count { background: var(--lv-accent-soft); color: var(--lv-accent); }
+  .lv-week-count.has-attempts { background: var(--lv-data-accent); color: var(--lv-on-data, #fff); }
+  .lv-week-day.is-today .lv-week-count { box-shadow: 0 0 0 1.5px var(--lv-accent); }
+  .lv-week-day.is-today .lv-week-count:not(.has-attempts) { background: var(--lv-accent-soft); color: var(--lv-accent); }
   .lv-week-day-label.today-text { color: var(--lv-accent); font-weight: 700; }
   .lv-week-hint { margin: 0; font-size: 11px; line-height: 1.5; color: var(--lv-text-3); }
   @container lv-exam (max-width: 960px) { .lv-entry-overview { grid-template-columns: minmax(0, 1fr); } }

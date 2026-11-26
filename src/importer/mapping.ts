@@ -3,7 +3,8 @@
 // 与已保存映射、autoMapExcel 共用 ExcelColumnMap 契约；-1=该字段不使用。
 // 纯函数无 IO；apply 前必经 assignmentErrors 校验（必填/越界/重复指派）。
 // ============================================================
-import { autoMapExcel, type ExcelColumnMap } from "./pipeline";
+import { autoMapExcel } from "./tabular";
+import type { ExcelColumnMap } from "./types";
 
 /** 选项槽固定 6 个（A-F），-1=不使用；判断/填空表可全 -1（选择题行由 validate 逐行报错） */
 export interface MapAssignment {

@@ -9,6 +9,7 @@
 
 import type { Question } from "./types";
 import { questionHash } from "./answer";
+import { stripInlineKramdownIal } from "./blockTemplate";
 
 export type LintSeverity = "error" | "warning" | "info";
 
@@ -200,6 +201,8 @@ export function lintQuestion(q: Partial<Question>): QuestionLintReport {
       });
       score -= 25;
     }
+  } else if (type === "material") {
+    // 材料背景题干（允许无标准答案，仅检查题干有效性与过短）
   } else {
     // 4. 简答与主观题
     if (!answer && !q.analysis) {
@@ -240,11 +243,11 @@ export function lintQuestion(q: Partial<Question>): QuestionLintReport {
  */
 export function autoFixQuestion(q: Question): { question: Question; fixedIssues: string[] } {
   const fixed: string[] = [];
-  let stem = (q.stem ?? "").trim();
+  let stem = stripInlineKramdownIal(q.stem ?? "").trim();
   let type = q.type || "single";
-  let options = Array.isArray(q.options) ? [...q.options] : [];
-  let answer = (q.answer ?? "").trim();
-  let analysis = (q.analysis ?? "").trim();
+  let options = Array.isArray(q.options) ? q.options.map((o) => stripInlineKramdownIal(o)) : [];
+  let answer = stripInlineKramdownIal(q.answer ?? "").trim();
+  let analysis = stripInlineKramdownIal(q.analysis ?? "").trim();
 
   // 1. 题干多余空行折叠
   const cleanedStem = stem.replace(/\n{3,}/g, "\n\n").trim();
@@ -260,11 +263,14 @@ export function autoFixQuestion(q: Question): { question: Question; fixedIssues:
       fixed.push("答案字母转大写");
     }
     if (type === "multiple" && /[,，、\s]+/.test(answer)) {
-      // 多选答案规范化：如 "A B C" 或 "A、B、C" 转为 "ABC" 或 "A, B, C"
-      const letters = Array.from(new Set((answer.match(/[A-Z]/g) || []))).sort();
-      if (letters.length > 0) {
-        answer = letters.join("");
-        fixed.push("多选答案格式规范化");
+      // 多选答案规范化：仅对纯 A-J 选项字母分隔串归一化，防止非选项描述/残留样式字符被误抽为字母
+      const tokens = answer.split(/[,，、\s]+/).map((tok) => tok.trim()).filter(Boolean);
+      if (tokens.length > 0 && tokens.every((tok) => /^[A-J]+$/.test(tok))) {
+        const letters = Array.from(new Set(tokens.join("").split(""))).sort();
+        if (letters.length > 0) {
+          answer = letters.join("");
+          fixed.push("多选答案格式规范化");
+        }
       }
     }
 
@@ -282,7 +288,7 @@ export function autoFixQuestion(q: Question): { question: Question; fixedIssues:
 
     // 选项过多（> 6 项）自愈：如果答案在有效选项范围内，则裁切多余选项并保留到解析；如果无答案则转为简答题
     if (options.length > 6) {
-      const validChoiceAns = /^[A-Fa-f]{1,6}$/.test(answer);
+      const validChoiceAns = /^[A-Ja-j]{1,10}$/.test(answer.replace(/[,，、\s]+/g, ""));
       if (!validChoiceAns || !answer) {
         // 转为简答题，保留全部选项到答案/解析
         type = "short";
@@ -294,7 +300,7 @@ export function autoFixQuestion(q: Question): { question: Question; fixedIssues:
         options = [];
         fixed.push(`异常超量选项（${q.options?.length ?? 0}项）已自动安全转换为简答题`);
       } else {
-        const ansCodes = answer.toUpperCase().split("").map((l) => l.charCodeAt(0) - 65);
+        const ansCodes = answer.replace(/[,，、\s]+/g, "").toUpperCase().split("").map((l) => l.charCodeAt(0) - 65);
         const maxCode = Math.max(3, ...ansCodes);
         const keepCount = Math.min(options.length, Math.max(4, maxCode + 1));
         if (options.length > keepCount) {

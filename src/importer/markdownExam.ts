@@ -9,8 +9,8 @@
 import type { Question } from "../core/types";
 import { newBatchId, newQuestionId } from "../core/ids";
 import { questionHash } from "../core/answer";
-import type { ImportOptions, ImportReport, ImportError } from "./pipeline";
-import { validate } from "./pipeline";
+import type { ImportOptions, ImportReport, ImportError } from "./types";
+import { validate } from "./validator";
 import { parseOcrQuestionText } from "../core/ocr";
 
 /**

@@ -1,8 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import type { Question } from "@/core/types";
-  import { renderMathInText } from "@/core/math";
-  import { renderMathDiagramsInText } from "@/core/mathDiagram";
+  import { renderMathAndDiagramsInText } from "@/core/mathDiagram";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
   import { formatDisplayAnswer } from "@/core/structuredAnswer";
   import { sanitizeRichHtml, renderInlineText } from "../../libs/sanitize";
@@ -153,7 +152,7 @@
       <!-- 试题卡片主体 -->
       <article class="lv-card lv-present-card">
         <div class="lv-present-stem b3-typography">
-          {@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(currentQ.stem)))}
+          {@html sanitizeRichHtml(renderMathAndDiagramsInText(currentQ.stem))}
         </div>
 
         {#if currentQ.occlusion}
@@ -184,13 +183,13 @@
             {#if currentQ.analysis}
               <div class="lv-present-analysis b3-typography">
                 <b>【思路解析】</b>
-                {@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(currentQ.analysis)))}
+                {@html sanitizeRichHtml(renderMathAndDiagramsInText(currentQ.analysis))}
               </div>
             {/if}
             {#if currentQ.expansion}
               <div class="lv-present-expansion b3-typography" style="margin-top:10px;padding:8px 12px;background:var(--lv-surface-2);border-left:3px solid var(--lv-accent);border-radius:4px">
                 <b style="color:var(--lv-accent)">【💡 思路拓展与秒杀技巧】</b>
-                {@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(currentQ.expansion)))}
+                {@html sanitizeRichHtml(renderMathAndDiagramsInText(currentQ.expansion))}
               </div>
             {/if}
             {#if currentQ.rubric && typeof currentQ.rubric === "object"}

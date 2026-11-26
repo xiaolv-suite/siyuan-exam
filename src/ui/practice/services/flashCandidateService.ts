@@ -11,6 +11,7 @@ export interface GenerateFlashOptions {
   app: ExamApp;
   aiConfig: AiChannelConfig;
   t: (k: string) => string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -22,7 +23,7 @@ export async function generateFlashCandidates(options: GenerateFlashOptions): Pr
   tokens: number;
   channelId: string;
 }> {
-  const { q, client, app, aiConfig, t } = options;
+  const { q, client, app, aiConfig, t, signal } = options;
   const { buildFlashCandidateMessages, parseFlashCandidates, findCardLeaks } = await import("@/ai/flashCandidates");
   const { AiTaskRunner, questionFingerprint } = await import("@/ai/task");
 
@@ -42,7 +43,7 @@ export async function generateFlashCandidates(options: GenerateFlashOptions): Pr
 
   const ch = await createAiChannel(client, aiConfig);
   const runner = new AiTaskRunner(ch);
-  const env = await runner.run(reqCtx, messages);
+  const env = await runner.run(reqCtx, messages, signal);
 
   if (env.status === "ok" && env.data.text) {
     const parsed = parseFlashCandidates(env.data.text);

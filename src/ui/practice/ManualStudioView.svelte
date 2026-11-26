@@ -2,10 +2,12 @@
   import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import { validateLatexSyntax } from "@/core/math";
+  import { renderMathAndDiagramsInText } from "@/core/mathDiagram";
   import { computeStemSimilarity, splitRawOptionsText } from "@/core/textDiff";
   import type { Question, QuestionLifecycleStatus } from "../../core/types";
   import StudioSubNav from "./StudioSubNav.svelte";
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
 
   interface Props {
     existingQuestions?: Question[];
@@ -55,6 +57,7 @@
     oninsertMathSnippet: (snip: string) => void;
     onapplyOcrFill: () => void;
     onfileInputChange: (e: Event) => void;
+    oncancelOcr?: () => void;
     onswitchManualType: (t: any) => void;
     onclearManualValidation: () => void;
     onsetCorrectOption: (idx: number) => void;
@@ -114,6 +117,7 @@
     oninsertMathSnippet,
     onapplyOcrFill,
     onfileInputChange,
+    oncancelOcr,
     onswitchManualType,
     onclearManualValidation,
     onsetCorrectOption,
@@ -335,6 +339,31 @@
         <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">支持快捷键 Ctrl+V 直接粘贴试卷图片或文本</span>
         <button class="lv-btn lv-btn--ghost sm" style="margin-left:auto" onclick={() => (ocrModalOpen = false)}>取消</button>
       </div>
+      {#if ocrUploadBusy}
+        <div style="margin-top:10px">
+          <AiThinkingCard
+            scenario="transform"
+            defaultIcon="📷"
+            compact={true}
+            title="📷 正在上传并识别试题图片…"
+            subtitle="非阻塞 OCR 提取题干与选项中，可随时取消"
+            cancelLabel="⏹ 取消识别"
+            oncancel={() => oncancelOcr?.()}
+          />
+        </div>
+      {/if}
+    </div>
+  {:else if ocrUploadBusy}
+    <div style="margin:10px 0">
+      <AiThinkingCard
+        scenario="transform"
+        defaultIcon="📷"
+        compact={true}
+        title="📷 正在识别粘贴的试题图片…"
+        subtitle="非阻塞 OCR 提取题干与选项中，可随时取消"
+        cancelLabel="⏹ 取消识别"
+        oncancel={() => oncancelOcr?.()}
+      />
     </div>
   {/if}
   <div class="lv-row" style="margin:6px 0 10px;gap:6px;align-items:center;flex-wrap:wrap">
@@ -458,7 +487,7 @@
             <button type="button" class="lv-chip sm" title="拼音 a 四声" onclick={() => oninsertMathSnippet("à")}>à</button>
             <button type="button" class="lv-chip sm" title="拼音 o 一声" onclick={() => oninsertMathSnippet("ō")}>ō</button>
             <button type="button" class="lv-chip sm" title="拼音 o 二声" onclick={() => oninsertMathSnippet("ó")}>ó</button>
-            <button type="button" class="lv-chip sm" title="拼拼 o 三声" onclick={() => oninsertMathSnippet("ǒ")}>ǒ</button>
+            <button type="button" class="lv-chip sm" title="拼音 o 三声" onclick={() => oninsertMathSnippet("ǒ")}>ǒ</button>
             <button type="button" class="lv-chip sm" title="拼音 o 四声" onclick={() => oninsertMathSnippet("ò")}>ò</button>
             <button type="button" class="lv-chip sm" title="拼音 e 一声" onclick={() => oninsertMathSnippet("ē")}>ē</button>
             <button type="button" class="lv-chip sm" title="拼音 e 二声" onclick={() => oninsertMathSnippet("é")}>é</button>
@@ -525,7 +554,7 @@
       {#if mType === "single" || mType === "multiple"}
         <div class="lv-field" role="group" aria-label={t("manual.options")}>
           <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
-            <span class="lv-muted">{t("manual.options")}（点击字母圆圈设为正确答案）</span>
+            <span class="lv-muted">{t("manual.options")}</span>
             <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => (quickSplitOpen = !quickSplitOpen)} title="粘贴包含 A. B. C. D. 的整段选项，一键自动秒拆上槽">
               <Icon name="sparkles" size={12} /> {quickSplitOpen ? "收起拆分" : "🪄 粘贴整段选项秒拆"}
             </button>
@@ -810,7 +839,7 @@
       </div>
       <div class="lv-preview-face">
         <span class="lv-chip lv-chip--acc">{t("qtype." + mType)}</span>
-        <h3>{@html sanitizeRichHtml(renderMathInText(renderMathDiagramsInText(mStem.trim() || t("manual.stemPlaceholder"))))}</h3>
+        <h3>{@html sanitizeRichHtml(renderMathAndDiagramsInText(mStem.trim() || t("manual.stemPlaceholder"), renderMathInText, renderMathDiagramsInText))}</h3>
         {#if mType === "single" || mType === "multiple"}
           <div class="lv-preview-options">
             {#each mOptions as option, i (i)}

@@ -6,6 +6,7 @@ import { createQuestionVersionSnapshot } from "@/core/revision";
 import { trailChanged, type AnswerTrail } from "@/core/answerTrail";
 import { abandonedExposureInputs, helpFromExposure } from "@/core/exposure";
 import { emitExamEvent, computeWeakKnowledgePoints } from "@/core/bus";
+import { loadReciteSnapshot, RECITE_ACTIVE_KEY, type ReciteSessionState } from "./reciteStudioService";
 
 export interface RecordAttemptOptions {
   app: ExamApp;
@@ -327,8 +328,10 @@ export async function executeSessionResume(
   loadQuestionsFn: () => Promise<Question[]>,
   activeBankId: string,
 ): Promise<SessionResumeResult> {
+  let loadedQuestions: Question[] = [];
   const s = await app.resumeSession(async (qids: string[]) => {
     const all = await loadQuestionsFn();
+    loadedQuestions = all;
     return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
   }, activeBankId);
 
@@ -337,11 +340,92 @@ export async function executeSessionResume(
   }
 
   s.advancePastAnswered();
-  const sessionDone = s.allAnswered() ? s.finish() : null;
+  let sessionDone: any = null;
+  if (s.allAnswered()) {
+    sessionDone = typeof s.breakdown === "function"
+      ? calculateSessionDoneSummary(s, loadedQuestions)
+      : s.finish();
+    await app.saveSession?.().catch(() => undefined);
+    await app.flush?.().catch(() => undefined);
+  }
 
   return {
     session: s,
     sessionDone,
+    missingCount: app.lastResumeMissing?.length ?? 0,
+  };
+}
+
+export interface PracticeBootResumeOptions {
+  app: ExamApp;
+  activeBankId: string;
+  questions: Question[];
+  loadQuestions: () => Promise<Question[]>;
+  externalStartBusy: boolean;
+  hasExplicitInitialTarget: boolean;
+  pendingResumeSession: boolean;
+}
+
+export interface PracticeBootResumeResult {
+  session: PracticeSession | null;
+  reciteSnapshot: ReciteSessionState | null;
+  reciteIsNewer: boolean;
+  resumeTargetView: "entry" | "session" | "recite";
+  missingCount: number;
+}
+
+/**
+ * 启动期仅静默水合未完成会话/背诵快照供主页展示；默认绝不擅自直进做题或背诵页，
+ * 仅在罗盘快捷行动等显式续做请求（pendingResumeSession=true 且无其他显式视图）时才返回目标做题视图。
+ */
+export async function hydratePracticeBootResumables(
+  options: PracticeBootResumeOptions,
+): Promise<PracticeBootResumeResult> {
+  const { app, activeBankId, questions, loadQuestions, externalStartBusy, hasExplicitInitialTarget, pendingResumeSession } = options;
+
+  const s = await app.resumeSession(async (qids) => {
+    const all = questions.length ? questions : await loadQuestions();
+    return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
+  }, activeBankId);
+
+  const rawRecite = activeBankId && !externalStartBusy
+    ? await app.loadAux<any>(RECITE_ACTIVE_KEY).catch(() => null)
+    : null;
+  const reciteIsNewer = Boolean(
+    rawRecite &&
+      rawRecite.bankId === activeBankId &&
+      !rawRecite.done &&
+      (!s || (rawRecite.updatedAt ?? 0) > (s.state.updatedAt ?? 0)),
+  );
+
+  if (s) {
+    s.advancePastAnswered();
+  }
+
+  let reciteSnapshot: ReciteSessionState | null = null;
+  if (reciteIsNewer && !externalStartBusy) {
+    const all = questions.length ? questions : await loadQuestions();
+    reciteSnapshot = await loadReciteSnapshot(
+      app,
+      activeBankId,
+      all.filter((q) => q.type !== "material"),
+    );
+  }
+
+  let resumeTargetView: "entry" | "session" | "recite" = "entry";
+  if (pendingResumeSession && !hasExplicitInitialTarget && !externalStartBusy) {
+    if (reciteSnapshot) {
+      resumeTargetView = "recite";
+    } else if (s) {
+      resumeTargetView = "session";
+    }
+  }
+
+  return {
+    session: s,
+    reciteSnapshot,
+    reciteIsNewer,
+    resumeTargetView,
     missingCount: app.lastResumeMissing?.length ?? 0,
   };
 }

@@ -6,6 +6,9 @@
     import { lvMascot } from "../../libs/ui/mascots";
     import { resolveEffectiveMotion } from "../../libs/lv-ui-prefs";
     import { armExamHistory, disarmExamHistory } from "../../core/examHistoryGuard";
+import { watchSiYuanTheme } from "../../libs/lv-theme";
+import { renderMathAndDiagramsInText } from "@/core/mathDiagram";
+import { sanitizeRichHtml } from "@/libs/sanitize";
 
     /** 切屏计数（docs/11 S6：失焦与后台切屏计次进报告，不阻断） */
     function recordScreenSwitch() {
@@ -37,7 +40,10 @@
             const nextSec = bp.sections[secIdx + 1];
             if (nextSec) {
               const nextQ = session.state.qids.findIndex((id) => session.sectionOfQ(id) === nextSec.name);
-              if (nextQ >= 0) { session.navigateTo(nextQ, nowTick); cursor = nextQ; }
+              if (nextQ >= 0) {
+                cursor = session.advanceSectionOnTimeout(nextQ, nowTick);
+                persistRun();
+              }
             }
           }
         }
@@ -61,6 +67,7 @@
     import { emitExamEvent, onExamEvent, computeWeakKnowledgePoints } from "../../core/bus";
     import { openPracticeView, type ExamPluginLike } from "../../core/pluginTab";
     import { answerChoices, isChoiceQuestion, toggleChoice } from "../../core/answerChoices";
+    import { normalizeJudge } from "../../core/answer";
     import { specOf, splitBlanks, joinBlanks, formatDisplayAnswer } from "../../core/structuredAnswer";
     import { estimateScore, normalizeEstimateInput } from "../../core/estimate";
     import Icon from "../shared/Icon.svelte";
@@ -80,6 +87,36 @@
     import { openSiYuanTarget } from "../practice/services/backlinkNavigationService";
     import ScratchpadDrawer from "../practice/ScratchpadDrawer.svelte";
     import PaperAssembleModal from "../practice/PaperAssembleModal.svelte";
+    import {
+      getUiFoldPref,
+      setUiFoldPref,
+      isLongAnalysisText,
+      previewLongAnalysisText,
+    } from "../../core/uiFoldPrefs";
+
+    const LONG_ANALYSIS_FOLD_KEY = "exam:analysis_long_fold";
+    let mockLongAnalysisCollapsed = $state(getUiFoldPref(LONG_ANALYSIS_FOLD_KEY, true));
+    function toggleMockLongAnalysisFold() {
+      const next = !mockLongAnalysisCollapsed;
+      mockLongAnalysisCollapsed = next;
+      setUiFoldPref(LONG_ANALYSIS_FOLD_KEY, next);
+    }
+    function protectHorizontalScroll(node: HTMLElement, _dep?: unknown) {
+      const mark = () => {
+        node
+          .querySelectorAll<HTMLElement>(
+            '.katex-display, .math-display, .lv-math-block-wrap, .table, [data-type="NodeTable"], table, pre, svg.lv-math-diagram, svg.lv-math-plot',
+          )
+          .forEach((el) => {
+            el.setAttribute("data-prevent-swipe", "true");
+            if (el.tagName === "TABLE" && el.parentElement?.tagName === "DIV") {
+              el.parentElement.classList.add("lv-table-scroll-wrap");
+            }
+          });
+      };
+      mark();
+      return { update() { mark(); } };
+    }
     
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
     let appOverride = $state<ExamApp | null>(null);
@@ -436,6 +473,9 @@
       loading = true;
       errorMsg = "";
       try {
+        if (!app.tier2Ready && typeof app.ensureTier2Loaded === "function") {
+          await app.ensureTier2Loaded().catch(() => undefined);
+        }
         const banks = app.listBanks();
         banksList = banks;
         if (!banks.length) {
@@ -545,6 +585,7 @@
       document.addEventListener("fullscreenchange", updateFullscreenState);
       document.addEventListener("visibilitychange", onVisibilityChange);
       const offs = [
+        ...(tabRoot ? [watchSiYuanTheme(tabRoot)] : []),
         onExamEvent("app-ready", () => {
           appOverride = plugin?.examApp ?? null;
           if (appOverride) initMock();
@@ -616,6 +657,10 @@
         if (idx >= 0) letters.splice(idx, 1);
         else letters.push(letter);
         newAns = letters.sort().join("");
+      } else if (qType === "judge") {
+        const normCur = normalizeJudge(curAns) ?? curAns;
+        const normNext = normalizeJudge(letter) ?? letter;
+        newAns = normCur === normNext ? "" : normNext;
       } else {
         newAns = curAns === letter ? "" : letter;
       }
@@ -730,7 +775,7 @@
         if (!(await confirmDialogSync({
           title: t("mock.removeSectionTitle", "删除考试模块？"),
           content: t("mock.removeSectionConfirm", "将从当前蓝图移除「{name}」模块及其题量、分值和配额。若尚未保存，无法恢复。")
-            .replace("{name}", sectionName),
+            .replace("{name}", () => sectionName),
         }))) return;
         bp.sections = bp.sections.filter((_, j) => j !== i);
       } catch (e) {
@@ -741,20 +786,15 @@
       bp.sections = bp.sections.map((s, j) => (j === i ? { ...s, ...patch } : s));
     }
 
-    /** 55-02 lite：配额满足度实时预览（来源/题型/考点配额下的可出题数），缺口显式提示 */
+    /** 55-02 lite：配额满足度实时预览（按蓝图段序扣除前段已抽题占用，并标注来源混合补齐提示） */
     const quotaShort = $derived.by(() => {
       if (!bp.sections.length || !questions.length) return [];
-      return bp.sections
-        .map((s) => {
-          const have = questions.filter(
-            (q) =>
-              (s.source === "mixed" || (q.sourceKind ?? "mock") === s.source) &&
-              (!s.types.length || s.types.includes(q.type)) &&
-              (!s.kp || q.kp === s.kp || (q.kp?.startsWith(s.kp + "/") ?? false)),
-          ).length;
-          return { name: s.name, need: s.count, have };
-        })
-        .filter((x) => x.have < x.need);
+      const activeBp = dedupeSectionNames({
+        ...bp,
+        sections: bp.sections.filter((s) => s.count > 0),
+      });
+      if (!activeBp.sections.length) return [];
+      return assemble(activeBp, questions, () => 0).shortages;
     });
 
     /** 蓝图持久化（TODO 27 P2）：保存/恢复命名蓝图 */
@@ -819,15 +859,26 @@
     }
 
     let shortLinedPaper = $state(readLocal("lv-exam/lined-paper") === "1");
+    const renderMockStemFallback = (raw: string): string =>
+      raw ? sanitizeRichHtml(renderMathAndDiagramsInText(raw)) : "";
     let stemHtml = $state("");
     let stemHtmlFor = $state("");
     $effect(() => {
       const q = currentQ;
       if (!q || view !== "exam" || !app) { stemHtml = ""; stemHtmlFor = ""; return; }
-      stemHtml = ""; stemHtmlFor = q.id;
-      void app.renderStem(q).then((html) => {
-        if (html && stemHtmlFor === q.id) stemHtml = html;
-      });
+      const cachedStem = app.peekRenderedStem?.(q) ?? "";
+      stemHtmlFor = q.id;
+      stemHtml = cachedStem || renderMockStemFallback(q.stem);
+      if (!cachedStem) {
+        void app.renderStem(q).then((html) => {
+          if (html && stemHtmlFor === q.id && html !== stemHtml) stemHtml = html;
+        });
+      }
+      const nextQid = session?.state.qids[cursor + 1];
+      const nextQ = nextQid ? questionMap.get(nextQid) : undefined;
+      if (nextQ && !app.peekRenderedStem?.(nextQ)) {
+        void app.renderStem(nextQ).catch(() => undefined);
+      }
     });
 
     import {
@@ -1087,21 +1138,35 @@
         }
         const r = assemble(workingBp, questions);
         if (!r.paper.length) { errorMsg = t("state.emptyBank"); return; }
-        if (r.paper.some((q) => q.type === "short" || q.type === "material")) {
-          errorMsg = t("mock.unscoredTypes", "当前模考仅支持可自动判分的单选、多选、判断和填空。请在蓝图中排除简答、材料题，或到练习台使用自评。");
+        if (r.paper.some((q) => q.type === "material")) {
+          errorMsg = t("mock.unscoredTypes", "当前模考仅支持可作答题目（单选、多选、判断、填空、简答），请在蓝图中排除纯材料题干块。");
           return;
         }
-        // 40-02：蓝图短缺不阻断开考，但实际题数/实际满分必须在开考前明示（不由其他题偷偷补齐）
+        // 40-02：蓝图短缺与来源混合补齐均在开考前明示（不由其他考点偷偷补齐）
         const requested = workingBp.sections.reduce((n, s) => n + s.count, 0);
-        if (r.paper.length < requested) {
+        const mixedFilledTotal = r.shortages.reduce((n, s) => n + (s.filledFromMixed ?? 0), 0);
+        if (r.paper.length < requested || mixedFilledTotal > 0) {
           const actualFull = [...r.scoreOf.values()].reduce((a, b) => a + b, 0);
           const { confirmDialogSync } = await import("../../libs/dialog");
+          const lines: string[] = [];
+          if (r.paper.length < requested) {
+            lines.push(
+              t("mock.shortBody")
+                .replace("{want}", String(requested))
+                .replace("{actual}", String(r.paper.length))
+                .replace("{full}", String(actualFull)),
+            );
+          }
+          if (mixedFilledTotal > 0) {
+            const mixedDetail = r.shortages
+              .filter((s) => s.filledFromMixed > 0)
+              .map((s) => `${s.name}（补齐 ${s.filledFromMixed} 题）`)
+              .join("、");
+            lines.push(`其中部分模块严格来源题量不足，已从其他来源自动补齐：${mixedDetail}。`);
+          }
           const ok = await confirmDialogSync({
             title: t("mock.shortTitle"),
-            content: t("mock.shortBody")
-              .replace("{want}", String(requested))
-              .replace("{actual}", String(r.paper.length))
-              .replace("{full}", String(actualFull)),
+            content: lines.join("\n"),
           });
           if (!ok) return;
         }
@@ -1164,7 +1229,10 @@
             const nextSec = bp.sections[secIdx + 1];
             if (nextSec) {
               const nextQ = session.state.qids.findIndex((id) => session.sectionOfQ(id) === nextSec.name);
-              if (nextQ >= 0) { session.navigateTo(nextQ, nowTick); cursor = nextQ; }
+              if (nextQ >= 0) {
+                cursor = session.advanceSectionOnTimeout(nextQ, nowTick);
+                persistRun();
+              }
             }
           }
         }
@@ -1649,6 +1717,12 @@
       score = session.score();
       const effectiveRunId = runId || "mock-" + bp.id;
       if (score && app) {
+        await app.updateMockAttemptSelfRating(effectiveRunId, qid, factor, session.answers.get(qid)?.answer ?? null);
+        if (factor < 0.6) {
+          const sq = questionMap.get(qid);
+          if (sq) void app.triggerWrongQuestionAutomation(sq);
+        }
+        emitExamEvent("wrongbook-changed", { qid, status: factor >= 0.6 ? "correct" : "wrong" });
         await app.saveMockResult({
           id: bp.id,
           runId: effectiveRunId,
@@ -2153,16 +2227,17 @@
   {:else if view === "config"}
     <div class="lv-card" style="padding:14px 16px;margin-bottom:14px">
       <b>{t("mock.setupGuideTitle", "先确认本次模考条件")}</b>
-      <p class="lv-muted" style="margin:6px 0">{t("mock.setupGuide", "默认蓝图已按考点配置可自动判分题。先核对模块、题数与分值，再设置时长和及格百分比；开考后独立作答，统一交卷。简答题请在练习台或背诵模式自评。")}</p>
+      <p class="lv-muted" style="margin:6px 0">{t("mock.setupGuide", "默认蓝图已按考点配置题目。先核对模块、题数与分值，再设置时长和及格百分比；开考后独立作答，统一交卷，简答题支持交卷后采分自评。")}</p>
     </div>
     <!-- ===== 恢复进行中的模考（U19：关页/休眠后回到同一 run） ===== -->
     {#if resumable}
+      {@const resumeEndAt = resumable.startedAt + (resumable.bp.durationS + (resumable.extraTimeS ?? 0)) * 1000}
       <div class="lv-card" style="margin-bottom:14px;border-color:var(--lv-accent)">
         <div class="lv-row" style="margin:0">
           <b>{t("mock.resumeTitle")}</b>
           <span class="lv-chip num">{resumable.bp.name} · {resumable.answers.length}/{resumable.qids.length}</span>
-          <span class="lv-chip num" class:lv-chip--red={resumable.startedAt + resumable.bp.durationS * 1000 < Date.now()}>
-            {t("mock.resumeLeft")} {Math.max(0, Math.round(((resumable.startedAt + resumable.bp.durationS * 1000 - Date.now()) / 60_000)))} min
+          <span class="lv-chip num" class:lv-chip--red={resumeEndAt < Date.now()}>
+            {t("mock.resumeLeft")} {Math.max(0, Math.round((resumeEndAt - Date.now()) / 60_000))} min
           </span>
           <span class="fn__flex-1"></span>
         <button class="lv-btn lv-btn--primary sm" disabled={resumeBusy || discardBusy || starting || blueprintBusy} aria-busy={resumeBusy} onclick={resumeExam}>{resumeBusy ? "…" : t("mock.resumeGo")}</button>
@@ -2179,7 +2254,11 @@
       <span class="lv-chip num">{t("mock.totalScore")} {totals.score}</span>
       <span class="lv-chip num"><Icon name="clock" size={12} />{Math.round(bp.durationS / 60)} min</span>
       {#each quotaShort as qs, _i (_i)}
-        <span class="lv-chip lv-chip--red num" title={t("mock.quotaShortTip")}><Icon name="alert-triangle" size={11} /> {qs.name} {t("mock.quotaShort").replace("{have}", String(qs.have)).replace("{need}", String(qs.need))}</span>
+        {#if qs.have < qs.need}
+          <span class="lv-chip lv-chip--red num" title={t("mock.quotaShortTip")}><Icon name="alert-triangle" size={11} /> {qs.name} {t("mock.quotaShort").replace("{have}", String(qs.have)).replace("{need}", String(qs.need))}{#if qs.filledFromMixed > 0}（混合补齐 {qs.filledFromMixed}）{/if}</span>
+        {:else if qs.filledFromMixed > 0}
+          <span class="lv-chip lv-chip--amb num" title={t("mock.quotaMixedTip", "严格来源题量不足，已从其他来源自动补齐")}><Icon name="alert-triangle" size={11} /> {qs.name} 混合补齐 {qs.filledFromMixed} 题</span>
+        {/if}
       {/each}
     </div>
     <div class="lv-row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:8px 0 10px">
@@ -2225,7 +2304,7 @@
           <option value="interactive">🌐 交互式讲题自测卷</option>
         </select>
         <button class="lv-btn sm lv-btn--ghost" onclick={openMockAssemble} disabled={!questions.length} title="进入专业组卷排版工坊，自定义 A4 纸面大标题、密封线、总分表与答题留白并直接打印">
-          <Icon name="printer" size={13} /> 🖨️ 组卷排版工坊
+          <Icon name="printer" size={13} /> 组卷排版工坊
         </button>
         <button class="lv-btn sm lv-btn--ghost" onclick={() => void printMockByFormat(mockPrintFormat)} disabled={printBusy || !questions.length} aria-busy={printBusy} title="按所选版式导出 A4 双栏试卷 / 答案册 / 授课讲义 / 作业单"><Icon name="file" size={13} /> {printBusy ? "…" : t("mock.printCompact")}</button>
         <button class="lv-btn sm lv-btn--ghost" onclick={saveMockExamAsDoc} disabled={!questions.length} title="将当前模考试卷整套排版存为思源笔记原生文档，折叠答案与解析，即使卸载插件考卷与作答永久保留"><Icon name="folder" size={13} /> {t("mock.saveAsSiyuanDoc")}</button>
@@ -2247,7 +2326,7 @@
     {/if}
     {#if !canStartExam && startDisabledReason}<p class="lv-muted" role="status" style="margin:4px 0">{startDisabledReason}</p>{/if}
     <div class="lv-bp-table">
-      <div class="lv-bp-row head"><span>{t("mock.sec")}</span><span>{t("mock.count")}</span><span>{t("mock.each")}</span><span>{t("mock.source")}</span><span>{t("mock.secKp")}</span><span>难度梯度 (MathCyclus)</span><span></span></div>
+      <div class="lv-bp-row head"><span>{t("mock.sec")}</span><span>{t("mock.count")}</span><span>{t("mock.each")}</span><span>{t("mock.source")}</span><span>{t("mock.secKp")}</span><span>难度梯度</span><span></span></div>
       {#each bp.sections as s, i (i)}
         <div class="lv-bp-row">
           <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.sec")}</span><input class="lv-input" bind:value={s.name} oninput={() => updateSection(i, { name: s.name })} aria-label={t("mock.sec")} /></label>
@@ -2262,7 +2341,7 @@
             <input class="lv-input" style="flex:1;min-width:90px" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
               aria-label={t("mock.secKp")}
               oninput={(e) => updateSection(i, { kp: (e.target as HTMLInputElement).value.trim() || undefined })} />
-            <label class="lv-chip sm" style="cursor:pointer;margin:0;padding:2px 5px" title={t("mock2.secondaryKpTip", "允许匹配题目的辅助考查知识点 (secondaryKps)")}>
+            <label class="lv-chip sm" style="cursor:pointer;margin:0;padding:2px 5px" title={t("mock2.secondaryKpTip", "允许匹配题目的辅助考查知识点")}>
               <input type="checkbox" checked={!!s.matchSecondaryKp} onchange={(e) => updateSection(i, { matchSecondaryKp: (e.target as HTMLInputElement).checked })} />
               <span style="font-size:10px">辅考点</span>
             </label>
@@ -2494,11 +2573,7 @@
           onclose={() => (scratchpadOpen = false)}
         />
         <span class="lv-chip lv-chip--acc">{t("qtype." + currentQ.type)}</span>
-      {#if stemHtml}
-        <div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{@html stemHtml}</div>
-      {:else}
-        <div class="lv-stem" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"}>{currentQ.stem}</div>
-      {/if}
+      <div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={examFontSize === "large"} class:lv-stem--xl={examFontSize === "xlarge"} use:protectHorizontalScroll={stemHtml || currentQ.stem}>{@html stemHtml || renderMockStemFallback(currentQ.stem)}</div>
       {#if currentQ.occlusion}
         <div class="lv-occlusion-wrap" style="margin:10px 0 14px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1);max-width:520px">
           {@html renderOcclusionSvg(currentQ.occlusion, { activeMaskId: currentQ.occlusion.activeMaskId, revealedMaskIds: [] })}
@@ -2769,9 +2844,10 @@
                       <span class="lv-muted" style="font-size:11px">【{q ? (q.type === "single" ? "单选" : q.type === "multiple" ? "多选" : q.type === "judge" ? "判断" : "主观") : ""}】</span>
                     </div>
                     {#if isChoice}
-                      <div class="lv-row" style="margin:0;gap:4px">
-                        {#each (q && q.type === "judge" ? ["T", "F"] : ["A", "B", "C", "D"]) as b (b)}
-                          {@const active = curAns.includes(b)}
+                      {@const bubbleOpts = q ? answerChoices(q).map((c) => c.value) : ["A", "B", "C", "D"]}
+                      <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
+                        {#each bubbleOpts as b (b)}
+                          {@const active = q?.type === "judge" ? normalizeJudge(curAns) === b : curAns.includes(b)}
                           <button
                             type="button"
                             class="lv-chip sm"
@@ -2817,9 +2893,10 @@
                 <span class="lv-muted" style="font-size:11px">【{q ? (q.type === "single" ? "单选" : q.type === "multiple" ? "多选" : q.type === "judge" ? "判断" : "主观") : ""}】</span>
               </div>
               {#if isChoice}
-                <div class="lv-row" style="margin:0;gap:4px">
-                  {#each (q && q.type === "judge" ? ["T", "F"] : ["A", "B", "C", "D"]) as b (b)}
-                    {@const active = curAns.includes(b)}
+                {@const bubbleOpts = q ? answerChoices(q).map((c) => c.value) : ["A", "B", "C", "D"]}
+                <div class="lv-row" style="margin:0;gap:4px;flex-wrap:wrap">
+                  {#each bubbleOpts as b (b)}
+                    {@const active = q?.type === "judge" ? normalizeJudge(curAns) === b : curAns.includes(b)}
                     <button
                       type="button"
                       class="lv-chip sm"
@@ -2928,9 +3005,10 @@
                   </button>
                 </div>
                 {#if isChoice}
-                  <div class="lv-row" style="margin:4px 0 0;gap:6px">
-                    {#each (q && q.type === "judge" ? ["对", "错"] : ["A", "B", "C", "D"]) as opt (opt)}
-                      {@const active = curAns.includes(opt)}
+                  {@const sweepOpts = q ? answerChoices(q).map((c) => c.value) : ["A", "B", "C", "D"]}
+                  <div class="lv-row" style="margin:4px 0 0;gap:6px;flex-wrap:wrap">
+                    {#each sweepOpts as opt (opt)}
+                      {@const active = q?.type === "judge" ? normalizeJudge(curAns) === opt : curAns.includes(opt)}
                       <button type="button" class="lv-chip" class:acc={active}
                         style="{active ? 'background:var(--lv-brand);color:var(--lv-on-brand, #fff);font-weight:700;' : ''}cursor:pointer;padding:3px 10px;font-size:11px"
                         onclick={() => onBubbleFill(qid, opt, q?.type)}>
@@ -3400,7 +3478,20 @@
                     </button>
                   {/if}
                 </div>
-                {#if q?.analysis}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px"><span class="lv-badge" style="margin-right:4px">解析</span>{q.analysis}</div>{/if}
+                {#if q?.analysis}
+                  {@const isLong = isLongAnalysisText(q.analysis)}
+                  <div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px;white-space:pre-wrap">
+                    <span class="lv-badge" style="margin-right:4px">解析</span>
+                    {#if isLong}
+                      <button type="button" class="lv-btn sm lv-btn--ghost" style="padding:1px 6px;font-size:11px;min-height:24px" aria-expanded={!mockLongAnalysisCollapsed} onclick={toggleMockLongAnalysisFold}>
+                        {mockLongAnalysisCollapsed ? `展开完整解析（共 ${q.analysis.split(/\r?\n/).length} 行）` : "收起长解析"}
+                      </button>
+                      <div style="margin-top:4px">{mockLongAnalysisCollapsed ? previewLongAnalysisText(q.analysis) : q.analysis}</div>
+                    {:else}
+                      {q.analysis}
+                    {/if}
+                  </div>
+                {/if}
                 {#if q?.expansion}<div class="lv-muted" style="font-size:var(--lv-font-size-caption);margin-top:4px;padding:3px 8px;background:var(--lv-surface-2);border-left:2px solid var(--lv-accent);border-radius:2px"><span style="color:var(--lv-accent);font-weight:600">💡 思路拓展：</span>{q.expansion}</div>{/if}
               </div>
             {/each}
@@ -3432,7 +3523,7 @@
         <option value="interactive">🌐 交互式讲题自测卷</option>
       </select>
       <button class="lv-btn lv-btn--ghost sm" onclick={openMockAssemble} disabled={!questions.length} title="进入专业组卷排版工坊，自定义 A4 纸面大标题、密封线、总分表与答题留白并直接打印">
-        <Icon name="printer" size={13} /> 🖨️ 组卷排版
+        <Icon name="printer" size={13} /> 组卷排版
       </button>
       <button class="lv-btn lv-btn--ghost sm" onclick={() => void printMockByFormat(reportPrintFormat)} disabled={printBusy} title={t("mock2.reportPrintTip", "按所选版式打印答案册、授课讲义或测试卷")}><Icon name="file" size={13} /> {t("mock.printAnswerSheet")}</button>
       {#if activeBankId}
@@ -3494,8 +3585,8 @@
   .lv-opt-check.box::after { border-radius: 1.5px; }
   .lv-opt.sel .lv-opt-check { border-color: transparent; background: var(--lv-accent); }
   .lv-opt.sel .lv-opt-check::after { transform: scale(1); }
-  .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
-  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
+  .lv-opt.sel { border-color: var(--lv-accent); background: var(--lv-accent-soft); box-shadow: 0 0 0 1px var(--lv-accent); }
+  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); }
   .lv-opt.eliminated { opacity: 0.45; background: var(--lv-surface-2) !important; border-style: dashed !important; }
   .lv-opt.eliminated .lv-opt-text { text-decoration: line-through; }
   .lv-opt.eliminated .key { opacity: 0.6; text-decoration: line-through; }
@@ -3519,18 +3610,18 @@
   .lv-cell:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--lv-sh-2); border-color: var(--lv-border-hover, var(--lv-accent)); }
   .lv-cell:active:not(:disabled) { transform: scale(0.96); }
   .lv-cell.done { background: var(--lv-accent-soft); color: var(--lv-accent); border-color: color-mix(in srgb, var(--lv-accent) 36%, transparent); font-weight: var(--lv-font-weight-bold); }
-  .lv-cell.flag { position: relative; outline: 2px solid var(--lv-amber); outline-offset: -2px; border-color: var(--lv-amber); background: color-mix(in srgb, var(--lv-amber-soft) 40%, var(--lv-surface)); box-shadow: 0 0 6px color-mix(in srgb, var(--lv-amber) 25%, transparent); }
-  .lv-cell.flag::after { content: ""; position: absolute; top: 3.5px; right: 3.5px; width: 6px; height: 6px; border-radius: var(--lv-radius-round, 9999px); background: var(--lv-amber); box-shadow: 0 0 4px color-mix(in srgb, var(--lv-amber) 50%, transparent); }
-  .lv-cell.cur { background: var(--lv-accent); color: var(--lv-on-accent, #fff); border-color: transparent; box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 4.5px var(--lv-accent), var(--lv-sh-2); transform: translateY(-1px); z-index: 2; }
+  .lv-cell.flag { position: relative; outline: 1.5px solid var(--lv-amber); outline-offset: -2px; border-color: var(--lv-amber); background: var(--lv-amber-soft); }
+  .lv-cell.flag::after { content: ""; position: absolute; top: 3.5px; right: 3.5px; width: 6px; height: 6px; border-radius: var(--lv-radius-round, 9999px); background: var(--lv-amber); }
+  .lv-cell.cur { background: var(--lv-accent); color: var(--lv-on-accent, #fff); border-color: transparent; box-shadow: 0 0 0 2px var(--lv-surface), 0 0 0 3.5px var(--lv-accent); transform: translateY(-1px); z-index: 2; }
   .lv-card.lv-question { box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
   .lv-score-card { box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
-  .lv-score-card .lv-chip.grn { background: var(--lv-green-soft); color: var(--lv-green); font-weight: var(--lv-font-weight-semibold); box-shadow: 0 0 10px color-mix(in srgb, var(--lv-green) 35%, transparent); }
-  .lv-score-card .lv-chip.red { background: var(--lv-red-soft); color: var(--lv-red); font-weight: var(--lv-font-weight-semibold); box-shadow: 0 0 8px color-mix(in srgb, var(--lv-red) 25%, transparent); }
+  .lv-score-card .lv-chip.grn { background: var(--lv-green-soft); color: var(--lv-green); font-weight: var(--lv-font-weight-semibold); }
+  .lv-score-card .lv-chip.red { background: var(--lv-red-soft); color: var(--lv-red); font-weight: var(--lv-font-weight-semibold); }
   .lv-empty { border: 1.5px dashed var(--lv-border); border-radius: var(--lv-r-3); padding: var(--lv-space-7); text-align: center; color: var(--lv-text-3); background: color-mix(in srgb, var(--lv-surface-2) 40%, var(--lv-surface)); }
   .lv-skeleton { height: 160px; border-radius: var(--lv-r-3); background: linear-gradient(100deg, var(--lv-surface-2) 40%, var(--lv-surface) 50%, var(--lv-surface-2) 60%); background-size: 200% 100%; animation: lv-shim 1.4s infinite; }
   @keyframes lv-shim { to { background-position: -200% 0; } }
   .progress { height: 6px; border-radius: var(--lv-radius-pill); background: var(--lv-surface-2); overflow: hidden; }
-  .progress i { display: block; height: 100%; background: var(--lv-accent-grad); border-radius: var(--lv-radius-pill); }
+  .progress i { display: block; height: 100%; background: var(--lv-accent); border-radius: var(--lv-radius-pill); }
   @media (prefers-reduced-motion: reduce) { .lv-skeleton { animation: none; } .lv-opt, .lv-btn { transition: none; } }
   @container lv-exam (max-width: 680px) {
     .lv-bp-table {

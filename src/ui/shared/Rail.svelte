@@ -535,7 +535,7 @@
     display: none;
     position: absolute;
     inset: auto 0 0;
-    z-index: 80;
+    z-index: 10;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     padding: 6px 8px max(6px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--lv-border-subtle, var(--lv-border));
@@ -880,10 +880,9 @@
     left: -1px;
     top: 9px;
     bottom: 9px;
-    width: 3.5px;
+    width: 3px;
     background: var(--lv-accent);
     border-radius: 0 3px 3px 0;
-    box-shadow: 0 0 6px color-mix(in srgb, var(--lv-accent) 60%, transparent);
   }
   .lv-rail-btn--sub {
     color: var(--lv-text-2);
@@ -908,11 +907,11 @@
     margin-left: 8px;
     margin-right: 8px;
     padding: 10px 12px;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--lv-brand-soft, rgba(2, 132, 199, 0.08)) 70%, var(--lv-surface));
+    border-radius: var(--lv-r-2, 8px);
+    background: var(--lv-surface-2);
     color: var(--lv-text-2);
-    border: 1px solid color-mix(in srgb, var(--lv-brand) 18%, var(--lv-border));
-    box-shadow: var(--lv-sh-1), var(--lv-inset-card, inset 0 1px 0 rgba(255, 255, 255, 0.7));
+    border: 1px solid var(--lv-border);
+    box-shadow: none;
     font-size: var(--lv-font-size-caption, 11px);
     line-height: 1.5;
     transition: border-color var(--lv-dur-micro, 0.15s) ease, background-color var(--lv-dur-micro) ease;
@@ -962,6 +961,7 @@
       inset: auto;
       flex-shrink: 0;
       order: 2;
+      z-index: 10;
     }
     .lv-mobile-tasknav.focus {
       display: none;

@@ -21,6 +21,7 @@ export interface OcrProcessResult {
   form?: OcrFormResult;
   message: string;
   isError: boolean;
+  cancelled?: boolean;
 }
 
 function toManualDraftType(t: string): ManualDraftType {
@@ -50,6 +51,7 @@ export async function processOcrImageUpload(
   app: any,
   file: File | Blob,
   t: (k: string) => string,
+  signal?: AbortSignal,
 ): Promise<OcrProcessResult> {
   if (!app || !file) {
     return { success: false, message: "参数错误", isError: true };
@@ -57,7 +59,9 @@ export async function processOcrImageUpload(
 
   try {
     const fileName = (file as File).name || "pasted-question.png";
-    const q = await app.uploadAndOcrQuestion(file, fileName);
+    const q = signal
+      ? await app.uploadAndOcrQuestion(file, fileName, { signal })
+      : await app.uploadAndOcrQuestion(file, fileName);
 
     const form: OcrFormResult = {
       type: toManualDraftType(q.type),
@@ -76,6 +80,14 @@ export async function processOcrImageUpload(
     };
   } catch (e) {
     const errText = String(e instanceof Error ? e.message : e);
+    if (signal?.aborted || (e instanceof Error && e.name === "AbortError")) {
+      return {
+        success: false,
+        message: "已取消图片 OCR 识别",
+        isError: false,
+        cancelled: true,
+      };
+    }
     return {
       success: false,
       message: `图片 OCR 识别失败：${errText}`,

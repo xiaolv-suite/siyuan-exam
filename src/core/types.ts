@@ -185,6 +185,8 @@ export interface WrongItem {
   reason?: "careless" | "unknown" | "trap";
   myAnswer: string | null;
   status: "active" | "eliminated" | "mastered";
+  /** 最近一次自动出库（达标消灭）的时间戳，用于区分「恢复在册后再次达标出库」 */
+  eliminatedAt?: number;
 }
 
 /** 练习会话（单活动；可暂停续做） */

@@ -10,11 +10,20 @@ import { Dialog } from "siyuan";
 import { Component, mount, unmount } from "svelte";
 import { escapeHtml, sanitizeRichHtml } from "./sanitize";
 import { lvSurfaceStack } from "./lv-notice-kit";
+import { watchSiYuanTheme } from "./lv-theme";
 
 function resolveSafeDialogWidth(w?: string): string | undefined {
   if (!w) return undefined;
   if (w.includes("min(") || w.endsWith("vw") || w.endsWith("%")) return w;
   return `min(${w}, 94vw)`;
+}
+
+function markExamDialogHost(dialogElement: HTMLElement | null | undefined, extraHostClasses: string[] = []): void {
+  if (!dialogElement) return;
+  const host = dialogElement.classList?.contains("b3-dialog")
+    ? dialogElement
+    : (dialogElement.querySelector<HTMLElement>(".b3-dialog") ?? dialogElement);
+  host.classList.add("lv-exam-dialog-host", ...extraHostClasses);
 }
 
 export const inputDialog = (args: {
@@ -23,9 +32,13 @@ export const inputDialog = (args: {
   defaultText?: string;
   confirm?: (text: string) => void;
   cancel?: () => void;
+  destroyCallback?: () => void;
   width?: string;
   height?: string;
 }) => {
+  let closed = false;
+  let confirmed = false;
+  let unwatchTheme: (() => void) | undefined;
   const dialog = new Dialog({
     title: args.title,
     content: `<div class="b3-dialog__content" role="region" aria-label="${escapeHtml(args.title)}">
@@ -37,8 +50,22 @@ export const inputDialog = (args: {
 </div>`,
     width: resolveSafeDialogWidth(args.width ?? "520px"),
     height: args.height,
+    destroyCallback: () => {
+      unwatchTheme?.();
+      unwatchTheme = undefined;
+      if (!closed) {
+        closed = true;
+        if (args.destroyCallback) args.destroyCallback();
+        else if (!confirmed && args.cancel) args.cancel();
+      } else {
+        args.destroyCallback?.();
+      }
+    },
   });
-  dialog.element.querySelector(".b3-dialog__container")?.classList.add("lv-exam-dialog");
+  markExamDialogHost(dialog.element);
+  const container = dialog.element.querySelector<HTMLElement>(".b3-dialog__container");
+  container?.classList.add("lv-exam-dialog");
+  unwatchTheme = watchSiYuanTheme(container ?? dialog.element);
   dialog.element.addEventListener("click", (e) => {
     if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
       dialog.destroy();
@@ -47,14 +74,17 @@ export const inputDialog = (args: {
   const target: HTMLTextAreaElement = dialog.element.querySelector(".b3-dialog__content>div.ft__breakword>textarea");
   const btnsElement = dialog.element.querySelectorAll(".b3-button");
   btnsElement[0].addEventListener("click", () => {
-    if (args?.cancel) {
-      args.cancel();
+    if (!closed) {
+      closed = true;
+      if (args?.cancel) args.cancel();
     }
     dialog.destroy();
   });
   btnsElement[1].addEventListener("click", () => {
-    if (args?.confirm) {
-      args.confirm(target.value);
+    if (!closed) {
+      closed = true;
+      confirmed = true;
+      if (args?.confirm) args.confirm(target.value);
     }
     dialog.destroy();
   });
@@ -66,18 +96,21 @@ export const inputDialogSync = async (args: {
   defaultText?: string;
   width?: string;
   height?: string;
-}) => {
-  return new Promise<string>((resolve) => {
-    const newargs = {
-      ...args,
-      confirm: (text) => {
-        resolve(text);
-      },
-      cancel: () => {
-        resolve(null);
-      },
+}): Promise<string | null> => {
+  return new Promise<string | null>((resolve) => {
+    let settled = false;
+    const settle = (value: string | null) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
     };
-    inputDialog(newargs);
+    inputDialog({
+      ...args,
+      confirm: (text) => settle(text),
+      cancel: () => settle(null),
+      destroyCallback: () => settle(null),
+    });
   });
 };
 
@@ -99,6 +132,7 @@ export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () 
   const cancelLabel = cancelText ?? window.siyuan?.languages?.cancel ?? "取消";
   const confirmLabel = confirmText ?? window.siyuan?.languages?.confirm ?? "确定";
 
+  let unwatchTheme: (() => void) | undefined;
   const dialog = new Dialog({
     title,
     content: `<div class="b3-dialog__content" role="region" aria-label="${escapeHtml(title)}">
@@ -112,14 +146,20 @@ export const confirmDialog = (args: IConfirmDialogArgs & { destroyCallback?: () 
     width: resolveSafeDialogWidth(width),
     height: height,
     destroyCallback: () => {
+      unwatchTheme?.();
+      unwatchTheme = undefined;
       if (destroyCallback) destroyCallback();
       else if (cancel) cancel(target);
     },
   });
-  dialog.element.querySelector(".b3-dialog__container")?.classList.add("lv-exam-dialog");
+  const extraHostClasses = dialogClass === "lv-exam-exit-dialog" ? ["lv-exam-exit-dialog-host"] : [];
+  markExamDialogHost(dialog.element, extraHostClasses);
+  const container = dialog.element.querySelector<HTMLElement>(".b3-dialog__container");
+  container?.classList.add("lv-exam-dialog");
   if (dialogClass) {
-    dialog.element.querySelector(".b3-dialog__container")?.classList.add(dialogClass);
+    container?.classList.add(dialogClass);
   }
+  unwatchTheme = watchSiYuanTheme(container ?? dialog.element);
   dialog.element.addEventListener("click", (e) => {
     if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
       dialog.destroy();
@@ -199,12 +239,15 @@ export const simpleDialog = (args: {
     },
   });
 
+  let unwatchTheme: (() => void) | undefined;
   const dialog = new Dialog({
     title: args.title,
     content: `<div class="dialog-content" style="display: flex; flex-direction: column; align-items: stretch; width: 100%; height: 100%; min-width: 0; min-height: 0; box-sizing: border-box;"/>`,
     width: resolveSafeDialogWidth(args.width),
     height: args.height,
     destroyCallback: () => {
+      unwatchTheme?.();
+      unwatchTheme = undefined;
       if (!closed) {
         closed = true;
         popSurface();
@@ -212,7 +255,10 @@ export const simpleDialog = (args: {
       args.callback?.();
     },
   });
-  dialog.element.querySelector(".b3-dialog__container")?.classList.add("lv-exam-dialog");
+  markExamDialogHost(dialog.element);
+  const container = dialog.element.querySelector<HTMLElement>(".b3-dialog__container");
+  container?.classList.add("lv-exam-dialog");
+  unwatchTheme = watchSiYuanTheme(container ?? dialog.element);
   dialog.element.addEventListener("click", (e) => {
     if (e.target === dialog.element || (e.target as HTMLElement).classList?.contains("b3-dialog__scrim")) {
       if (!closed) {

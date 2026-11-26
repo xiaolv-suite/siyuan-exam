@@ -19,6 +19,7 @@ export interface GenerateVariantOptions {
   seed: Question;
   kind?: VariantKind;
   timeoutMs?: number;
+  signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
   allowOfflineFallback?: boolean;
 }
@@ -41,9 +42,14 @@ export async function generateVariantQuestion(
     seed,
     kind = "near_transfer",
     timeoutMs = 30000,
+    signal,
     onChunk,
     allowOfflineFallback = true,
   } = options;
+
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
 
   const start = Date.now();
   const { systemPrompt, userPrompt } = buildVariantPrompt(seed, kind);
@@ -57,9 +63,14 @@ export async function generateVariantQuestion(
         { role: "user", content: userPrompt },
       ],
       timeoutMs,
+      signal,
       stream: typeof onChunk === "function",
       onChunk,
     });
+
+    if (signal?.aborted || chatResult.error === "aborted") {
+      throw new DOMException("Aborted", "AbortError");
+    }
 
     if (chatResult.ok && chatResult.content) {
       try {
@@ -102,6 +113,9 @@ export async function generateVariantQuestion(
 
     throw new Error(chatResult.error || "AI 调度未返回有效内容");
   } catch (err: any) {
+    if (signal?.aborted || err?.name === "AbortError") {
+      throw err;
+    }
     if (allowOfflineFallback) {
       const fallbackQ = generateOfflineVariantFallback(seed, kind);
       return {

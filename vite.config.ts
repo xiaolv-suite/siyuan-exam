@@ -11,6 +11,7 @@ import vitePluginYamlI18n from "./yaml-plugin.js";
 const env = process.env;
 const isSrcmap = env.VITE_SOURCEMAP === "inline";
 const isDev = env.NODE_ENV === "development";
+const chunkTarget = env.VITE_CHUNK === "sheetjs" ? "sheetjs" : "";
 // 本插件无 kernel.js（docs/03 决策 #9）：仅 app target；kernel 死分支已于 26.3 移除
 
 const outputDir = isDev ? "dev" : "dist";
@@ -25,7 +26,29 @@ const packageImageTargets = [
 console.log("isDev=>", isDev);
 console.log("outputDir=>", outputDir);
 
-export default defineConfig({
+export default defineConfig(chunkTarget ? {
+    define: {
+        "process.env.DEV_MODE": JSON.stringify(isDev),
+        "process.env.NODE_ENV": JSON.stringify(env.NODE_ENV),
+    },
+    build: {
+        outDir: outputDir,
+        emptyOutDir: false,
+        minify: true,
+        sourcemap: isSrcmap ? "inline" : false,
+        lib: {
+            entry: resolve(import.meta.dirname, "src/chunks/sheetjs.ts"),
+            name: "lvChunk_sheetjs",
+            fileName: () => "chunks/sheetjs.js",
+            formats: ["iife"],
+        },
+        rollupOptions: {
+            output: {
+                entryFileNames: "chunks/sheetjs.js",
+            },
+        },
+    },
+} : {
     resolve: {
         alias: {
             "@": resolve(import.meta.dirname, "src"),
@@ -89,7 +112,7 @@ export default defineConfig({
                 }),
             ],
 
-            external: ["siyuan", "process"],
+            external: ["siyuan", "process", "xlsx"],
 
             output: {
                 entryFileNames: "[name].js",

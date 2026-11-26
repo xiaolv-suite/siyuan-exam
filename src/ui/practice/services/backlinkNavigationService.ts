@@ -4,6 +4,8 @@
 // 纯逻辑解耦，不绑定 Svelte 渲染态
 // ============================================================
 
+import { openTab, openMobileFileById, type App } from "siyuan";
+
 export interface BacklinkItem {
   docId: string;
   title: string;
@@ -25,7 +27,7 @@ export async function fetchBlockBacklinks(
     return { error: t("state.offlineHint") };
   }
   try {
-    const links = (await app.deps.client.backlinks(blockId)) as BacklinkItem[];
+    const links = (await app.bridge.backlinks(blockId)) as BacklinkItem[];
     return { links };
   } catch (e) {
     const error = t("browse.backlinksFailed").replace(
@@ -83,19 +85,18 @@ export function openSiYuanTarget(
         if (plugin?.closeMobileDialog) {
           const closed = await plugin.closeMobileDialog();
           if (closed === false) return;
-        } else if (typeof window !== "undefined") {
+        } else if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
           window.dispatchEvent(new CustomEvent("lv-exam:close-mobile-dialog"));
         }
-        const siyuanMod = await import("siyuan");
-        if (typeof (siyuanMod as any).openMobileFileById === "function") {
-          (siyuanMod as any).openMobileFileById(
-            (hostApp ?? plugin) as import("siyuan").App,
+        if (typeof openMobileFileById === "function") {
+          openMobileFileById(
+            (hostApp ?? plugin) as App,
             targetId,
             blockId ? ["cb-get-hl", "cb-get-focus", "cb-get-all"] : undefined,
           );
         } else {
-          siyuanMod.openTab({
-            app: (hostApp ?? plugin) as import("siyuan").App,
+          await openTab({
+            app: (hostApp ?? plugin) as App,
             doc: {
               id: targetId,
               ...(blockId ? { action: ["cb-get-hl", "cb-get-focus", "cb-get-all"] } : {}),
@@ -120,30 +121,33 @@ export function openSiYuanTarget(
     }
   }
 
-  void import("siyuan")
-    .then(({ openTab }) => {
-      openTab({
-        app: (hostApp ?? plugin) as import("siyuan").App,
-        doc: {
-          id: targetId,
-          ...(blockId ? { action: ["cb-get-hl", "cb-get-focus", "cb-get-all"] } : {}),
-        },
-        ...(splitPosition ? { position: splitPosition, openNewTab: true } : {}),
-      });
-    })
-    .catch((e) => {
-      if (targetId && typeof window !== "undefined") {
-        try {
-          window.open(`siyuan://blocks/${targetId}`);
-          return;
-        } catch {
-          // ignore
-        }
+  const fallbackDeepLinkOrNotify = (e: unknown) => {
+    if (targetId && typeof window !== "undefined") {
+      try {
+        window.open(`siyuan://blocks/${targetId}`);
+        return;
+      } catch {
+        // ignore
       }
-      if (showMessage) {
-        showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      }
+    }
+    if (showMessage) {
+      showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
+    }
+  };
+
+  try {
+    const res = openTab({
+      app: (hostApp ?? plugin) as App,
+      doc: {
+        id: targetId,
+        ...(blockId ? { action: ["cb-get-hl", "cb-get-focus", "cb-get-all"] } : {}),
+      },
+      ...(splitPosition ? { position: splitPosition, openNewTab: true } : {}),
     });
+    void Promise.resolve(res).catch(fallbackDeepLinkOrNotify);
+  } catch (e) {
+    fallbackDeepLinkOrNotify(e);
+  }
 }
 
 /** 在思源工作区中直接打开指定文档（如已生成的题册、错题本、成绩单、每日战报） */

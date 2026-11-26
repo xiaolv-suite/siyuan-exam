@@ -7,6 +7,7 @@ import {
   showExamNotice,
 } from "@/libs/notice";
 import { lvActivity, lvLaunchpad } from "@/libs/lv-notice-kit";
+import { watchSiYuanTheme } from "@/libs/lv-theme";
 import { armExamHistory, disarmExamHistory } from "@/core/examHistoryGuard";
 const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info") => {
   showExamNotice(msg, timeout, type);
@@ -14,7 +15,7 @@ const showMessage = (msg: string, timeout = 3000, type: "info" | "error" = "info
 import manifest from "../../../plugin.json";
 import { getBridgeSafely } from "@/libs/ecosystem-bridge-kit";
 import { renderMathInText } from "@/core/math";
-import { renderMathDiagramsInText } from "@/core/mathDiagram";
+import { renderMathDiagramsInText, renderMathAndDiagramsInText } from "@/core/mathDiagram";
 import { auditForgettingRisks } from "@/core/forgettingRisk";
 import { cbmScan, cbmSettleSummary } from "@/core/cbm";
 import { rankWeakTags, sampleWeakSpotDrill } from "@/core/weakSpot";
@@ -55,6 +56,8 @@ import { confirmDialogSync } from "@/libs/dialog";
     import { onExamEvent, emitExamEvent } from "@/core/bus";
     import { diagnoseQuestionRootCauses, type AdaptiveDiagnosisReport } from "@/core/diagnosticEngine";
     import PracticeSessionView from "./PracticeSessionView.svelte";
+    import PracticeTopBar from "./PracticeTopBar.svelte";
+    import AdaptiveDiagnosisModal from "./AdaptiveDiagnosisModal.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
     import BankGalleryModal from "./BankGalleryModal.svelte";
     import MarketplaceModal from "./MarketplaceModal.svelte";
@@ -276,7 +279,6 @@ import { confirmDialogSync } from "@/libs/dialog";
       getReciteTtsPayload,
       prepareRetryForgotState,
       saveReciteSnapshot,
-      loadReciteSnapshot,
       clearReciteSnapshot,
     } from "./services/reciteStudioService";
     import {
@@ -313,6 +315,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       executeSessionExit,
       computeSessionKpBreakdown,
       executeSessionResume,
+      hydratePracticeBootResumables,
       executeSessionFinish,
       executeNegotiateSessionStart,
     } from "./services/sessionLifecycleService";
@@ -413,7 +416,6 @@ import { confirmDialogSync } from "@/libs/dialog";
     import { escapeHtml, renderInlineText } from "../../libs/sanitize";
     import { summarizeLoad } from "@/ai/flashCandidates";
     import { resolveAiKey } from "@/ai/secrets";
-    import SaveStatus from "../shared/SaveStatus.svelte";
     import { SAMPLE_QUESTION_COUNT } from "@/core/sampleBank";
     import {
       normalizeSampleBankKind,
@@ -429,7 +431,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       type SampleBankKind,
     } from "./services/bankLifecycleService";
     import { getBankCategoryMeta } from "@/core/bankCategory";
-    import { answerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
+    import { answerChoices, displayedAnswerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
     import type { ParsedClozeItem } from "@/core/cloze";
@@ -498,17 +500,36 @@ import { confirmDialogSync } from "@/libs/dialog";
     let touchStartX = 0;
     let touchStartY = 0;
     let touchStartTime = 0;
+    let touchPreventSwipe = false;
 
     function onTouchStart(e: TouchEvent) {
       if (e.touches.length !== 1) return;
+      const targetEl = e.target instanceof Element ? e.target : null;
+      touchPreventSwipe = Boolean(
+        targetEl?.closest(
+          '[data-prevent-swipe="true"], .katex-display, .math-display, .lv-math-block-wrap, [data-type="NodeTable"], .table, table, pre, .lv-math-diagram, .lv-math-plot',
+        ),
+      );
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
       touchStartTime = Date.now();
     }
 
     function onTouchEnd(e: TouchEvent) {
+      if (touchPreventSwipe) {
+        touchPreventSwipe = false;
+        return;
+      }
       if (view !== "session" || !session) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const targetEl = e.target instanceof Element ? e.target : null;
+      if (
+        targetEl?.closest(
+          '[data-prevent-swipe="true"], .katex-display, .math-display, .lv-math-block-wrap, [data-type="NodeTable"], .table, table, pre, .lv-math-diagram, .lv-math-plot',
+        )
+      ) {
+        return;
+      }
 
       const swipe = detectHorizontalSwipe(e, {
         startX: touchStartX,
@@ -526,9 +547,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     }
 
-    const effectiveEliminateStreak = $derived(
-      Math.max(1, Number(plugin.settingUtils?.get?.("eliminateStreak") ?? ELIMINATE_STREAK))
-    );
+    const effectiveEliminateStreak = $derived.by(() => {
+      void dataRev;
+      return Math.max(1, Number(plugin.settingUtils?.get?.("eliminateStreak") ?? ELIMINATE_STREAK));
+    });
     let loading = $state(true);
     let appliedPracticeViewRequestId = "";
     let tabRoot = $state<HTMLDivElement | null>(null);
@@ -858,12 +880,14 @@ import { confirmDialogSync } from "@/libs/dialog";
     /** 答前置信自评（U12 最小）：随本次 attempt 落流水；提交后不可改写最初记录 */
     let confidenceSel = $state<"sure" | "fuzzy" | "guess" | "">("");
 
-    function resetSessionViewState() {
+    function resetSessionViewState(options?: { preserveSessionDone?: boolean }) {
       feedback = null;
       selected = "";
       draftLive = "";
       confidenceSel = "";
-      sessionDone = null;
+      if (!options?.preserveSessionDone) {
+        sessionDone = null;
+      }
     }
 
     let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -888,13 +912,22 @@ import { confirmDialogSync } from "@/libs/dialog";
           }
         },
         onExit: async () => {
+          const isFinished = !!sessionDone || !session || session.phase !== "running";
           if (session) {
             flushAbandonedSessionExposures(app, session, session.exposureMap());
             await app.saveSession();
             await app.flush();
           }
-          session = null;
+          if (isFinished) {
+            session = null;
+          } else {
+            sessionRev++;
+          }
+          resetSessionViewState();
+          socraticModalOpen = false;
           view = "entry";
+          dataRev++;
+          rebuildPlan();
         },
         confirmTitle: "退出做题？",
         confirmPrompt: "做题进度已自动保存至草稿，你可以随时返回继续作答。",
@@ -919,13 +952,17 @@ import { confirmDialogSync } from "@/libs/dialog";
       tabRoot?.querySelector(".lv-main")?.scrollTo?.({ top: 0 });
     }
 
-    function enterSessionView() {
+    function enterSessionView(options?: { preserveSessionDone?: boolean }) {
       if (view !== "session" && view !== "recite") {
         sessionSourceView = view;
       }
-      resetSessionViewState();
+      resetSessionViewState(options);
       view = "session";
-      armPracticeExamHistory();
+      if (options?.preserveSessionDone && sessionDone) {
+        disarmExamHistory();
+      } else {
+        armPracticeExamHistory();
+      }
       void tick().then(() => scrollMainToTop());
     }
 
@@ -1528,6 +1565,25 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     onMount(() => {
+      const pendingView = consumePendingPracticeView(plugin);
+      const initialView = pendingView?.view ?? plugin?.pendingInitialView;
+      const pendingQuiz = (plugin as any)?.pendingExternalQuiz;
+      const pid = plugin?.pendingQuestionId;
+      const pending = plugin?.pendingPractice;
+      const pendingPracticeBankId = plugin?.pendingPracticeBankId;
+      const pBrowse = plugin?.pendingBrowseQid;
+      const pEdit = plugin?.pendingEditQid;
+      const pendingBrowseOrEditBank = plugin?.pendingBrowseBank ?? plugin?.pendingEditBank;
+      const explicitBankIdFromMount = pendingView?.bankId ?? pendingPracticeBankId;
+      const hasExplicitNonEntryTarget = Boolean(
+        pendingQuiz ||
+          pid ||
+          pending?.length ||
+          pBrowse ||
+          pEdit ||
+          (initialView && initialView !== "entry"),
+      );
+
       let appInitStarted = false;
       const initAppData = () => {
         if (!app || appInitStarted) return;
@@ -1563,21 +1619,21 @@ import { confirmDialogSync } from "@/libs/dialog";
             }
           } catch { /* 草稿读取失败静默 */ }
         })();
-        banks = app.listBanks();
-        const pendingPracticeView = plugin?.pendingPracticeView;
-        const pendingPracticeViewIsCurrent = pendingPracticeView?.id === plugin?.practiceViewRequestId;
-        activeBankId = resolveInitialActiveBankId({
-          banks,
-          rememberedBankId: readLocal(BANK_PREF_KEY),
-          pendingViewBankId: pendingPracticeViewIsCurrent ? pendingPracticeView?.bankId : undefined,
-          pendingPracticeBankId: plugin?.pendingPracticeBankId,
-        });
-        if (activeBankId) {
-          void (async () => {
+        const boot = async () => {
+          if (!app.tier2Ready && typeof app.ensureTier2Loaded === "function") {
+            await app.ensureTier2Loaded().catch(() => undefined);
+          }
+          banks = app.listBanks();
+          activeBankId = resolveInitialActiveBankId({
+            banks,
+            rememberedBankId: readLocal(BANK_PREF_KEY),
+            pendingViewBankId: pendingView?.bankId,
+            pendingPracticeBankId: pendingPracticeBankId ?? plugin?.pendingPracticeBankId,
+          });
+          if (activeBankId) {
             await refreshQuestionsAfterWrite(0);
-            // 若默认/记忆题库为空库且存在其它非空题库（且无外部指定题库深链），自动切至首个有题题库以便直接刷题
             if (
-              !pendingPracticeViewIsCurrent &&
+              !explicitBankIdFromMount &&
               !plugin?.pendingPracticeBankId &&
               questions.filter((q) => q.type !== "material").length === 0 &&
               banks.length > 1
@@ -1599,53 +1655,42 @@ import { confirmDialogSync } from "@/libs/dialog";
             }
             void refreshBankCounts();
 
-            // 恢复未完成会话（37-05：校验题库归属，缺题剔除后提示；在首轮题库自愈完成后串行执行，避免与 refreshQuestionsAfterWrite 竞争 questionLoadSeq）
+            // 恢复未完成会话供主页卡片展示（默认绝不擅自直进做题/背诵页；仅显式点继续练习时才进入）
             try {
-              const s = await app.resumeSession(async (qids) => {
-                const all = questions.length ? questions : await loadQuestions();
-                return qids.map((id) => all.find((q) => q.id === id)).filter(Boolean) as Question[];
-              }, activeBankId);
-              const rawRecite = activeBankId && !externalStartBusy
-                ? await app.loadAux<any>("recite/active").catch(() => null)
-                : null;
-              const reciteIsNewer = Boolean(
-                rawRecite &&
-                rawRecite.bankId === activeBankId &&
-                !rawRecite.done &&
-                (!s || (rawRecite.updatedAt ?? 0) > (s.state.updatedAt ?? 0)),
-              );
-              if (s) {
-                s.advancePastAnswered();                       // 37-05：恢复跳过已答位置防双计
-                const resumedFinished = s.allAnswered();
-                if (resumedFinished) sessionDone = s.finish();
-                session = s;
-                syncSessionScratchpad(s);
-                if (!reciteIsNewer && resumedFinished) {
-                  // 已答完的会话：直接落到结果汇总屏（非做题页），保留交卷入口
-                  view = "session";
-                  sessionRev++;
-                  armPracticeExamHistory();
-                  restoreQuestionControls();
-                }
-                // 未完成会话不再自动跌入做题页（用户预期：先落入口主屏，
-                // 由「继续练习」卡片显式恢复，避免每次打开插件都被拽进答题现场）
-                if (app.lastResumeMissing.length) showMessage(t("resume.missing").replace("{n}", String(app.lastResumeMissing.length)), 4200, "info");
+              const wantsExplicitResume = Boolean(plugin?.pendingResumeSession);
+              const bootResume = await hydratePracticeBootResumables({
+                app,
+                activeBankId,
+                questions,
+                loadQuestions,
+                externalStartBusy,
+                hasExplicitInitialTarget: hasExplicitNonEntryTarget,
+                pendingResumeSession: wantsExplicitResume,
+              });
+              if (plugin) plugin.pendingResumeSession = false;
+
+              if (bootResume.session) {
+                session = bootResume.session;
+                syncSessionScratchpad(bootResume.session);
+                sessionRev++;
               }
-              if (reciteIsNewer && !externalStartBusy) {
-                const all = questions.length ? questions : await loadQuestions();
-                const rs = await loadReciteSnapshot(app, activeBankId, all.filter((q) => q.type !== "material"));
-                if (rs && !externalStartBusy) {
-                  reciteQueue = rs.queue;
-                  reciteCursor = rs.cursor;
-                  reciteRevealed = rs.revealed;
-                  reciteDone = rs.done;
-                  reciteHint = rs.hint;
-                  reciteRatings = rs.ratings;
-                  reciteSessionId = rs.sessionId;
-                  reciteCardStart = Date.now();
-                  view = "recite";
-                  armPracticeExamHistory();
-                }
+              if (bootResume.reciteSnapshot && !externalStartBusy) {
+                reciteQueue = bootResume.reciteSnapshot.queue;
+                reciteCursor = bootResume.reciteSnapshot.cursor;
+                reciteRevealed = bootResume.reciteSnapshot.revealed;
+                reciteDone = bootResume.reciteSnapshot.done;
+                reciteHint = bootResume.reciteSnapshot.hint;
+                reciteRatings = bootResume.reciteSnapshot.ratings;
+                reciteSessionId = bootResume.reciteSnapshot.sessionId;
+                reciteCardStart = Date.now();
+              }
+
+              if (bootResume.resumeTargetView === "recite" && reciteQueue.length > 0 && !reciteDone) {
+                resumeRecite();
+              } else if (bootResume.resumeTargetView === "session" && session) {
+                await resume();
+              } else if (wantsExplicitResume && !hasExplicitNonEntryTarget) {
+                showMessage("当前没有未完成的练习，可直接在主页开始新练习", 2600, "info");
               }
               rebuildPlan();
             } catch {
@@ -1653,10 +1698,11 @@ import { confirmDialogSync } from "@/libs/dialog";
             } finally {
               loading = false;
             }
-          })();
-        } else {
-          loading = false;
-        }
+          } else {
+            loading = false;
+          }
+        };
+        void boot();
       };
 
       if (app) {
@@ -1803,10 +1849,28 @@ import { confirmDialogSync } from "@/libs/dialog";
         onExamEvent("open-in-browse", onBrowseQ),
         onExamEvent("edit-question", onEditQ),
         onExamEvent("open-view", onOpenView),
+        onExamEvent("resume-session", () => {
+          if (!tabRoot?.isConnected) return;
+          if (plugin) plugin.pendingResumeSession = false;
+          if (reciteQueue.length > 0 && !reciteDone && (!session || session.phase !== "running")) {
+            resumeRecite();
+            return;
+          }
+          if (app) {
+            void resume().then((resumed) => {
+              if (!resumed) {
+                showMessage("当前没有未完成的练习，可直接在主页开始新练习", 2600, "info");
+              }
+            });
+          }
+        }),
         onExamEvent("session-ended", onDataChanged),
         onExamEvent("wrongbook-changed", onDataChanged),
         onExamEvent("date-crossed", () => { onDataChanged(); rebuildPlan(); }),
       ];
+      if (tabRoot) {
+        offs.push(watchSiYuanTheme(tabRoot));
+      }
 
       // 思源编辑器原位改题热回流：当用户在思源文档中修改了题面/答案再切回插件页签时，自动刷新题库
       let lastHotRefreshAt = 0;
@@ -1849,17 +1913,16 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
 
       onMountCleanup = () => offs.forEach((off) => off());
-      const pendingView = consumePendingPracticeView(plugin);
-      const initialView = pendingView?.view ?? plugin?.pendingInitialView;
-      if ((plugin as any)?.pendingExternalQuiz) {
-        const pendingQuiz = (plugin as any).pendingExternalQuiz;
+      if (pendingQuiz) {
         (plugin as any).pendingExternalQuiz = null;
         applyQuizDraft(pendingQuiz);
       } else if (["wrongbook", "entry", "browse", "manual", "import", "siyuan", "ai", "materials", "recite", "marketplace"].includes(initialView ?? "")) {
         if (plugin) plugin.pendingInitialView = undefined;
         if (pendingView) appliedPracticeViewRequestId = pendingView.id;
         applyMaterialRequest(pendingView);
-        loading = false;
+        if (initialView !== "entry" || !app) {
+          loading = false;
+        }
         switchView(initialView as View);
         if (initialView === "materials" && app) loadMaterials();
         if (typeof pendingView?.search === "string") {
@@ -1869,7 +1932,6 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
       // 错题本信号优先：按 qid 直达单题
-      const pid = plugin?.pendingQuestionId;
       if (pid) {
         if (plugin) plugin.pendingQuestionId = undefined;
         loading = false;
@@ -1877,29 +1939,24 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
 
-    // 查询圈题待处理集（块菜单发起，优先于恢复）
-      const pending = plugin?.pendingPractice;
+      // 查询圈题待处理集（块菜单发起，优先于恢复）
       if (pending?.length) {
-        const pendingBankId = plugin?.pendingPracticeBankId;
         if (plugin) {
           plugin.pendingPractice = undefined;
           plugin.pendingPracticeBankId = undefined;
         }
-        void startExternalPractice(pending.map((q) => q.id), pendingBankId);
+        void startExternalPractice(pending.map((q) => q.id), pendingPracticeBankId);
         return;
       }
       // 块菜单「在练习台打开 / 编辑」→ 浏览视图聚焦（优先于会话恢复）
-      const pBrowse = plugin?.pendingBrowseQid;
-      const pEdit = plugin?.pendingEditQid;
       if (pBrowse || pEdit) {
-        const bank = plugin?.pendingBrowseBank ?? plugin?.pendingEditBank;
         if (plugin) {
           plugin.pendingBrowseQid = undefined;
           plugin.pendingEditQid = undefined;
           plugin.pendingBrowseBank = undefined;
           plugin.pendingEditBank = undefined;
         }
-        void focusInBrowse((pBrowse ?? pEdit)!, pEdit != null, bank);
+        void focusInBrowse((pBrowse ?? pEdit)!, pEdit != null, pendingBrowseOrEditBank);
         return;
       }
     });
@@ -2046,6 +2103,14 @@ import { confirmDialogSync } from "@/libs/dialog";
     let receiptBusy = $state("");
     let receiptMisdiagnosis = $state<Record<string, string>>({});
     let receiptStored = $state<{ text: string; at: number; adoptedAt?: number } | null>(null);
+    let receiptAbortCtrl: AbortController | null = null;
+
+    function cancelReceiptMisdiagnosis() {
+      receiptAbortCtrl?.abort();
+      receiptAbortCtrl = null;
+      receiptBusy = "";
+      showMessage("已取消错因分析", 2200, "info");
+    }
 
     function toggleReceipts(qid: string) {
       receiptOpenFor = receiptOpenFor === qid ? "" : qid;
@@ -2060,6 +2125,9 @@ import { confirmDialogSync } from "@/libs/dialog";
     async function runReceiptMisdiagnosis(q: Question, e: import("../../core/types").AttemptEvent) {
       const key = `${e.qid}#${e.seq}`;
       if (receiptBusy || !app.kernelOnline) return;
+      if (!(await requireAiConsent())) return;
+      const ctrl = new AbortController();
+      receiptAbortCtrl = ctrl;
       receiptBusy = key;
       try {
         const res = await executeMisdiagnosisWorkflow({
@@ -2072,7 +2140,9 @@ import { confirmDialogSync } from "@/libs/dialog";
           userThought: reflections[e.qid]?.text,
           aiConfig: aiSettings(),
           t,
+          signal: ctrl.signal,
         });
+        if (ctrl.signal.aborted) return;
 
         if (res.text) {
           receiptMisdiagnosis = { ...receiptMisdiagnosis, [key]: res.text };
@@ -2080,29 +2150,48 @@ import { confirmDialogSync } from "@/libs/dialog";
           showMessage(res.error, 3600, "error");
         }
       } catch (err) {
+        if (ctrl.signal.aborted || (err instanceof Error && err.name === "AbortError")) return;
         showMessage(String(err instanceof Error ? err.message : err), 3600, "error");
-      } finally { receiptBusy = ""; }
+      } finally {
+        if (receiptAbortCtrl === ctrl) receiptAbortCtrl = null;
+        receiptBusy = "";
+      }
     }
 
     // ---------- AI 闪卡候选（116-03 T10：最小卡/拆卡理由；先展示卡数/负荷/来源，确认后才建卡） ----------
     let flashBusy = $state("");
+    let flashCommitBusy = $state("");
     let flashCandidates = $state<Record<string, import("@/ai/flashCandidates").FlashCandidateResult>>({});
     let flashError = $state<Record<string, string>>({});
+    let flashAbortCtrl: AbortController | null = null;
+
+    function cancelFlashCandidates() {
+      flashAbortCtrl?.abort();
+      flashAbortCtrl = null;
+      flashBusy = "";
+      showMessage("已取消拆解闪卡候选", 2200, "info");
+    }
 
     async function makeFlashCandidates(q: Question) {
-      if (flashBusy || !app.kernelOnline) {
+      if (flashBusy || flashCommitBusy || !app.kernelOnline) {
         if (!app.kernelOnline) showMessage(t("state.offlineHint"), 2400, "info");
         return;
       }
+      if (!(await requireAiConsent())) return;
+      const ctrl = new AbortController();
+      flashAbortCtrl = ctrl;
       flashBusy = q.id;
+      flashError = { ...flashError, [q.id]: "" };
       try {
         const res = await generateFlashCandidates({
           q,
-          client: app.deps.client,
+          client: app.bridge as any,
           app,
           aiConfig: aiSettings(),
           t,
+          signal: ctrl.signal,
         });
+        if (ctrl.signal.aborted) return;
         if (res.result) {
           flashCandidates = { ...flashCandidates, [q.id]: res.result };
           void app.recordAiUsage(res.channelId, res.tokens, 1).catch(() => undefined);
@@ -2110,17 +2199,21 @@ import { confirmDialogSync } from "@/libs/dialog";
           flashError = { ...flashError, [q.id]: res.error };
         }
       } catch (e) {
+        if (ctrl.signal.aborted || (e instanceof Error && e.name === "AbortError")) return;
         flashError = { ...flashError, [q.id]: String(e instanceof Error ? e.message : e) };
-      } finally { flashBusy = ""; }
+      } finally {
+        if (flashAbortCtrl === ctrl) flashAbortCtrl = null;
+        flashBusy = "";
+      }
     }
 
     async function confirmFlashCards(q: Question) {
       const result = flashCandidates[q.id];
-      if (!result || flashBusy) return;
+      if (!result || flashBusy || flashCommitBusy) return;
       const bank = app.listBanks().find((b) => b.id === activeBankId);
       if (!bank) { showMessage(t("guard.needBankFirst"), 2400, "error"); return; }
       const { confirmDialogSync } = await import("../../libs/dialog");
-      flashBusy = q.id;
+      flashCommitBusy = q.id;
       try {
         const res = await executeCommitFlashCardsWithConfirm(app, bank.id, bank.name, result.cards, confirmDialogSync, t);
         if (res.confirmed) {
@@ -2129,7 +2222,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         }
       } catch (e) {
         showMessage(String(e instanceof Error ? e.message : e), 4200, "error");
-      } finally { flashBusy = ""; }
+      } finally { flashCommitBusy = ""; }
     }
 
     async function createBank() {
@@ -2195,6 +2288,10 @@ import { confirmDialogSync } from "@/libs/dialog";
         importPreviewBankId = "";
         importError = t("import.bankChanged");
       }
+      if (session && session.state.bankId && session.state.bankId !== activeBankId) {
+        session = null;
+        sessionRev++;
+      }
       rememberBank(activeBankId);
       questions = [];
       questionsLoaded = false;
@@ -2202,6 +2299,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       questionsError = "";
       plan = null;
       await loadQuestions();
+      dataRev++;
       rebuildPlan();
       emitExamEvent("bank-changed", { bank: activeBankId });
     }
@@ -2240,7 +2338,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     // 否则组件挂载后数据变化不重算（真机走查实测：练完进错题本恒显空，重开页签才恢复）。
     let dataRev = $state(0);
     let railOpen = $state(false);
-    let menuBtn: HTMLButtonElement | null = null;
+    let menuBtn = $state<HTMLButtonElement | null>(null);
     function closeRail() { railOpen = false; menuBtn?.focus(); }
 
 
@@ -2355,9 +2453,8 @@ import { confirmDialogSync } from "@/libs/dialog";
     const tracebackBlock = (blockId: string, rootId?: string) => {
       void tracebackToSourceBlock({ plugin, blockId, rootId, isMobile: plugin.isMobile });
     };
-    /** 错题本队列渲染上限（ux §3 virtualize-lists / Mobile Spec v1 性能纪律）：
-     *  首屏 ≤50 条，避免数百重 DOM 拖慢移动端与窄屏滚动。计数徽标/打印/特训等操作仍按全量筛选口径。 */
-    let wbQueueLimit = $state(50);
+    /** 错题本队列渲染上限（doc#21 v4：题库 30 / 错题 20 分页） */
+    let wbQueueLimit = $state(20);
     const shownWrongQueue = $derived(filteredWrongQueue.slice(0, wbQueueLimit));
     const wbQueueHasMore = $derived(filteredWrongQueue.length > wbQueueLimit);
 
@@ -2367,6 +2464,23 @@ import { confirmDialogSync } from "@/libs/dialog";
     const restoreWrongToActive = async (qid: string) => { await restoreWrongItemToActive(app, qid, showMessage); dataRev++; };
 
     function switchView(next: View) {
+      if (view === "session" && next !== "session") {
+        clearAutoNext();
+        disarmExamHistory();
+        if (app && session && session.phase === "running") {
+          void app.saveSession().catch(() => undefined);
+        }
+        if (sessionDone || (session && session.phase !== "running")) {
+          session = null;
+          sessionDone = null;
+        }
+      } else if (view === "recite" && next !== "recite") {
+        disarmExamHistory();
+        if (reciteDone) {
+          reciteQueue = [];
+          reciteDone = false;
+        }
+      }
       errorMsg = "";
       view = next;
       if (next === "import") {
@@ -2439,7 +2553,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           const { confirmDialogSync } = await import("../../libs/dialog");
           const proceed = await confirmDialogSync({
             title: "全真模拟考场使用说明",
-            content: `<p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">全真模考提供标准限时交卷、CBT 答题卡与防漏答强校验。</p><p class="lv-hint" style="text-align:left;line-height:1.55">当前题库仅有 <b>${questions.length}</b> 题，至少需要 3-5 道试题才能组建完整模拟卷。<br/>点击「确定」仍打开考场；点击「取消」前往出题录题。</p>`,
+            content: `<p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">全真模考提供标准限时交卷、模考答题卡与防漏答强校验。</p><p class="lv-hint" style="text-align:left;line-height:1.55">当前题库仅有 <b>${questions.length}</b> 题，至少需要 3-5 道试题才能组建完整模拟卷。<br/>点击「确定」仍打开考场；点击「取消」前往出题录题。</p>`,
           });
           if (!proceed) {
             switchView("manual");
@@ -3118,7 +3232,9 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     // ---------- AI 讲解（v0.4：错题逐选项解释；多轮追问；可存为笔记子块） ----------
     const explainCoordinator = new ExplainRequestCoordinator();
+    let explainAbortCtrl: AbortController | null = null;
     let explainText = $state("");
+    let explainError = $state("");
     let explainBusy = $state(false);
     let explainQid = $state("");
     let explainCollapsed = $state(false);
@@ -3126,9 +3242,17 @@ import { confirmDialogSync } from "@/libs/dialog";
     let socraticModalOpen = $state(false);
     let socraticMode = $state<"socratic" | "explain" | "hint" | "dual-loop" | "storm">("socratic");
 
+    function abortExplainInFlight() {
+      explainAbortCtrl?.abort();
+      explainAbortCtrl = null;
+    }
+
     function closeExplain() {
+      abortExplainInFlight();
       explainCoordinator.invalidate();
+      socraticModalOpen = false;
       explainText = "";
+      explainError = "";
       explainQid = "";
       explainBusy = false;
       explainFollowUp = "";
@@ -3137,6 +3261,11 @@ import { confirmDialogSync } from "@/libs/dialog";
       explainSaveErrorQid = "";
       explainCollapsed = false;
       leakPending = null;
+    }
+
+    function cancelExplain() {
+      closeExplain();
+      showMessage("已取消 AI 生成", 2200, "info");
     }
 
     async function handleSocraticFollowUp(msg: string) {
@@ -3171,6 +3300,12 @@ import { confirmDialogSync } from "@/libs/dialog";
       };
     }
 
+    async function requireAiConsent(): Promise<boolean> {
+      const { confirmDialogSync } = await import("../../libs/dialog");
+      const rawEndpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
+      return ensureAiEndpointConsent(rawEndpoint, confirmDialogSync, readLocal, writeLocal, t);
+    }
+
     async function explainCurrent(mode: "explain" | "hint" | "socratic" | "dual-loop" | "storm" = "explain") {
       const q = session?.current;
       if (!q) {
@@ -3186,13 +3321,21 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = ""; leakPending = null;
+      explainQid = q.id;
+      explainError = "";
       if (!app.kernelOnline) {
-        explainText = t("state.offlineHint");
+        explainBusy = false;
+        explainText = "";
+        explainError = t("state.offlineHint");
         showMessage(t("state.offlineHint"), 2500, "info");
         return;
       }
+      if (!(await requireAiConsent())) return;
       const token = explainCoordinator.startRequest(q.id);
-      explainBusy = true; explainText = ""; explainQid = q.id;
+      abortExplainInFlight();
+      const ctrl = new AbortController();
+      explainAbortCtrl = ctrl;
+      explainBusy = true; explainText = ""; explainError = ""; explainQid = q.id;
       socraticMode = mode;
       socraticModalOpen = true;
       const submitted = !!feedback;
@@ -3204,12 +3347,15 @@ import { confirmDialogSync } from "@/libs/dialog";
           learnerAnswer: learnerAns,
           submitted,
           sessionId: session?.id ?? "",
-          client: app.deps.client,
+          client: app.bridge as any,
           aiConfig: aiSettings(),
+          signal: ctrl.signal,
         });
+        if (ctrl.signal.aborted) return;
         if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         void logAiTask({ templateId: res.env.templateId, qid: res.reqCtx.qid, status: res.env.status, tokens: res.env.tokens, messages: res.messages });
         if (res.env.status === "ok" && res.env.data.text) {
+          explainError = "";
           explainText = res.env.data.text;
           explainHistory[q.id] = [...res.messages, { role: "assistant", content: res.env.data.text }];
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
@@ -3217,18 +3363,22 @@ import { confirmDialogSync } from "@/libs/dialog";
           helpShown.set(q.id, mode === "dual-loop" || mode === "storm" ? "explain" : mode);
           lvLaunchpad.haptic(10);
         } else {
-          explainText = formatEnvStatusLine(res.env, t);
+          explainText = "";
+          explainError = formatEnvStatusLine(res.env, t);
           showMessage("AI 响应未就绪：请查看下方解决方案指引", 3200, "info");
         }
       } catch (e) {
+        if (ctrl.signal.aborted) return;
         if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         const errMsg = String(e instanceof Error ? e.message : e);
-        explainText = appendAiFailureGuidance(errMsg);
+        explainText = "";
+        explainError = appendAiFailureGuidance(errMsg);
         showMessage("AI 任务失败：请检查思源设置或专属模型配置", 3600, "error");
       } finally {
         if (explainCoordinator.isCurrent(token, session?.current?.id, q.id)) {
           explainBusy = false;
         }
+        if (explainAbortCtrl === ctrl) explainAbortCtrl = null;
       }
     }
 
@@ -3242,10 +3392,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       const q = session?.current;
       if (!q || !session || explainBusy) return;
       explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
-      explainQid = q.id; leakPending = null;
-      if (!app.kernelOnline) { explainText = t("state.offlineHint"); return; }
+      explainQid = q.id; leakPending = null; explainError = "";
+      if (!app.kernelOnline) { explainText = ""; explainError = t("state.offlineHint"); return; }
+      if (!(await requireAiConsent())) return;
       const token = explainCoordinator.startRequest(q.id);
-      explainBusy = true; explainText = "";
+      abortExplainInFlight();
+      const ctrl = new AbortController();
+      explainAbortCtrl = ctrl;
+      socraticMode = "hint";
+      explainBusy = true; explainText = ""; explainError = "";
       const submitted = !!feedback;
       const hintState = session.getHintState(q.id);
       const shown = hintState.level;
@@ -3259,10 +3414,12 @@ import { confirmDialogSync } from "@/libs/dialog";
           sessionId: session.id,
           shownLevel: shown,
           shownTexts,
-          client: app.deps.client,
+          client: app.bridge as any,
           aiConfig: aiSettings(),
+          signal: ctrl.signal,
         });
 
+        if (ctrl.signal.aborted) return;
         if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
 
         if (res.kind === "reveal") {
@@ -3283,15 +3440,17 @@ import { confirmDialogSync } from "@/libs/dialog";
           helpShown.set(q.id, "hint");
           void app.recordAiUsage(res.ch.id, res.env.tokens, 1).catch(() => undefined);
         } else {
-          explainText = formatEnvStatusLine(res.env, t);
+          explainError = formatEnvStatusLine(res.env, t);
         }
       } catch (e) {
+        if (ctrl.signal.aborted) return;
         if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
-        explainText = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
+        explainError = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
       } finally {
         if (explainCoordinator.isCurrent(token, session?.current?.id, q.id)) {
           explainBusy = false;
         }
+        if (explainAbortCtrl === ctrl) explainAbortCtrl = null;
       }
     }
 
@@ -3313,8 +3472,17 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (q) addExposure(q.id, "followup");
       const history = explainHistory[q?.id ?? ""];
       if (!q || !history?.length || explainBusy || !explainFollowUp.trim()) return;
-      explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = "";
+      if (!app.kernelOnline) {
+        explainError = t("state.offlineHint");
+        showMessage(t("state.offlineHint"), 2500, "info");
+        return;
+      }
+      if (!(await requireAiConsent())) return;
+      explainSavedQid = ""; explainSaveError = ""; explainSaveErrorQid = ""; explainError = "";
       const token = explainCoordinator.startRequest(q.id);
+      abortExplainInFlight();
+      const ctrl = new AbortController();
+      explainAbortCtrl = ctrl;
       explainBusy = true;
       socraticModalOpen = true;
 
@@ -3327,31 +3495,41 @@ import { confirmDialogSync } from "@/libs/dialog";
           sessionId: session?.id ?? "",
           history,
           prompt,
-          client: app.deps.client,
+          client: app.bridge as any,
           aiConfig: aiSettings(),
           currentExplainText: explainText,
           t,
+          signal: ctrl.signal,
         });
+        if (ctrl.signal.aborted) return;
         if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
         if (res.env) {
           void logAiTask({ templateId: res.env.templateId, qid: q.id, status: res.env.status, tokens: res.env.tokens, messages: history });
         }
         if (res.reply && res.updatedMessages && res.newExplainText) {
+          explainError = "";
           explainHistory[q.id] = res.updatedMessages;
           void persistExplainHistory().catch((e: unknown) => { explainSaveError = String(e instanceof Error ? e.message : e); });
           explainText = res.newExplainText;
           explainFollowUp = "";
           if (res.chId && res.tokens) void app.recordAiUsage(res.chId, res.tokens, 1).catch(() => undefined);
+        } else if (res.env && res.env.status !== "ok") {
+          explainError = formatEnvStatusLine(res.env, t);
+          showMessage("AI 追问失败，请查看下方错误说明", 3200, "error");
         } else if (res.error) {
-          explainText = appendAiFailureGuidance(res.error);
+          explainError = appendAiFailureGuidance(res.error);
+          showMessage("AI 追问失败，请查看下方错误说明", 3200, "error");
         }
       } catch (e) {
+        if (ctrl.signal.aborted) return;
         if (!explainCoordinator.isCurrent(token, session?.current?.id, q.id)) return;
-        explainText = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
+        explainError = appendAiFailureGuidance(String(e instanceof Error ? e.message : e));
+        showMessage("AI 追问失败，请查看下方错误说明", 3200, "error");
       } finally {
         if (explainCoordinator.isCurrent(token, session?.current?.id, q.id)) {
           explainBusy = false;
         }
+        if (explainAbortCtrl === ctrl) explainAbortCtrl = null;
       }
     }
 
@@ -3409,7 +3587,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       const q = session?.current;
       const body = explainText;
       const qid = explainQid;
-      if (!q || q.id !== qid || !body.trim() || explainSaveBusy || explainSavedQid === qid) return;
+      if (!q || q.id !== qid || !body.trim() || explainError || explainSaveBusy || explainSavedQid === qid) return;
       explainSaveBusy = true;
       explainSaveError = ""; explainSaveErrorQid = qid;
       try {
@@ -3472,9 +3650,38 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     }
 
+    function resumeRecite() {
+      if (!reciteQueue.length || reciteDone) return;
+      if (view !== "session" && view !== "recite") sessionSourceView = view;
+      reciteCardStart = Date.now();
+      view = "recite";
+      armPracticeExamHistory();
+      void tick().then(() => scrollMainToTop());
+      if (reciteAutoTts && reciteQueue[reciteCursor]) {
+        const payload = getReciteTtsPayload(reciteQueue[reciteCursor], "stem", ttsSlowRate);
+        if (payload) ttsSpeak(payload.text, payload.options);
+      }
+    }
+
+    async function discardRecite() {
+      disarmExamHistory();
+      await clearReciteSnapshot(app).catch(() => undefined);
+      await app?.flush().catch(() => undefined);
+      reciteQueue = [];
+      reciteCursor = 0;
+      reciteRevealed = false;
+      reciteDone = false;
+      reciteHint = 0;
+      reciteRatings = [];
+      reciteSessionId = "";
+      reciteCardStart = 0;
+      reciteGuard.clear();
+      reciteOutcome = null;
+    }
+
     let resumeBusy = $state(false);
-    async function resume() {
-      if (resumeBusy) return;
+    async function resume(): Promise<boolean> {
+      if (resumeBusy || !app) return false;
       resumeBusy = true;
       resumeError = "";
       try {
@@ -3482,16 +3689,25 @@ import { confirmDialogSync } from "@/libs/dialog";
         if (res.session) {
           session = res.session;
           syncSessionScratchpad(res.session);
-          if (res.sessionDone) sessionDone = res.sessionDone;
-          enterSessionView();
+          if (res.sessionDone) {
+            sessionDone = res.sessionDone;
+            settleMode = res.session.state.mode;
+            enterSessionView({ preserveSessionDone: true });
+            rebuildPlan();
+          } else {
+            enterSessionView();
+            restoreQuestionControls();
+            answerStart = Date.now(); // 首题计时基线（否则 qElapsedS 从 0 基线算出纪元秒）
+          }
           sessionRev++;
-          restoreQuestionControls();
-          answerStart = Date.now(); // 首题计时基线（否则 qElapsedS 从 0 基线算出纪元秒）
           if (res.missingCount) showMessage(t("resume.missing").replace("{n}", String(res.missingCount)), 4200, "info");
+          return true;
         }
+        return false;
       } catch (e) {
         resumeError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
         showMessage(resumeError, 4200, "error");
+        return false;
       } finally {
         resumeBusy = false;
       }
@@ -3563,6 +3779,14 @@ import { confirmDialogSync } from "@/libs/dialog";
     // ---------- AI 错因假设（116-01 T08：事实→假设→验证行动；假设与用户复盘独立，采纳由用户操作） ----------
     let misdiagnosisBusy = $state("");
     let misdiagnosisText = $state<Record<string, string>>({});
+    let misdiagnosisAbortCtrl: AbortController | null = null;
+
+    function cancelMisdiagnosis() {
+      misdiagnosisAbortCtrl?.abort();
+      misdiagnosisAbortCtrl = null;
+      misdiagnosisBusy = "";
+      showMessage("已取消错因分析", 2200, "info");
+    }
 
     /** 本次会话该题最近一次作答的 confidence/help（流水口径；无记录=缺证据，模板如实标注） */
     function attemptMeta(qid: string): { confidence?: "sure" | "fuzzy" | "guess"; helped?: boolean } {
@@ -3573,6 +3797,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       const q = questionMap.get(a.qid);
       if (!q || misdiagnosisBusy || !session) return;
       if (!app.kernelOnline) { showMessage(t("state.offlineHint"), 2400, "info"); return; }
+      if (!(await requireAiConsent())) return;
+      const ctrl = new AbortController();
+      misdiagnosisAbortCtrl = ctrl;
       misdiagnosisBusy = a.qid;
       try {
         const meta = attemptMeta(a.qid);
@@ -3586,7 +3813,9 @@ import { confirmDialogSync } from "@/libs/dialog";
           userThought: reflections[a.qid]?.text,
           aiConfig: aiSettings(),
           t,
+          signal: ctrl.signal,
         });
+        if (ctrl.signal.aborted) return;
 
         if (res.text) {
           misdiagnosisText = { ...misdiagnosisText, [a.qid]: res.text };
@@ -3594,8 +3823,12 @@ import { confirmDialogSync } from "@/libs/dialog";
           showMessage(res.error, 3600, "error");
         }
       } catch (e) {
+        if (ctrl.signal.aborted || (e instanceof Error && e.name === "AbortError")) return;
         showMessage(String(e instanceof Error ? e.message : e), 3600, "error");
-      } finally { misdiagnosisBusy = ""; }
+      } finally {
+        if (misdiagnosisAbortCtrl === ctrl) misdiagnosisAbortCtrl = null;
+        misdiagnosisBusy = "";
+      }
     }
 
     /** 采纳：把假设并入用户复盘，显式标注「AI 参考（未确认）」——用户标签与 AI 假设独立 */
@@ -3671,8 +3904,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
       hideOptions = false; recallDraft = ""; leakPending = null;
       speechEvalResult = null; speechRecording = false;
+      abortExplainInFlight();
       explainCoordinator.invalidate();
-      explainText = ""; explainQid = ""; explainBusy = false; explainFollowUp = ""; explainCollapsed = false;
+      explainText = ""; explainError = ""; explainQid = ""; explainBusy = false; explainFollowUp = ""; explainCollapsed = false;
       resetRubricDraft(); // 55-05：切题/恢复不沿用上一题的自评选择
     }
     /** 55-05：重置当前题的自评 UI 草稿（选择与备注），不动已记录存档 */
@@ -3780,6 +4014,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       clearAutoNext();
       feedback = null; selected = ""; draftLive = ""; confidenceSel = ""; materialExpanded = false; answerStart = Date.now();
       hideOptions = false; recallDraft = ""; leakPending = null; // 52-02：切题重置先回忆态（揭示/草稿不沿用上一题，U02 口径）；114-01 泄露待决随之作废
+      abortExplainInFlight();
       explainCoordinator.invalidate();
       explainText = ""; explainQid = ""; explainBusy = false; explainFollowUp = ""; explainCollapsed = false;
       if (!session.next()) { void finishSession(); return; }
@@ -3795,6 +4030,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     function previousQuestion() {
       clearReciteSubmitTimer();
       clearAutoNext();
+      abortExplainInFlight();
       explainCoordinator.invalidate();
       explainText = ""; explainQid = ""; explainBusy = false; explainFollowUp = ""; explainCollapsed = false;
       if (!session?.prev()) return;
@@ -3907,15 +4143,23 @@ import { confirmDialogSync } from "@/libs/dialog";
         const ok = await executeSessionExit(app, session, session.exposureMap(), !!sessionDone, confirmDialogSync, t);
         if (!ok) return;
         disarmExamHistory();
-        session = null;
+        const isFinished = !!sessionDone || session.phase !== "running";
+        if (isFinished) {
+          session = null;
+        } else {
+          sessionRev++;
+        }
         resetSessionViewState();
+        socraticModalOpen = false;
         groupBatchModal = null; groupBatchStart = 1;
         scratchpadOpen = false; scratchpadStore = {}; scratchpadShared = "";
         const fallbackTarget = sessionSourceView && sessionSourceView !== "session" && sessionSourceView !== "recite" ? sessionSourceView : "entry";
         view = fallbackTarget;
         sessionSourceView = "entry";
-        if (fallbackTarget === "wrongbook") {
-          void loadQuestions();
+        dataRev++;
+        rebuildPlan();
+        if (fallbackTarget === "wrongbook" || fallbackTarget === "entry") {
+          void loadQuestions().then(() => { dataRev++; rebuildPlan(); });
         }
       } catch (e) {
         showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4200, "error");
@@ -4003,16 +4247,27 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     let ocrUploadBusy = $state(false);
+    let ocrAbortCtrl: AbortController | null = null;
+
+    function cancelOcrImageUpload() {
+      ocrAbortCtrl?.abort();
+    }
 
     async function handleOcrImageFile(file: File | Blob) {
       if (ocrUploadBusy || !app) return;
+      const ctrl = new AbortController();
+      ocrAbortCtrl = ctrl;
       ocrUploadBusy = true;
       try {
-        showMessage(t("manual.ocrUploading"), 3500, "info");
-        const res = await processOcrImageUpload(app, file, t);
+        const res = await processOcrImageUpload(app, file, t, ctrl.signal);
+        if (res.cancelled || ctrl.signal.aborted) {
+          showMessage("已取消图片 OCR 识别", 2200, "info");
+          return;
+        }
         if (res.form) applyOcrForm(res.form);
         showMessage(res.message, res.isError ? 4000 : 3000, res.isError ? "error" : "info");
       } finally {
+        if (ocrAbortCtrl === ctrl) ocrAbortCtrl = null;
         ocrUploadBusy = false;
       }
     }
@@ -4336,7 +4591,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let aiQuote = $state("");
     const aiCustomEndpointSet = $derived(!!String(plugin.settingUtils?.get?.("aiEndpoint") ?? "").trim() && !!resolveAiKey(plugin));
     let aiBusy = $state(false);
-    let aiCancel = $state({ aborted: false });
+    let aiCancel = $state<{ aborted: boolean; controller?: AbortController }>({ aborted: false });
     let aiQuality = $state<"standard" | "economy">("standard");
     let aiCost = $state("");
     let aiCustomHint = $state("");
@@ -4419,13 +4674,14 @@ import { confirmDialogSync } from "@/libs/dialog";
       const rawEndpoint = String(plugin.settingUtils?.get?.("aiEndpoint") ?? "");
       const consented = await ensureAiEndpointConsent(rawEndpoint, confirmDialogSync, readLocal, writeLocal, t);
       if (!consented) return;
-      aiCancel = { aborted: false };
+      const controller = new AbortController();
+      aiCancel = { aborted: false, controller };
       aiBusy = true; aiError = ""; aiQueue = []; aiRejected = []; aiDuplicates = 0; aiSaved = 0;
       aiQueueBankId = requestBankId; aiQueueMaterial = requestMaterial; aiQueueOptions = requestOptions;
       void persistAiQueue();
       try {
         const r = await executeAiQuestionGeneration({
-          client: app.deps.client,
+          client: app.bridge as any,
           aiConfig: aiSettings(),
           material: requestMaterial,
           genOptions: requestOptions,
@@ -4462,13 +4718,14 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     function cancelAiGenerate() {
       aiCancel.aborted = true;
+      aiCancel.controller?.abort();
       showMessage(t("ai.cancelRequested"), 3000, "info");
     }
 
     /** 材料源扩展（v1.x）：从当前打开的文档载入（research/28 citation 载体；块引用随 v1.x 深化） */
     async function aiSourceFromCurrentDoc() {
       try {
-        const res = await extractAiSourceFromEditor(plugin, app.deps.client, t);
+        const res = await extractAiSourceFromEditor(plugin, app.bridge as any, t);
         if (!res) {
           showMessage(t("ai.noCurrentDoc"), 3600, "error");
           return;
@@ -4487,13 +4744,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (aiMutationBusy || !aiRejected.length || queueBankMismatch()) return;
       const source = aiQueueMaterial.trim();
       if (!source) { aiError = t("ai.regenNoSource"); return; }
+      if (!(await requireAiConsent())) return;
       const rejected = [...aiRejected];
       const requestOptions = { ...(aiQueueOptions ?? snapshotAiOptions()), count: rejected.length };
-      aiCancel = { aborted: false };
+      const controller = new AbortController();
+      aiCancel = { aborted: false, controller };
       aiBusy = true; aiError = "";
       try {
         const r = await executeAiIssueRepair({
-          client: app.deps.client,
+          client: app.bridge as any,
           aiConfig: aiSettings(),
           rejected: rejected as import("@/ai/gen").GenIssue[],
           source,
@@ -4615,11 +4874,13 @@ import { confirmDialogSync } from "@/libs/dialog";
     async function regenOneAi(q: Question) {
       if (aiMutationBusy || queueBankMismatch()) return;
       if (!aiQueueMaterial.trim()) { showMessage(t("ai.regenNoSource"), 3600, "info"); return; }
-      aiCancel = { aborted: false };
+      if (!(await requireAiConsent())) return;
+      const controller = new AbortController();
+      aiCancel = { aborted: false, controller };
       aiRegenBusy = q.id; aiError = "";
       try {
         const r = await executeRegenSingleCandidate({
-          client: app.deps.client,
+          client: app.bridge as any,
           aiConfig: aiSettings(),
           material: aiQueueMaterial,
           genOptions: aiQueueOptions ?? snapshotAiOptions(),
@@ -4628,7 +4889,9 @@ import { confirmDialogSync } from "@/libs/dialog";
         });
         aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
         aiUsageTotal = await recordGenerationUsage(app, r.channelId, r.approxTokens, r.calls);
-        if (r.newQuestion) {
+        if (aiCancel.aborted) {
+          showMessage(t("ai.cancelled"), 3000, "info");
+        } else if (r.newQuestion) {
           aiQueue = aiQueue.map((x) => (x.id === q.id ? r.newQuestion! : x));
           void persistAiQueue();
           showMessage(t("ai.regenDone"), 2800, "info");
@@ -4636,8 +4899,15 @@ import { confirmDialogSync } from "@/libs/dialog";
           aiError = r.rejectReason ?? t("ai.empty");
         }
       } catch (e) {
-        aiError = String(e instanceof Error ? e.message : e);
-      } finally { aiRegenBusy = ""; }
+        if (aiCancel.aborted || (e instanceof Error && e.name === "AbortError")) {
+          showMessage(t("ai.cancelled"), 3000, "info");
+        } else {
+          aiError = String(e instanceof Error ? e.message : e);
+        }
+      } finally {
+        aiCancel.aborted = false;
+        aiRegenBusy = "";
+      }
     }
 
     // ---------- 导入 ----------
@@ -4760,6 +5030,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     async function doSegmentPaperText(text: string, sourceName = "纸质扫描试卷") {
       if (!text.trim()) return;
       importParsing = true;
+      importError = "";
       try {
         const { segmentExamPaper } = await import("@/importer/examSegmenter");
         const result = segmentExamPaper(text, {
@@ -4771,6 +5042,7 @@ import { confirmDialogSync } from "@/libs/dialog";
           return;
         }
         const { newBatchId } = await import("@/core/ids");
+        importPreviewBankId = activeBankId;
         importReport = {
           batch: newBatchId(),
           ok: result.questions,
@@ -4792,22 +5064,35 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     }
 
+    let paperOcrAbortCtrl: AbortController | null = null;
+    function cancelPaperOcr() {
+      paperOcrAbortCtrl?.abort();
+    }
+
     async function handlePaperImageFile(file: File | Blob) {
-      if (!app) return;
+      if (!app || paperOcrBusy) return;
+      const ctrl = new AbortController();
+      paperOcrAbortCtrl = ctrl;
       paperOcrBusy = true;
       try {
-        showMessage("正在上传试卷图片并执行 OCR 文本提取…", 4000, "info");
         const fileName = (file as File).name || "scanned-paper.png";
-        const assetPath = await app.deps.client.uploadAsset(file, fileName);
-        const ocrData = await app.deps.client.assetOcr(assetPath);
+        const assetPath = await app.bridge.uploadAsset(file, fileName, { signal: ctrl.signal });
+        if (ctrl.signal.aborted) return;
+        const ocrData = await app.bridge.assetOcr(assetPath, { signal: ctrl.signal });
+        if (ctrl.signal.aborted) return;
         if (!ocrData?.text?.trim()) {
           showMessage("OCR 未在试卷图片中识别到文字内容，请确保图片清晰且无强烈反光", 4500, "error");
           return;
         }
         await doSegmentPaperText(ocrData.text, fileName);
       } catch (err) {
+        if (ctrl.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
+          showMessage("已取消整卷 OCR 识别", 2400, "info");
+          return;
+        }
         showMessage(`试卷 OCR 识别失败：${String(err instanceof Error ? err.message : err)}`, 4000, "error");
       } finally {
+        if (paperOcrAbortCtrl === ctrl) paperOcrAbortCtrl = null;
         paperOcrBusy = false;
       }
     }
@@ -5202,8 +5487,8 @@ import { confirmDialogSync } from "@/libs/dialog";
         }, 0); // 焦点入菜单，Esc/Tab 语义成立
       }
     }
-    /** 题库浏览渲染上限（Mobile Spec v1 性能纪律：首屏 ≤50 条） */
-    let browseLimit = $state(50);
+    /** 题库浏览渲染上限（doc#21 v4：题库 30 / 错题 20 分页） */
+    let browseLimit = $state(30);
     let searchText = $state("");
     /** 搜索防抖（体验/perf）：大题库逐键全量过滤掉帧；180ms 尾随，编程赋值走 setSearch 即时生效 */
     let searchDebounced = $state("");
@@ -5483,7 +5768,9 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     const openInSiYuan = (rootId: string, blockId?: string, opt?: any) => openSiYuanTarget(plugin, rootId, blockId, showMessage, t, opt);
 
-    // ---------- 题面富文本（md2html；离线回退纯文本） ----------
+    // ---------- 题面富文本（同步命中缓存/本地富文本直出防闪烁，异步 md2html 升级） ----------
+    const renderStemFallback = (raw: string): string =>
+      raw ? sanitizeRichHtml(renderMathAndDiagramsInText(raw)) : "";
     let stemHtml = $state("");
     let stemHtmlFor = $state("");
     let materialHtml = $state("");
@@ -5492,18 +5779,38 @@ import { confirmDialogSync } from "@/libs/dialog";
       void sessionRev; // 类实例非响应式：以推进版本号驱动题面重渲染
       const q = view === "session" ? session?.current : view === "recite" ? reciteQueue[reciteCursor] : null;
       if (!q) { stemHtml = ""; stemHtmlFor = ""; materialHtml = ""; materialHtmlFor = ""; return; }
-      // 竞态防护（27 组）：异步返回时校验仍是当前题才应用
-      stemHtml = ""; stemHtmlFor = q.id;
-      void app.renderStem(q).then((html) => {
-        if (html && stemHtmlFor === q.id) stemHtml = html;
-      });
-      // 共用材料同样走 md2html 缓存管线（长材料/公式的可读性）
+      // 优先同步命中 renderCache 或本地富文本兜底，严禁切题瞬间置空 stemHtml="" 引发原始 Markdown 闪烁
+      const cachedStem = app?.peekRenderedStem?.(q) ?? "";
+      stemHtmlFor = q.id;
+      stemHtml = cachedStem || renderStemFallback(q.stem);
+      if (!cachedStem && app) {
+        void app.renderStem(q).then((html) => {
+          if (html && stemHtmlFor === q.id && html !== stemHtml) stemHtml = html;
+        });
+      }
+      // 后台预热下一题题面缓存，连续作答切题即刻同步命中
+      const nextQid = view === "session" ? session?.state?.qids?.[session.state.cursor + 1] : undefined;
+      const nextQ = view === "session"
+        ? (nextQid ? questionMap.get(nextQid) : undefined)
+        : view === "recite"
+          ? reciteQueue[reciteCursor + 1]
+          : undefined;
+      if (nextQ && app && !app.peekRenderedStem?.(nextQ)) {
+        void app.renderStem(nextQ).catch(() => undefined);
+      }
+      // 共用材料同样走 md2html 缓存管线（同材料相邻切题不置空）
       const mat = q.group ? materialByGroup.get(q.group) : undefined;
       if (!mat) { materialHtml = ""; materialHtmlFor = ""; return; }
-      materialHtml = ""; materialHtmlFor = mat.id;
-      void app.renderStem(mat).then((html) => {
-        if (html && materialHtmlFor === mat.id) materialHtml = html;
-      });
+      const cachedMat = app?.peekRenderedStem?.(mat) ?? "";
+      if (materialHtmlFor !== mat.id) {
+        materialHtmlFor = mat.id;
+        materialHtml = cachedMat || renderStemFallback(mat.stem);
+      }
+      if (!cachedMat && app) {
+        void app.renderStem(mat).then((html) => {
+          if (html && materialHtmlFor === mat.id && html !== materialHtml) materialHtml = html;
+        });
+      }
     });
 
     /** 键盘流（docs/11 映射表）：会话 A-F/⏎/J；背诵 空格翻开、1-4 自评；composition（中文输入法）期间不响应 */
@@ -5596,7 +5903,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         case "pick_choice": {
           if (session?.current) {
             const idx = action.key.charCodeAt(0) - 65;
-            const choice = answerChoices(session.current)[idx];
+            const choice = displayedAnswerChoices(session.current, shuffleOptions)[idx];
             if (choice) pickPracticeChoice(choice.value);
           }
           break;
@@ -5627,7 +5934,11 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     async function commitImport() {
       if (!importReport || importBusy) return;
-      if (importPreviewBankId !== activeBankId) { importError = t("import.bankChanged"); return; }
+      if (importPreviewBankId !== activeBankId) {
+        importError = t("import.bankChanged");
+        showMessage(importError, 3600, "error");
+        return;
+      }
       const remaining = filterUnconfirmedQuestions(importReport.ok, trialConfirmed);
       if (!remaining.length && !importReport.updates?.length) {
         importResult = { written: trialConfirmed.length, confirmed: trialConfirmed.length, missing: 0, verified: true };
@@ -5644,7 +5955,11 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     async function trialImport5() {
       if (!importReport || importBusy || !remainingImportQuestions.length) return;
-      if (importPreviewBankId !== activeBankId) { importError = t("import.bankChanged"); return; }
+      if (importPreviewBankId !== activeBankId) {
+        importError = t("import.bankChanged");
+        showMessage(importError, 3600, "error");
+        return;
+      }
       trialBusy = true; importError = ""; trialNote = "";
       try {
         const res = await executeTrialImport(app, activeBankId, remainingImportQuestions, importReport.batch, t);
@@ -5819,6 +6134,8 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     function applyDocExtractionResult(res: { report?: import("../../importer/pipeline").ImportReport; message: string; isError?: boolean }, toastTime = 4000) {
       if (res.report) {
+        importError = "";
+        importPreviewBankId = activeBankId;
         importResult = null;
         updateResult = null;
         trialConfirmed = [];
@@ -5828,6 +6145,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         importText = "";
         importSubTab = "standard";
         selectedDocIds = {};
+        view = "import";
         showMessage(res.message, 4200, "info");
       } else {
         showMessage(res.message, toastTime, res.isError ? "error" : "info");
@@ -5865,7 +6183,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     async function aiExtractSiyuanDoc(docId: string, title: string) {
       if (!app || !docId) return;
       try {
-        const docRes = await app.deps.client.exportDocMarkdown(docId);
+        const docRes = await app.bridge.exportDocMarkdown(docId);
         const mdText = docRes.content || "";
         if (!mdText.trim()) {
           showMessage(`《${title}》文档内容为空，无法进行 AI 出题`, 3000, "info");
@@ -5936,6 +6254,14 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     async function runCommit(report: ImportReport): Promise<boolean> {
       if (importBusy) return false;
+      const missingAnswerCount = report.ok.filter(
+        (q) => (q.type === "single" || q.type === "multiple" || q.type === "judge") && !String(q.answer ?? "").trim(),
+      ).length;
+      if (missingAnswerCount > 0) {
+        importError = `有 ${missingAnswerCount} 道选择/判断题缺少参考答案，请先在预览区点击设答案按钮或移除后再入库。`;
+        showMessage(importError, 3600, "error");
+        return false;
+      }
       const targetBankId = activeBankId;
       const targetQuestions = [...questions];
       committing = true; importError = ""; updateResult = null;
@@ -6063,81 +6389,40 @@ import { confirmDialogSync } from "@/libs/dialog";
 <svelte:window onkeydown={onKeydown} onclick={(e) => { onRichTextClick(e); onWindowClick(e); }} onauxclick={onRichTextClick} ondragover={(e) => { if (tabRoot?.contains(e.target as Node)) e.preventDefault(); }} ondrop={onDrop} />
 
 <div class="fn__flex-1 lv-exam-tab" class:lv-keyboard-open={keyboardOpen} bind:this={tabRoot} role="region" aria-label={t("tab.practice")}>
-  <div class="block__icons" class:lv-focus-toolbar={view === "session" && !sessionDone}>
-    <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
-    <!-- 原型 .breadcrumbs：题库 / 当前页（muted/当前 双色导航语境） -->
-    {#if view === "session" && !sessionDone}<div class="lv-focus-brand"><Icon name="book" size={15} /><strong>{t("session.focusTitle", "专注练习")}</strong></div>{/if}
-    <div class="lv-crumbs" class:lv-focus-context={view === "session" && !sessionDone}>
-      <span class="lv-crumb">{bankName || t("guard.title")}</span>
-      <span class="lv-crumb-sep" aria-hidden="true">/</span>
-      <span class="lv-crumb-current">{t("tab.practice")}</span>
-    </div>
-    {#if app?.saves}<SaveStatus gate={app.saves} {t} />{/if}
-    <span class="fn__flex-1 lv-topbar-spacer"></span>
-    <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
-      <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
-    </button>
-    {#if app && (offline || app.lastKernelError?.category === "auth" || app.lastKernelError?.category === "permission" || app.lastKernelError?.category === "validation" || app.lastKernelError?.category === "not-found")}
-      <span class="lv-chip lv-chip--amb" title={app.kernelRecoveryHint()} aria-label={app.kernelRecoveryHint()}>
-        {app.lastKernelError?.category === "auth" ? "未授权" : app.lastKernelError?.category === "permission" ? "无权限" : app.lastKernelError?.category === "validation" ? "输入有误" : app.lastKernelError?.category === "not-found" ? "接口不存在" : t("state.offline")}
-      </span>
-    {/if}
-    {#if plan}
-      <span class="lv-focus-context lv-plan-context">
-      {#if plan.mode === "sprint"}<span class="lv-chip lv-chip--red num"><Icon name="flame" size={12} /> {t("entry.sprint")} D-{plan.daysToExam}</span>
-      {:else if plan.daysToExam != null}<span class="lv-chip amb num"><Icon name="clock" size={12} /> {t("entry.examIn")} {plan.daysToExam} {t("entry.days")}</span>{/if}
-      {#if examProfileList.filter((p) => p.days != null && p.days >= 0).length > 1}
-        <!-- 53-02 lite：多考期并存展示（计划锚定最近，其余一目了然） -->
-        {#each examProfileList.filter((p) => p.days != null && p.days >= 0) as p, _pi (_pi)}
-          <span class="lv-chip num" title={t("entry.profileTip")}><Icon name="pin" size={12} /> {p.name} D-{p.days}</span>
-        {/each}
-      {/if}
-      {#if planTrace && planTrace.absentStreak >= 2}
-        <!-- 44-05 lite：连续缺席提醒（配额恒定不爆量，仅可见性） -->
-        <span class="lv-chip lv-chip--amb num" title={t("entry.absentTip")}><Icon name="alert-triangle" size={11} /> {t("entry.absent").replace("{n}", String(planTrace.absentStreak))}</span>
-      {:else if planTrace && planTrace.planned > 0 && planTrace.done >= 0}
-        <span class="lv-chip num" title={t("entry.yesterdayTip")}><Icon name="calendar" size={12} /> {t("entry.yesterday").replace("{p}", String(planTrace.planned)).replace("{d}", String(planTrace.done))}</span>
-      {/if}
-      {#if planTime && view !== "entry"}
-        <!-- 53-01 lite：分钟预算 chip（入口页已在 hero 卡内展示，避免重复） -->
-        <span class="lv-chip num" title={planTime.sourced ? t("entry.timeSourced") : t("entry.timeDefault")}>
-          <Icon name="hourglass" size={12} /> ~{planTime.minutes} {t("entry.minutes")}（{planTime.low}-{planTime.high}）
-        </span>
-      {/if}
-      </span>
-    {/if}
-      {#if checkinStreak != null && checkinStreak > 0}
-        <!-- 48-04 lite：打卡→考试只读投影（连续数由打卡单一实现计算，考试侧不自算） -->
-        <span class="lv-chip num lv-focus-context lv-checkin-chip" title={t("entry.checkinStreakTip")}><Icon name="flame" size={12} /> {t("entry.checkinStreak").replace("{n}", String(checkinStreak))}</span>
-      {/if}
-      <div class="lv-row lv-focus-context lv-bank-picker-group" style="margin:0;gap:6px;align-items:center">
-        {#if banks.length > 1}
-          <!-- 多库切换：紧凑圆角下拉框 -->
-          <select class="lv-select sm" style="max-width:160px" bind:value={activeBankId} onchange={onBankSwitch} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={(view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length) ? t("bank.sessionHint") : importBusy || mSaving || aiMutationBusy ? t("bank.busyHint") : t("bank.label")} aria-label={t("bank.label", "切换当前题库")}>
-            {#each banks as b, _i (_i)}<option value={b.id}>{b.name}</option>{/each}
-          </select>
-        {:else if hasBank}
-          <span class="lv-chip sm">{bankName}</span>
-        {/if}
-        <button class="lv-btn sm lv-btn--ghost" onclick={() => { bankHubOpen = true; }} disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> <span class="lv-topbar-btn-label">{t("bank.hubTitle")}</span></button>
-        <button
-          type="button"
-          class="lv-btn sm lv-btn--ghost"
-          onclick={() => { marketplaceOpen = true; }}
-          disabled={importBusy || mSaving || aiMutationBusy || (view === "session" && !!session && !sessionDone) || (view === "recite" && !reciteDone && !!reciteQueue.length)}
-          title="题库与闪卡公共集市：精选公版题库与网络卡包"
-          aria-label="题库集市"
-        >
-          <Icon name="sparkles" size={13} /> <span class="lv-topbar-btn-label">🏛️ 题库集市</span>
-        </button>
-      </div>
-      <button type="button" class="lv-mobile-close-btn" aria-label="关闭" title="关闭" onclick={() => { lvLaunchpad.haptic(8); void plugin?.closeMobileDialog?.(); }}>
-        <Icon name="close" size={18} />
-      </button>
-  </div>
+  <!-- 移动端顶部关闭按钮由 PracticeTopBar 承载：class="lv-mobile-close-btn" -->
+  <PracticeTopBar
+    {view}
+    {sessionDone}
+    {railOpen}
+    {bankName}
+    {t}
+    {app}
+    {offline}
+    {plan}
+    {examProfileList}
+    {planTrace}
+    {planTime}
+    {checkinStreak}
+    {banks}
+    bind:activeBankId
+    {hasBank}
+    {importBusy}
+    {mSaving}
+    {aiMutationBusy}
+    {session}
+    {reciteDone}
+    {reciteQueue}
+    bind:menuBtn
+    onopenRail={() => railOpen = true}
+    onopenPalette={() => paletteOpen = true}
+    onbankSwitch={onBankSwitch}
+    onopenBankHub={() => { bankHubOpen = true; }}
+    onopenMarketplace={() => { marketplaceOpen = true; }}
+    oncloseMobile={() => { lvLaunchpad.haptic(8); void plugin?.closeMobileDialog?.(); }}
+  />
   <div class="lv-shell" class:lv-shell-focus={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
     <Rail active="practice" taskactive={view === "marketplace" ? "marketplace" : view === "wrongbook" ? "wrong" : (view === "browse" ? "bank" : view === "manual" || view === "siyuan" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
-      project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => (view = "entry")}
+      project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => switchView("entry")}
       onquickcreate={() => { view = "manual"; }} />
     <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: calc(${viewportBottomPad + 16}px + env(safe-area-inset-bottom, 0px));` : undefined}>
   {#if errorMsg && errorMsg !== t("state.emptyBank") && view !== "session"}
@@ -6235,6 +6520,11 @@ import { confirmDialogSync } from "@/libs/dialog";
         session = null;
         resumeError = "";
       }}
+      {reciteQueue}
+      {reciteCursor}
+      {reciteDone}
+      onResumeRecite={() => resumeRecite()}
+      ondiscardRecite={() => void discardRecite()}
       onstartDrill={(mode) => void startDrill(mode)}
       onopenReport={() => plugin.openReport?.()}
       onopenMock={() => plugin.openMock?.()}
@@ -6300,6 +6590,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {canSubmitAnswer}
       {explainBusy}
       {explainText}
+      {explainError}
       {explainQid}
       {explainSavedQid}
       {explainSaveBusy}
@@ -6356,7 +6647,6 @@ import { confirmDialogSync } from "@/libs/dialog";
       {ttsSupported}
       {renderInlineText}
       {isChoiceQuestion}
-      {answerChoices}
       {escapeHtml}
       {formatMaterialGroupHeader}
       {hintButtonLabel}
@@ -6370,6 +6660,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onstartNextDrill={() => void startDrill("quick")}
       oneditReflection={(qid) => void editReflection(qid)}
       onrunMisdiagnosis={(a) => void runMisdiagnosis(a)}
+      oncancelMisdiagnosis={cancelMisdiagnosis}
       onadoptMisdiagnosis={(qid) => void adoptMisdiagnosis(qid)}
       onttsSpeak={handleTtsSpeak}
       ontoggleTtsSlow={() => { ttsSlowRate = !ttsSlowRate; writeLocal("lv-exam/tts-slow", ttsSlowRate ? "1" : "0"); }}
@@ -6437,6 +6728,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       onopenSessionSheet={() => (sessionSheetOpen = !sessionSheetOpen)}
       onopenSocraticModal={() => (socraticModalOpen = true)}
       oncloseExplain={closeExplain}
+      oncancelExplain={cancelExplain}
+      explainMode={socraticMode}
     />
   {:else if view === "recite"}
     <ReciteStudioView
@@ -6479,6 +6772,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     />
   {:else if view === "wrongbook"}
     <WrongbookStudioView
+      {activeBankId}
       {wrongList}
       {eliminatedCount}
       {clearPct}
@@ -6498,7 +6792,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {filteredWrongQueue}
       {shownWrongQueue}
       {wbQueueHasMore}
-      onloadMoreWbQueue={() => (wbQueueLimit += 50)}
+      onloadMoreWbQueue={() => (wbQueueLimit += 20)}
       {archivedWrongList}
       {eliminatedWrongList}
       {cbmHighrisk}
@@ -6596,6 +6890,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       oninsertMathSnippet={insertMathSnippet}
       onapplyOcrFill={applyOcrFill}
       onfileInputChange={onFileInputChange}
+      oncancelOcr={cancelOcrImageUpload}
       onswitchManualType={(tt) => void switchManualType(tt)}
       onclearManualValidation={clearManualValidation}
       onsetCorrectOption={(i) => setCorrectOption(i)}
@@ -6883,7 +7178,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {summarizeLoad}
       {getQuestionLifecycle}
       {hasMore}
-      onbrowseLimit200={() => (browseLimit = 50)}
+      onbrowseLimit200={() => (browseLimit = 30)}
       onapplyNamedView={(v) => void applyNamedView(v)}
       ondeleteNamedView={() => void deleteNamedView()}
       onsaveCurrentView={() => void saveCurrentView()}
@@ -6981,13 +7276,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       onsaveQref={(qid) => void saveQref(qid)}
       ontoggleReceipts={(qid) => toggleReceipts(qid)}
       onrunReceiptMisdiagnosis={(q, e) => void runReceiptMisdiagnosis(q, e)}
+      oncancelReceiptMisdiagnosis={cancelReceiptMisdiagnosis}
       onmakeFlashCandidates={(q) => void makeFlashCandidates(q)}
+      oncancelFlashCandidates={cancelFlashCandidates}
       onconfirmFlashCards={(q) => void confirmFlashCards(q)}
       onstartSingleById={(qid) => void startSingleById(qid)}
       onsubmitResolveDispute={(q) => void submitResolveDispute(q)}
       onsubmitClearDispute={(q) => void submitClearDispute(q)}
       onsubmitFlagDispute={(q) => void submitFlagDispute(q)}
-      onloadMore={() => (browseLimit += 50)}
+      onloadMore={() => (browseLimit += 30)}
     />
   {:else if view === "siyuan"}
     <SiyuanStudioView
@@ -7141,6 +7438,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {paperOcrBusy}
       onSegmentPaperText={(txt, name) => void doSegmentPaperText(txt, name)}
       onPaperImageUpload={(file) => void handlePaperImageFile(file)}
+      onCancelPaperOcr={cancelPaperOcr}
     />
   {:else if view === "marketplace"}
     <MarketplaceStudioView
@@ -7322,61 +7620,11 @@ import { confirmDialogSync } from "@/libs/dialog";
       title={t("hotkeys.title")}
       onclose={() => hotkeysHelpOpen = false}
     />
-    {#if diagnosisModal}
-      <button type="button" class="lv-hotkeys-backdrop" aria-label="关闭自适应诊断弹层" onclick={() => (diagnosisModal = null)}></button>
-      <div class="lv-hotkeys-wrap">
-        <div class="lv-card" role="dialog" aria-modal="true" tabindex="-1" aria-label="错题自适应先修根因诊断" style="width:min(620px, 94vw);max-height:85vh;overflow-y:auto;pointer-events:auto;padding:20px;border-radius:var(--lv-r-card, 20px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop)">
-          <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 12px">
-            <div class="lv-dialog-title-wrap">
-              <span class="lv-dialog-title-icon"><Icon name="compass" size={13} /></span>
-              <span>错题自适应先修根因诊断</span>
-            </div>
-            <button class="lv-btn sm lv-btn--ghost" onclick={() => (diagnosisModal = null)} aria-label="关闭"><Icon name="close" size={13} /></button>
-          </div>
-          <div class="lv-card" style="padding:10px 14px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);margin-bottom:12px;border:1px solid var(--lv-border-subtle)">
-            <div style="font-size:12px;color:var(--lv-text-3)">目标考点：<b>{diagnosisModal.targetKp}</b></div>
-            <div style="font-size:13px;line-height:1.6;margin-top:6px;color:var(--lv-text)">{diagnosisModal.summaryText}</div>
-          </div>
-          <h3 style="font-size:13px;font-weight:600;margin:12px 0 6px">🗺️ 推荐先修筑基与靶向攻克路线：</h3>
-          <div class="stack-sm">
-            {#each diagnosisModal.learningPath as stage, si (si)}
-              <div class="lv-diagnosis-stage"
-                class:lv-stage--root={stage.status === 'root_cause'}
-                class:lv-stage--shaky={stage.status === 'shaky'}
-                class:lv-stage--target={stage.status === 'untested'}
-                style="padding:10px 12px;background:var(--lv-surface);border:1px solid var(--lv-border);border-radius:var(--lv-r-1)">
-                <div style="font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center">
-                  <span>{stage.title}</span>
-                  <span class="lv-chip sm">{stage.status === 'root_cause' ? '薄弱根因' : (stage.status === 'shaky' ? '掌握不稳' : '冲刺目标')}</span>
-                </div>
-                {#if stage.recommendedQuestions.length > 0}
-                  <div class="lv-row" style="margin:6px 0 0;justify-content:space-between;align-items:center">
-                    <span style="font-size:12px;color:var(--lv-text-3)">
-                      推荐强化题量：共 {stage.recommendedQuestions.length} 题
-                    </span>
-                    <button
-                      type="button"
-                      class="lv-btn sm lv-btn--primary"
-                      style="font-size:11px;padding:2px 8px;display:inline-flex;align-items:center;gap:3px"
-                      onclick={() => {
-                        const qs = stage.recommendedQuestions;
-                        diagnosisModal = null;
-                        void startQuickPractice(qs, `已开启阶段【${stage.title}】针对性攻坚特训（共 ${qs.length} 题）`);
-                      }}
-                    >
-                      <Icon name="play" size={11} /> 攻坚此阶段
-                    </button>
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-          <div class="lv-row" style="margin-top:16px;justify-content:flex-end">
-            <button class="lv-btn sm lv-btn--primary" onclick={() => (diagnosisModal = null)}>关闭</button>
-          </div>
-        </div>
-      </div>
-    {/if}
+    <AdaptiveDiagnosisModal
+      {diagnosisModal}
+      onclose={() => (diagnosisModal = null)}
+      onstartQuickPractice={(qs, msg) => void startQuickPractice(qs, msg)}
+    />
     <PaperAssembleModal
       open={tabAssembleOpen}
       bankName={bankName || "试题组卷"}
@@ -7390,8 +7638,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       mode={socraticMode}
       busy={explainBusy}
       text={explainText}
+      error={explainError}
       history={session?.current ? (explainHistory[session.current.id] || []) : []}
       onclose={() => (socraticModalOpen = false)}
+      oncancel={cancelExplain}
       onsendFollowUp={handleSocraticFollowUp}
       onsaveToNote={() => { void saveExplain(); }}
       saveBusy={explainSaveBusy}
@@ -7402,9 +7652,6 @@ import { confirmDialogSync } from "@/libs/dialog";
 
 <style>
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
-  .lv-stage--root { border-left: 4px solid var(--lv-accent-seal) !important; }
-  .lv-stage--shaky { border-left: 4px solid var(--lv-accent) !important; }
-  .lv-stage--target { border-left: 4px solid var(--lv-brand) !important; }
   @container lv-exam (max-width: 680px) {
     .lv-session-floating-sheet {
       display: none !important;

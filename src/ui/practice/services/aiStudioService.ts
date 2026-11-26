@@ -10,6 +10,71 @@ import { validate } from "@/importer/pipeline";
 import { escapeHtml } from "@/libs/sanitize";
 import { redactUrlForDisplay } from "@/core/urlRedaction";
 
+export const AI_CONSENT_KEY = "lv-exam-ai-consent";
+
+/**
+ * 首次调用 AI 数据流确认与端点绑定隐私闸（26.2 P0 / 41-06）
+ */
+export async function ensureAiEndpointConsent(
+  rawEndpoint: string,
+  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
+  readLocal: (k: string) => string | null,
+  writeLocal: (k: string, v: string) => void,
+  t: (k: string, fb?: string) => string,
+): Promise<boolean> {
+  const currentEndpoint = rawEndpoint.trim() || "(内置)";
+  let consented = readLocal(AI_CONSENT_KEY);
+
+  try {
+    const parsed = JSON.parse(consented ?? "") as { endpoint?: string } | null;
+    if (parsed?.endpoint) consented = parsed.endpoint;
+    else consented = null;
+  } catch {
+    if (consented !== null && consented !== "1") consented = null;
+    else if (consented === "1") consented = "(legacy)";
+  }
+
+  if (consented !== currentEndpoint) {
+    const ep = rawEndpoint.trim();
+    const title = t("ai.consentTitle", "确认向 AI 发送内容？");
+    const msg = ep
+      ? `${title}<br>${t("ai.consentCustom", "自定义端点：")} ${escapeHtml(redactUrlForDisplay(ep))}`
+      : `${title}<br>${t("ai.consentSiyuan", "将通过思源笔记内置 AI 接口发送所选题目或学习材料。")}`;
+
+    const ok = await confirmFn({
+      title,
+      content: `${msg}<br><br>${t("ai.consentScope", "仅在你主动点击 AI 功能时外发当前题面/材料文本，绝不上传整个题库或私钥。")}`,
+    });
+
+    if (!ok) return false;
+    writeLocal(AI_CONSENT_KEY, JSON.stringify({ endpoint: currentEndpoint }));
+  }
+
+  return true;
+}
+
+export function createBrowserConsentStorage(): {
+  readLocal: (k: string) => string | null;
+  writeLocal: (k: string, v: string) => void;
+} {
+  return {
+    readLocal: (k: string) => {
+      try {
+        return typeof window !== "undefined" ? window.localStorage?.getItem(k) ?? null : null;
+      } catch {
+        return null;
+      }
+    },
+    writeLocal: (k: string, v: string) => {
+      try {
+        if (typeof window !== "undefined") window.localStorage?.setItem(k, v);
+      } catch {
+        /* 隐私模式静默 */
+      }
+    },
+  };
+}
+
 export const REVIEW_QUEUE_KEY = "ai/review-queue";
 
 export interface AiReviewQueueState {
@@ -62,7 +127,7 @@ export async function executeAiQuestionGeneration(options: {
   aiConfig: AiChannelConfig;
   material: string;
   genOptions: GenOptions;
-  signal?: { aborted: boolean };
+  signal?: { aborted: boolean; controller?: AbortController } | AbortSignal;
 }) {
   const { client, aiConfig, material, genOptions, signal } = options;
   const rawChannel = await createAiChannel(client, aiConfig);
@@ -88,7 +153,7 @@ export async function executeAiIssueRepair(options: {
   rejected: GenIssue[];
   source: string;
   genOptions: GenOptions;
-  signal?: { aborted: boolean };
+  signal?: { aborted: boolean; controller?: AbortController } | AbortSignal;
 }) {
   const { client, aiConfig, rejected, source, genOptions, signal } = options;
   const rawChannel = await createAiChannel(client, aiConfig);
@@ -198,47 +263,6 @@ export function verifyQueueBankMatch(
   return { matched: true };
 }
 
-export const AI_CONSENT_KEY = "lv-exam-ai-consent";
-
-/**
- * 首次调用 AI 数据流确认与端点绑定隐私闸（26.2 P0 / 41-06）
- */
-export async function ensureAiEndpointConsent(
-  rawEndpoint: string,
-  confirmFn: (opts: { title: string; content: string }) => Promise<boolean>,
-  readLocal: (k: string) => string | null,
-  writeLocal: (k: string, v: string) => void,
-  t: (k: string) => string,
-): Promise<boolean> {
-  const currentEndpoint = rawEndpoint.trim() || "(内置)";
-  let consented = readLocal(AI_CONSENT_KEY);
-
-  try {
-    const parsed = JSON.parse(consented ?? "") as { endpoint?: string } | null;
-    if (parsed?.endpoint) consented = parsed.endpoint;
-    else consented = null;
-  } catch {
-    if (consented !== null && consented !== "1") consented = null;
-    else if (consented === "1") consented = "(legacy)";
-  }
-
-  if (consented !== currentEndpoint) {
-    const ep = rawEndpoint.trim();
-    const msg = ep
-      ? `${t("ai.consentTitle")}<br>${t("ai.consentCustom")} ${escapeHtml(redactUrlForDisplay(ep))}`
-      : `${t("ai.consentTitle")}<br>${t("ai.consentSiyuan")}`;
-
-    const ok = await confirmFn({
-      title: t("ai.consentTitle"),
-      content: `${msg}<br><br>${t("ai.consentScope")}`,
-    });
-
-    if (!ok) return false;
-    writeLocal(AI_CONSENT_KEY, JSON.stringify({ endpoint: currentEndpoint }));
-  }
-
-  return true;
-}
 
 export interface GenOptionsSnapshotParams {
   count: number;
@@ -306,7 +330,7 @@ export async function executeRegenSingleCandidate(options: {
   material: string;
   genOptions: GenOptions;
   targetQuestion: Question;
-  signal?: { aborted: boolean };
+  signal?: { aborted: boolean; controller?: AbortController } | AbortSignal;
 }): Promise<{
   newQuestion?: Question;
   rejectReason?: string;

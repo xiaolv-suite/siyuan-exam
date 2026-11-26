@@ -33,7 +33,7 @@
   let pubSubtitle = $state("");
   let pubDesc = $state("");
   let pubCategory = $state<MarketplaceCategory>("general");
-  let pubAuthor = $state("小驴学习者");
+  let pubAuthor = $state("小驴考试用户");
   let pubVersion = $state("1.0.0");
   let pubLicense = $state<"CC0" | "CC-BY-4.0" | "CC-BY-NC-4.0" | "Public Domain" | "MIT">("Public Domain");
   let pubTagsInput = $state("");

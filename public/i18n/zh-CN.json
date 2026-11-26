@@ -32,8 +32,10 @@
   "blockMenu.openInBrowse": "小驴考试：在练习台打开",
   "setting.dailyGoal.title": "每日一练题数",
   "setting.dailyGoal.desc": "每日一练轻钩子推送的题目数量（到期复习优先 + 高频考点）。",
+  "setting.eliminateStreak.title": "错题连对出库门槛",
+  "setting.eliminateStreak.desc": "错题在独立重练中连续答对多少次自动移出错题本（默认 2 次，可设 1–5 次）。",
   "setting.retention.title": "期望保留率",
-  "setting.retention.desc": "FSRS 调度唯一需要理解的参数：越高记得越牢，但复习量越大。默认 0.9，建议 0.85-0.97。",
+  "setting.retention.desc": "间隔记忆调度唯一需要理解的参数：越高记得越牢，但复习量越大。默认 0.9，建议 0.85-0.97。",
   "setting.aiEndpoint.title": "AI 接口地址",
   "setting.aiEndpoint.desc": "OpenAI 兼容端点（https://.../v1/chat/completions）。仅在你主动发起 AI 任务时发送该任务说明中列出的内容。",
   "setting.aiKey.title": "AI API Key",
@@ -165,7 +167,7 @@
   "rev.fieldKp": "考点",
   "rev.fieldDifficulty": "难度",
   "rev.restoreConfirmFull": "将恢复至该历史版本：\n{summary}\n（历史作答记录不受影响，是否确认恢复？）",
-  "report.masteryNote": "启发式估计（作答次数×时间衰减），非真实 FSRS 卡片状态；独立题=去重题目，同题反复不算多题",
+  "report.masteryNote": "启发式估计（作答次数×时间衰减），非真实记忆卡片状态；独立题=去重题目，同题反复不算多题",
   "report.uniqueQ": "独立题",
   "report.coverage": "覆盖",
   "report.uniqueTip": "独立题=去重后的题目数；覆盖率=已练独立题 ÷ 该考点全部题数",
@@ -253,6 +255,7 @@
   "session.done": "🎉 本组练习完成！",
   "session.total": "共作答",
   "session.back": "完成本次练习",
+  "session.emptyOrEnded": "当前练习已全部完成或暂无可作答题目，请返回练习台。",
   "session.undo": "撤销作答",
   "session.undoTip": "撤销刚才的提交并恢复作答前草稿（快捷键 Ctrl+Z）",
   "session.undoDone": "已撤销刚才的作答，可重新修改后提交",
@@ -385,13 +388,13 @@
   "recite.reveal": "默想完成 · 翻开答案（空格）",
   "recite.answer": "参考答案",
   "recite.done": "背诵完成",
-  "recite.doneHint": "自评已写入流水；已转卡的题目同步 FSRS 评级",
+  "recite.doneHint": "自评已写入流水；已转卡的题目同步记忆卡片评级",
   "rate.1": "没记住",
   "rate.2": "模糊",
   "rate.3": "记住了",
   "rate.4": "很熟练",
   "memory.toCard": "转为闪卡",
-  "memory.toCardDone": "🎉 成功制成复习闪卡，已送入卡包并由 FSRS 调度",
+  "memory.toCardDone": "🎉 成功制成复习闪卡，已送入卡包并纳入间隔复习调度",
   "memory.toCardMissing": "该题尚未写入块（先完成导入）",
   "memory.sameKp": "举一反三 · 同考点再来一组",
   "state.noCram": "冲刺队列为空（错 ≥2 次的题不足）",
@@ -1185,7 +1188,7 @@
   "data.purgePartial": "{f} 个键清除失败（其余已清；可重试）",
   "data.purgeNote": "以上为逐键回执（成功 / 失败）；思源笔记本与题目块未受影响。重载思源后内存态归零。",
   "browse.fHelp": "仅受助",
-  "browse.fHelpTip": "只显示作答前被讲解/提示过的题（AttemptEvent.help）",
+  "browse.fHelpTip": "只显示作答前查看过讲解或提示的题目",
   "browse.fAnyDay": "全部时间",
   "browse.fToday": "今日有作答",
   "browse.f7": "近 7 天有作答",
@@ -1440,13 +1443,14 @@
   "mock.historyScope": "历史记录可能来自不同题库、卷面或时长，百分比仅供回看，不直接比较进步或能力。",
   "report.dailyScope": "写入当前题库今日作答的战报，与上方日期筛选无关。",
   "mock.bpInvalid": "保存的蓝图内容不完整，请重新配置并保存。",
-  "mock.unscoredTypes": "当前模考仅支持可自动判分的单选、多选、判断和填空。请在蓝图中排除简答、材料题，或到练习台使用自评。",
+  "mock.unscoredTypes": "当前模考支持单选、多选、判断、填空与简答题，暂不支持直接组入纯材料题干块。",
+  "mock.quotaMixedTip": "严格来源题量不足，已从其他来源自动补齐",
   "mock.confirmHandInAll": "所有题目均已填写，确认交卷？",
   "mock.confirmHandInImpact": "交卷后答案将锁定、计时停止；未答题按 0 分计入本卷成绩。",
   "mock.scoreWritten": "成绩单已写入本题库的「导出」文档。",
   "mock.scoreWriteFailed": "成绩单写入失败，成绩仍保留，可重试或下载：{message}",
   "mock.setupGuideTitle": "先确认本次模考条件",
-  "mock.setupGuide": "默认蓝图已按考点配置可自动判分题。先核对模块、题数与分值，再设置时长和及格百分比；开考后独立作答，统一交卷。简答题请在练习台或背诵模式自评。",
+  "mock.setupGuide": "默认蓝图已按考点配置题目。先核对模块、题数与分值，再设置时长和及格百分比；开考后独立作答，统一交卷，简答题支持交卷后采分自评。",
   "mock.sourceMixed": "不限来源",
   "mock.durationMinutes": "考试时长（分钟）",
   "mock.shuffleUnavailable": "选项乱序暂未开放",
@@ -1492,7 +1496,7 @@
   "mock.gridMode": "题号网格模式",
   "mock.jumpNextUnanswered": "跳转下一未答",
   "session.multiSelected": "当前已选 {items}（共 {n} 项）",
-  "session.multiEmpty": "多选题：请选择所有正确选项（至少一项）",
+  "session.multiEmpty": "已选 0 项（可多选）",
   "session.submitSelected": "确认提交 (已选 {n} 项) (Enter)",
   "wrongbook.filterAll": "全部错题",
   "wrongbook.filterCareless": "粗心失误",
@@ -1593,122 +1597,35 @@
   "entry.retestPractice": "独立复测（最多10题）",
   "entry.retestRecite": "先回忆再核对",
   "mock.difficulty": "难度配比",
-  "variant.generateFailed": [
-    "生成变式题失败，请检查网络或 AI 配置",
-    "Failed to generate the variant — check your network or AI settings"
-  ],
-  "variant.promotedMastered": [
-    "🏆 变式连续攻坚通过（连对 {streak}/{threshold}）！该错题已晋级【🟢 已掌握】，已自动出库！",
-    "🏆 Variant streak cleared ({streak}/{threshold})! This wrong answer is now 🟢 Mastered and auto-cleared!"
-  ],
-  "variant.promotedStrengthening": [
-    "🎉 变式强化通过！阶梯晋升至【🟡 强化中】（连对 {streak}/{threshold}），再通过 1 次即可彻底出库！",
-    "🎉 Variant cleared! Moved up to 🟡 Strengthening (streak {streak}/{threshold}) — one more clears it for good!"
-  ],
-  "variant.promotedReset": [
-    "⚠️ 变式测验失分！打破虚假自信，阶梯连对重置回【🔴 待攻克】(0/{threshold})，请深读下方变式解析！",
-    "⚠️ Variant missed! Overconfidence busted — streak reset to 🔴 To conquer (0/{threshold}). Read the analysis below closely!"
-  ],
-  "variant.saveFailed": [
-    "保存变式题失败，请稍后重试",
-    "Failed to save the variant — please try again"
-  ],
-  "variant.closeAria": [
-    "关闭",
-    "Close"
-  ],
-  "variant.title": [
-    "AI 考点变式衍生题机",
-    "AI KP Variant Generator"
-  ],
-  "variant.seedKpLabel": [
-    "针对原错题考点：",
-    "For the original wrong answer's KP:"
-  ],
-  "variant.seedKpFallback": [
-    "基础核心考点",
-    "Core fundamentals"
-  ],
-  "variant.seedCollapse": [
-    "收起原题",
-    "Hide original"
-  ],
-  "variant.seedExpand": [
-    "速览原题 ▾",
-    "Peek original ▾"
-  ],
-  "variant.correctAnswerLabel": [
-    "标准答案：",
-    "Correct answer:"
-  ],
-  "variant.selectedKindLabel": [
-    "选定维度：",
-    "Selected dimension:"
-  ],
-  "variant.generating": [
-    "🤖 AI 考点变式衍生中…",
-    "🤖 Generating AI variant…"
-  ],
-  "variant.generateBtn": [
-    "✨ 衍生一道高仿变式题",
-    "✨ Generate a high-fidelity variant"
-  ],
-  "variant.offlineNotice": [
-    "离线模式：已由本地启发式引擎完成变式衍生，作答结果可 100% 正常推动阶梯晋级。",
-    "Offline mode: the local heuristic engine generated this variant; answering still fully drives ladder progress."
-  ],
-  "variant.kindTag": [
-    "{kind}变式",
-    "{kind} variant"
-  ],
-  "variant.typeSingle": [
-    "单选题",
-    "Single choice"
-  ],
-  "variant.difficultyLabel": [
-    "难度：",
-    "Difficulty:"
-  ],
-  "variant.answerPlaceholder": [
-    "请输入你的作答答案…",
-    "Type your answer…"
-  ],
-  "variant.submitBtn": [
-    "提交变式作答并核验",
-    "Submit & check"
-  ],
-  "variant.correctBadge": [
-    "✅ 回答正确！",
-    "✅ Correct!"
-  ],
-  "variant.wrongBadge": [
-    "❌ 回答错误！",
-    "❌ Incorrect!"
-  ],
-  "variant.correctAnswerInfo": [
-    "正确答案：",
-    "Correct answer:"
-  ],
-  "variant.analysisTitle": [
-    "变式详尽解析",
-    "Variant analysis"
-  ],
-  "variant.savedChip": [
-    "✓ 已收录至题库",
-    "✓ Saved to bank"
-  ],
-  "variant.savingChip": [
-    "收录中…",
-    "Saving…"
-  ],
-  "variant.saveBtn": [
-    "💾 保存此变式题到题库",
-    "💾 Save this variant to the bank"
-  ],
-  "variant.regenerateBtn": [
-    "再换一种变式维度挑战",
-    "Try another variant dimension"
-  ],
+  "variant.generateFailed": "生成变式题失败，请检查网络或 AI 配置",
+  "variant.promotedMastered": "🏆 变式连续攻坚通过（连对 {streak}/{threshold}）！该错题已晋级【🟢 已掌握】，已自动出库！",
+  "variant.promotedStrengthening": "🎉 变式强化通过！阶梯晋升至【🟡 强化中】（连对 {streak}/{threshold}），再通过 1 次即可彻底出库！",
+  "variant.promotedReset": "⚠️ 变式测验失分！打破虚假自信，阶梯连对重置回【🔴 待攻克】(0/{threshold})，请深读下方变式解析！",
+  "variant.saveFailed": "保存变式题失败，请稍后重试",
+  "variant.closeAria": "关闭",
+  "variant.title": "AI 考点变式衍生题机",
+  "variant.seedKpLabel": "针对原错题考点：",
+  "variant.seedKpFallback": "基础核心考点",
+  "variant.seedCollapse": "收起原题",
+  "variant.seedExpand": "速览原题 ▾",
+  "variant.correctAnswerLabel": "标准答案：",
+  "variant.selectedKindLabel": "选定维度：",
+  "variant.generating": "🤖 AI 考点变式衍生中…",
+  "variant.generateBtn": "✨ 衍生一道高仿变式题",
+  "variant.offlineNotice": "离线模式：已由本地启发式引擎完成变式衍生，作答结果可 100% 正常推动阶梯晋级。",
+  "variant.kindTag": "{kind}变式",
+  "variant.typeSingle": "单选题",
+  "variant.difficultyLabel": "难度：",
+  "variant.answerPlaceholder": "请输入你的作答答案…",
+  "variant.submitBtn": "提交变式作答并核验",
+  "variant.correctBadge": "✅ 回答正确！",
+  "variant.wrongBadge": "❌ 回答错误！",
+  "variant.correctAnswerInfo": "正确答案：",
+  "variant.analysisTitle": "变式详尽解析",
+  "variant.savedChip": "✓ 已收录至题库",
+  "variant.savingChip": "收录中…",
+  "variant.saveBtn": "💾 保存此变式题到题库",
+  "variant.regenerateBtn": "再换一种变式维度挑战",
   "wrong.noBankError": "未定位到有效题库",
   "wrong.variantSaved": "💾 变式题已成功保存至题库！",
   "wrong.variantSaveNoChannel": "当前环境未接入题库写入通道，无法保存变式题",
@@ -1764,9 +1681,9 @@
   "wrong.presentTip": "进入大屏放映模式逐题讲评与复盘错题",
   "wrong.presentBtn": "错题放映",
   "wrong.saveDocTip": "将当前筛选的错题组建排版为思源笔记文档，折叠答案，卸载插件永久保留",
-  "wrong.pushStubbornTip": "将当前筛选的顽疾错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行 FSRS 重点强化",
-  "wrong.pushCardsTip": "将当前筛选的错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行 FSRS 间隔复习",
-  "wrong.pushNoPluginTip": "未检测到小驴闪卡插件（siyuan-lv-cards），安装后可一键将错题同步至 FSRS 卡包复习；当前内置错题重练 100% 独立可用",
+  "wrong.pushStubbornTip": "将当前筛选的顽疾错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行重点强化复习",
+  "wrong.pushCardsTip": "将当前筛选的错题同步推送到小驴闪卡（siyuan-lv-cards）卡包中进行间隔复习",
+  "wrong.pushNoPluginTip": "未检测到小驴闪卡插件（siyuan-lv-cards），安装后可一键将错题同步至闪卡包复习；当前内置错题重练 100% 独立可用",
   "wrong.pushStubbornBtn": "顽疾推闪卡",
   "wrong.launchExamTip": "将当前筛选的错题组建为全真限时模拟考卷，拉起答题卡进行考场高压攻坚",
   "wrong.savedDocPrefix": "已同步至思源文档：",
@@ -1798,7 +1715,7 @@
   "wrong.openBlockTip": "在思源笔记中打开并高亮原题块（按住 Ctrl/Cmd 点击可在右侧分屏打开）",
   "wrong.originalBtn": "原题 ↗",
   "wrong.reflectionTip": "记录或修改本题复盘反思（同步写回思源题块）",
-  "wrong.pushSingleTip": "顽疾错题：推送到小驴闪卡卡包进行 FSRS 间隔复习",
+  "wrong.pushSingleTip": "顽疾错题：推送到小驴闪卡卡包进行间隔复习",
   "wrong.pushSingleBtn": "推闪卡",
   "wrong.variantBtnTip": "✨ AI 考点变式衍生题机：4维换元变式测验与阶梯攻坚",
   "wrong.variantBtn": "变式题机",
@@ -1875,7 +1792,7 @@
   "mock2.bpSaveTip": "保存当前组卷蓝图",
   "mock2.bpRestoreTip": "恢复默认组卷蓝图",
   "mock2.openInSiyuan": "在思源中打开 ↗",
-  "mock2.secondaryKpTip": "允许匹配题目的辅助考查知识点 (secondaryKps)",
+  "mock2.secondaryKpTip": "允许匹配题目的辅助考查知识点",
   "mock2.reportPrintAria": "选择考后打印版式",
   "mock2.reportPrintTip": "按所选版式打印答案册、授课讲义或测试卷",
   "mock2.targetDrillTip": "为本次所有做错的试题打上专场靶向标签，并一键开启二刷靶向攻坚",
@@ -1885,7 +1802,7 @@
   "mock2.expandAll": "全部展开",
   "mock2.collapseAll": "全部收起",
   "mock2.onlyCurrentSection": "仅看当前大题",
-  "mock2.difficultyGradientHead": "难度梯度 (MathCyclus)",
+  "mock2.difficultyGradientHead": "难度梯度",
   "mock2.bubbleInputPlaceholder": "输入答案…",
   "mock2.sweepInputPlaceholder": "填入作答…",
   "mock2.phoneticLabel": "注音 / 音标：",

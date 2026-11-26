@@ -5,6 +5,8 @@
     import { SvelteMap } from "svelte/reactivity";
     import { showMessage } from "@/libs/notice";
     import { resolveAiKey } from "@/ai/secrets";
+    import { ensureAiEndpointConsent } from "../practice/services/aiStudioService";
+    import { confirmDialogSync } from "@/libs/dialog";
     import { weeklyAggregates, weekCompare, dailyTrend, weeklyTrend, monthlyTrend } from "@/core/weekly";
     import { quadrantReport, quadrantSignals, type QuadrantReport } from "@/core/quadrant";
     import type { ExamApp } from "../../app";
@@ -21,13 +23,16 @@
     import { openSiYuanTarget } from "../practice/services/backlinkNavigationService";
     import type { ActionItem } from "@/core/actions";
     import SaveStatus from "../shared/SaveStatus.svelte";
+    import AiThinkingCard from "../shared/AiThinkingCard.svelte";
     import { lvLaunchpad, showDocTreeNativeMenu } from "@/libs/lv-notice-kit";
+    import { watchSiYuanTheme } from "@/libs/lv-theme";
     import { emitExamEvent, onExamEvent } from "@/core/bus";
     import { openPracticeView, type ExamPluginLike } from "@/core/pluginTab";
     import type { AttemptEvent, Question } from "@/core/types";
     import { reportWindowStart, reportDateKey } from "@/core/reportWindow";
 
     let { plugin, examApp }: { plugin: ExamPluginLike; examApp?: ExamApp | null } = $props();
+    let tabRoot: HTMLDivElement | undefined;
     let appOverride = $state<ExamApp | null>(null);
     const app = $derived<ExamApp | null>(appOverride ?? examApp ?? (plugin?.examApp as ExamApp | undefined) ?? null);
     const i18n = $derived(plugin?.i18n ?? {});
@@ -36,12 +41,24 @@
     if (vars) for (const [name, value] of Object.entries(vars)) v = v.split(`{${name}}`).join(String(value));
     return v;
 };
+    const readLocal = (key: string): string | null => {
+      try {
+        return globalThis.localStorage?.getItem(key) ?? null;
+      } catch {
+        return null;
+      }
+    };
     const writeLocal = (key: string, value: string | null) => {
       try {
         if (value == null) globalThis.localStorage?.removeItem(key);
         else globalThis.localStorage?.setItem(key, value);
       } catch { /* optional browser preference */ }
     };
+
+    async function requireReportAiConsent(): Promise<boolean> {
+      const rawEndpoint = String(plugin?.settingUtils?.get?.("aiEndpoint") ?? "");
+      return ensureAiEndpointConsent(rawEndpoint, confirmDialogSync, readLocal, writeLocal, t);
+    }
 
     let railOpen = $state(false);
     let reportMoreOpen = $state(false);
@@ -295,7 +312,7 @@
       e.stopPropagation();
       let nbId = "";
       try {
-        const rows = await app?.deps?.client?.sql(`SELECT box FROM blocks WHERE id = '${docId.replace(/'/g, "''")}' LIMIT 1`);
+        const rows = await app?.bridge?.sql(`SELECT box FROM blocks WHERE id = '${docId.replace(/'/g, "''")}' LIMIT 1`);
         if (rows && rows[0]?.box) nbId = String(rows[0].box);
       } catch { /* ignore */ }
       if (nbId) {
@@ -432,9 +449,29 @@
     let explainText = $state("");
     let explainError = $state("");
     let reportContextVersion = 0;
+    let explainAbortCtrl: AbortController | null = null;
+    let nextActionAbortCtrl: AbortController | null = null;
+
+    function cancelReportExplain() {
+      explainAbortCtrl?.abort();
+      explainAbortCtrl = null;
+      explainBusy = false;
+    }
+
+    function cancelNextAction() {
+      nextActionAbortCtrl?.abort();
+      nextActionAbortCtrl = null;
+      nextActionBusy = false;
+    }
 
     function resetAiResults() {
       reportContextVersion++;
+      explainAbortCtrl?.abort();
+      explainAbortCtrl = null;
+      nextActionAbortCtrl?.abort();
+      nextActionAbortCtrl = null;
+      explainBusy = false;
+      nextActionBusy = false;
       explainText = ""; explainError = "";
       nextActionText = ""; nextActionError = "";
     }
@@ -451,8 +488,11 @@
     async function runReportExplain() {
       if (!app || explainBusy || loading || reportRefreshing || scopeLoading) return;
       if (!app.kernelOnline) { explainError = t("state.offlineHint"); return; }
+      if (!(await requireReportAiConsent())) return;
       explainBusy = true; explainError = ""; explainText = "";
       const requestedVersion = reportContextVersion;
+      const ctrl = new AbortController();
+      explainAbortCtrl = ctrl;
       try {
         const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
         const { buildReportExplainMessages } = await import("@/ai/reportExplain");
@@ -462,7 +502,7 @@
         const model = String(plugin?.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
         const ch = endpoint && key
           ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
+          : new SiyuanAiChannel(app.bridge as any);
         const cutoff = reportWindowStart(rangeDays);
         const events = reportEvents;
         let attempts = 0, correct = 0;
@@ -494,7 +534,8 @@
           mode: "report",
           sessionId: "",
         };
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
+        const env = await new AiTaskRunner(ch).run(reqCtx, messages, ctrl.signal);
+        if (ctrl.signal.aborted) return;
         if (env.status === "ok" && env.data.text) void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
         if (requestedVersion !== reportContextVersion) {
           showMessage(t("report.aiScopeChanged", "统计范围已变化，本次 AI 结果未应用，请基于当前范围重新生成。"), 3400, "info");
@@ -506,8 +547,12 @@
           explainError = `${env.summary}${env.error ? "：" + env.error : ""}`;
         }
       } catch (e) {
+        if (ctrl.signal.aborted) return;
         if (requestedVersion === reportContextVersion) explainError = String(e instanceof Error ? e.message : e);
-      } finally { explainBusy = false; }
+      } finally {
+        if (explainAbortCtrl === ctrl) explainAbortCtrl = null;
+        explainBusy = false;
+      }
     }
 
     // ---------- AI 下一行动（117-02：容量+开放行动+弱项+错题在册 → 2-3 条任务建议） ----------
@@ -518,8 +563,11 @@
     async function runNextAction() {
       if (!app || nextActionBusy || loading || reportRefreshing || scopeLoading) return;
       if (!app.kernelOnline) { nextActionError = t("state.offlineHint"); return; }
+      if (!(await requireReportAiConsent())) return;
       nextActionBusy = true; nextActionError = ""; nextActionText = "";
       const requestedVersion = reportContextVersion;
+      const ctrl = new AbortController();
+      nextActionAbortCtrl = ctrl;
       try {
         const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
         const { buildNextActionMessages } = await import("@/ai/nextAction");
@@ -530,7 +578,7 @@
         const model = String(plugin?.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
         const ch = endpoint && key
           ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.deps.client);
+          : new SiyuanAiChannel(app.bridge as any);
         // 容量口径：错题重练队列前 10 题（53-01 估算；入口页今日计划不在此上下文，如实标注口径）
         const wrongItems = app.wrongItems();
         let redoQueue: Question[] = [];
@@ -568,7 +616,7 @@
           recentAccuracy: attempts ? Math.round((correct / attempts) * 100) : null,
         };
         const messages = buildNextActionMessages(facts);
-        if (requestedVersion !== reportContextVersion) return;
+        if (ctrl.signal.aborted || requestedVersion !== reportContextVersion) return;
         const reqCtx: import("@/ai/task").AiTaskContext = {
           templateId: "plan.nextaction",
           templateVersion: 1,
@@ -579,7 +627,8 @@
           mode: "report",
           sessionId: "",
         };
-        const env = await new AiTaskRunner(ch).run(reqCtx, messages);
+        const env = await new AiTaskRunner(ch).run(reqCtx, messages, ctrl.signal);
+        if (ctrl.signal.aborted) return;
         if (env.status === "ok" && env.data.text) void app.recordAiUsage(ch.id, env.tokens, 1).catch(() => undefined);
         if (requestedVersion !== reportContextVersion) {
           showMessage(t("report.aiScopeChanged", "统计范围已变化，本次 AI 结果未应用，请基于当前范围重新生成。"), 3400, "info");
@@ -591,8 +640,12 @@
           nextActionError = `${env.summary}${env.error ? "：" + env.error : ""}`;
         }
       } catch (e) {
+        if (ctrl.signal.aborted) return;
         if (requestedVersion === reportContextVersion) nextActionError = String(e instanceof Error ? e.message : e);
-      } finally { nextActionBusy = false; }
+      } finally {
+        if (nextActionAbortCtrl === ctrl) nextActionAbortCtrl = null;
+        nextActionBusy = false;
+      }
     }
 
     // ---------- 题库范围（39-06/U21 lite）：掌握度/薄弱/下钻按所选题库聚合；KPI/热力图为全局口径 ----------
@@ -614,6 +667,9 @@
       resetAiResults();
       errorMsg = "";
       try {
+        if (!app.tier2Ready && typeof app.ensureTier2Loaded === "function") {
+          await app.ensureTier2Loaded().catch(() => undefined);
+        }
         const d = app.derived();
         const { streak } = await import("@/core/replayer");
         bankOptions = app.listBanks();
@@ -689,6 +745,7 @@
       else loading = true;
 
       const offs = [
+        ...(tabRoot ? [watchSiYuanTheme(tabRoot)] : []),
         onExamEvent("app-ready", () => {
           appOverride = plugin?.examApp ?? null;
           if (appOverride) initReport();
@@ -1055,7 +1112,7 @@
 
 <svelte:window onclick={(e) => { if (reportMoreOpen && reportMoreRoot && !reportMoreRoot.contains(e.target as Node)) reportMoreOpen = false; }} />
 
-<div class="fn__flex-1 lv-exam-tab">
+<div class="fn__flex-1 lv-exam-tab" bind:this={tabRoot}>
   <div class="block__icons">
     <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
     <div class="lv-crumbs">
@@ -1132,8 +1189,32 @@
   <div class="fn__flex-1 lv-pad">
   <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.report.eyebrow")}</span><h1 class="lv-h1">{t("head.report.title")}</h1><p>{t("head.report.desc")}</p></div>
 
-  {#if explainBusy}<p class="lv-muted" role="status">{t("reportExplain.generating", "正在解读当前统计，请稍候…")}</p>{/if}
-  {#if nextActionBusy}<p class="lv-muted" role="status">{t("nextAction.generating", "正在根据当前统计生成行动建议，请稍候…")}</p>{/if}
+  {#if explainBusy}
+    <div class="lv-card" style="margin:0 0 10px;padding:8px 12px">
+      <AiThinkingCard
+        scenario="general"
+        compact={true}
+        defaultIcon="✨"
+        title="✨ 正在生成学情统计 AI 解读…"
+        subtitle={`统计范围：${windowLabel()} · 仅基于真实作答统计分析`}
+        cancelLabel="⏹ 取消解读"
+        oncancel={cancelReportExplain}
+      />
+    </div>
+  {/if}
+  {#if nextActionBusy}
+    <div class="lv-card" style="margin:0 0 10px;padding:8px 12px">
+      <AiThinkingCard
+        scenario="general"
+        compact={true}
+        defaultIcon="🎯"
+        title="🎯 正在规划下一行动建议…"
+        subtitle={`统计范围：${windowLabel()} · 结合薄弱考点与时间预算推导`}
+        cancelLabel="⏹ 取消规划"
+        oncancel={cancelNextAction}
+      />
+    </div>
+  {/if}
   {#if explainError}
     <div class="lv-error" role="alert" style="margin:0 0 8px">{explainError}</div>
     <p class="lv-muted">{t("report.aiSetupHint", "AI 需要先配置：可使用思源设置中的可用模型，或在本插件设置中填写兼容端点、模型与密钥。统计和手动练习无需 AI。")}</p>
@@ -2198,7 +2279,7 @@
   .lv-heat i.l3 { background: color-mix(in srgb, var(--lv-accent) 72%, color-mix(in srgb, var(--lv-border) 45%, var(--lv-surface))); }
   .lv-heat i.l4 { background: var(--lv-accent); box-shadow: 0 1px 3px color-mix(in srgb, var(--lv-accent) 40%, transparent); }
   .progress { height: 7px; border-radius: var(--lv-radius-pill); background: var(--lv-surface-2); box-shadow: inset 0 1px 2px color-mix(in srgb, var(--lv-text) 10%, transparent); overflow: hidden; }
-  .progress i { display: block; height: 100%; border-radius: var(--lv-radius-pill); background: var(--lv-accent-grad); }
+  .progress i { display: block; height: 100%; border-radius: var(--lv-radius-pill); background: var(--lv-accent); }
   .progress i.ok { background: var(--lv-green); }
   .progress i.mid { background: var(--lv-amber); }
   .progress i.low { background: var(--lv-red); }

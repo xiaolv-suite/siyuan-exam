@@ -8,8 +8,7 @@
  */
 
 import { Plugin, Setting } from "siyuan";
-// DL2 阶段0：生态统一「外观与动效」偏好分组（庆祝/吉祥物/光效可关）
-import { mountLvUiPrefsSection } from "./lv-ui-prefs";
+import { ensureLegacyAiKeyMigratedForSave } from "../ai/secrets";
 
 /**
  * The default function to get the value of the element
@@ -188,6 +187,11 @@ export class SettingUtils {
           const validated = this.dump();
           this.plugin.data[this.name] = validated;
           await this.save(validated);
+          for (const item of this.settings.values()) {
+            if (typeof item.onConfirmSave === "function") {
+              await item.onConfirmSave();
+            }
+          }
         } catch (error) {
           // 设置表单可能已被宿主关闭，保留新值，重新打开后可直接重试保存。
           args.onSaveError?.(error);
@@ -202,19 +206,35 @@ export class SettingUtils {
         }
       },
     });
-    // DL2 阶段0：生态「外观与动效」偏好分组（custom 项懒构建 DOM，不落盘、不影响 load/save）。
-    // 注意：位于 items 首位；任何按序号取项的消费方应按 key 或取末项，不要假设 items[0]。
-    this.addItem({
-      title: "[外观与动效] 庆祝 / 吉祥物 / 光效",
-      description: "庆祝动画、吉祥物与装饰光效统一由生态偏好管理，对本机全部小驴插件生效。",
-      type: "custom",
-      key: "lvUiPrefsSection",
-      value: undefined,
-      direction: "column",
-      createElement: () => mountLvUiPrefsSection(document.createElement("div")),
-      getEleVal: () => undefined,
-      setEleVal: () => undefined,
-    });
+  }
+
+  /** 为思源原生 Setting 弹窗根节点显式挂载作用域类，免除 CSS 父选择器查找 */
+  markSettingDialogHost(hintElement?: HTMLElement): void {
+    const tryMark = (el: unknown): boolean => {
+      if (!(el instanceof HTMLElement)) return false;
+      const dialogEl = el.closest?.(".b3-dialog");
+      if (dialogEl instanceof HTMLElement) {
+        dialogEl.classList.add("lv-exam-dialog-host", "lv-exam-setting-dialog");
+        return true;
+      }
+      return false;
+    };
+    if (tryMark(hintElement)) return;
+    for (const el of this.elements.values()) {
+      if (tryMark(el)) return;
+    }
+  }
+
+  private scheduleSettingDialogHostMark(element: HTMLElement): void {
+    this.markSettingDialogHost(element);
+    if (typeof queueMicrotask === "function") {
+      queueMicrotask(() => this.markSettingDialogHost(element));
+    }
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => this.markSettingDialogHost(element));
+    } else {
+      setTimeout(() => this.markSettingDialogHost(element), 0);
+    }
   }
 
   async load() {
@@ -237,9 +257,16 @@ export class SettingUtils {
   }
 
   async save(data?: any) {
-    data = data ?? this.dump();
+    data = { ...(data ?? this.dump()) };
+    // 安全红线：严禁将明文 aiKey 写入 settings.json；仅在旧 Key 已迁入宿主密钥库后才剥离
+    if ("aiKey" in data) {
+      const migrated = await ensureLegacyAiKeyMigratedForSave(this.plugin, data.aiKey);
+      if (migrated) delete data.aiKey;
+    }
     for (const [key, item] of this.settings) {
-      if (item.type !== "button" && data[key] !== undefined) data[key] = this.validateValue(key, item, data[key]);
+      if (item.type !== "button" && item.type !== "custom" && data[key] !== undefined) {
+        data[key] = this.validateValue(key, item, data[key]);
+      }
     }
     await this.plugin.saveData(this.file, data);
     // Keep diagnostics useful without leaking secrets or user-entered endpoints.
@@ -378,7 +405,10 @@ export class SettingUtils {
         createActionElement: () => {
           this.updateElementFromValue(item.key);
           const element = this.getElement(item.key);
-          if (element instanceof HTMLElement) this.decorateSettingGroup(element, item);
+          if (element instanceof HTMLElement) {
+            this.decorateSettingGroup(element, item);
+            this.scheduleSettingDialogHostMark(element);
+          }
           return element;
         },
       });
@@ -392,7 +422,10 @@ export class SettingUtils {
           const element = item.createElement(val);
           element?.classList?.add("lv-exam-setting-control");
           if (element?.dataset) element.dataset.examKey = item.key;
-          if (element instanceof HTMLElement) this.decorateSettingGroup(element, item);
+          if (element instanceof HTMLElement) {
+            this.decorateSettingGroup(element, item);
+            this.scheduleSettingDialogHostMark(element);
+          }
           this.elements.set(item.key, element);
           return element;
         },

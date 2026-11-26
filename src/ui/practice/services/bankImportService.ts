@@ -21,7 +21,7 @@ export async function downloadImportTemplate(): Promise<void> {
  */
 export function exportImportErrorsCsv(report: ImportReport | null): void {
   if (!report?.errors.length) return;
-  const csv = "\uFEFF" + errorsToCsv(report.errors);
+  const csv = errorsToCsv(report.errors);
   downloadBlobFile(csv, `导入错误清单 ${new Date().toISOString().slice(0, 10)}.csv`, "text/csv;charset=utf-8");
 }
 

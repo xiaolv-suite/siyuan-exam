@@ -54,10 +54,9 @@
       </div>
       <div class="lv-hotkeys-grid" role="region" aria-label="快捷键清单">
         {#if hotkeyCategory === "all" || hotkeyCategory === "session"}
-          <div class="lv-hotkeys-row"><span class="lv-kbd">A</span> - <span class="lv-kbd">D</span><span>快速选择答案选项</span></div>
+          <div class="lv-hotkeys-row"><span class="lv-kbd">A</span> - <span class="lv-kbd">J</span><span>快速选择答案选项</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">Enter</span><span>确认作答 / 极速下一题</span></div>
-          <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">3</span><span>作答前标记把握度 / 答错后一键标记错因</span></div>
-          <div class="lv-hotkeys-row"><span class="lv-kbd">G</span><span>直接标记本题为猜测（Moodle CBM）</span></div>
+          <div class="lv-hotkeys-row"><span class="lv-kbd">1</span> - <span class="lv-kbd">3</span><span>作答前标记把握度（1确定 / 2模糊 / 3猜测） / 答错后一键标记错因</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">E</span><span>收藏 / 取消收藏本题</span></div>
           <div class="lv-hotkeys-row"><span class="lv-kbd">V</span><span>朗读本题题干（语音助记）</span></div>
         {/if}

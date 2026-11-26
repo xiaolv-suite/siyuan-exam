@@ -208,13 +208,28 @@ export function validateLatexSyntax(text: string): LatexValidationIssue {
   return { valid: true };
 }
 
+const STRUCTURAL_LATEX_COMMANDS = new Set([
+  "mathbb", "mathrm", "text", "mathbf", "frac", "sqrt", "vec", "ce", "lim",
+  "wideparen", "overparen", "widearc", "overarc", "sfrac", "ang", "celsius",
+  "perthousand", "textperthousand", "permil", "parallelogram", "degree", "begin", "end",
+]);
+
+function collapseDoubleEscapedLatexCmds(s: string): string {
+  return s.replace(/(^|[^\\])\\\\([a-zA-Z]+)\b/g, (full, pre: string, cmd: string) => {
+    if (STRUCTURAL_LATEX_COMMANDS.has(cmd) || Object.prototype.hasOwnProperty.call(LATEX_SYMBOLS_MAP, cmd)) {
+      return `${pre}\\${cmd}`;
+    }
+    return full;
+  });
+}
+
 /**
- * 规范化 LaTeX 公式语法（支持消除 OCR 常见空格分裂、括号转换）
+ * 规范化 LaTeX 公式语法（支持消除 OCR 常见空格分裂、括号转换与双反斜杠命令还原）
  */
 export function normalizeLatexFormula(raw: string): string {
   if (!raw) return "";
 
-  let s = raw;
+  let s = collapseDoubleEscapedLatexCmds(raw);
 
   // 1. 将 LaTeX 括号 \( ... \) 转换为 $ ... $（自动 trim 括号内两端空格）
   s = s.replace(/\\\(\s*([\s\S]*?)\s*\\\)/g, "$$$1$$");
@@ -266,7 +281,7 @@ export function renderSemanticLatex(latex: string, displayMode = false): string 
   const trimmed = latex.trim();
   if (!trimmed) return "";
 
-  let s = escapeHtml(trimmed);
+  let s = escapeHtml(collapseDoubleEscapedLatexCmds(trimmed));
 
   // 0. 解析矩阵与行列式：\begin{pmatrix} ... \end{pmatrix} / bmatrix / vmatrix / matrix
   s = s.replace(
@@ -337,8 +352,12 @@ export function renderSemanticLatex(latex: string, displayMode = false): string 
     return `${parts[0]}°${parts[1]}'${parts[2]}''`;
   });
 
-  // 0.8 解析正体字与文本块：\mathrm{...}、\text{...}
-  s = s.replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, "$1");
+  // 0.8 解析正体字、数集黑板粗体与文本块：\mathrm{...}、\text{...}、\mathbb{R}
+  s = s.replace(/\\mathbb\{([^{}]+)\}/g, (_m, bb: string) => {
+    const BB: Record<string, string> = { R: "ℝ", N: "ℕ", Z: "ℤ", Q: "ℚ", C: "ℂ" };
+    return BB[bb.trim()] ?? bb;
+  });
+  s = s.replace(/\\(?:mathrm|text|mathbf)\{([^{}]+)\}/g, "$1");
 
   // 1. 解析分式 \frac{A}{B}
   s = s.replace(
@@ -463,7 +482,7 @@ export function renderMathInText(text: string): string {
   return chunks
     .map((chunk) => {
       if (chunk.type === "blockMath") {
-        return `<div class="lv-math-block-wrap">${renderLatex(chunk.content, true)}</div>`;
+        return `<div class="lv-math-block-wrap" data-prevent-swipe="true">${renderLatex(chunk.content, true)}</div>`;
       }
       if (chunk.type === "inlineMath") {
         return renderLatex(chunk.content, false);

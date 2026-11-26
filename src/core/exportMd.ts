@@ -63,8 +63,16 @@ function reasonLabel(r: string): string {
 
 // ---------- 图表文本等价物（45-08）：CSV 与 SVG 图表取同一数据快照，数字与报告一致 ----------
 
+const csvCell = (v: unknown): string => {
+  let s = String(v ?? "");
+  if (typeof v !== "number" && /^[=+\-@\t\r]/.test(s) && !/^-\d+(?:\.\d+)?$/.test(s)) {
+    s = "'" + s;
+  }
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
 const csvJoin = (head: string[], rows: (string | number)[][]) =>
-  "\uFEFF" + [head.join(","), ...rows.map((r) => r.map((v) => String(v))).map((r) => r.join(","))].join("\r\n");
+  "\uFEFF" + [head.map(csvCell).join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n");
 
 export function trendToCsv(trend: { date: string; attempts: number; correct?: number }[]): string {
   // 55-04 lite：正确率趋势列（当日 0 题则正确率留空，不出 0%）

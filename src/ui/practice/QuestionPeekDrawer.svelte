@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
   import { showDocTreeNativeMenu } from "@/libs/lv-notice-kit";
   import type { Question, QuestionLifecycleStatus } from "../../core/types";
   import type { ExamApp } from "../../app";
@@ -105,7 +106,9 @@
     onsaveQref: (qid: string) => void;
     ontoggleReceipts: (qid: string) => void;
     onrunReceiptMisdiagnosis: (q: QuestionWithBlock, e: any) => void;
+    oncancelReceiptMisdiagnosis?: () => void;
     onmakeFlashCandidates: (q: QuestionWithBlock) => void;
+    oncancelFlashCandidates?: () => void;
     onconfirmFlashCards: (q: QuestionWithBlock) => void;
     onstartSingleById: (qid: string) => void;
     onsubmitResolveDispute: (q: QuestionWithBlock) => void;
@@ -209,7 +212,9 @@
     onsaveQref,
     ontoggleReceipts,
     onrunReceiptMisdiagnosis,
+    oncancelReceiptMisdiagnosis,
     onmakeFlashCandidates,
+    oncancelFlashCandidates,
     onconfirmFlashCards,
     onstartSingleById,
     onsubmitResolveDispute,
@@ -248,7 +253,7 @@
     if (!q.blockId || !app?.kernelOnline) return;
     q.difficulty = d;
     try {
-      await app.deps.client.setExamAttrs(q.blockId, { "exam-difficulty": String(d) });
+      await app.bridge.setExamAttrs(q.blockId, { "exam-difficulty": String(d) });
     } catch {
       /* 离线降级 */
     }
@@ -298,7 +303,7 @@
     e.stopPropagation();
     let nbId = "";
     try {
-      const rows = await app.deps.client.sql(`SELECT box FROM blocks WHERE id = '${docId.replace(/'/g, "''")}' LIMIT 1`);
+      const rows = await app.bridge.sql(`SELECT box FROM blocks WHERE id = '${docId.replace(/'/g, "''")}' LIMIT 1`);
       if (rows && rows[0]?.box) nbId = String(rows[0].box);
     } catch { /* ignore */ }
     if (nbId) {
@@ -899,6 +904,19 @@
                     <button class="lv-btn sm lv-btn--ghost" disabled={receiptBusy === rkey} aria-busy={receiptBusy === rkey}
                       onclick={() => onrunReceiptMisdiagnosis(q, e)}><Icon name="flask" size={13} /> {receiptBusy === rkey ? "…" : t("misdiagnosis.ask")}</button>
                   {/if}
+                  {#if receiptBusy === rkey}
+                    <div style="width:100%;margin:6px 0 4px">
+                      <AiThinkingCard
+                        scenario="socratic"
+                        compact={true}
+                        defaultIcon="🔬"
+                        title="🔬 正在推演本次作答错因…"
+                        subtitle="基于该条作答回执生成事实 → 假设 → 验证行动"
+                        cancelLabel="⏹ 取消分析"
+                        oncancel={() => oncancelReceiptMisdiagnosis?.()}
+                      />
+                    </div>
+                  {/if}
                   {#if receiptMisdiagnosis[rkey]}
                     <div class="lv-detail" style="width:100%;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">
                       {receiptMisdiagnosis[rkey]}
@@ -935,6 +953,19 @@
             <span class="lv-chip num" title={flashCandidates[q.id]!.splitReason ?? ""}>{summarizeLoad(flashCandidates[q.id]!.cards)}</span>
           {/if}
         </div>
+        {#if flashBusy === q.id}
+          <div style="margin:6px 0">
+            <AiThinkingCard
+              scenario="question-gen"
+              compact={true}
+              defaultIcon="🗂️"
+              title="🗂️ 正在拆解记忆闪卡候选…"
+              subtitle="提炼最小原子考点，构建正面提问与背面核验"
+              cancelLabel="⏹ 取消拆卡"
+              oncancel={() => oncancelFlashCandidates?.()}
+            />
+          </div>
+        {/if}
         {#if flashCandidates[q.id]?.cards?.length}
           <div class="lv-detail" style="margin:4px 0">
             {#each flashCandidates[q.id]!.cards as c, _ci (_ci)}

@@ -70,6 +70,7 @@ export interface MisdiagnosisOptions {
   aiConfig: AiChannelConfig;
   app: ExamApp;
   t: (k: string) => string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -81,7 +82,7 @@ export async function executeMisdiagnosisTask(options: MisdiagnosisOptions): Pro
   tokens: number;
   channelId: string;
 }> {
-  const { q, myAnswer, timeMs, sessionId, meta, userThought, client, aiConfig, app, t } = options;
+  const { q, myAnswer, timeMs, sessionId, meta, userThought, client, aiConfig, app, t, signal } = options;
   const { buildMisdiagnosisMessages } = await import("@/ai/misdiagnosis");
   const { AiTaskRunner, questionFingerprint } = await import("@/ai/task");
 
@@ -105,7 +106,7 @@ export async function executeMisdiagnosisTask(options: MisdiagnosisOptions): Pro
     sessionId,
   };
 
-  const env = await new AiTaskRunner(ch).run(reqCtx, messages);
+  const env = await new AiTaskRunner(ch).run(reqCtx, messages, signal);
 
   if (env.status === "ok" && env.data.text) {
     const text = env.data.text;
@@ -174,6 +175,7 @@ export interface MisdiagnosisWorkflowOptions {
   userThought?: string;
   aiConfig: AiChannelConfig;
   t: (k: string) => string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -182,7 +184,7 @@ export interface MisdiagnosisWorkflowOptions {
 export async function executeMisdiagnosisWorkflow(
   options: MisdiagnosisWorkflowOptions,
 ): Promise<{ text: string; error: string }> {
-  const { app, q, myAnswer, timeMs, sessionId, meta, userThought, aiConfig, t } = options;
+  const { app, q, myAnswer, timeMs, sessionId, meta, userThought, aiConfig, t, signal } = options;
   const res = await executeMisdiagnosisTask({
     q,
     myAnswer,
@@ -190,10 +192,11 @@ export async function executeMisdiagnosisWorkflow(
     sessionId,
     meta,
     userThought,
-    client: app.deps.client,
+    client: app.bridge as any,
     aiConfig,
     app,
     t,
+    signal,
   });
 
   if (res.text) {

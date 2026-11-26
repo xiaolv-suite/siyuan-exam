@@ -77,10 +77,10 @@ export async function registerMaterialLinkInput(
     rawLink.match(/siyuan:\/\/blocks\/([0-9a-zA-Z-]+)/) ||
     (rawLink.length === 22 && rawLink.match(/^([0-9]{14}-[0-9a-z]{7})$/));
 
-  if (blockMatch && !titleToUse && app?.kernelOnline && app?.deps?.client?.sql) {
+  if (blockMatch && !titleToUse && app?.kernelOnline && app?.bridge?.sql) {
     try {
       const blockId = blockMatch[1];
-      const rows = await app.deps.client.sql(`SELECT content, hpath FROM blocks WHERE id='${blockId.replace(/'/g, "''")}' LIMIT 1`);
+      const rows = await app.bridge.sql(`SELECT content, hpath FROM blocks WHERE id='${blockId.replace(/'/g, "''")}' LIMIT 1`);
       if (rows && rows[0]) {
         titleToUse =
           String(rows[0].content || "").trim().slice(0, 40) ||
@@ -234,20 +234,10 @@ export async function extractDocxTextFromBytes(bytes: Uint8Array): Promise<strin
 /** 智能读取资料文件真实正文（Word/Markdown/纯文本/笔记） */
 export async function extractMaterialDocText(app: any, material: MaterialDoc): Promise<string> {
   const assetLoc = material.locations.find((l) => l.kind === "assets");
-  if (!assetLoc || !app?.deps?.client) return "";
+  if (!assetLoc || !app?.bridge?.getFileBytes) return "";
   try {
-    const rawPath = assetLoc.path.startsWith("/data") ? assetLoc.path : `/data${assetLoc.path.startsWith("/") ? "" : "/"}${assetLoc.path}`;
-    const res = await fetch(`${app.deps.client.baseUrl}/api/file/getFile`, {
-      method: "POST",
-      headers: {
-        Authorization: `Token ${app.deps.client.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ path: rawPath }),
-    });
-    if (!res.ok) return "";
-    const buf = await res.arrayBuffer();
-    const bytes = new Uint8Array(buf);
+    const bytes = await app.bridge.getFileBytes(assetLoc.path);
+    if (!bytes) return "";
     const pathLower = assetLoc.path.toLowerCase();
     if (pathLower.endsWith(".docx")) {
       return await extractDocxTextFromBytes(bytes);

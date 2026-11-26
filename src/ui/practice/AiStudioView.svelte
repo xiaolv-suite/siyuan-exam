@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
   import type { Question } from "../../core/types";
   import type { BankInfo } from "../../app";
   import type { GleanClip } from "@/core/gleanBridge";
@@ -209,7 +210,7 @@
       </div>
       <div>
         <div class="lv-row" style="margin:0">
-          <span class="lv-chip" title="DeepTutor 零幻觉准则：选定重点段落引文，强制 AI 严格基于此核心引文命题与推导"><Icon name="pin" size={12} /> 核心引文</span>
+          <span class="lv-chip" title="零幻觉严谨出题准则：选定重点段落引文，强制 AI 严格基于此核心引文命题与推导"><Icon name="pin" size={12} /> 核心引文</span>
           <input class="lv-input" style="flex:1;min-width:200px" bind:value={aiQuote} placeholder="重点段落引文（可选，强锚定零幻觉出题）" aria-label="核心引文" aria-describedby="lv-ai-quote-hint" />
         </div>
         <p id="lv-ai-quote-hint" class="lv-muted" style="margin:3px 0 0;font-size:var(--lv-font-size-caption)">粘贴资料中的重点原句后，出题与解析将严格锚定该引文，不虚构题外内容；留空则按整篇材料命题</p>
@@ -234,6 +235,18 @@
         <div><span class="lv-eyebrow">审核工作区</span><h2>{t("ai.queue")}</h2></div>
         {#if aiQueue.length}<span class="lv-chip lv-chip--data num">{aiQueue.length} 待审核</span>{/if}
       </div>
+      {#if aiBusy || aiRegenBusy}
+        <div style="margin:10px 0 12px">
+          <AiThinkingCard
+            scenario="question-gen"
+            compact={aiQueue.length > 0 || Boolean(aiRegenBusy)}
+            title={aiRegenBusy ? "🔄 正在重新生成该道候选试题…" : "✨ AI 正在批量命制与校验试题…"}
+            subtitle={aiRegenBusy ? "依据原材料与同题型/考点约束替换原候选" : "正在进行命题拆解、干扰项构建与格式质检"}
+            cancelLabel="⏹ 取消生成"
+            {oncancel}
+          />
+        </div>
+      {/if}
       {#if aiQueueBankId && (aiQueue.length || aiRejected.length)}
         <p class="lv-muted" role="status">{t("ai.queueTarget").replace("{name}", banks.find((b) => b.id === aiQueueBankId)?.name ?? aiQueueBankId)}</p>
         {#if aiQueueBankId !== activeBankId}<div class="lv-error" role="alert">{t("ai.queueWrongBank")}</div>{/if}
@@ -336,10 +349,10 @@
             {/each}
           </details>
         {/if}
-      {:else}
+      {:else if !aiBusy && !aiRegenBusy}
         <div class="lv-card lv-ai-empty">
           <div class="lv-empty-icon"><Icon name="sparkles" size={22} /></div>
-          <b>{aiBusy ? t("ai.generating") : "候选题会显示在这里"}</b>
+          <b>候选题会显示在这里</b>
           <p class="lv-muted">先整理本次材料并设置题型、数量和难度；生成结果需要逐题审核后才会写入题库。</p>
         </div>
       {/if}

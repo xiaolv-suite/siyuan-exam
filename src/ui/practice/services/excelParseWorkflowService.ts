@@ -162,7 +162,8 @@ export async function readAndParseWorkbookFile(
   sheets: Map<string, string[][]>;
   activeSheet: string;
 }> {
-  const XLSX = await import("xlsx");
+  const { loadChunk } = await import("@/libs/chunk-loader");
+  const XLSX = await loadChunk("sheetjs");
   const { parseWorkbookFile } = await import("@/importer/workbookFile");
   const buf = await file.arrayBuffer();
   const parsed = await parseWorkbookFile(XLSX, buf, file.name);

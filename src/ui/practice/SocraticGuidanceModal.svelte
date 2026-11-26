@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Question } from "@/core/types";
   import Icon from "../shared/Icon.svelte";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
 
   interface Props {
     open?: boolean;
@@ -8,8 +9,10 @@
     mode?: "socratic" | "explain" | "hint" | "dual-loop" | "storm";
     busy?: boolean;
     text?: string;
+    error?: string;
     history?: Array<{ role: string; content: string }>;
     onclose: () => void;
+    oncancel?: () => void;
     onsendFollowUp?: (msg: string) => void;
     onsaveToNote?: () => void;
     saveBusy?: boolean;
@@ -22,31 +25,17 @@
     mode = "socratic",
     busy = false,
     text = "",
+    error = "",
     history = [],
     onclose,
+    oncancel,
     onsendFollowUp,
     onsaveToNote,
     saveBusy = false,
     saved = false,
   }: Props = $props();
 
-  let elapsedSec = $state(0);
   let followUpText = $state("");
-
-  $effect(() => {
-    let timer: ReturnType<typeof setInterval> | undefined;
-    if (open && busy) {
-      elapsedSec = 0;
-      timer = setInterval(() => {
-        elapsedSec += 1;
-      }, 1000);
-    } else {
-      if (timer) clearInterval(timer);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  });
 
   const modalTitle = $derived.by(() => {
     if (mode === "socratic") return "🦉 苏格拉底启发式导学";
@@ -60,19 +49,6 @@
     if (mode === "socratic") return "聚焦单步启发 · 引导自主推导答案";
     if (mode === "hint") return "一次一层解法指引 · 保护思考乐趣";
     return "多维考点剖析 · 深度破题逻辑";
-  });
-
-  const stageCopy = $derived.by(() => {
-    if (mode === "socratic") {
-      if (elapsedSec < 3) return "🔍 正在深入解析本题考点与题干脉络…";
-      if (elapsedSec < 8) return "💡 正在审视思维路径，构思苏格拉底启发引导…";
-      if (elapsedSec < 16) return "✍️ 正在组织单步启发式提问（引导自主推导，绝不直接剧透）…";
-      return "✨ 正在完成最终文本润色与格式排版，马上就来…";
-    }
-    if (elapsedSec < 3) return "🔍 正在解析题目考点与选项结构…";
-    if (elapsedSec < 8) return "💡 正在深入推导解题依据与思维模型…";
-    if (elapsedSec < 16) return "✍️ 正在生成结构化试题详解与延伸辨析…";
-    return "✨ 正在完成最终文本润色与格式排版，马上就来…";
   });
 
   function handleSend() {
@@ -141,23 +117,25 @@
     <!-- 对话与思考呈现区 -->
     <div class="lv-socratic-body">
       {#if busy}
-        <div class="lv-socratic-thinking" role="status" aria-live="polite">
-          <div class="lv-socratic-sparkle-glow">
-            <span class="lv-socratic-pulse-icon">🦉</span>
+        <div class="lv-socratic-wait-box">
+          <AiThinkingCard
+            scenario={mode === "socratic" || mode === "hint" ? "socratic" : "general"}
+            defaultIcon="🦉"
+            title={modalTitle}
+            {subtitle}
+            cancelLabel="⏹ 取消生成"
+            oncancel={() => {
+              if (oncancel) oncancel();
+              else onclose();
+            }}
+          />
+          <div style="display:flex;justify-content:center;margin-top:8px">
+            <button type="button" class="lv-btn sm lv-btn--ghost lv-socratic-cancel-btn" onclick={onclose}>
+              收起等待 (后台继续生成)
+            </button>
           </div>
-          <div class="lv-socratic-stage-text">{stageCopy}</div>
-          <div class="lv-socratic-timer-pill">
-            <Icon name="clock" size={12} />
-            <span>已思考 <b>{elapsedSec}</b> 秒</span>
-          </div>
-          <div class="lv-socratic-progress-track">
-            <div class="lv-socratic-progress-fill"></div>
-          </div>
-          <button type="button" class="lv-btn sm lv-btn--ghost lv-socratic-cancel-btn" onclick={onclose}>
-            收起等待 (后台继续生成)
-          </button>
         </div>
-      {:else if text || history.length > 0}
+      {:else if text || history.length > 0 || error}
         <div class="lv-socratic-conversation">
           {#if history.length > 0}
             {#each history as msg, i (i)}
@@ -172,11 +150,14 @@
                 </div>
               {/if}
             {/each}
-          {:else}
+          {:else if text}
             <div class="lv-socratic-bubble is-assistant">
               <div class="lv-socratic-bubble-avatar">🦉</div>
               <div class="lv-socratic-bubble-content">{text}</div>
             </div>
+          {/if}
+          {#if error}
+            <div class="lv-error lv-socratic-error" role="alert" style="white-space:pre-wrap;margin-top:4px">{error}</div>
           {/if}
         </div>
       {:else}
@@ -187,27 +168,29 @@
     </div>
 
     <!-- 底部互动区：支持多轮启发追问 -->
-    {#if !busy && (text || history.length > 0)}
+    {#if !busy && (text || history.length > 0 || error)}
       <footer class="lv-socratic-foot">
-        <div class="lv-socratic-input-row">
-          <input
-            type="text"
-            class="lv-input sm lv-socratic-input"
-            placeholder="输入你的推导思路或猜测，与苏格拉底对话… (Enter 发送)"
-            bind:value={followUpText}
-            onkeydown={handleKeydown}
-          />
-          <button
-            type="button"
-            class="lv-btn sm lv-btn--primary"
-            onclick={handleSend}
-            disabled={!followUpText.trim() || busy}
-          >
-            发送
-          </button>
-        </div>
+        {#if text || history.length > 0}
+          <div class="lv-socratic-input-row">
+            <input
+              type="text"
+              class="lv-input sm lv-socratic-input"
+              placeholder="输入你的推导思路或猜测，与苏格拉底对话… (Enter 发送)"
+              bind:value={followUpText}
+              onkeydown={handleKeydown}
+            />
+            <button
+              type="button"
+              class="lv-btn sm lv-btn--primary"
+              onclick={handleSend}
+              disabled={!followUpText.trim() || busy}
+            >
+              发送
+            </button>
+          </div>
+        {/if}
         <div class="lv-socratic-actions">
-          {#if onsaveToNote}
+          {#if onsaveToNote && !error && text.trim()}
             <button
               type="button"
               class="lv-btn sm lv-btn--ghost"
@@ -336,86 +319,6 @@
     padding: 16px;
     min-height: 180px;
     max-height: 400px;
-  }
-
-  .lv-socratic-thinking {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 28px 16px;
-    text-align: center;
-    gap: 12px;
-  }
-
-  .lv-socratic-sparkle-glow {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--lv-brand, #3b82f6) 14%, transparent);
-    display: grid;
-    place-items: center;
-    font-size: 26px;
-    box-shadow: 0 0 20px color-mix(in srgb, var(--lv-brand, #3b82f6) 25%, transparent);
-    animation: socraticPulse 1.8s ease-in-out infinite;
-  }
-
-  @keyframes socraticPulse {
-    0%, 100% {
-      transform: scale(0.96);
-      box-shadow: 0 0 12px color-mix(in srgb, var(--lv-brand, #3b82f6) 20%, transparent);
-    }
-    50% {
-      transform: scale(1.08);
-      box-shadow: 0 0 24px color-mix(in srgb, var(--lv-brand, #3b82f6) 45%, transparent);
-    }
-  }
-
-  .lv-socratic-stage-text {
-    font-size: 13.5px;
-    font-weight: 650;
-    color: var(--lv-text, #0f172a);
-    max-width: 380px;
-    line-height: 1.5;
-  }
-
-  .lv-socratic-timer-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 10px;
-    border-radius: 9999px;
-    background: var(--lv-surface-subtle, #f1f5f9);
-    font-size: 11.5px;
-    color: var(--lv-text-3, #64748b);
-  }
-
-  .lv-socratic-timer-pill b {
-    color: var(--lv-brand, #3b82f6);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .lv-socratic-progress-track {
-    width: 220px;
-    height: 4px;
-    border-radius: 9999px;
-    background: color-mix(in srgb, var(--lv-text, #000000) 8%, transparent);
-    overflow: hidden;
-    position: relative;
-    margin-top: 4px;
-  }
-
-  .lv-socratic-progress-fill {
-    width: 60%;
-    height: 100%;
-    border-radius: 9999px;
-    background: linear-gradient(90deg, var(--lv-brand, #3b82f6), var(--lv-accent, #a855f7));
-    animation: socraticSlide 1.4s ease-in-out infinite;
-  }
-
-  @keyframes socraticSlide {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(250%); }
   }
 
   .lv-socratic-cancel-btn {

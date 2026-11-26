@@ -26,11 +26,17 @@ export class SiyuanAiChannel implements AiChannel {
   readonly id = "siyuan" as const;
   constructor(private readonly kernel: KernelApiClient) {}
 
-  async chat(messages: AiMessage[], _signal?: AbortSignal): Promise<string> {
+  async chat(messages: AiMessage[], signal?: AbortSignal): Promise<string> {
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     // 思源 chatGPT 端点为单轮 msg 语义：拼接为一条消息（系统提示前缀）
-    // 内核 API 无取消机制——signal 被忽略（长按取消仅中断本地 await，HTTP 已发出不可撤）
+    // 透传 signal 至 kernel.aiChat（非阻塞 fetch 层支持真中止 HTTP 请求）
     const msg = messages.map((m) => (m.role === "system" ? `[指令]\n${m.content}` : m.content)).join("\n\n");
-    const data = await this.kernel.aiChat(msg);
+    const data = await this.kernel.aiChat(msg, signal);
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     if (typeof data === "string") {
       const trimmed = data.trim();
       if (!trimmed) {

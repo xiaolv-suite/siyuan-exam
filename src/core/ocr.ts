@@ -43,8 +43,29 @@ const SCAN_NOISE_PATTERNS = [
   /【\s*】/g,
   /关注公众号.*?(获取|下载|查看)/g,
   /微信(?:小程序|扫一扫|搜索).*?(?:答案|解析)/g,
-  /http[s]?:\/\/[^\s]+/gi,
+  // 仅清理裸文本水印 URL，保护 Markdown 图片 ![](https://...) 与链接 [](https://...)
+  /(?<![(\[])http[s]?:\/\/[^\s)]+/gi,
 ];
+
+function maskOcrProtectedSpans(text: string): { masked: string; restore: (s: string) => string } {
+  const spans: string[] = [];
+  const tokenOf = (raw: string) => {
+    const idx = spans.length;
+    spans.push(raw);
+    return `@@OCRMASK_${idx}@@`;
+  };
+  let masked = text;
+  masked = masked.replace(/```[\s\S]*?```/g, tokenOf);
+  masked = masked.replace(/\$\$[\s\S]*?\$\$/g, tokenOf);
+  masked = masked.replace(/\\\[[\s\S]*?\\\]/g, tokenOf);
+  masked = masked.replace(/!\[[^\]]*\]\([^)]*\)/g, tokenOf);
+  masked = masked.replace(/(?<!\\)\$[^$\n\r]+?\$/g, tokenOf);
+  masked = masked.replace(/\\\([^\n\r]+?\\\)/g, tokenOf);
+  masked = masked.replace(/`[^`\n\r]+?`/g, tokenOf);
+  const restore = (s: string): string =>
+    s.replace(/@@OCRMASK_(\d+)@@/g, (_m, i: string) => spans[Number(i)] ?? _m);
+  return { masked, restore };
+}
 
 /**
  * 智能解析清洗并结构化 OCR 文本为题目对象
@@ -68,8 +89,9 @@ export function parseOcrQuestionText(
 
   const shouldNormalize = options.normalizeFormulas !== false;
 
-  // 1. 去除水印与噪音字符
-  let cleaned = rawText.replace(/\r\n/g, "\n");
+  // 1. 先保护代码块、公式与 Markdown 图片/链接，再去除水印与噪音字符
+  const { masked, restore } = maskOcrProtectedSpans(rawText.replace(/\r\n/g, "\n"));
+  let cleaned = masked;
   for (const pat of SCAN_NOISE_PATTERNS) {
     cleaned = cleaned.replace(pat, "");
   }
@@ -92,13 +114,14 @@ export function parseOcrQuestionText(
 
   for (const line of rawLines) {
     // 检查显式题型标签：如 【单选题】、【多选题】、【判断题】、【填空题】、【简答题】
-    const typeTagMatch = line.match(/【(单选题?|多选题?|不定项|判断题?|填空题?|简答题?|论述题?|主观题?)】/);
+    const typeTagMatch = line.match(/【(单选题?|多选题?|不定项|判断题?|填空题?|简答题?|论述题?|主观题?|材料题?)】/);
     if (typeTagMatch) {
       const tag = typeTagMatch[1];
       if (tag.includes("单选")) detectedType = "single";
       else if (tag.includes("多选") || tag.includes("不定项")) detectedType = "multiple";
       else if (tag.includes("判断")) detectedType = "judge";
       else if (tag.includes("填空")) detectedType = "fill";
+      else if (tag.includes("材料")) detectedType = "material";
       else if (tag.includes("简答") || tag.includes("论述") || tag.includes("主观")) detectedType = "short";
     }
 
@@ -188,7 +211,7 @@ export function parseOcrQuestionText(
       const expectedCode = 65 + sequentialMatches.length;
       if (match.letter.charCodeAt(0) === expectedCode) {
         sequentialMatches.push(match);
-        if (sequentialMatches.length >= 6) break; // 选择题合理上限 6 项
+        if (sequentialMatches.length >= 10) break; // 与 blockTemplate A-J 10 项上限对齐
       } else if (sequentialMatches.length >= 2) {
         break;
       }
@@ -198,17 +221,19 @@ export function parseOcrQuestionText(
       for (let i = 0; i < sequentialMatches.length; i++) {
         const cur = sequentialMatches[i];
         const next = sequentialMatches[i + 1];
-        const content = next
-          ? fullOptionText.slice(cur.index + cur.length, next.index).trim()
-          : fullOptionText.slice(cur.index + cur.length).trim();
+        const content = restore(
+          next
+            ? fullOptionText.slice(cur.index + cur.length, next.index).trim()
+            : fullOptionText.slice(cur.index + cur.length).trim(),
+        );
         parsedOptions.push(shouldNormalize ? normalizeLatexFormula(content) : content);
       }
     } else {
       // 回退简单按行提取
       for (const optLine of optionLines) {
-        const stripped = optLine.replace(/^[A-J][.、\s]|^[(（[【][A-J][)）\]】]\s*/i, "").trim();
+        const stripped = restore(optLine.replace(/^[A-J][.、\s]|^[(（[【][A-J][)）\]】]\s*/i, "").trim());
         parsedOptions.push(shouldNormalize ? normalizeLatexFormula(stripped) : stripped);
-        if (parsedOptions.length >= 6) break;
+        if (parsedOptions.length >= 10) break;
       }
     }
   }
@@ -216,7 +241,7 @@ export function parseOcrQuestionText(
   // 5. 组合与清理题干
   let stem = stemLines.join("\n").trim();
   // 去除题目前置题号：如 "1."、"2、"、"第1题："、"12. "、"【单选题】"
-  stem = stem.replace(/^(?:【[^】]+】\s*)?(?:第?\s*\d+\s*[题.、:：]\s*)/, "").trim();
+  stem = restore(stem.replace(/^(?:【[^】]+】\s*)?(?:第?\s*\d+\s*[题.、:：]\s*)/, "").trim());
   if (shouldNormalize) {
     stem = normalizeLatexFormula(stem);
   }
@@ -241,33 +266,38 @@ export function parseOcrQuestionText(
   }
 
   // 规范化答案文本
-  let answer = extractedAnswer.trim();
+  let answer = restore(extractedAnswer.trim());
   if (detectedType === "single" || detectedType === "multiple") {
     // 提取纯字母
     const letters = answer.match(/[A-J]/gi);
     if (letters) {
-      answer = letters.map((l) => l.toUpperCase()).join(detectedType === "multiple" ? "" : "");
+      answer = letters.map((l) => l.toUpperCase()).join("");
     }
   } else if (detectedType === "judge") {
     if (/^[Tt]|对|正确|√/.test(answer)) answer = "对";
     else if (/^[Ff]|错|错误|×/.test(answer)) answer = "错";
+  } else if (detectedType === "material") {
+    answer = "";
   }
 
   // 7. 计算结构置信度评分
   let confidence = 50;
   if (stem) confidence += 20;
   if (parsedOptions.length >= 2) confidence += 15;
-  if (answer) confidence += 15;
+  if (answer || detectedType === "material") confidence += 15;
+
+  const restoredAnalysis = restore(extractedAnalysis);
+  const restoredKp = restore(extractedKp || options.fallbackKp || "");
 
   return {
     type: detectedType,
     stem,
     options: parsedOptions,
     answer,
-    analysis: shouldNormalize ? normalizeLatexFormula(extractedAnalysis) : extractedAnalysis,
-    kp: extractedKp || options.fallbackKp,
+    analysis: shouldNormalize ? normalizeLatexFormula(restoredAnalysis) : restoredAnalysis,
+    kp: restoredKp || options.fallbackKp,
     confidence: Math.min(100, confidence),
-    rawCleanedText: cleaned,
+    rawCleanedText: restore(cleaned),
   };
 }
 

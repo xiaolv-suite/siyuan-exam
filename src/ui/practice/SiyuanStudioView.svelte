@@ -117,14 +117,14 @@
   <div class="lv-screen-head">
     <span class="lv-eyebrow">思源笔记原生出题</span>
     <h1 class="lv-h1">从思源笔记提炼出题</h1>
-    <p>直接读取思源笔记文档正文、划重点高光、#考点# 标签及小驴拾遗剪藏，一键提炼试题入库，自动挂载 sourceBlockId 双向链接。</p>
+    <p>直接读取思源笔记文档正文、划重点高光、#考点# 标签及小驴拾遗剪藏，一键提炼试题入库，自动关联原笔记双向溯源链接。</p>
   </div>
 
   <!-- 一级出题工作台导航（手工录题 / 思源出题 / 外部导入 / AI出题 / 学习资料 平级） -->
   <StudioSubNav currentView="siyuan" {t} {onchangeView} />
 
   <!-- 返回按钮与标签面包屑 -->
-  <div class="lv-row" style="margin-bottom:8px">
+  <div class="lv-row lv-studio-crumb-row" style="margin-bottom:8px">
     <button
       class="lv-btn lv-btn--ghost lv-mobile-back"
       onclick={onback}
@@ -213,7 +213,7 @@
               <b>思源原生笔记试题提取指引（核心特色）</b>
             </div>
             <p class="lv-guide-desc">
-              直接读取思源笔记正文，支持单选/多选/判断/表格题、<code>==高亮划重点填空==</code>、<code>**术语定义**</code> 以及 <code>::</code> 闪卡语法。提取后的题目自动与思源原笔记段落挂载 <code>sourceBlockId</code> 双向链接！
+              直接读取思源笔记正文，支持单选/多选/判断/表格题、<code>==高亮划重点填空==</code>、<code>**术语定义**</code> 以及 <code>::</code> 闪卡语法。提取后的题目自动与思源原笔记段落建立双向溯源链接！
             </p>
             <div class="lv-guide-safety" role="note">
               🛡️ 只读安全保障：仅读取文档文本生成题目，绝不修改、覆盖或删除您的原有思源笔记内容。

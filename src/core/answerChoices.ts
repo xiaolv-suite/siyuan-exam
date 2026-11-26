@@ -42,6 +42,15 @@ export function shuffleAnswerChoices<T extends { letter: string; value: string; 
   }));
 }
 
+/** 根据是否启用选项随机乱序返回展示顺序（判断题不参与乱序） */
+export function displayedAnswerChoices(
+  q: Pick<Question, "id" | "type" | "options">,
+  shuffleOptions: boolean,
+) {
+  const base = answerChoices(q);
+  return shuffleOptions && q.type !== "judge" ? shuffleAnswerChoices(base, q.id) : base;
+}
+
 export function toggleChoice(type: Question["type"], selected: string, value: string): string {
   if (type !== "multiple") return value;
   const values = new Set(selected.split(""));

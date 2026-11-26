@@ -29,7 +29,12 @@ export async function createAiChannel(client: KernelApiClient, config: AiChannel
 
   // 2. 统一 AI 网关 (lvAi)：若全生态已存在共享 Key 且当前无客户端专属代理，免填 Key 自动继承复用
   const shared = lvAi.getConfig();
-  if (shared?.apiKey && !client?.aiChat) {
+  const hasSharedSecret = Boolean(
+    shared?.apiKey ||
+    shared?.hasSecret ||
+    (typeof window !== "undefined" && (window as { hasTier2SecretConfigured?: () => boolean }).hasTier2SecretConfigured?.()),
+  );
+  if (hasSharedSecret && !client?.aiChat) {
     return new LvGatewayAiChannel(source);
   }
 
@@ -112,13 +117,14 @@ export interface ExplainRequestOptions {
   aiConfig: AiChannelConfig;
   profilePrefix?: string;
   submitted?: boolean;
+  signal?: AbortSignal;
 }
 
 /**
  * 执行 AI 试题详解、双环解题、STORM 破题或苏格拉底导学
  */
 export async function executeAiExplain(options: ExplainRequestOptions) {
-  const { q, mode, learnerAnswer, sessionId, client, aiConfig, profilePrefix, submitted } = options;
+  const { q, mode, learnerAnswer, sessionId, client, aiConfig, profilePrefix, submitted, signal } = options;
   const { buildExplainMessages } = await import("@/ai/explain");
   const { AiTaskRunner } = await import("@/ai/task");
 
@@ -146,7 +152,7 @@ export async function executeAiExplain(options: ExplainRequestOptions) {
   const ch = await createAiChannel(client, aiConfig, "考试");
   const messages = buildExplainMessages(q, learnerAnswer, mode, { profilePrefix });
   const runner = new AiTaskRunner(ch);
-  const env = await runner.run(reqCtx, messages);
+  const env = await runner.run(reqCtx, messages, signal);
 
   return { env, ch, messages, reqCtx };
 }
@@ -160,13 +166,14 @@ export interface HintRequestOptions {
   shownTexts: string[];
   client: KernelApiClient;
   aiConfig: AiChannelConfig;
+  signal?: AbortSignal;
 }
 
 /**
  * 执行一次一层递进式 AI 试题提示申请（含泄露检测）
  */
 export async function executeAiHint(options: HintRequestOptions) {
-  const { q, learnerAnswer, submitted, sessionId, shownLevel, shownTexts, client, aiConfig } = options;
+  const { q, learnerAnswer, submitted, sessionId, shownLevel, shownTexts, client, aiConfig, signal } = options;
   const step = nextHintStepSync(shownLevel, q.options.length);
   if (step.kind === "reveal") {
     return { kind: "reveal" as const, step };
@@ -188,7 +195,7 @@ export async function executeAiHint(options: HintRequestOptions) {
 
   const ch = await createAiChannel(client, aiConfig, "考试");
   const messages = buildHintMessages(q, learnerAnswer, step.level, shownTexts);
-  const env = await new AiTaskRunner(ch).run(reqCtx, messages);
+  const env = await new AiTaskRunner(ch).run(reqCtx, messages, signal);
 
   let leakReasons = "";
   if (env.status === "ok" && env.data.text && !submitted) {
@@ -218,13 +225,14 @@ export interface FollowUpRequestOptions {
   prompt: string;
   client: KernelApiClient;
   aiConfig: AiChannelConfig;
+  signal?: AbortSignal;
 }
 
 /**
  * 执行 AI 互动追问与多轮对话
  */
 export async function executeAiFollowUp(options: FollowUpRequestOptions) {
-  const { q, learnerAnswer, submitted, sessionId, history, prompt, client, aiConfig } = options;
+  const { q, learnerAnswer, submitted, sessionId, history, prompt, client, aiConfig, signal } = options;
   const { continueExplainMessages } = await import("@/ai/explain");
   const { AiTaskRunner } = await import("@/ai/task");
 
@@ -242,7 +250,7 @@ export async function executeAiFollowUp(options: FollowUpRequestOptions) {
   const ch = await createAiChannel(client, aiConfig);
   const messages = continueExplainMessages(history, prompt.trim());
   const runner = new AiTaskRunner(ch);
-  const env = await runner.run(reqCtx, messages);
+  const env = await runner.run(reqCtx, messages, signal);
 
   return { env, ch, messages, reqCtx };
 }
@@ -363,8 +371,9 @@ export async function executeAiFollowUpWorkflow(options: {
   aiConfig: AiChannelConfig;
   currentExplainText: string;
   t: (k: string) => string;
+  signal?: AbortSignal;
 }): Promise<AiFollowUpResult> {
-  const { q, learnerAnswer, submitted, sessionId, history, prompt, client, aiConfig, currentExplainText, t } = options;
+  const { q, learnerAnswer, submitted, sessionId, history, prompt, client, aiConfig, currentExplainText, t, signal } = options;
   const res = await executeAiFollowUp({
     q,
     learnerAnswer,
@@ -374,6 +383,7 @@ export async function executeAiFollowUpWorkflow(options: {
     prompt,
     client,
     aiConfig,
+    signal,
   });
 
   if (res.env.status === "ok" && res.env.data.text) {

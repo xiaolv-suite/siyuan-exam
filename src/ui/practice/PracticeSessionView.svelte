@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import Icon from "../shared/Icon.svelte";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
   import PracticeDoneCard from "./PracticeDoneCard.svelte";
   import ScratchpadDrawer from "./ScratchpadDrawer.svelte";
   import GroupBatchSummaryCard from "./GroupBatchSummaryCard.svelte";
@@ -14,9 +15,17 @@
   import type { SiblingItem, MaterialGroupContext } from "@/core/materialContext";
   import type { ScratchpadMode } from "@/core/scratchpad";
   import { renderOcclusionSvg } from "@/core/imageOcclusion";
-  import { shuffleAnswerChoices } from "@/core/answerChoices";
+  import { displayedAnswerChoices } from "@/core/answerChoices";
+  import { renderMathAndDiagramsInText } from "@/core/mathDiagram";
+  import { sanitizeRichHtml } from "@/libs/sanitize";
   import { notifyInline, notifyCapsule } from "../../libs/notice";
   import { lvLaunchpad } from "@/libs/lv-notice-kit";
+  import {
+    getUiFoldPref,
+    setUiFoldPref,
+    isLongAnalysisText,
+    previewLongAnalysisText,
+  } from "@/core/uiFoldPrefs";
 
   interface Props {
     session: PracticeSession;
@@ -63,6 +72,7 @@
     canSubmitAnswer: boolean;
     explainBusy: boolean;
     explainText: string;
+    explainError?: string;
     explainQid: string;
     explainSavedQid: string;
     explainSaveBusy: boolean;
@@ -119,7 +129,6 @@
     ttsSupported: () => boolean;
     renderInlineText: (s: string) => string;
     isChoiceQuestion: (q: Question) => boolean;
-    answerChoices: (q: Question) => Array<{ letter: string; value: string; text: string }>;
     escapeHtml: (s: string) => string;
     formatMaterialGroupHeader: (ctx: MaterialGroupContext) => string;
     hintButtonLabel: (q: Question) => string;
@@ -190,6 +199,9 @@
     onopenSessionSheet?: () => void;
     onopenSocraticModal?: () => void;
     oncloseExplain?: () => void;
+    oncancelExplain?: () => void;
+    oncancelMisdiagnosis?: () => void;
+    explainMode?: "socratic" | "explain" | "hint" | "dual-loop" | "storm";
     trails?: Map<string, any>;
   }
 
@@ -228,6 +240,7 @@
     canSubmitAnswer,
     explainBusy,
     explainText,
+    explainError = "",
     explainQid,
     explainSavedQid,
     explainSaveBusy,
@@ -283,7 +296,6 @@
     ttsSupported,
     renderInlineText,
     isChoiceQuestion,
-    answerChoices,
     escapeHtml,
     formatMaterialGroupHeader,
     hintButtonLabel,
@@ -354,10 +366,15 @@
     onopenSessionSheet,
     onopenSocraticModal,
     oncloseExplain,
+    oncancelExplain,
+    oncancelMisdiagnosis,
+    explainMode = "socratic",
     trails,
   }: Props = $props();
 
   let mobileToolsOpen = $state(false);
+  let aiMenuOpen = $state(false);
+  let aiMenuWrapEl = $state<HTMLElement | null>(null);
 
   // —— benchmark-fusion：解析 3 阶渐进折叠（Moodle Adaptive Hints + TextFold 标杆）——
   // 阶1 考点提示：作答中可展开（不暴露答案；默认折叠不弱化独立回忆）
@@ -369,11 +386,45 @@
   let stageAnalysisOpen = $state(true);
   let stageSourceOpen = $state(false);
   let rubricDeductionsOnly = $state(false);
+  const LONG_ANALYSIS_FOLD_KEY = "exam:analysis_long_fold";
+  let longAnalysisCollapsed = $state(getUiFoldPref(LONG_ANALYSIS_FOLD_KEY, true));
+  const curAnalysisLines = $derived(curQ?.analysis ? curQ.analysis.split(/\r?\n/).length : 0);
+  const curIsLongAnalysis = $derived(isLongAnalysisText(curQ?.analysis));
+
+  function toggleLongAnalysisFold() {
+    const next = !longAnalysisCollapsed;
+    longAnalysisCollapsed = next;
+    setUiFoldPref(LONG_ANALYSIS_FOLD_KEY, next);
+  }
+
+  function protectHorizontalScroll(node: HTMLElement, _dep?: unknown) {
+    const mark = () => {
+      node
+        .querySelectorAll<HTMLElement>(
+          '.katex-display, .math-display, .lv-math-block-wrap, .table, [data-type="NodeTable"], table, pre, svg.lv-math-diagram, svg.lv-math-plot',
+        )
+        .forEach((el) => {
+          el.setAttribute("data-prevent-swipe", "true");
+          if (el.tagName === "TABLE" && el.parentElement?.tagName === "DIV") {
+            el.parentElement.classList.add("lv-table-scroll-wrap");
+          }
+        });
+    };
+    mark();
+    return {
+      update() {
+        mark();
+      },
+    };
+  }
+
   $effect(() => {
     const qid = curQ?.id;
     stageHintOpen = Boolean(qid && session?.getExposures?.(qid).includes("hint"));
     stageAnalysisOpen = true;
     stageSourceOpen = false;
+    aiMenuOpen = false;
+    longAnalysisCollapsed = getUiFoldPref(LONG_ANALYSIS_FOLD_KEY, true);
     void explainText;
     explainCollapsed = false;
   });
@@ -427,7 +478,7 @@
     if (targetEl) {
       notifyInline(targetEl, "确定度：蒙的/猜测 🎲");
     } else {
-      notifyCapsule("已标记确定度：蒙的/猜测 (CBM Guess) 🎲", 1500);
+      notifyCapsule("已标记确定度：靠猜的 🎲", 1500);
     }
   }
 
@@ -477,6 +528,20 @@
   }
 </script>
 
+<svelte:window
+  onclick={(e) => {
+    if (aiMenuOpen && aiMenuWrapEl && !aiMenuWrapEl.contains(e.target as Node)) {
+      aiMenuOpen = false;
+    }
+  }}
+  onkeydown={(e) => {
+    if (aiMenuOpen && e.key === "Escape") {
+      e.stopPropagation();
+      aiMenuOpen = false;
+    }
+  }}
+/>
+
 {#if sessionDone}
   <PracticeDoneCard
     {sessionDone}
@@ -510,6 +575,7 @@
     {onstartNextDrill}
     {oneditReflection}
     {onrunMisdiagnosis}
+    {oncancelMisdiagnosis}
     {onadoptMisdiagnosis}
     {onopenInSiYuan}
     {trails}
@@ -626,7 +692,7 @@
             ontoggleExpand={ontoggleMaterialExpand}
             onjumpSibling={onjumpSibling}
           />
-          {#if stemHtml}<div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{@html stemHtml}</div>{:else}<div class="lv-stem" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"}>{q.stem}</div>{/if}
+          <div class="lv-stem lv-rich b3-typography" class:lv-stem--lg={studyFontSize === "large"} class:lv-stem--xl={studyFontSize === "xlarge"} use:protectHorizontalScroll={stemHtml || q.stem}>{@html stemHtml || sanitizeRichHtml(renderMathAndDiagramsInText(q.stem))}</div>
           {#if q.occlusion}
             <div class="lv-occlusion-wrap" style="margin:10px 0 14px;border-radius:var(--lv-r-2, 10px);overflow:hidden;border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-1)">
               {@html renderOcclusionSvg(q.occlusion, { activeMaskId: q.occlusion.activeMaskId, revealedMaskIds: feedback ? [q.occlusion.activeMaskId || ""] : [] })}
@@ -642,10 +708,9 @@
             </div>
           {/if}
           <p class="lv-muted lv-qtype-guide" style="margin:8px 0 14px" role="note">{t("session.guide." + q.type)}</p>
-          {#key session.id + ":" + curProgress.done}
+          {#key session.id + ":" + q.id + ":" + session.state.cursor}
           {#if isChoiceQuestion(q)}
-            {@const baseChoices = answerChoices(q)}
-            {@const choices = shuffleOptions && q.type !== "judge" ? shuffleAnswerChoices(baseChoices, q.id) : baseChoices}
+            {@const choices = displayedAnswerChoices(q, shuffleOptions)}
             {#if !choices.length}
               <div class="lv-error" role="alert">{t("session.missingOptions")}</div>
             {:else}
@@ -898,15 +963,30 @@
               </div>
             {/if}
             {#if q.analysis}
-              <!-- benchmark-fusion 阶2：核心推导（提交后解锁；默认展开保留既有可读性，可折叠降噪） -->
+              <!-- benchmark-fusion 阶2：核心推导（提交后解锁；>8行超长解析支持折叠记忆 lv_ui_prefs_folds_v1） -->
               <div class="lv-analysis" style="padding:10px 14px">
-                <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
-                  aria-expanded={stageAnalysisOpen} aria-controls="lv-stage-analysis"
-                  onclick={() => (stageAnalysisOpen = !stageAnalysisOpen)}>
-                  <Icon name="book" size={12} /> {t("session.stageAnalysis", "核心推导")}
-                </button>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+                  <button type="button" class="lv-btn sm lv-btn--ghost" style="margin:0;padding:2px 8px;display:inline-flex;align-items:center;gap:4px"
+                    aria-expanded={stageAnalysisOpen} aria-controls="lv-stage-analysis"
+                    onclick={() => (stageAnalysisOpen = !stageAnalysisOpen)}>
+                    <Icon name="book" size={12} /> {t("session.stageAnalysis", "核心推导")}
+                  </button>
+                  {#if stageAnalysisOpen && curIsLongAnalysis}
+                    <button
+                      type="button"
+                      class="lv-btn sm lv-btn--ghost"
+                      data-testid="toggle-long-analysis"
+                      aria-expanded={!longAnalysisCollapsed}
+                      onclick={toggleLongAnalysisFold}
+                      style="margin:0;padding:2px 8px;font-size:12px"
+                    >
+                      {longAnalysisCollapsed ? `展开完整解析（共 ${curAnalysisLines} 行）` : "收起长解析"}
+                    </button>
+                  {/if}
+                </div>
                 {#if stageAnalysisOpen}
-                  <div id="lv-stage-analysis" style="margin:8px 0 0;white-space:pre-wrap;font-size:var(--lv-font-size-body);color:var(--lv-text-2)">{q.analysis}</div>
+                  {@const analysisText = curIsLongAnalysis && longAnalysisCollapsed ? previewLongAnalysisText(q.analysis) : q.analysis}
+                  <div id="lv-stage-analysis" class="lv-rich" style="margin:8px 0 0;white-space:pre-wrap;font-size:var(--lv-font-size-body);color:var(--lv-text-2)" use:protectHorizontalScroll={analysisText}>{@html sanitizeRichHtml(renderMathAndDiagramsInText(analysisText))}</div>
                 {/if}
               </div>
             {/if}
@@ -976,7 +1056,7 @@
               <div class="lv-session-dock" role="group" aria-label={t("confidence.before")}>
                 <span class="lv-chip lv-conf-label" style="color:var(--lv-text-3);cursor:default">{t("confidence.before")}</span>
                 {#each ["sure", "fuzzy", "guess"] as c, _i (_i)}
-                  <button type="button" class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={c === "guess" ? "Key 3 · G" : `Key ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => onconfidenceSelect(c as "sure" | "fuzzy" | "guess")}>
+                  <button type="button" class="lv-chip" class:acc={confidenceSel === c} aria-pressed={confidenceSel === c} title={`快捷键 ${["sure", "fuzzy", "guess"].indexOf(c) + 1}`} onclick={() => onconfidenceSelect(c as "sure" | "fuzzy" | "guess")}>
                     <span class="lv-reason-key">{_i + 1}</span> {t("confidence." + c)}
                   </button>
                 {/each}
@@ -995,7 +1075,97 @@
             </div>
           {/if}
 
-          <div class="lv-row lv-answer-actions" style="align-items:center;flex-wrap:wrap;gap:8px">
+          {#if leakPending && q && explainQid === q.id}
+            <div class="lv-analysis lv-explain">
+              <Icon name="alert-triangle" size={13} /> {t("explain.hintLeak").replace("{r}", leakPending.reasons)}
+              <div class="lv-row">
+                <button class="lv-btn sm" onclick={onviewLeakedHint}>{t("explain.hintLeakView")}</button>
+                <button class="lv-btn sm" onclick={ondismissLeakedHint}>{t("explain.hintLeakDismiss")}</button>
+              </div>
+            </div>
+          {/if}
+          {#if explainBusy && q && explainQid === q.id}
+            <div class="lv-analysis lv-explain lv-explain-waiting">
+              <AiThinkingCard
+                scenario="socratic"
+                compact={true}
+                defaultIcon={explainMode === "hint" ? "💡" : "🦉"}
+                title={explainMode === "hint" ? "💡 正在生成递进式思路提示…" : "🦉 AI 正在深入思考中…"}
+                subtitle="启发式导学处理中，可随时取消或展开导学浮窗"
+                cancelLabel="⏹ 取消生成"
+                oncancel={() => { if (oncancelExplain) oncancelExplain(); else if (oncloseExplain) oncloseExplain(); }}
+              />
+              {#if onopenSocraticModal && explainMode !== "hint"}
+                <div style="display:flex;justify-content:center;gap:6px;margin-top:6px">
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11.5px">展开导学浮窗</button>
+                </div>
+              {/if}
+            </div>
+          {/if}
+          {#if explainError && q && explainQid === q.id}
+            <div class="lv-error lv-explain-error" role="alert" style="margin:10px 0">
+              <div style="white-space:pre-wrap">{explainError}</div>
+            </div>
+          {/if}
+          {#if explainText && q && explainQid === q.id}
+            <div class="lv-analysis lv-explain">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:{explainCollapsed ? '0' : '6px'}">
+                <span style="font-weight:700">🦉 导学与启发</span>
+                <div style="display:inline-flex;align-items:center;gap:6px">
+                  {#if onopenSocraticModal}
+                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11px"><Icon name="message" size={12} /> 浮窗追问</button>
+                  {/if}
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => explainCollapsed = !explainCollapsed} style="font-size:11px" title={explainCollapsed ? "展开导学与启发" : "收起导学与启发 (Alt+X)"} aria-expanded={!explainCollapsed}>
+                    {explainCollapsed ? "展开" : "收起"}
+                  </button>
+                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { if (oncloseExplain) oncloseExplain(); else explainCollapsed = true; }} style="font-size:11px" title="关闭导学与启发 (Esc)" aria-label="关闭导学与启发">
+                    <Icon name="close" size={12} /> {t("menu.close", "关闭")}
+                  </button>
+                </div>
+              </div>
+              {#if !explainCollapsed}
+                {explainText}
+              {/if}
+              {#if !explainCollapsed}
+                <div class="lv-row" style="margin-top:8px">
+                  {#if explainSavedQid === q.id}
+                    <span class="lv-muted" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> {t("explain.saved")}</span>
+                  {:else if !explainError}
+                    <button class="lv-btn sm" onclick={onsaveExplain} disabled={explainSaveBusy} aria-busy={explainSaveBusy}><Icon name="pin" size={13} /> {explainSaveBusy ? "…" : explainSaveError ? t("explain.retrySave") : t("explain.save")}</button>
+                  {/if}
+                  <button class="lv-btn sm" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
+                  <button class="lv-btn sm" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
+                </div>
+                {#if explainSaveErrorQid === q.id && explainSaveError}<div class="lv-error" role="alert">{t("explain.saveFailed").replace("{message}", explainSaveError)}</div>{/if}
+                <div class="lv-row">
+                  <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("explain.followUp")}
+                    aria-label={t("explain.followUp")}
+                    bind:value={explainFollowUp}
+                    onkeydown={(e) => {
+                      if (e.key === "Escape") {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        oncloseExplain ? oncloseExplain() : (explainCollapsed = true);
+                      } else if (!e.isComposing && e.keyCode !== 229 && e.key === "Enter") {
+                        onsendFollowUp();
+                      }
+                    }} />
+                  <button class="lv-btn sm" onclick={onsendFollowUp} disabled={explainBusy || !explainFollowUp.trim()}>{t("explain.send")}</button>
+                </div>
+              {/if}
+            </div>
+          {/if}
+          {#if reasonPromptQid === q.id && !feedback}
+            <div class="lv-row lv-reason" role="group" aria-label={t("trail.reasonTitle")}>
+              <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("trail.reasonTitle")}</span>
+              <button class="lv-chip" onclick={() => onsetEditReason(q.id, "unsure")}>{t("trail.reason.unsure")}</button>
+              <button class="lv-chip" onclick={() => onsetEditReason(q.id, "evidence")}>{t("trail.reason.evidence")}</button>
+              <button class="lv-chip" onclick={() => onsetEditReason(q.id, "misclick")}>{t("trail.reason.misclick")}</button>
+              <button class="lv-chip lv-btn--ghost" onclick={ondismissReasonPrompt}>{t("trail.reason.skip")}</button>
+            </div>
+          {/if}
+
+          <div class="lv-row lv-answer-actions">
             {#if autoNextPending && oncancelAutoNext}
               <div
                 class="lv-auto-next-capsule lv-pulse"
@@ -1031,123 +1201,84 @@
                 {q.type === "multiple" && selected.length > 0 ? t("session.submitSelected").replace("{n}", String(selected.length)) : t("session.submit")}
               </button>
               <button class="lv-btn lv-btn--ghost" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-              <button class="lv-btn lv-btn--ghost" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy} title="苏格拉底启发引导：围绕当前思路提问，助你自主推导出答案"><Icon name="message" size={14} /> {t("explain.socratic")}</button>
+              <div class="lv-ai-menu-wrap" bind:this={aiMenuWrapEl}>
+                <button
+                  type="button"
+                  class="lv-btn lv-btn--ghost"
+                  aria-haspopup="menu"
+                  aria-expanded={aiMenuOpen}
+                  onclick={() => (aiMenuOpen = !aiMenuOpen)}
+                >
+                  <Icon name="sparkles" size={14} /> AI 助学 ▾
+                </button>
+                {#if aiMenuOpen}
+                  <div class="lv-ai-menu-popover" role="menu" aria-label="AI 助学菜单">
+                    <button type="button" role="menuitem" class="lv-btn lv-btn--ghost sm" onclick={() => { aiMenuOpen = false; onexplainCurrent("socratic"); }} disabled={explainBusy} aria-busy={explainBusy} title="苏格拉底启发引导：围绕当前思路提问，助你自主推导出答案">
+                      <Icon name="message" size={14} /> {t("explain.socratic")}
+                    </button>
+                  </div>
+                {/if}
+              </div>
               {#if q.type === "fill" || q.type === "short"}
                 <button class="lv-btn lv-btn--ghost" onclick={() => { lvLaunchpad.haptic(10); onsubmitAnswer(); }}>{t("session.skip")}</button>
               {/if}
             {:else}
-              <button class="lv-btn lv-btn--primary" onclick={() => { lvLaunchpad.haptic(10); onnextQuestion(); }} style="display:inline-flex;align-items:center;gap:4px">
+              <button class="lv-btn lv-btn--primary" onclick={() => { aiMenuOpen = false; lvLaunchpad.haptic(10); onnextQuestion(); }} style="display:inline-flex;align-items:center;gap:4px">
                 <span>{reciteToggle ? "已掌握，下一题 (Space / →)" : t("session.next")}</span>
                 <Icon name="chev-right" size={13} />
               </button>
               {#if feedback?.verdict === "wrong"}
-                <button class="lv-btn" onclick={ondrillVariant} title={t("session.drillVariantTip")}><Icon name="layers" size={15} /> {t("session.drillVariant")}</button>
-                <button class="lv-btn" onclick={ontraceMother} title="寻找同考点下最基础的原理母题从头筑基"><Icon name="compass" size={15} /> {t("wrongbook.traceMother")}</button>
-                {#if ondiagnosePrereqs}
-                  <button type="button" class="lv-btn" onclick={() => ondiagnosePrereqs(q)} title="🧭 自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径"><Icon name="compass" size={14} /> 🧭 溯源根因</button>
-                {/if}
                 <button class="lv-btn" onclick={ontoCard} disabled={cardResult === "…"}><Icon name="layers" size={16} /> {cardResult === "…" ? "制卡中…" : t("memory.toCard")}</button>
                 {#if cardResult}<span class="lv-muted">{cardResult}</span>{/if}
-                <div class="lv-explain-group" style="display:inline-flex;align-items:center;gap:6px">
-                  <select class="lv-select" bind:value={explainDepth} disabled={explainBusy} aria-label="选择 AI 讲解模式">
-                    <option value="explain">标准核验</option>
-                    <option value="dual-loop">分步推导</option>
-                    <option value="storm">多视角破题</option>
-                  </select>
-                  <button class="lv-btn" onclick={() => onexplainCurrent(explainDepth)} disabled={explainBusy} aria-busy={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
-                </div>
-                <button class="lv-btn" onclick={onrequestHint} disabled={explainBusy} aria-busy={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-                <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
-              {:else if !reciteToggle}
-                <div class="lv-explain-group" style="display:inline-flex;align-items:center;gap:6px">
-                  <select class="lv-select" bind:value={explainDepth} disabled={explainBusy} aria-label="选择 AI 讲解模式">
-                    <option value="explain">标准核验</option>
-                    <option value="dual-loop">分步推导</option>
-                    <option value="storm">多视角破题</option>
-                  </select>
-                  <button class="lv-btn" onclick={() => onexplainCurrent(explainDepth)} disabled={explainBusy} aria-busy={explainBusy}><Icon name="sparkles" size={16} /> {explainBusy ? "…" : t("explain.ask")}</button>
-                </div>
-                <button class="lv-btn" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy} aria-busy={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
               {/if}
-            {/if}
-            {#if leakPending && q && explainQid === q.id}
-              <div class="lv-analysis lv-explain">
-                <Icon name="alert-triangle" size={13} /> {t("explain.hintLeak").replace("{r}", leakPending.reasons)}
-                <div class="lv-row">
-                  <button class="lv-btn sm" onclick={onviewLeakedHint}>{t("explain.hintLeakView")}</button>
-                  <button class="lv-btn sm" onclick={ondismissLeakedHint}>{t("explain.hintLeakDismiss")}</button>
-                </div>
-              </div>
-            {/if}
-            {#if explainBusy && q && explainQid === q.id}
-              <div class="lv-analysis lv-explain" role="status" aria-live="polite" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                <span>⏳ AI 正在深入思考中…（启发式导学处理中）</span>
-                <div style="display:inline-flex;align-items:center;gap:6px">
-                  {#if onopenSocraticModal}
-                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11.5px">展开导学浮窗</button>
+              {#if !reciteToggle}
+                <div class="lv-ai-menu-wrap" bind:this={aiMenuWrapEl}>
+                  <button
+                    type="button"
+                    class="lv-btn"
+                    aria-haspopup="menu"
+                    aria-expanded={aiMenuOpen}
+                    onclick={() => (aiMenuOpen = !aiMenuOpen)}
+                  >
+                    <Icon name="sparkles" size={15} /> AI 助学 ▾
+                  </button>
+                  {#if aiMenuOpen}
+                    <div class="lv-ai-menu-popover" role="menu" aria-label="AI 助学菜单">
+                      {#if feedback?.verdict === "wrong"}
+                        <button type="button" role="menuitem" class="lv-btn lv-btn--ghost sm" onclick={() => { aiMenuOpen = false; ondrillVariant(); }} title={t("session.drillVariantTip")}>
+                          <Icon name="layers" size={14} /> {t("session.drillVariant")}
+                        </button>
+                        <button type="button" role="menuitem" class="lv-btn lv-btn--ghost sm" onclick={() => { aiMenuOpen = false; ontraceMother(); }} title="寻找同考点下最基础的原理母题从头筑基">
+                          <Icon name="compass" size={14} /> {t("wrongbook.traceMother")}
+                        </button>
+                        {#if ondiagnosePrereqs}
+                          <button type="button" role="menuitem" class="lv-btn lv-btn--ghost sm" onclick={() => { aiMenuOpen = false; ondiagnosePrereqs(q); }} title="🧭 自适应根因溯源：分析前置依赖链，定位导致本题失分的先修短板与推荐攻克路径">
+                            <Icon name="compass" size={14} /> 🧭 溯源根因
+                          </button>
+                        {/if}
+                        <button type="button" role="menuitem" class="lv-btn lv-btn--ghost sm" onclick={() => { aiMenuOpen = false; onrequestHint(); }} disabled={explainBusy} aria-busy={explainBusy}>
+                          <Icon name="bulb" size={14} /> {hintButtonLabel(q)}
+                        </button>
+                      {/if}
+                      <button type="button" role="menuitem" class="lv-btn lv-btn--ghost sm" onclick={() => { aiMenuOpen = false; onexplainCurrent("socratic"); }} disabled={explainBusy} aria-busy={explainBusy}>
+                        <Icon name="message" size={14} /> {t("explain.socratic")}
+                      </button>
+                      <div class="lv-explain-group" style="display:flex;align-items:center;gap:6px;padding-top:4px;border-top:1px solid var(--lv-border-subtle)">
+                        <select class="lv-select" bind:value={explainDepth} disabled={explainBusy} aria-label="选择 AI 讲解模式">
+                          <option value="explain">标准核验</option>
+                          <option value="dual-loop">分步推导</option>
+                          <option value="storm">多视角破题</option>
+                        </select>
+                        <button type="button" class="lv-btn lv-btn--primary" onclick={() => { aiMenuOpen = false; onexplainCurrent(explainDepth); }} disabled={explainBusy} aria-busy={explainBusy}>
+                          <Icon name="sparkles" size={15} /> {explainBusy ? "…" : t("explain.ask")}
+                        </button>
+                      </div>
+                    </div>
                   {/if}
-                  <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { if (oncloseExplain) oncloseExplain(); }} style="font-size:11.5px" title="取消并关闭" aria-label="取消并关闭"><Icon name="close" size={12} /> {t("menu.close", "关闭")}</button>
-                </div>
-              </div>
-            {/if}
-            {#if explainText && q && explainQid === q.id}
-              <div class="lv-analysis lv-explain">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:{explainCollapsed ? '0' : '6px'}">
-                  <span style="font-weight:700">🦉 导学与启发</span>
-                  <div style="display:inline-flex;align-items:center;gap:6px">
-                    {#if onopenSocraticModal}
-                      <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onopenSocraticModal} style="font-size:11px"><Icon name="message" size={12} /> 浮窗追问</button>
-                    {/if}
-                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => explainCollapsed = !explainCollapsed} style="font-size:11px" title={explainCollapsed ? "展开导学与启发" : "收起导学与启发 (Alt+X)"} aria-expanded={!explainCollapsed}>
-                      {explainCollapsed ? "展开" : "收起"}
-                    </button>
-                    <button type="button" class="lv-btn sm lv-btn--ghost" onclick={() => { if (oncloseExplain) oncloseExplain(); else explainCollapsed = true; }} style="font-size:11px" title="关闭导学与启发 (Esc)" aria-label="关闭导学与启发">
-                      <Icon name="close" size={12} /> {t("menu.close", "关闭")}
-                    </button>
-                  </div>
-                </div>
-                {#if !explainCollapsed}
-                  {explainText}
-                {/if}
-              </div>
-              {#if !explainCollapsed}
-                <div class="lv-row">
-                  {#if explainSavedQid === q.id}
-                    <span class="lv-muted" role="status" style="display:inline-flex;align-items:center;gap:4px"><Icon name="check" size={12} /> {t("explain.saved")}</span>
-                  {:else}
-                    <button class="lv-btn sm" onclick={onsaveExplain} disabled={explainSaveBusy} aria-busy={explainSaveBusy}><Icon name="pin" size={13} /> {explainSaveBusy ? "…" : explainSaveError ? t("explain.retrySave") : t("explain.save")}</button>
-                  {/if}
-                  <button class="lv-btn sm" onclick={onrequestHint} disabled={explainBusy}><Icon name="bulb" size={14} /> {hintButtonLabel(q)}</button>
-                  <button class="lv-btn sm" onclick={() => onexplainCurrent("socratic")} disabled={explainBusy}><Icon name="message" size={14} /> {t("explain.socratic")}</button>
-                </div>
-                {#if explainSaveErrorQid === q.id && explainSaveError}<div class="lv-error" role="alert">{t("explain.saveFailed").replace("{message}", explainSaveError)}</div>{/if}
-                <div class="lv-row">
-                  <input class="lv-input" style="flex:1;min-width:160px" placeholder={t("explain.followUp")}
-                    aria-label={t("explain.followUp")}
-                    bind:value={explainFollowUp}
-                    onkeydown={(e) => {
-                      if (e.key === "Escape") {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        oncloseExplain ? oncloseExplain() : (explainCollapsed = true);
-                      } else if (!e.isComposing && e.keyCode !== 229 && e.key === "Enter") {
-                        onsendFollowUp();
-                      }
-                    }} />
-                  <button class="lv-btn sm" onclick={onsendFollowUp} disabled={explainBusy || !explainFollowUp.trim()}>{t("explain.send")}</button>
                 </div>
               {/if}
             {/if}
           </div>
-          {#if reasonPromptQid === q.id && !feedback}
-            <div class="lv-row lv-reason" role="group" aria-label={t("trail.reasonTitle")}>
-              <span class="lv-muted" style="font-size:var(--lv-font-size-caption)">{t("trail.reasonTitle")}</span>
-              <button class="lv-chip" onclick={() => onsetEditReason(q.id, "unsure")}>{t("trail.reason.unsure")}</button>
-              <button class="lv-chip" onclick={() => onsetEditReason(q.id, "evidence")}>{t("trail.reason.evidence")}</button>
-              <button class="lv-chip" onclick={() => onsetEditReason(q.id, "misclick")}>{t("trail.reason.misclick")}</button>
-              <button class="lv-chip lv-btn--ghost" onclick={ondismissReasonPrompt}>{t("trail.reason.skip")}</button>
-            </div>
-          {/if}
         </div>
       </div>
       <aside class="lv-session-side">
@@ -1170,7 +1301,6 @@
           <div class="lv-row lv-muted" style="font-size:var(--lv-font-size-label);gap:var(--lv-space-compact);flex-wrap:wrap;margin:0">
             <span class="lv-kbd">A</span>-<span class="lv-kbd">J</span> {t("session.choose")} ·
             <span class="lv-kbd">1</span>-<span class="lv-kbd">3</span> {t("confidence.shortcut")} ·
-            <span class="lv-kbd">G</span> {t("confidence.guess")} ·
             <span class="lv-kbd">Enter</span> {t("session.submit")} ·
             <span class="lv-kbd">J</span>/<span class="lv-kbd">K</span> {t("session.next")}/{t("session.kbdPrev")} ·
             <span class="lv-kbd">E</span> {t("session.kbdFav")} ·
@@ -1179,6 +1309,15 @@
         </div>
       </aside>
     </div>
+  {:else}
+    <div class="lv-pad">
+      <div class="lv-card lv-empty" style="max-width:520px;margin:24px auto;text-align:center;padding:24px">
+        <p class="lv-muted" style="margin:0 0 14px">{t("session.emptyOrEnded", "当前练习已全部完成或暂无可作答题目，请返回练习台。")}</p>
+        <button type="button" class="lv-btn lv-btn--primary" onclick={onexitSession} disabled={exitBusy}>
+          {exitBusy ? "…" : t("session.back", "返回练习台")}
+        </button>
+      </div>
+    </div>
   {/if}
 {/if}
 
@@ -1186,7 +1325,7 @@
   /* —— 会话屏右栏（原型 practice 布局：主纸面 + 条件卡） —— */
   .lv-session-grid { display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: var(--lv-space-5); align-items: start; max-width: 1040px; }
   .lv-session-grid .lv-session-head { grid-column: 1 / -1; }
-  .lv-session-main { min-width: 0; }
+  .lv-session-main { min-width: 0; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
   .lv-session-main .lv-card { max-width: 660px; box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
   .lv-side-card { padding: var(--lv-space-4) var(--lv-space-panel); margin-bottom: 14px; }
   .lv-side-title { display: block; font-size: var(--lv-font-size-md); font-weight: var(--lv-font-weight-semibold); margin-bottom: 10px; }
@@ -1314,13 +1453,15 @@
       margin-top: 10px;
       padding: 8px 10px;
       gap: 6px !important;
+      flex-wrap: nowrap;
     }
-    .lv-answer-actions > .lv-btn {
+    .lv-answer-actions > .lv-btn,
+    .lv-answer-actions > .lv-ai-menu-wrap > .lv-btn {
       flex: 1 1 auto;
       min-width: 0;
       min-height: 40px;
       height: 40px;
-      padding: 0 12px;
+      padding: 0 10px;
       font-size: 13px;
     }
     .lv-answer-actions > .lv-btn.lv-btn--primary {
@@ -1373,7 +1514,7 @@
   .lv-pure .lv-stem, .lv-pure .lv-opt > span:not(.key) { display: none; }
   .lv-pure .lv-opt .key { filter: none; }
   .lv-pure .lv-opt { justify-content: center; }
-  .lv-question { margin-top: 10px; }
+  .lv-question { margin-top: 10px; padding-bottom: 24px; }
   .lv-stem { font-size: 19px; line-height: 1.75; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 18px; white-space: pre-wrap; -webkit-font-smoothing: antialiased; max-width: var(--lv-max-stem-width, 780px); }
   .lv-opt,
   .lv-opt * {
@@ -1395,11 +1536,11 @@
   .lv-opt.right .lv-opt-check { background: var(--lv-green); }
   .lv-opt.wrong .lv-opt-check { background: var(--lv-red); }
   .lv-opt.sel .lv-opt-check::after, .lv-opt.right .lv-opt-check::after, .lv-opt.wrong .lv-opt-check::after { transform: scale(1); }
-  .lv-opt.sel { border-color: var(--lv-accent); background: color-mix(in srgb, var(--lv-accent-soft) 85%, var(--lv-surface)); box-shadow: 0 0 0 1.5px var(--lv-accent), 0 3px 10px color-mix(in srgb, var(--lv-accent) 18%, transparent); }
-  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); box-shadow: 0 2px 8px color-mix(in srgb, var(--lv-accent) 28%, transparent); transform: scale(1.04); }
-  .lv-opt.right { border-color: var(--lv-green); background: var(--lv-green-soft); box-shadow: 0 0 0 1px var(--lv-green), 0 4px 14px color-mix(in srgb, var(--lv-green) 18%, transparent); }
+  .lv-opt.sel { border-color: var(--lv-accent); background: var(--lv-accent-soft); box-shadow: 0 0 0 1px var(--lv-accent); }
+  .lv-opt.sel .key { background: var(--lv-accent); border-color: var(--lv-accent); color: var(--lv-on-accent, #fff); }
+  .lv-opt.right { border-color: var(--lv-green); background: var(--lv-green-soft); box-shadow: 0 0 0 1px var(--lv-green); }
   .lv-opt.right .key { background: var(--lv-green); border-color: var(--lv-green); color: var(--lv-on-green, #fff); }
-  .lv-opt.wrong { border-color: var(--lv-red); background: var(--lv-red-soft); box-shadow: 0 0 0 1px var(--lv-red), 0 4px 14px color-mix(in srgb, var(--lv-red) 18%, transparent); }
+  .lv-opt.wrong { border-color: var(--lv-red); background: var(--lv-red-soft); box-shadow: 0 0 0 1px var(--lv-red); }
   .lv-opt.wrong .key { background: var(--lv-red); border-color: var(--lv-red); color: var(--lv-on-red, #fff); }
   .lv-opt.eliminated { opacity: 0.45; background: var(--lv-surface-2) !important; border-style: dashed !important; }
   .lv-opt.eliminated .lv-opt-text { text-decoration: line-through; }
@@ -1408,35 +1549,64 @@
   .lv-feedback.good { border-color: color-mix(in srgb, var(--lv-green) 26%, var(--lv-border)); border-left-color: var(--lv-green); background: color-mix(in srgb, var(--lv-green-soft) 85%, var(--lv-surface)); color: var(--lv-green); box-shadow: var(--lv-sh-1); }
   /* —— 作答动作区（吸收小驴闪卡 Floating Dock 浮岛悬浮底座质感：圆角聚拢 + 毛玻璃 + 微微弹性） —— */
   .lv-answer-actions {
-    margin-top: 18px;
-    padding: 12px 18px;
-    border-radius: var(--lv-r-4, 20px);
-    background: color-mix(in srgb, var(--lv-surface-2) 75%, var(--lv-surface));
+    margin-top: 16px;
+    padding: 8px 12px;
+    border-radius: var(--lv-r-3, 10px);
+    background: var(--lv-surface-2);
     border: 1px solid var(--lv-border);
-    box-shadow: var(--lv-sh-card), var(--lv-inset-card);
-    backdrop-filter: blur(10px);
+    box-shadow: var(--lv-sh-card);
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     transition: box-shadow var(--lv-dur-view, 0.2s) ease;
     /* 2026-11-17 走查：900px 视口下确认按钮随长题干折叠出视口，滚动时吸底常驻可点 */
     position: sticky;
     bottom: 10px;
     z-index: 5;
   }
+  .lv-ai-menu-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .lv-ai-menu-popover {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    min-width: 248px;
+    max-width: min(340px, calc(100vw - 32px));
+    padding: 8px;
+    border-radius: var(--lv-r-3, 12px);
+    background: var(--lv-surface);
+    border: 1px solid var(--lv-border);
+    box-shadow: var(--lv-sh-pop);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 20;
+  }
+  .lv-ai-menu-popover > button[role="menuitem"] {
+    justify-content: flex-start;
+    width: 100%;
+    text-align: left;
+  }
   .lv-answer-actions > .lv-btn,
+  .lv-answer-actions > .lv-ai-menu-wrap > .lv-btn,
   .lv-answer-actions .lv-explain-group > .lv-btn,
   .lv-answer-actions .lv-explain-group > .lv-select {
     min-height: 38px;
     height: 38px;
-    border-radius: 9999px;
+    border-radius: var(--lv-r-2, 8px);
     font-weight: var(--lv-font-weight-semibold, 600);
-    padding: 0 18px;
+    padding: 0 14px;
+    white-space: nowrap;
     transition: transform var(--lv-dur-micro, 0.15s) ease, background-color var(--lv-dur-micro) ease;
   }
   .lv-answer-actions .lv-explain-group > .lv-select {
-    padding: 0 14px;
+    padding: 0 12px;
+    flex: 1;
     width: auto;
     font-size: var(--lv-font-size-sm);
   }

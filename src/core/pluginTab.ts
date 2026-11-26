@@ -43,6 +43,7 @@ export interface ExamPluginLike extends PracticeViewPlugin, AiKeyHost {
   pendingBrowseBank?: string;
   pendingInitialView?: string;
   pendingQuestionId?: string;
+  pendingResumeSession?: boolean;
   pendingMockBlueprint?: import("./mock").Blueprint;
   examApp?: ExamApp | null;
   openPracticeTab?(data?: { bankId?: string; qid?: string }): Promise<void> | void;

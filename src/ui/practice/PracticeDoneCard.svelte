@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
+  import AiThinkingCard from "../shared/AiThinkingCard.svelte";
   import type { PracticeSession } from "@/core/session";
   import type { Question } from "@/core/types";
 
@@ -47,6 +48,7 @@
     onstartNextDrill: () => void;
     oneditReflection: (qid: string) => void;
     onrunMisdiagnosis: (a: any) => void;
+    oncancelMisdiagnosis?: () => void;
     onadoptMisdiagnosis: (qid: string) => void;
     onopenInSiYuan?: (rootId: string, blockId?: string, opt?: any) => void;
     onexitSession: () => void;
@@ -85,6 +87,7 @@
     onstartNextDrill,
     oneditReflection,
     onrunMisdiagnosis,
+    oncancelMisdiagnosis,
     onadoptMisdiagnosis,
     onopenInSiYuan,
     onexitSession,
@@ -287,6 +290,19 @@
                   </button>
                 {/if}
               </div>
+              {#if misdiagnosisBusy === a.qid}
+                <div style="margin:8px 0 4px">
+                  <AiThinkingCard
+                    scenario="socratic"
+                    compact={true}
+                    defaultIcon="🔬"
+                    title="🔬 正在分析本题作答错因…"
+                    subtitle="基于作答轨迹、答前信心与驻留用时推导错因假设"
+                    cancelLabel="⏹ 取消分析"
+                    oncancel={() => oncancelMisdiagnosis?.()}
+                  />
+                </div>
+              {/if}
               {#if misdiagnosisText[a.qid]}
                 <div class="lv-detail" style="margin:4px 0 0;font-size:var(--lv-font-size-sm);white-space:pre-wrap;overflow-wrap:anywhere">{misdiagnosisText[a.qid]}</div>
                 <div class="lv-muted" style="font-size:var(--lv-font-size-compact)">{t("misdiagnosis.disclaimer")}</div>

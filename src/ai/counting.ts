@@ -15,13 +15,13 @@ export class CountingChannel implements AiChannel {
     this.id = inner.id;
   }
 
-  async chat(messages: AiMessage[]): Promise<string> {
+  async chat(messages: AiMessage[], signal?: AbortSignal): Promise<string> {
     const charsIn = messages.reduce((n, m) => n + m.content.length, 0);
     this.calls++;
     this.charsIn += charsIn;
     const index = this.ledger.totals.calls + 1;
     try {
-      const out = await this.inner.chat(messages);
+      const out = await this.inner.chat(messages, signal);
       this.charsOut += out.length;
       this.ledger = recordCall(this.ledger, { index, charsIn, charsOut: out.length, outcome: "ok" });
       return out;

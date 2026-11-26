@@ -192,6 +192,32 @@ export class AttemptLog {
     return last;
   }
 
+  /** 更新指定会话中某题最近一次作答记录（用于模考主观题考后自评同步判定与错题联动） */
+  updateSessionAttempt(
+    sessionId: string,
+    qid: string,
+    patch: { verdict: AttemptEvent["verdict"]; selfRating?: number },
+  ): AttemptEvent | null {
+    for (let i = this.events.length - 1; i >= 0; i--) {
+      const e = this.events[i];
+      if (e.sessionId === sessionId && e.qid === qid) {
+        e.verdict = patch.verdict;
+        if (patch.selfRating !== undefined) e.selfRating = patch.selfRating;
+        this.generation++;
+        this.dirty = true;
+        this.flushTimer ??= setTimeout(
+          () =>
+            void this.flush().catch(() => {
+              /* 后台节流失败：dirty 保持，由下次 flush 重试 */
+            }),
+          this.flushDelayMs,
+        );
+        return e;
+      }
+    }
+    return null;
+  }
+
   /** 43-07 题目去重合并：将所有 fromQid 的历史作答事件迁移至 toQid，返回重定向事件数 */
   remapQuestionId(fromQid: string, toQid: string): number {
     if (fromQid === toQid) return 0;

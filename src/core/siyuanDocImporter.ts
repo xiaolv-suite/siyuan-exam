@@ -9,10 +9,10 @@
 
 import type { ImportOptions, ImportReport } from "../importer/pipeline";
 import { parseText } from "../importer/pipeline";
-import { newBatchId } from "./ids";
+import { newBatchId, newQuestionId } from "./ids";
 import type { Question, QuestionType } from "./types";
-import { makeQuestion } from "./blockTemplate";
-import { questionHash } from "./answer";
+import { makeQuestion, parseIal, questionFromBlock, stripInlineKramdownIal } from "./blockTemplate";
+import { OPTION_LETTERS, questionHash } from "./answer";
 import { lintQuestion, autoFixQuestion, hasBlankPlaceholder } from "./questionLinter";
 import { safeDocTitleFromHPath } from "../libs/lv-notice-kit";
 
@@ -29,6 +29,26 @@ export interface SiyuanDocMeta {
   title: string;
   hpath?: string;
   notebookId?: string;
+}
+
+function maskDocProtectedSpans(text: string): { masked: string; restore: (s: string) => string } {
+  const spans: string[] = [];
+  const tokenOf = (raw: string) => {
+    const idx = spans.length;
+    spans.push(raw);
+    return `@@DOCMASK_${idx}@@`;
+  };
+  let masked = text;
+  masked = masked.replace(/```[\s\S]*?```/g, tokenOf);
+  masked = masked.replace(/`[^`\n\r]+?`/g, tokenOf);
+  masked = masked.replace(/\$\$[\s\S]*?\$\$/g, tokenOf);
+  masked = masked.replace(/\\\[[\s\S]*?\\\]/g, tokenOf);
+  masked = masked.replace(/!\[[^\]]*\]\([^)]*\)/g, tokenOf);
+  masked = masked.replace(/(?<!\\)\$[^$\n\r]+?\$/g, tokenOf);
+  masked = masked.replace(/\\\([^\n\r]+?\\\)/g, tokenOf);
+  const restore = (s: string): string =>
+    s.replace(/@@DOCMASK_(\d+)@@/g, (_m, i: string) => spans[Number(i)] ?? _m);
+  return { masked, restore };
 }
 
 /**
@@ -48,12 +68,12 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   // 0. 剥离思源导出的 YAML Frontmatter 元数据头（--- title: xxx ---）
   s = s.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/m, "");
 
-  // 1. 移除思源 IAL 块属性行（例如 {: id="2026..." updated="2026..."}）
-  s = s.replace(/\{:[^}]*\}\s*$/gm, "");
+  // 1. 移除思源 IAL 块属性行与行内 IAL（例如 {: id="2026..." updated="2026..."}、表格 {: style="..."}、列表行首 IAL），先保护公式/代码块避免误伤
+  s = stripInlineKramdownIal(s).replace(/^[ \t]+$/gm, "");
 
-  // 1.1 移除思源超级块与排版标记（{{{row, {{{col, }}}）
+  // 1.1 移除思源超级块与排版标记（{{{row, {{{col, }}}），保留空行分隔防相邻块粘连
   s = s.replace(/^\{\{\{(?:row|col)?\s*$/gm, "");
-  s = s.replace(/^\}\}\}\s*$/gm, "");
+  s = s.replace(/^\}\}\}\s*$/gm, "\n");
 
   // 1.2 剥离行首引用块标记（支持整道题写在引用块 > 里的场景，先于选项列表剥离）
   s = s.replace(/^>\s?/gm, "");
@@ -63,7 +83,7 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
 
   // 1.4 规范化复选框任务列表中的正确答案标记
   // 若包含 - [x] A. 选项 或 - [X] B. 选项，且原文本未带显式答案行，则提取为标准答案
-  const checkedMatches = [...s.matchAll(/^[-*]\s*\[[xX]\]\s*([A-Fa-f])[.、]/gm)];
+  const checkedMatches = [...s.matchAll(/^[-*]\s*\[[xX]\]\s*([A-Ja-j])[.、]/gm)];
   if (checkedMatches.length > 0 && !/(?:ANSWER|【答案】|答案\s*[:：])/i.test(s)) {
     const checkedLetters = checkedMatches.map((m) => m[1].toUpperCase()).join("");
     s = s.trimEnd() + `\nANSWER: ${checkedLetters}\n`;
@@ -71,7 +91,7 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   s = s.replace(/^[-*]\s*\[[ xX]\]\s*/gm, "");
 
   // 1.5 剥离无序列表选项前缀：如 "- A. 选项" 规范化为 "A. 选项"
-  s = s.replace(/^[-*+]\s+([A-Fa-f][.、\s])/gm, "$1");
+  s = s.replace(/^[-*+]\s+([A-Ja-j][.、\s])/gm, "$1");
 
   // 3. 将思源常用折叠块答案转为标准提示词
   // 如 ::: details 答案与解析 ... ::: 转换为 【答案】与【解析】
@@ -104,12 +124,109 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   s = s.replace(/^\s*(?:Q\d*|【问\d*】)\s*[:：]\s*/gim, "");
   s = s.replace(/^\s*(?:A\d*|【答\d*】)\s*[:：]\s*/gim, "【答案】：");
 
-  // 7.1 概念与术语定义卡：**术语**：定义内容 ➔ 转换为问答结构
-  s = s.replace(/^\s*\*\*([^*\n\r]{2,40})\*\*\s*[:：]\s*([^\n\r]{4,})/gm, (_m, term: string, def: string) => {
+  // 7.1 概念与术语定义卡：**术语**：定义内容 ➔ 转换为问答结构（保护公式/图片防误匹配）
+  const { masked: maskedTerm, restore: restoreTerm } = maskDocProtectedSpans(s);
+  s = maskedTerm.replace(/^\s*\*\*([^*\n\r]{2,40})\*\*\s*[:：]\s*([^\n\r]{4,})/gm, (_m, term: string, def: string) => {
     return `\n1. 简述 ${term} 的概念与定义。\n【答案】：${def.trim()}\n`;
   });
+  s = restoreTerm(s);
 
   return s.trim();
+}
+
+/**
+ * 提取思源文档中的标准 `{{{row` 题块（携带 custom-exam-type / exam-type IAL），
+ * 完整支持单选/多选/判断/填空/简答/材料 6 种题型，图片、公式与选项零丢失。
+ */
+export function extractRowBlockQuestions(
+  rawMarkdown: string,
+  docMeta: SiyuanDocMeta,
+): { questions: Question[]; remainingMarkdown: string } {
+  const lines = (rawMarkdown ?? "").replace(/\r\n/g, "\n").split("\n");
+  const questions: Question[] = [];
+  const consumed = new Set<number>();
+  let inCodeFence = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith("```")) {
+      inCodeFence = !inCodeFence;
+      continue;
+    }
+    if (inCodeFence) continue;
+    if (trimmed !== "{{{row") continue;
+
+    let depth = 1;
+    let innerFence = false;
+    let endIdx = -1;
+    for (let j = i + 1; j < lines.length; j++) {
+      const jt = lines[j].trim();
+      if (jt.startsWith("```")) {
+        innerFence = !innerFence;
+        continue;
+      }
+      if (innerFence) continue;
+      if (jt === "{{{row") depth++;
+      else if (jt === "}}}") {
+        depth--;
+        if (depth === 0) {
+          endIdx = j;
+          break;
+        }
+      }
+    }
+    if (endIdx < 0) continue;
+
+    let ialIdx = -1;
+    let ialStr = "";
+    if (endIdx + 1 < lines.length) {
+      const nextTrimmed = lines[endIdx + 1].trim();
+      if (nextTrimmed.startsWith("{:") && nextTrimmed.endsWith("}") && /^\{:\s*[a-zA-Z_][\w-]*=/.test(nextTrimmed)) {
+        ialIdx = endIdx + 1;
+        ialStr = nextTrimmed.slice(2, -1).trim();
+      }
+    }
+    if (!ialStr || !/(?:custom-)?exam-type\s*=/.test(ialStr)) {
+      i = endIdx;
+      continue;
+    }
+
+    const parsedAttrs = parseIal(ialStr);
+    if (!parsedAttrs["custom-exam-id"] && !parsedAttrs["exam-id"]) {
+      parsedAttrs["custom-exam-id"] = newQuestionId();
+    }
+    const blockBody = lines.slice(i, endIdx + 1).join("\n");
+    const q = questionFromBlock({ attrs: parsedAttrs, text: blockBody });
+    if (q && q.stem.trim()) {
+      q.source = q.source || docMeta.title;
+      q.sourceKind = q.sourceKind || "real";
+      q.kp = q.kp || docMeta.title;
+      questions.push(q);
+      for (let k = i; k <= (ialIdx >= 0 ? ialIdx : endIdx); k++) consumed.add(k);
+    }
+    i = ialIdx >= 0 ? ialIdx : endIdx;
+  }
+
+  const remainingMarkdown = lines.filter((_l, idx) => !consumed.has(idx)).join("\n");
+  return { questions, remainingMarkdown };
+}
+
+/**
+ * 安全分割 Markdown 表格行：保护转义 `\|`、行内代码与 LaTeX 公式内 `|`，并清洗单元格行内 IAL
+ */
+export function splitMarkdownTableRow(line: string): string[] {
+  const trimmed = line.trim();
+  const inner = trimmed.replace(/^\|/, "").replace(/((?:^|[^\\])(?:\\\\)*)\|$/, "$1");
+  const { masked, restore } = maskDocProtectedSpans(inner);
+  const escapedSlashToken = "@@ESCAPED_TABLE_SLASH@@";
+  const escapedPipeToken = "@@ESCAPED_TABLE_PIPE@@";
+  const safeMasked = masked
+    .replace(/\\\\/g, escapedSlashToken)
+    .replace(/\\\|/g, escapedPipeToken);
+  return safeMasked.split("|").map((cell) => {
+    const withPipes = cell.split(escapedPipeToken).join("|").split(escapedSlashToken).join("\\\\");
+    return stripInlineKramdownIal(restore(withPipes)).trim();
+  });
 }
 
 /**
@@ -121,24 +238,21 @@ export function parseMarkdownTableToQuestions(
 ): Question[] {
   const lines = tableText
     .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.startsWith("|") && l.endsWith("|"));
+    .map((l) => stripInlineKramdownIal(l).trim())
+    .filter((l) => l.startsWith("|") && /(?:^|[^\\])(?:\\\\)*\|$/.test(l));
   if (lines.length < 3) return [];
 
-  const headerCells = lines[0]
-    .slice(1, -1)
-    .split("|")
-    .map((c) => c.trim().toLowerCase());
+  const headerCells = splitMarkdownTableRow(lines[0]).map((c) => c.toLowerCase());
   const stemIdx = headerCells.findIndex((c) =>
     /题干|题目|问题|问|question|front|stem|单词|词汇|term|概念/.test(c),
   );
   const ansIdx = headerCells.findIndex((c) =>
     /答案|答|answer|back|释义|意思|定义|definition|meaning/.test(c),
   );
-  const optAIdx = headerCells.findIndex((c) => /选项\s*a|^a$/i.test(c));
-  const optBIdx = headerCells.findIndex((c) => /选项\s*b|^b$/i.test(c));
-  const optCIdx = headerCells.findIndex((c) => /选项\s*c|^c$/i.test(c));
-  const optDIdx = headerCells.findIndex((c) => /选项\s*d|^d$/i.test(c));
+  const optIndices = [...OPTION_LETTERS].map((L) => {
+    const lower = L.toLowerCase();
+    return headerCells.findIndex((c) => new RegExp(`选项\\s*${lower}\\b|^${lower}$`, "i").test(c));
+  });
   const analysisIdx = headerCells.findIndex((c) =>
     /解析|详解|出处|例句|analysis|note|example/.test(c),
   );
@@ -153,16 +267,15 @@ export function parseMarkdownTableToQuestions(
 
   const questions: Question[] = [];
   for (let i = startRow; i < lines.length; i++) {
-    const row = lines[i].slice(1, -1).split("|").map((c) => c.trim());
+    const row = splitMarkdownTableRow(lines[i]);
     const stem = row[stemIdx];
     const answer = row[ansIdx];
     if (!stem || !answer || /^-+$/.test(stem)) continue;
 
     const options: string[] = [];
-    if (optAIdx >= 0 && row[optAIdx]) options.push(row[optAIdx]);
-    if (optBIdx >= 0 && row[optBIdx]) options.push(row[optBIdx]);
-    if (optCIdx >= 0 && row[optCIdx]) options.push(row[optCIdx]);
-    if (optDIdx >= 0 && row[optDIdx]) options.push(row[optDIdx]);
+    for (const optIdx of optIndices) {
+      if (optIdx >= 0 && row[optIdx]) options.push(row[optIdx]);
+    }
 
     const isJudge = /^[对错正确错误√×vVxX]$/.test(answer);
     const type: QuestionType = options.length >= 2
@@ -328,13 +441,14 @@ export function parseInlineFlashcards(
  * 所有的偶数都是合数。( × )
  */
 export function parseInlineJudgeQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
-  const lines = rawText.split(/\r?\n/);
+  const { masked, restore } = maskDocProtectedSpans(rawText ?? "");
+  const lines = masked.split(/\r?\n/);
   const questions: Question[] = [];
   for (const line of lines) {
     const trimmed = line.trim().replace(/^[-*+]\s+/, "").replace(/^\d+[.、]\s*/, "");
     const m = trimmed.match(/^(.*?)[（(]\s*([√×对错vVxX正确错误TFN]+)\s*[)）]\s*$/);
     if (m && m[1].trim().length >= 4) {
-      const stem = m[1].trim();
+      const stem = restore(m[1].trim());
       const rawAns = m[2].trim().toUpperCase();
       const answer = /[√对vVT正确]/.test(rawAns) ? "对" : "错";
       const q = makeQuestion({
@@ -464,39 +578,42 @@ export function parseBoldSentenceDefinitions(rawText: string, docMeta: SiyuanDoc
  * 解析单道自然格式题目文本（单选、多选、判断、填空、简答）
  */
 export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta): Question | null {
-  const trimmed = item.trim();
+  const trimmed = stripInlineKramdownIal(item).trim();
   if (trimmed.length < 5) return null;
 
-  let body = trimmed;
+  // 先保护代码块、LaTeX 公式（如 $f(x)$）与 Markdown 图片/链接（如 ![图(A)](assets/x.png)），
+  // 防止括号答案与选项切分正则误伤公式和图片路径
+  const { masked, restore } = maskDocProtectedSpans(trimmed);
+  let body = masked;
   // 剥离块首部的文档大标题/章节标题（如 "# 第一章 练习题" 或 "## 一、单项选择题"）
   body = body.replace(/^(?:#{1,6}\s+[^\n\r]+\r?\n+)+/, "").trim();
   // 剥离题目编号前缀（1. / 1、 / (1) / 【例题1】 / 第1题）
-  body = body.replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "").trim();
+  body = body.replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】\s*)/, "").trim();
 
   let analysis: string | undefined;
   const analysisMatch = body.match(/(?:(?:【解析】|解析\s*[:：]|详解\s*[:：]|【详解】)\s*)([\s\S]+)$/i);
   if (analysisMatch) {
-    analysis = analysisMatch[1].trim();
+    analysis = restore(analysisMatch[1].trim());
     body = body.slice(0, analysisMatch.index).trim();
   }
 
   let answer = "";
   const answerMatch = body.match(/(?:(?:【答案】|答案\s*[:：]|参考答案\s*[:：]|ANSWER\s*[:：]|KEY\s*[:：])\s*)([^\n\r]+)/i);
   if (answerMatch) {
-    answer = answerMatch[1].replace(/["'`]/g, "").trim().toUpperCase();
+    answer = restore(answerMatch[1].replace(/["'`]/g, "").trim()).toUpperCase();
     body = body.slice(0, answerMatch.index).trim();
   }
 
-  const stemAnsMatch = body.match(/[（(]\s*([A-Fa-f]{1,6}|[√×对错正确错误TFN]+)\s*[)）]/);
+  const stemAnsMatch = body.match(/[（(]\s*([A-Ja-j]{1,10}|[√×对错正确错误TFN]+)\s*[)）]/);
   if (!answer && stemAnsMatch) {
     const candidateAns = stemAnsMatch[1].trim().toUpperCase();
-    if (/^[A-F]{1,6}$/.test(candidateAns) || /^[√×对错正确错误TFN]+$/.test(candidateAns)) {
+    if (/^[A-J]{1,10}$/.test(candidateAns) || /^[√×对错正确错误TFN]+$/.test(candidateAns)) {
       answer = candidateAns;
       body = body.replace(stemAnsMatch[0], "（   ）");
     }
   }
 
-  const optSplitRegex = /(?:^|\s+)(?:[(（]?([A-Fa-f])[)）.]|([A-Fa-f])[.、:：])\s+/g;
+  const optSplitRegex = /(?:^|\s+)(?:[(（]?([A-Ja-j])[)）.]|([A-Ja-j])[.、:：])\s+/g;
   const optPositions: Array<{ letter: string; index: number; fullLen: number }> = [];
   let m: RegExpExecArray | null;
   while ((m = optSplitRegex.exec(body)) !== null) {
@@ -504,19 +621,19 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
     const expectedCode = 65 + optPositions.length;
     if (letter.charCodeAt(0) === expectedCode) {
       optPositions.push({ letter, index: m.index, fullLen: m[0].length });
-      if (optPositions.length >= 6) break;
+      if (optPositions.length >= 10) break;
     } else if (optPositions.length >= 2) {
       break;
     }
   }
 
   if (optPositions.length >= 2 && optPositions[0].letter === "A" && optPositions[1].letter === "B") {
-    const stem = body.slice(0, optPositions[0].index).trim().replace(/[-*+•\s]+$/, "").trim();
+    const stem = restore(body.slice(0, optPositions[0].index).trim().replace(/[-*+•\s]+$/, "").trim());
     const options: string[] = [];
     for (let i = 0; i < optPositions.length; i++) {
       const start = optPositions[i].index + optPositions[i].fullLen;
       const end = i < optPositions.length - 1 ? optPositions[i + 1].index : body.length;
-      options.push(body.slice(start, end).trim().replace(/[-*+•\s]+$/, "").trim());
+      options.push(restore(body.slice(start, end).trim().replace(/[-*+•\s]+$/, "").trim()));
     }
 
     if (stem && options.length >= 2) {
@@ -525,10 +642,12 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
         type,
         stem,
         options,
-        answer: answer || "A",
+        // 严禁在缺答案时静默伪造 "A"：保留缺失态交由质检与校对面板显式补充或拦截入库
+        answer: answer || "",
         analysis,
         kp: docMeta.title,
         source: docMeta.title,
+        ...(answer ? {} : { status: "draft" as const }),
       });
       q.sourceKind = "real";
       return q;
@@ -542,7 +661,7 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
     const rawAns = (isJudgeAns ? answer : judgeMatch![2]).trim().toUpperCase();
     const ans = /[√对vVT正确]/.test(rawAns) ? "对" : "错";
     let stem = judgeMatch ? judgeMatch[1].trim() : body.replace(/（\s*）|[（(]\s*[)）]/g, "").trim();
-    stem = stem.replace(/^[.、\s]+|[.、\s]+$/g, "");
+    stem = restore(stem.replace(/^[.、\s]+|[.、\s]+$/g, ""));
     if (stem.length >= 2) {
       const q = makeQuestion({
         type: "judge",
@@ -558,12 +677,13 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
     }
   }
 
-  const isFill = hasBlankPlaceholder(body);
+  const restoredBody = restore(body);
+  const isFill = hasBlankPlaceholder(restoredBody);
   const type: QuestionType = isFill ? "fill" : "short";
-  if (isFill || (answer && body.length < 1500)) {
+  if (isFill || (answer && restoredBody.length < 1500)) {
     const q = makeQuestion({
       type,
-      stem: body,
+      stem: restoredBody,
       options: [],
       answer: answer || "待补充",
       analysis,
@@ -632,8 +752,10 @@ export async function parseQuestionsFromSiyuanDoc(
   docMeta: SiyuanDocMeta,
   options: SiyuanImportOptions = {},
 ): Promise<ImportReport> {
-  const cleanedText = cleanSiyuanDocMarkdown(docMarkdown);
-  if (!cleanedText) {
+  // 0. 优先无损提取带 custom-exam-type / exam-type IAL 的 {{{row 题块（覆盖 6 种题型、图片与公式）
+  const { questions: rowBlockQuestions, remainingMarkdown } = extractRowBlockQuestions(docMarkdown, docMeta);
+  const cleanedText = cleanSiyuanDocMarkdown(remainingMarkdown);
+  if (!cleanedText && rowBlockQuestions.length === 0) {
     return {
       batch: newBatchId(),
       ok: [],
@@ -648,12 +770,12 @@ export async function parseQuestionsFromSiyuanDoc(
   const shouldRunCloze = profile === "all" || profile === "cloze" || profile === "notes";
   const shouldRunTable = profile === "all" || profile === "table" || profile === "notes";
 
-  const allCandidates: Question[] = [];
+  const allCandidates: Question[] = [...rowBlockQuestions];
   let batchId = newBatchId();
   let standardReportDuplicates = 0;
 
   // 1. 标准导入分流引擎解析（支持 MarkdownExam / Aiken / TSV / GIFT / 挖空）
-  if (shouldRunPaper) {
+  if (shouldRunPaper && cleanedText) {
     const standardReport = await parseText(cleanedText, options);
     if (standardReport.batch) batchId = standardReport.batch;
     if (standardReport.duplicates) standardReportDuplicates = standardReport.duplicates;
@@ -663,21 +785,21 @@ export async function parseQuestionsFromSiyuanDoc(
   }
 
   // 2. 极速单行与多行制卡语法（支持 :: 单向卡、::: 双向互逆卡与 ? 问答卡）
-  if (shouldRunNotes || profile === "cloze") {
+  if ((shouldRunNotes || profile === "cloze") && cleanedText) {
     if (cleanedText.includes("::") || /^\s*\?{1,2}\s*$/m.test(cleanedText)) {
       allCandidates.push(...parseInlineFlashcards(cleanedText, docMeta));
     }
   }
 
   // 3. Markdown 表格试题识别（用户用表格制作的生词表、概念表、问答表、选项表）
-  if (shouldRunTable) {
+  if (shouldRunTable && cleanedText) {
     if (cleanedText.includes("|")) {
       allCandidates.push(...parseMarkdownTableToQuestions(cleanedText, docMeta));
     }
   }
 
   // 4. 思源自然试卷与自由排版考题识别（单行题号 1. / 1、 / (1)、一行多选项 A. xx B. yy、题干括号答案等）
-  if (shouldRunPaper) {
+  if (shouldRunPaper && cleanedText) {
     if (cleanedText.length > 25000) {
       allCandidates.push(...(await extractNaturalPaperQuestionsAsync(cleanedText, docMeta, options.onProgress)));
     } else {
@@ -700,33 +822,33 @@ export async function parseQuestionsFromSiyuanDoc(
   }
 
   // 5. 句末带对错符号的自然判断题识别（如：质数只有两个因数 (√)）
-  if (shouldRunPaper || shouldRunNotes) {
+  if ((shouldRunPaper || shouldRunNotes) && cleanedText) {
     if (/[（(]\s*[√×对错vVxX正确错误TFN]+\s*[)）]/.test(cleanedText)) {
       allCandidates.push(...parseInlineJudgeQuestions(cleanedText, docMeta));
     }
   }
 
   // 6. 标题与段落问答结构识别（如：# 什么是死锁？\n回答段落...）
-  if (shouldRunNotes) {
+  if (shouldRunNotes && cleanedText) {
     if (/#{1,6}\s+[^\n\r]+/.test(cleanedText)) {
       allCandidates.push(...parseHeadingQaQuestions(cleanedText, docMeta));
     }
   }
 
   // 7. 无序列表与有序列表概念定义卡（如 - 临界区：访问临界资源的代码段）
-  if (shouldRunNotes) {
+  if (shouldRunNotes && cleanedText) {
     allCandidates.push(...parseBulletDefinitions(cleanedText, docMeta));
   }
 
   // 8. 正文粗体概念定义句（如 **虚拟内存**是指利用外存空间扩展物理内存的技术）
-  if (shouldRunNotes) {
+  if (shouldRunNotes && cleanedText) {
     if (cleanedText.includes("**")) {
       allCandidates.push(...parseBoldSentenceDefinitions(cleanedText, docMeta));
     }
   }
 
   // 9. 高亮挖空（Cloze）：文档包含思源原生高亮标记 ==重点== 或 {{挖空}}
-  if (shouldRunCloze) {
+  if (shouldRunCloze && cleanedText) {
     if (/==[^=\n\r]+==|\{\{[^}\n\r]+?\}\}/.test(cleanedText)) {
       try {
         const { parseClozeText, clozeItemsToQuestions } = await import("./cloze");
@@ -757,15 +879,17 @@ export async function parseQuestionsFromSiyuanDoc(
     }
   }
 
-  // 题干归一化排重（消除不同提取策略间的重叠题目）
-  const norm = (stem: string) =>
-    (stem ?? "")
-      .trim()
-      .replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】\s*)/, "")
+  // 题干归一化排重（消除不同提取策略间的重叠题目；保留图片路径与公式差异防误并）
+  const norm = (stem: string) => {
+    const { masked: mStem, restore: rStem } = maskDocProtectedSpans((stem ?? "").trim());
+    const stripped = mStem
+      .replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】\s*)/, "")
       .replace(/^(?:简述【|请阐述【|【概念辨析】|【正向考查】|【逆向回忆】)([^】]+)【的概念与核心定义。?/, "$1")
-      .replace(/[（([【]\s*[A-Za-z0-9√×对错vVxX正确错误\s]*[)）\]】]/g, "")
+      .replace(/[（([【]\s*[A-Za-z0-9√×对错vVxX正确错误\s]*[)）\]】]/g, "");
+    return rStem(stripped)
       .replace(/[^\p{L}\p{N}]/gu, "")
       .toLowerCase();
+  };
 
   const seenStems = new Set<string>();
   const deduplicated: Question[] = [];

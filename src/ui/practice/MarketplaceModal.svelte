@@ -180,8 +180,8 @@
       style="width:min(1240px, 96vw);max-height:90vh;overflow-y:auto;pointer-events:auto;padding:clamp(14px, 4vw, 26px);border-radius:var(--lv-r-card, 20px);border:1px solid var(--lv-border-subtle);box-shadow:var(--lv-sh-pop);background:var(--lv-surface)"
     >
       <!-- 头部标题区 -->
-      <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 16px;flex-wrap:nowrap;gap:8px">
-        <div style="min-width:0;flex:1">
+      <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 16px;flex-wrap:wrap;gap:8px">
+        <div style="min-width:0;flex:1 1 200px">
           <div class="lv-dialog-title-wrap" style="align-items:center;gap:8px;flex-wrap:wrap">
             <span class="lv-dialog-title-icon" style="font-size:18px"><Icon name="book" size={16} /></span>
             <h2 style="font-size:clamp(15px, 4vw, 18px);font-weight:700;margin:0;color:var(--lv-text)">
@@ -209,8 +209,8 @@
             支持输入托管在 GitHub Gist、Gitee 或自建服务器的 <code>catalog.json</code> 订阅直链（模式同开源阅读书源），客户端在前端直接拉取。
           </p>
           <div class="lv-row" style="gap:8px;margin:0 0 8px;flex-wrap:wrap">
-            <input class="lv-input" style="flex:1;min-width:140px" bind:value={newSourceName} placeholder="订阅源名称（例如：考研专业课真题源）" />
-            <input class="lv-input" style="flex:2;min-width:240px" bind:value={newSourceUrl} placeholder="https://example.com/catalog.json" />
+            <input class="lv-input" style="flex:1;min-width:min(140px, 100%)" bind:value={newSourceName} placeholder="订阅源名称（例如：考研专业课真题源）" />
+            <input class="lv-input" style="flex:2;min-width:min(200px, 100%)" bind:value={newSourceUrl} placeholder="https://example.com/catalog.json" />
             <button class="lv-btn sm lv-btn--primary" onclick={handleAddCustomSource}>添加并载入</button>
           </div>
           {#if customSources.length > 0}
@@ -233,7 +233,7 @@
 
       <!-- 搜索栏与订阅源切换 -->
       <div class="lv-row" style="margin:0 0 12px;gap:8px;flex-wrap:wrap;align-items:center">
-        <div style="position:relative;flex:1;min-width:220px">
+        <div style="position:relative;flex:1;min-width:min(200px, 100%)">
           <input
             class="lv-input"
             style="width:100%;box-sizing:border-box;padding-left:30px"
@@ -300,11 +300,11 @@
           <p style="font-size:12px;margin-top:4px">可尝试清空搜索词或切换学科领域分类。</p>
         </div>
       {:else}
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(min(280px, 100%), 1fr));gap:16px;margin-bottom:20px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(min(260px, 100%), 1fr));gap:14px;margin-bottom:20px">
           {#each filteredItems as item (item.id)}
             <div
               class="lv-card lv-marketplace-card"
-              style="padding:16px;display:flex;flex-direction:column;justify-content:space-between;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);border-top:4px solid {getCategoryBorderColor(item.category)};box-shadow:var(--lv-sh-1);transition: transform var(--lv-dur-micro) var(--lv-ease-out), background var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), opacity var(--lv-dur-micro) var(--lv-ease-out)"
+              style="min-width:0;max-width:100%;box-sizing:border-box;padding:16px;display:flex;flex-direction:column;justify-content:space-between;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border);border-top:4px solid {getCategoryBorderColor(item.category)};box-shadow:var(--lv-sh-1);transition: transform var(--lv-dur-micro) var(--lv-ease-out), background var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), opacity var(--lv-dur-micro) var(--lv-ease-out)"
             >
               <div>
                 <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 6px">
@@ -390,7 +390,7 @@
                   </div>
                 {/if}
 
-                <div class="lv-row" style="margin:0;gap:6px">
+                <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
                   <button
                     class="lv-btn sm {installedIds.has(item.id) ? 'lv-btn--ghost' : 'lv-btn--primary'}"
                     style="flex:1;justify-content:center;font-weight:600"

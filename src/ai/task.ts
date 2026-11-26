@@ -130,7 +130,7 @@ export class AiTaskRunner {
   }
 
   /** 执行一次讲解类任务：闸门 → 预算 → 通道 → 信封（任何失败都返回 failed 信封，不抛出） */
-  async run(ctx: AiTaskContext, messages: AiMessage[]): Promise<AiTaskEnvelope> {
+  async run(ctx: AiTaskContext, messages: AiMessage[], signal?: AbortSignal): Promise<AiTaskEnvelope> {
     const started = this.opts.now?.() ?? Date.now();
     const base: AiTaskEnvelope = {
       v: 1,
@@ -154,7 +154,7 @@ export class AiTaskRunner {
     }
     this.calls++;
     try {
-      const text = await this.channel.chat(messages);
+      const text = await this.channel.chat(messages, signal);
       const chars = messages.reduce((n, m) => n + m.content.length, 0) + text.length;
       return {
         ...base,
