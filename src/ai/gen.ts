@@ -1,0 +1,748 @@
+// ============================================================
+// AI 出题管线（v0.4；docs/05 增补 + research/06/08 质量范式）
+// 切片 → 提示词（五模块框架）→ 容错 JSON 解析 → 客户端质量门槛 → 待审核队列
+// 纯函数 + AiChannel 注入；经济档位=单遍，标准档位=超量 1.2×（v0.4 起步，二遍核验 v0.4.x）
+// ============================================================
+import type { Question } from "../core/types";
+import { normalizeAnswer, questionHash, foldText } from "../core/answer";
+import { newQuestionId, newBatchId } from "../core/ids";
+import { validate } from "../importer/pipeline";
+import type { AiChannel, AiMessage } from "./client";
+
+export interface GenOptions {
+  types: Question["type"][];
+  count: number;
+  difficulty: "easy" | "medium" | "hard" | "mixed";
+  kp?: string; // 考点提示（写入题目 kp）
+  sourceTitle?: string; // 来源材料标题（写入 source；引用=待 v0.4.x 块引用）
+  preset?: keyof typeof PROMPT_PRESETS;
+  customHint?: string; // 用户自定义命题要求（追加到系统提示）
+  quality?: "standard" | "economy"; // 标准=二遍换角色核验（默认）；经济=单遍
+  existingHashes?: Set<string>;
+  /** 取消信号：支持 `{ aborted }` 或直接传入标准 `AbortSignal`，可真中断底层请求 */
+  signal?: { aborted: boolean; controller?: AbortController } | AbortSignal;
+  /** 可选底层网络中止信号（若 signal 已为 AbortSignal 则自动透传） */
+  abortSignal?: AbortSignal;
+  /** 材料精确定位信息（DeepTutor 规范：引文锚定与防幻觉出题） */
+  locator?: {
+    materialId?: string;
+    page?: number;
+    quote?: string;
+  };
+  /** 学习者三层认知画像紧凑前缀 (LogiNote 规范) */
+  profilePrefix?: string;
+}
+
+export interface GenIssue {
+  index: number; // 原始序号（1-based）
+  reason: string;
+  raw: string;
+}
+
+export interface GenResult {
+  pending: Question[]; // 通过质量门槛，进待审核队列（review=pending）
+  rejected: GenIssue[];
+  duplicates: number;
+  batch: string;
+}
+
+export const AI_CHUNK_MAX_CHARS = 3000;
+
+const QUESTION_BOUNDARY_RE = /\n(?=\s*(?:第?\s*\d+\s*[.、)）]|[(（]\d+[)）]|[一二三四五六七八九十]+\s*[、.．]))/;
+
+function splitOversizedBlock(block: string, maxChars: number): string[] {
+  const trimmed = block.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxChars) return [trimmed];
+
+  // 1) 优先按单换行切分（不截断行内题干或选项）
+  const lines = trimmed.split(/\r?\n/).map((l) => l.trimEnd()).filter((l) => l.trim().length > 0);
+  if (lines.length > 1) {
+    const out: string[] = [];
+    let cur = "";
+    for (const line of lines) {
+      if (line.length > maxChars) {
+        if (cur) {
+          out.push(cur);
+          cur = "";
+        }
+        out.push(...splitBySentenceOrHard(line, maxChars));
+      } else if (cur && cur.length + 1 + line.length > maxChars) {
+        out.push(cur);
+        cur = line;
+      } else {
+        cur = cur ? `${cur}\n${line}` : line;
+      }
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+
+  // 2) 单行超长：按句末标点兜底切分，最后才硬切
+  return splitBySentenceOrHard(trimmed, maxChars);
+}
+
+function splitBySentenceOrHard(text: string, maxChars: number): string[] {
+  const sents = text.match(/[^。！？.!?；;]+[。！？.!?；;]?/g) ?? [text];
+  const out: string[] = [];
+  let cur = "";
+  for (const s of sents) {
+    if (s.length > maxChars) {
+      if (cur) {
+        out.push(cur);
+        cur = "";
+      }
+      for (let i = 0; i < s.length; i += maxChars) {
+        out.push(s.slice(i, i + maxChars));
+      }
+    } else if (cur && cur.length + s.length > maxChars) {
+      out.push(cur);
+      cur = s;
+    } else {
+      cur += s;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** 长材料切片（按自然段落与题号边界聚合，maxChars 默认 3000 字，与二遍核验 1:1 对齐） */
+export function sliceText(text: string, maxChars = AI_CHUNK_MAX_CHARS): string[] {
+  const safeMax = Math.max(100, Math.floor(maxChars));
+  const rawParas = text
+    .split(/\n{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!rawParas.length) return text.trim() ? [text.trim()] : [];
+
+  // 若段落内包含多道连续题目且超出上限，先按题号边界拆开再聚合，避免题干与选项被硬拆
+  const units: string[] = [];
+  for (const p of rawParas) {
+    if (p.length <= safeMax) {
+      units.push(p);
+      continue;
+    }
+    const qParts = p.split(QUESTION_BOUNDARY_RE).map((s) => s.trim()).filter(Boolean);
+    if (qParts.length > 1) {
+      for (const qp of qParts) {
+        units.push(...splitOversizedBlock(qp, safeMax));
+      }
+    } else {
+      units.push(...splitOversizedBlock(p, safeMax));
+    }
+  }
+
+  const chunks: string[] = [];
+  let cur = "";
+  for (const u of units) {
+    if (cur && cur.length + 2 + u.length > safeMax) {
+      chunks.push(cur);
+      cur = u;
+    } else {
+      cur = cur ? `${cur}\n\n${u}` : u;
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
+/** 按自然边界截断文本（不在题干或选项中间硬截断），返回截断详情供前端诚实提示 */
+export function truncateAtNaturalBoundary(
+  text: string,
+  maxChars = AI_CHUNK_MAX_CHARS,
+): { text: string; truncated: boolean; originalLength: number; omittedLength: number } {
+  const original = String(text ?? "");
+  const trimmed = original.trim();
+  if (!trimmed) {
+    return { text: "", truncated: false, originalLength: 0, omittedLength: 0 };
+  }
+  if (trimmed.length <= maxChars) {
+    return { text: trimmed, truncated: false, originalLength: trimmed.length, omittedLength: 0 };
+  }
+  const firstChunk = sliceText(trimmed, maxChars)[0] ?? trimmed.slice(0, maxChars);
+  return {
+    text: firstChunk,
+    truncated: firstChunk.length < trimmed.length,
+    originalLength: trimmed.length,
+    omittedLength: Math.max(0, trimmed.length - firstChunk.length),
+  };
+}
+
+/** Prompt 预设（Prompt Settings lite；用户自定义模板编辑待 v0.4.x） */
+export const PROMPT_PRESETS: Record<string, { label: string; hint: string }> = {
+  default: { label: "通用", hint: "" },
+  gongkao: {
+    label: "公考行测",
+    hint: "命题风格贴近公务员考试行测：言语理解与表达、数量关系、判断推理、资料分析、常识判断；干扰项设为常见速算/逻辑误区。",
+  },
+  kaoyan: {
+    label: "考研政治",
+    hint: "命题风格贴近考研政治：马原/毛中特/史纲/思修法基/时政；重视概念辨析与内涵外延；干扰项为相近表述偷换。",
+  },
+  yixue: {
+    label: "医学执业",
+    hint: "命题风格贴近医学执业资格考试：临床情景题干、A1/A2 型表述；干扰项为相似症状/体征/用药误区。",
+  },
+  jiakao: { label: "驾考", hint: "命题风格贴近驾考科目一/四：交规条款、标志标线、安全文明驾驶；题干简短直白。" },
+};
+
+/**
+ * 干扰项构建规范（docs/03 附录 A；Haladyna & Downing 1993 / TGM-D 复述版）
+ * 选择题选项必须逐条自查，避免"唯长选项""词面呼应题干"等表面线索。
+ */
+export const HALADYNA_RULES = [
+  "干扰项彼此同质（同类概念/同类量纲/同类表述长度，禁止唯一长选项或唯一精确表述）；",
+  "每个干扰项对应一个可诊断的常见误解（算错/偷换概念/张冠李戴），并在解析中点名该误区；",
+  "禁止绝对化词面（都/最/必然/一定）与题干词面重复造成的提示性线索；",
+  '选项避免"以上都对/都不是/全部/都不"及组合式兜底；',
+  "选项相互独立不重叠（单项只有一个可辩护正确答案，多选各正确项有独立依据）；",
+  "正确项位置/长度不形成规律性偏好。",
+].join("\n");
+
+export function buildPrompt(chunk: string, opt: GenOptions): AiMessage[] {
+  const types = opt.types.length ? opt.types : ["single"];
+  const typeLine = types
+    .map((t) => ({ single: "单选", multiple: "多选", judge: "判断", fill: "填空", short: "简答" })[t])
+    .join("、");
+  const presetHint = opt.preset && PROMPT_PRESETS[opt.preset] ? PROMPT_PRESETS[opt.preset].hint : "";
+  const customHint = opt.customHint?.trim() ? `\n用户额外要求：${opt.customHint.trim()}` : "";
+  const profilePrefix = opt.profilePrefix?.trim() ? `${opt.profilePrefix.trim()}\n\n` : "";
+  const hasChoice = types.some((t) => t === "single" || t === "multiple");
+  const system =
+    profilePrefix +
+    [
+      "你是严谨的命题专家。根据给定材料出题，禁止编造材料中不存在的事实。",
+      presetHint ? `命题风格：${presetHint}` : "",
+      "硬性规则：",
+      "1) 只输出一个 JSON 数组，不要任何解释文字或代码围栏；",
+      '2) 每题字段：type(stem 的题型：single/multiple/judge/fill/short)、stem(题干，禁止"以下说法正确的是"式空泛句)、options(字符串数组，judge/fill/short 为空数组)、answer(单选=字母；多选=字母连写如 ABD；判断=对/错；填空/简答=文本)、analysis(解析 ≥30 字，必须含因果解释)、kp(知识点标签，可为空)、expansion(思路拓展与秒杀技巧，选填)、prerequisites(先修依赖前置概念，字符串数组，选填，供自适应错题溯源)；',
+      '3) 干扰项应为常见误解；禁止"以上都对/都不是"类选项；',
+      "4) 难度目标：" +
+        (opt.difficulty === "mixed"
+          ? "易中难混合"
+          : opt.difficulty === "easy"
+            ? "基础"
+            : opt.difficulty === "hard"
+              ? "较难"
+              : "中等") +
+        "。",
+      hasChoice ? "5) 干扰项构建规范（逐题自查）：\n" + HALADYNA_RULES : "",
+      opt.locator?.quote ? "6) 资料严格锚定规则（DeepTutor 零幻觉准则）：题目与解析的所有事实依据必须严格来自所提供的材料与核心引文，禁止捏造材料之外的推论。" : "",
+    ]
+      .filter(Boolean)
+      .join("\n") + customHint;
+  const quoteSegment = opt.locator?.quote ? `【核心引文】\n${opt.locator.quote}\n\n` : "";
+  const user = `${quoteSegment}【材料】\n${chunk}\n\n【要求】出 ${opt.count} 道题（题型：${typeLine}）。${opt.kp ? `考点方向：${opt.kp}。` : ""}只输出 JSON 数组。`;
+  return [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
+}
+
+/** 修复 LLM 输出 JSON 中的常见畸形：尾随逗号与未双写转义的 LaTeX 反斜杠 */
+function repairLlmJsonString(jsonText: string): string {
+  // 1) 逐字符扫描字符串字面量，修正非法反斜杠（如 \frac, \sqrt, \times, \theta, \underline 等）
+  let out = "";
+  let inStr = false;
+  for (let i = 0; i < jsonText.length; i++) {
+    const ch = jsonText[i];
+    if (!inStr) {
+      if (ch === '"') inStr = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = false;
+      out += ch;
+      continue;
+    }
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const next = jsonText[i + 1];
+    if (next == null) {
+      out += "\\\\";
+      continue;
+    }
+    if (next === '"' || next === "\\" || next === "/") {
+      out += ch + next;
+      i++;
+      continue;
+    }
+    if (next === "u") {
+      const hex = jsonText.slice(i + 2, i + 6);
+      if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+        out += "\\u" + hex;
+        i += 5;
+        continue;
+      }
+      out += "\\\\u";
+      i++;
+      continue;
+    }
+    if (next === "b" || next === "f" || next === "n" || next === "r" || next === "t") {
+      // 若后面紧跟明确的 LaTeX 命令（如 \frac, \times, \theta, \text, \to, \right, \rule, \neq, \beta, \begin），按 LaTeX 转义；
+      // 严禁使用 [a-zA-Z]{2,} 泛化兜底，以免把合法 JSON 换行 \nTherefore 错改为字面量 \\nTherefore
+      const tail = jsonText.slice(i + 1, i + 16);
+      if (/^(?:frac|fbox|forall|times|theta|textbf|textit|textrm|tfrac|text|top|to(?![a-zA-Z])|tan(?![a-zA-Z])|tau(?![a-zA-Z])|triangle|rightarrow|right|rangle|rceil|rfloor|rho(?![a-zA-Z])|rule|neq|nu(?![a-zA-Z])|nabla|notin|bar(?![a-zA-Z])|beta|binom|boldsymbol|bot(?![a-zA-Z])|begin|because|bullet)/.test(tail)) {
+        out += "\\\\" + next;
+      } else {
+        out += ch + next;
+      }
+      i++;
+      continue;
+    }
+    // 其余任意反斜杠转义（\sqrt, \underline, \cdot, \le, \ge, \alpha, \pi, \{, \} 等）一律补全为 \\
+    out += "\\\\" + next;
+    i++;
+  }
+
+  // 2) 移除字符串外部的尾随逗号（如 ,] 或 ,}）
+  let noTrailing = "";
+  inStr = false;
+  let esc = false;
+  for (let i = 0; i < out.length; i++) {
+    const ch = out[i];
+    if (esc) {
+      noTrailing += ch;
+      esc = false;
+      continue;
+    }
+    if (inStr) {
+      if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      noTrailing += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+      noTrailing += ch;
+      continue;
+    }
+    if (ch === ",") {
+      let j = i + 1;
+      while (j < out.length && /\s/.test(out[j])) j++;
+      if (out[j] === "]" || out[j] === "}") {
+        continue;
+      }
+    }
+    noTrailing += ch;
+  }
+  return noTrailing;
+}
+
+/** 容错 JSON 解析：剥代码围栏（含残缺围栏）、截取首个 [..] 平衡段、容错 LaTeX 反斜杠与尾随逗号 */
+export function extractJsonArray(raw: string): unknown[] | null {
+  let s = raw.trim();
+  // 剥离开头/中间的 ```json 或 ``` 代码围栏（即使末尾无闭合 ```）
+  const firstFence = s.match(/```(?:json)?\s*([\s\S]*)/i);
+  if (firstFence && s.indexOf("[") > (firstFence.index ?? 0)) {
+    s = firstFence[1];
+  }
+  s = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
+  const start = s.indexOf("[");
+  if (start < 0) return null;
+  let depth = 0,
+    inStr = false,
+    esc = false,
+    end = -1,
+    lastObjEnd = -1;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (esc) {
+      esc = false;
+      continue;
+    }
+    if (ch === "\\") {
+      esc = true;
+      continue;
+    }
+    if (ch === '"') inStr = !inStr;
+    if (inStr) continue;
+    if (ch === "[" || ch === "{") depth++;
+    else if (ch === "}" || ch === "]") {
+      depth--;
+      if (ch === "}" && depth === 1) lastObjEnd = i;
+      if (ch === "]" && depth === 0) {
+        end = i;
+        break;
+      }
+    }
+  }
+  const candidate = end >= 0
+    ? s.slice(start, end + 1)
+    : lastObjEnd > start
+      ? `${s.slice(start, lastObjEnd + 1)}]`
+      : "";
+  if (!candidate) return null;
+  try {
+    const arr = JSON.parse(candidate);
+    return Array.isArray(arr) ? arr : null;
+  } catch {
+    try {
+      const repaired = repairLlmJsonString(candidate);
+      const arr = JSON.parse(repaired);
+      return Array.isArray(arr) ? arr : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+const MIN_ANALYSIS = 12;
+
+function toQuestion(o: Record<string, unknown>, opt: GenOptions, batch: string): { q?: Question; reason?: string } {
+  const type = String(o.type ?? "").toLowerCase() as Question["type"];
+  if (!["single", "multiple", "judge", "fill", "short"].includes(type)) return { reason: `题型无法识别：${type}` };
+  const stem = String(o.stem ?? "").trim();
+  const options = Array.isArray(o.options) ? (o.options as unknown[]).map((x) => String(x)) : [];
+  const answer = normalizeAnswer(type, String(o.answer ?? ""));
+  if (!answer) return { reason: `答案无法识别：${String(o.answer ?? "")}` };
+  const analysis = String(o.analysis ?? "").trim();
+  if (foldText(analysis).length < MIN_ANALYSIS) return { reason: "解析过短（缺少因果解释）" };
+  if (/以上都[是对]|以上选项都/.test(stem + options.join(""))) return { reason: '含"以上都对"类禁用选项' };
+  const expansion = typeof o.expansion === "string" && o.expansion.trim() ? o.expansion.trim() : undefined;
+  const prerequisites = Array.isArray(o.prerequisites)
+    ? (o.prerequisites as unknown[]).map((p) => String(p).trim()).filter(Boolean)
+    : typeof o.prerequisites === "string" && o.prerequisites.trim()
+      ? o.prerequisites.split(/[,，、;；]/).map((p) => p.trim()).filter(Boolean)
+      : undefined;
+
+  const q: Question = {
+    id: newQuestionId(),
+    type,
+    stem,
+    options,
+    answer,
+    analysis,
+    expansion,
+    prerequisites: prerequisites && prerequisites.length > 0 ? prerequisites : undefined,
+    difficulty: opt.difficulty === "mixed" ? undefined : { easy: 2, medium: 3, hard: 4 }[opt.difficulty],
+    score: 1,
+    source: opt.sourceTitle
+      ? `AI · ${opt.sourceTitle}${opt.locator?.page ? ` (P.${opt.locator.page})` : ""}`
+      : "AI 生成",
+    sourceKind: "mock",
+    kp: String(o.kp ?? opt.kp ?? ""),
+    origin: "ai",
+    batch,
+    review: "pending",
+    hash: questionHash(stem, options),
+  };
+  const bad = validate(q);
+  if (bad) return { reason: bad };
+  return { q };
+}
+
+/** Question → 可重试的完整 JSON（repairIssues 的修复输入；不截断） */
+function rawOf(q: Question): string {
+  return JSON.stringify({
+    type: q.type,
+    stem: q.stem,
+    options: q.options,
+    answer: q.answer,
+    analysis: q.analysis,
+    kp: q.kp,
+    expansion: q.expansion,
+    prerequisites: q.prerequisites,
+  });
+}
+
+/** 二遍核验（换角色）：严格审题人对每题打置信度；<0.85 或 pass=false 淘汰（research/08 Quanta+QuizAPI 范式） */
+export const REVIEW_CONFIDENCE_MIN = 0.85;
+
+function resolveAbortSignal(opt: Pick<GenOptions, "signal" | "abortSignal">): AbortSignal | undefined {
+  if (opt.abortSignal) return opt.abortSignal;
+  const sig = opt.signal as unknown as { addEventListener?: unknown; controller?: AbortController } | undefined;
+  if (sig && typeof sig.addEventListener === "function") return sig as unknown as AbortSignal;
+  return sig?.controller?.signal;
+}
+
+function isGenAborted(opt: Pick<GenOptions, "signal" | "abortSignal">): boolean {
+  const sig = opt.signal as { aborted?: boolean } | undefined;
+  return Boolean(sig?.aborted || opt.abortSignal?.aborted);
+}
+
+export async function reviewQuestions(
+  channel: AiChannel,
+  questions: Question[],
+  sourceChunk: string,
+  abortSignal?: AbortSignal,
+): Promise<Map<string, { confidence: number; pass: boolean; reason?: string }>> {
+  const out = new Map<string, { confidence: number; pass: boolean; reason?: string }>();
+  if (!questions.length) return out;
+  const boundedSource = truncateAtNaturalBoundary(sourceChunk, AI_CHUNK_MAX_CHARS).text;
+  const compact = questions.map((q, i) => ({
+    index: i + 1,
+    id: q.id,
+    type: q.type,
+    stem: q.stem,
+    options: q.options,
+    answer: q.answer,
+    analysis: q.analysis,
+  }));
+  const messages: AiMessage[] = [
+    {
+      role: "system",
+      content:
+        '你是苛刻的审题人。对照材料逐题核查：答案是否唯一正确、解析是否因果成立、干扰项是否合理。只输出 JSON 数组：[{"id":题目id,"confidence":0到1,"pass":布尔,"reason":一句否决理由（pass 时省略）}]。',
+    },
+    { role: "user", content: `【材料】\n${boundedSource}\n\n【待核题目】\n${JSON.stringify(compact)}` },
+  ];
+  const raw = await channel.chat(messages, abortSignal);
+  const arr = extractJsonArray(raw);
+  if (!arr) {
+    // 核验失败不吞题：全部标低置信待人工（降级语义）
+    for (const q of questions) out.set(q.id, { confidence: 0, pass: false, reason: "核验响应不可解析" });
+    return out;
+  }
+  for (const item of arr) {
+    const o = item as Record<string, unknown>;
+    if (typeof o?.id === "string" && typeof o?.confidence === "number") {
+      out.set(String(o.id), {
+        confidence: Math.max(0, Math.min(1, o.confidence)),
+        pass: o.pass !== false,
+        reason: typeof o.reason === "string" ? o.reason : undefined,
+      });
+    }
+  }
+  // 缺失的题按未核验处理
+  for (const q of questions)
+    if (!out.has(q.id)) out.set(q.id, { confidence: 0, pass: false, reason: "审题人未返回该题" });
+  return out;
+}
+
+/** 生成入口：调通道 → 解析 → 门槛 → （标准档）二遍核验 → 去重 → 待审核 */
+export async function generate(channel: AiChannel, sourceText: string, opt: GenOptions): Promise<GenResult> {
+  const chunks = sliceText(sourceText);
+  if (!chunks.length) throw new Error("材料为空");
+  const pending: Question[] = [];
+  const rejected: GenIssue[] = [];
+  const seenHash = new Set(opt.existingHashes);
+  const dedupe = true;
+  let duplicates = 0;
+  let idx = 0;
+  const batch = newBatchId();
+  const quality = opt.quality ?? "standard";
+  const abortSignal = resolveAbortSignal(opt);
+  // 动态题数配额 + 自然边界 3000 字分片：按剩余待出题数均匀分配各分片目标，避免多分片重复超量爆超时
+  for (let ci = 0; ci < chunks.length; ci++) {
+    const chunk = chunks[ci];
+    if (isGenAborted(opt)) break;
+    const remainingNeeded = Math.max(1, opt.count - pending.length);
+    const remainingChunks = chunks.length - ci;
+    const chunkTargetCount =
+      chunks.length === 1
+        ? opt.count
+        : Math.min(
+            remainingNeeded,
+            Math.max(1, Math.ceil(remainingNeeded / remainingChunks) + (quality === "standard" ? 1 : 0)),
+          );
+    const chunkOpt = chunkTargetCount === opt.count ? opt : { ...opt, count: chunkTargetCount };
+    const messages = buildPrompt(chunk, chunkOpt);
+    let raw: string;
+    try {
+      raw = await channel.chat(messages, abortSignal);
+    } catch (e) {
+      if (isGenAborted(opt)) break;
+      throw e;
+    }
+    // A channel may not support transport-level cancellation (for example the
+    // SiYuan kernel proxy). Ignore a response that arrived after the user
+    // cancelled while it was in flight; completed earlier chunks remain in
+    // `pending` and are returned below.
+    if (isGenAborted(opt)) break;
+    const arr = extractJsonArray(raw);
+    if (!arr) {
+      rejected.push({ index: ++idx, reason: "响应不是有效 JSON 数组", raw: raw.slice(0, 120) });
+      continue;
+    }
+    const candidates: Question[] = [];
+    for (const item of arr) {
+      idx++;
+      if (!(item && typeof item === "object")) {
+        rejected.push({ index: idx, reason: "非对象", raw: JSON.stringify(item).slice(0, 80) });
+        continue;
+      }
+      const r = toQuestion(item as Record<string, unknown>, opt, batch);
+      if (r.reason || !r.q) {
+        rejected.push({ index: idx, reason: r.reason ?? "未知", raw: JSON.stringify(item).slice(0, 80) });
+        continue;
+      }
+      if (dedupe && seenHash.has(r.q.hash)) {
+        duplicates++;
+        continue;
+      }
+      candidates.push(r.q);
+    }
+    // 标准档：二遍换角色核验
+    if (quality === "standard" && candidates.length) {
+      if (isGenAborted(opt)) break;
+      let verdicts: Map<string, { confidence: number; pass: boolean; reason?: string }>;
+      try {
+        verdicts = await reviewQuestions(channel, candidates, chunk, abortSignal);
+      } catch (e) {
+        if (isGenAborted(opt)) break;
+        throw e;
+      }
+      if (isGenAborted(opt)) break;
+      for (const q of candidates) {
+        // 2026-11-21 走查修复（P3）：淘汰序号原引用分片循环外的全局计数 idx（恒同值），
+        // 改为候选题局部序号，AI 待审队列可对照原始题序
+        const localIdx = candidates.indexOf(q) + 1;
+        const v = verdicts.get(q.id) ?? { confidence: 0, pass: false, reason: "未核验" };
+        if (!v.pass || v.confidence < REVIEW_CONFIDENCE_MIN) {
+          rejected.push({
+            index: localIdx,
+            reason: `二遍核验淘汰：置信 ${v.confidence.toFixed(2)}${v.reason ? " · " + v.reason : ""}`,
+            raw: rawOf(q),
+          });
+          continue;
+        }
+        q.confidence = v.confidence;
+        if (seenHash.has(q.hash)) {
+          duplicates++;
+          continue;
+        }
+        seenHash.add(q.hash);
+        pending.push(q);
+        if (pending.length >= opt.count) break;
+      }
+    } else {
+      for (const q of candidates) {
+        if (seenHash.has(q.hash)) {
+          duplicates++;
+          continue;
+        }
+        seenHash.add(q.hash);
+        pending.push(q);
+        if (pending.length >= opt.count) break;
+      }
+    }
+    if (pending.length >= opt.count) break;
+  }
+  return { pending, rejected, duplicates, batch };
+}
+
+/** 拒绝项重试（AI Inbox 范式的"重试"腿）：带否决原因让 AI 逐题修复 → 再过一遍门槛+二遍核验 */
+export async function repairIssues(
+  channel: AiChannel,
+  issues: GenIssue[],
+  sourceText: string,
+  opt: GenOptions,
+): Promise<GenResult> {
+  const batch = newBatchId();
+  const seenHash = new Set(opt.existingHashes);
+  const pending: Question[] = [];
+  const rejected: GenIssue[] = [];
+  let duplicates = 0;
+  const quality = opt.quality ?? "standard";
+  const abortSignal = resolveAbortSignal(opt);
+  if (isGenAborted(opt)) return { pending, rejected: issues, duplicates, batch };
+
+  const unfixable = issues.filter((i) => !i.raw.trim().startsWith("{"));
+  const fixable = issues.filter((i) => i.raw.trim().startsWith("{"));
+  if (!fixable.length) return { pending: [], rejected: issues, duplicates: 0, batch };
+
+  const chunks: string[] = [];
+  for (let i = 0; i < fixable.length; i += 5) {
+    chunks.push(
+      fixable
+        .slice(i, i + 5)
+        .map((f) => `【否决原因】${f.reason}\n【原题 JSON】${f.raw}`)
+        .join("\n\n"),
+    );
+  }
+  let completedFixable = 0;
+  const repairSource = truncateAtNaturalBoundary(sourceText, AI_CHUNK_MAX_CHARS).text;
+  for (let ci = 0; ci < chunks.length; ci++) {
+    if (isGenAborted(opt)) break;
+    const group = fixable.slice(ci * 5, ci * 5 + 5);
+    // Commit each group only after its response and optional review finish.
+    // Cancelling an in-flight group retains its original issues for retry.
+    const groupRejected: GenIssue[] = [];
+    let groupDuplicates = 0;
+    const messages: AiMessage[] = [
+      {
+        role: "system",
+        content:
+          '你是严谨的命题修订人。针对每道被否决的题，按否决原因修复（改干扰项/补解析/修答案），保持题型与考点不变。只输出修复后的 JSON 数组，元素结构：{"type":"single|multiple|judge|fill|short","stem":"...","options":[...],"answer":"...","analysis":"...","kp":"..."}。',
+      },
+      { role: "user", content: `【材料】\n${repairSource}\n\n【待修复题目】\n${chunks[ci]}` },
+    ];
+    let raw: string;
+    try {
+      raw = await channel.chat(messages, abortSignal);
+    } catch (e) {
+      if (isGenAborted(opt)) break;
+      throw e;
+    }
+    if (isGenAborted(opt)) break;
+    const arr = extractJsonArray(raw);
+    if (!arr) {
+      group.forEach((f) => rejected.push({ index: f.index, reason: f.reason + "（修复响应不可解析）", raw: f.raw }));
+      completedFixable += group.length;
+      continue;
+    }
+    const candidates: Question[] = [];
+    for (const item of arr) {
+      if (!(item && typeof item === "object")) continue;
+      const r = toQuestion(item as Record<string, unknown>, opt, batch);
+      if (r.reason || !r.q) {
+        groupRejected.push({ index: 0, reason: r.reason ?? "未知", raw: JSON.stringify(item).slice(0, 120) });
+        continue;
+      }
+      if (seenHash.has(r.q.hash)) {
+        groupDuplicates++;
+        continue;
+      }
+      candidates.push(r.q);
+    }
+    if (quality === "standard" && candidates.length) {
+      if (isGenAborted(opt)) break;
+      let verdicts: Map<string, { confidence: number; pass: boolean; reason?: string }>;
+      try {
+        verdicts = await reviewQuestions(channel, candidates, repairSource, abortSignal);
+      } catch (e) {
+        if (isGenAborted(opt)) break;
+        throw e;
+      }
+      if (isGenAborted(opt)) break;
+      for (const q of candidates) {
+        const v = verdicts.get(q.id) ?? { confidence: 0, pass: false, reason: "未核验" };
+        if (!v.pass || v.confidence < REVIEW_CONFIDENCE_MIN) {
+          groupRejected.push({
+            index: 0,
+            reason: `修复后核验仍淘汰：置信 ${v.confidence.toFixed(2)}${v.reason ? " · " + v.reason : ""}`,
+            raw: rawOf(q),
+          });
+          continue;
+        }
+        q.confidence = v.confidence;
+        if (seenHash.has(q.hash)) {
+          groupDuplicates++;
+          continue;
+        }
+        seenHash.add(q.hash);
+        pending.push(q);
+      }
+    } else {
+      for (const q of candidates) {
+        if (seenHash.has(q.hash)) {
+          groupDuplicates++;
+          continue;
+        }
+        seenHash.add(q.hash);
+        pending.push(q);
+      }
+    }
+    rejected.push(...groupRejected);
+    duplicates += groupDuplicates;
+    completedFixable += group.length;
+  }
+  // Cancelled/current and later groups remain retryable; unparseable input
+  // issues are also retained because they never participated in this run.
+  rejected.push(...fixable.slice(completedFixable), ...unfixable);
+  return { pending, rejected, duplicates, batch };
+}
