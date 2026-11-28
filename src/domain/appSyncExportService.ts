@@ -30,6 +30,21 @@ export class AppSyncExportService {
     return buildCompactAnswerSheetPro(title, questions, options);
   }
 
+  async buildStandardAnswerCard(
+    title: string,
+    bankId?: string,
+    options?: import("../core/printPro").PrintProOptions,
+  ): Promise<string> {
+    const targetBank = bankId ?? this.app.listBanks()[0]?.id;
+    const questions = targetBank ? await this.app.listQuestions(targetBank) : [];
+    const { buildStandardAnswerCardPro } = await import("../core/printPro");
+    return buildStandardAnswerCardPro(title, questions, {
+      paperSize: "A4",
+      columns: "single",
+      ...options,
+    });
+  }
+
   async buildTeacherLectureSheet(
     title: string,
     bankId?: string,
@@ -116,14 +131,36 @@ export class AppSyncExportService {
     if (options?.signal?.aborted) {
       throw new DOMException("Aborted", "AbortError");
     }
-    const ocrData = await this.app.bridge.assetOcr(assetPath, {
-      signal: options?.signal,
-      timeoutMs: options?.timeoutMs,
-    });
+    let text = "";
+    if (typeof this.app.bridge.getImageOcrText === "function") {
+      try {
+        text = (await this.app.bridge.getImageOcrText(assetPath)) || "";
+      } catch {
+        text = "";
+      }
+    }
+    if (!text.trim()) {
+      try {
+        const ocrData = await this.app.bridge.assetOcr(assetPath, {
+          signal: options?.signal,
+          timeoutMs: options?.timeoutMs,
+        });
+        text = ocrData?.text || "";
+      } catch (err) {
+        if (options?.signal?.aborted || (err instanceof Error && err.name === "AbortError")) {
+          throw err;
+        }
+        const rawMsg = String(err instanceof Error ? err.message : err);
+        if (/ocr provider is unavailable|tesseract|fatal/i.test(rawMsg)) {
+          throw new Error("思源内置 OCR 引擎不可用，请在「思源设置 → OCR」开启内置识图，或直接粘贴配图后使用文本/AI 识别。");
+        }
+        throw err;
+      }
+    }
     if (options?.signal?.aborted) {
       throw new DOMException("Aborted", "AbortError");
     }
-    return this.parseOcrTextToQuestion(ocrData.text, {
+    return this.parseOcrTextToQuestion(text, {
       fallbackSource: assetPath,
       ...options,
     });

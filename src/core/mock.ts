@@ -484,12 +484,13 @@ export class MockSession {
    */
   rateSubjectiveQuestion(qid: string, factor: number): void {
     const safeFactor = Math.max(0, Math.min(1, Number(factor) || 0));
+    const verdict = safeFactor >= 0.6 ? "correct" : "wrong";
     let ans = this.answers.get(qid);
     if (!ans) {
       ans = {
         qid,
         answer: null,
-        verdict: safeFactor >= 1 ? "correct" : "wrong",
+        verdict,
         factor: safeFactor,
         timeMs: 0,
         answeredAt: 0,
@@ -498,7 +499,7 @@ export class MockSession {
       this.answers.set(qid, ans);
     } else {
       ans.factor = safeFactor;
-      ans.verdict = safeFactor >= 1 ? "correct" : "wrong";
+      ans.verdict = verdict;
     }
   }
 
@@ -549,7 +550,11 @@ export class MockSession {
       sec.total++;
       sec.timeSpentMs += a.timeMs;
       if (a.verdict === "correct") {
-        sec.correct++;
+        if (a.factor > 0 && a.factor < 1) {
+          sec.partial++;
+        } else {
+          sec.correct++;
+        }
       } else if (a.factor > 0) {
         sec.partial++;
       }
@@ -566,7 +571,7 @@ export class MockSession {
         {
           scoreEach,
           verdict: a.verdict,
-          factor: a.verdict === "correct" ? 1 : a.factor,
+          factor: q?.type === "short" ? a.factor : (a.verdict === "correct" ? 1 : a.factor),
           type: this.indefinite.has(qid) ? "multiple" : q?.type,
         },
         policy,

@@ -779,7 +779,7 @@
   @container lv-exam (max-width: 900px) {
     .lv-entry-overview { margin-bottom: 8px; gap: 8px; }
     .lv-entry-hero { grid-template-columns: minmax(0,1fr) auto; padding: 10px 12px; gap: 10px; border-radius: var(--lv-r-3, 14px); }
-    .lv-entry-reason { font-size: 13.5px; line-height: 1.35; margin: 2px 0 6px; }
+    .lv-entry-reason { font-size: 13.5px; letter-spacing: normal; line-height: 1.45; margin: 2px 0 6px; }
     .lv-hero-actions { margin-top: 4px; }
     .lv-hero-copy-btn { display: none !important; }
     .lv-entry-num { border-left: 1px solid var(--lv-darkcard-border); border-top: 0; padding: 2px 0 2px 10px; flex-direction: column; align-items: center; gap: 2px; justify-content: center; }

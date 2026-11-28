@@ -286,6 +286,7 @@ export class ExamApp {
 
   buildCompactQuestionSheet(title: string, bankId?: string, options?: any) { return this.syncExport.buildCompactQuestionSheet(title, bankId, options); }
   buildCompactAnswerSheet(title: string, bankId?: string, options?: any) { return this.syncExport.buildCompactAnswerSheet(title, bankId, options); }
+  buildStandardAnswerCard(title: string, bankId?: string, options?: any) { return this.syncExport.buildStandardAnswerCard(title, bankId, options); }
   buildTeacherLectureSheet(title: string, bankId?: string, options?: any) { return this.syncExport.buildTeacherLectureSheet(title, bankId, options); }
   buildStudentHomeworkSheet(title: string, bankId?: string, options?: any) { return this.syncExport.buildStudentHomeworkSheet(title, bankId, options); }
   updateQuestionLifecycle(q: any, targetStatus: QuestionLifecycleStatus) { return this.questionService.updateQuestionLifecycle(q, targetStatus); }

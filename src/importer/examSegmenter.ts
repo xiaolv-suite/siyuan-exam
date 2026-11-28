@@ -13,7 +13,7 @@
 import type { Question, QuestionType } from "@/core/types";
 import { questionHash } from "@/core/answer";
 import { newQuestionId } from "@/core/ids";
-import { lintQuestion, autoFixQuestion } from "@/core/questionLinter";
+import { lintQuestion, autoFixQuestion, hasBlankPlaceholder, isBoldSectionHeadingLine } from "@/core/questionLinter";
 
 export interface SegmentedExamResult {
   questions: Question[];
@@ -101,8 +101,85 @@ const SECTION_RE = /^[#\s]*(?:第[一二三四五六七八九十]+部分|[一二
 // 答案解析专区起始正则：整行必须是专区标题，例如 "【参考答案与解析】"、"【参考答案及解析】"、"参考答案及评分标准" 等
 const ANSWER_ZONE_RE = /^[#\s]*【?(?:参考答案(?:[与及和](?:详细)?(?:解析|评分标准|评分细则|提示))?|[参考]*答案[与及和](?:详细)?(?:解析|评分标准|评分细则|提示)|试卷(?:参考)?答案(?:[与及和]解析)?|试题参考答案)】?[：:]?\s*$/i;
 
-// 题目题号起始正则：例如 "1. "、"2、"、"15) "、"(1) "、"（1）"，严格排除类似 "1.5" 的浮点数
-const Q_START_RE = /^[（(【]?(\d+)[.、\s)）】]\s*(?!\d)(.*)$/;
+// 题目题号起始匹配（兼容 **1.**、**1、**、**(1)**、**1)**、【例1】、1.、1、 等，严格排除 1.5 小数）
+const BOLD_CLOSED_Q_RE = /^\*\*\s*(?:第\s*(\d+)\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*(\d+)】|[（(](\d+)[)）]|(\d+)(?:\.(?!\d)|[、)）]))\s*\*\*\s*(.*)$/;
+const BOLD_OPEN_Q_RE = /^\*\*\s*(?:第\s*(\d+)\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*(\d+)】|[（(](\d+)[)）]|(\d+)(?:\.(?!\d)|[、)）]))\s*(.*)$/;
+const PLAIN_Q_RE = /^(?:第\s*(\d+)\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*(\d+)】|[（(](\d+)[)）]|(\d+)(?:\.(?!\d)|[、)）]))\s*(.*)$/;
+
+function matchQuestionStart(line: string): { num: number; rest: string; isParen: boolean } | null {
+  const trimmed = line.trim();
+  let m = trimmed.match(BOLD_CLOSED_Q_RE);
+  if (m) {
+    const num = parseInt(m[1] || m[2] || m[3] || m[4], 10);
+    return { num, rest: (m[5] || "").trim(), isParen: false };
+  }
+  m = trimmed.match(BOLD_OPEN_Q_RE);
+  if (m) {
+    const num = parseInt(m[1] || m[2] || m[3] || m[4], 10);
+    const rawRest = (m[5] || "").trim();
+    const rest = rawRest.includes("**") ? `**${rawRest}` : rawRest;
+    return { num, rest, isParen: false };
+  }
+  m = trimmed.match(PLAIN_Q_RE);
+  if (m) {
+    const num = parseInt(m[1] || m[2] || m[3] || m[4], 10);
+    const isParen = /^[（(]/.test(trimmed);
+    return { num, rest: (m[5] || "").trim(), isParen };
+  }
+  return null;
+}
+
+function splitHorizontalOptionsLine(line: string): string[] | null {
+  const spans: string[] = [];
+  const tokenOf = (raw: string) => {
+    const idx = spans.length;
+    spans.push(raw);
+    return `@@SEGMASK_${idx}@@`;
+  };
+  const masked = line
+    .replace(/```[\s\S]*?```/g, tokenOf)
+    .replace(/`[^`\n\r]+?`/g, tokenOf)
+    .replace(/\$\$[\s\S]*?\$\$/g, tokenOf)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, tokenOf)
+    .replace(/(?<!\\)\$[^$\n\r]+?\$/g, tokenOf);
+  const restore = (s: string) => s.replace(/@@SEGMASK_(\d+)@@/g, (_m, i: string) => spans[Number(i)] ?? _m);
+
+  // 严格匹配选项前缀：A. / A、 / (A) / （A） / A: / 或 A + 空格（仅当同行包含 B 时启用）
+  const hasStrict = /^[(（]?[A-Ja-j][.、:：)）]/.test(masked) || /\s+[(（]?[A-Ja-j][.、:：)）]/.test(masked);
+  const hasSpaceAlphaSeq = /^[A-J]\s+\S+/.test(masked) && /\s+[B-J]\s+\S+/.test(masked);
+  if (!hasStrict && !hasSpaceAlphaSeq) return null;
+
+  const optRegex = hasStrict
+    ? /(?:^|\s+)(?:[（(]([A-Ja-j])[)）]|([A-Ja-j])[.、:：)）])\s*/g
+    : /(?:^|\s+)(?:[（(]?([A-J])[.、:：)）\s])\s*/g;
+  const rawMatches: Array<{ letter: string; index: number; len: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = optRegex.exec(masked)) !== null) {
+    const letter = (m[1] || m[2]).toUpperCase();
+    rawMatches.push({ letter, index: m.index, len: m[0].length });
+  }
+  const seq: typeof rawMatches = [];
+  for (const item of rawMatches) {
+    if (item.letter.charCodeAt(0) === 65 + seq.length) {
+      seq.push(item);
+    } else if (seq.length === 0 && rawMatches.length === 1) {
+      // 允许跨行单选项如 B. xxx（当上一行已有 A. xxx）
+      seq.push(item);
+      break;
+    } else if (seq.length >= 2) {
+      break;
+    }
+  }
+  if (seq.length === 0) return null;
+  const out: string[] = [];
+  for (let i = 0; i < seq.length; i++) {
+    const start = seq[i].index + seq[i].len;
+    const end = i < seq.length - 1 ? seq[i + 1].index : masked.length;
+    const optText = restore(masked.slice(start, end)).trim();
+    if (optText) out.push(optText);
+  }
+  return out.length > 0 ? out : null;
+}
 
 // 行内答案与解析提取：例如 "【答案】B"、"参考答案：C"、"【答案】x = 3"、"【解析】由公式可知..."
 const INLINE_ANSWER_RE = /(?:【(?:参考)?答案】|(?:参考)?答案\s*[:：]\s*)([^\n\r]+)/;
@@ -142,6 +219,7 @@ function inferDefaultScore(sectionTitle: string, qType: QuestionType): number {
 
 interface IntermediateDraft {
   num: number;
+  startedWithParen?: boolean;
   sectionTitle: string;
   type: QuestionType;
   stemLines: string[];
@@ -210,10 +288,10 @@ export function segmentExamPaper(
 
     // 2. 如果在答案专区中：反向匹配缝合回对应母题
     if (inAnswerZone) {
-      const qStart = line.match(Q_START_RE);
+      const qStart = matchQuestionStart(line);
       if (qStart) {
-        const num = parseInt(qStart[1], 10);
-        const rest = qStart[2].trim();
+        const num = qStart.num;
+        const rest = qStart.rest;
         const target = draftByNum.get(num);
         if (target) {
           currentAnswerStitchTarget = target;
@@ -256,21 +334,33 @@ export function segmentExamPaper(
       continue;
     }
 
-    // 3. 检查大题章节标题（如 "一、选择题"）
+    // 3. 检查大题章节标题或 Markdown 小节/知识点标题（如 "一、选择题"、"##### 第 2 课时"、"**知识点 1 ...**"）
     const secMatch = line.match(SECTION_RE);
-    if (secMatch) {
-      currentSectionTitle = secMatch[0].trim();
-      currentType = inferQuestionType(currentSectionTitle);
-      currentScore = inferDefaultScore(currentSectionTitle, currentType);
-      currentDraft = null;
-      continue;
+    const mdHeadingMatch = !secMatch ? line.match(/^#{1,6}\s+(.+)$/) : null;
+    const isBoldSec = !secMatch && !mdHeadingMatch && isBoldSectionHeadingLine(line);
+    if (secMatch || mdHeadingMatch || isBoldSec) {
+      const headingRaw = secMatch
+        ? secMatch[0].trim()
+        : mdHeadingMatch
+          ? mdHeadingMatch[1].trim()
+          : line.replace(/^\*\*|\*\*$/g, "").trim();
+      // 若为 "# 1. 题干" 形式的带题号标题则交由后续题号识别
+      if (!(mdHeadingMatch && matchQuestionStart(headingRaw))) {
+        currentSectionTitle = headingRaw;
+        if (secMatch || /(?:单选|多选|判断|填空|简答|解答|计算|分析|综合)/.test(headingRaw)) {
+          currentType = inferQuestionType(headingRaw);
+          currentScore = inferDefaultScore(headingRaw, currentType);
+        }
+        currentDraft = null;
+        continue;
+      }
     }
 
-    // 4. 检查题目起始题号（如 "1. 下列各式中..."）
-    const qStart = line.match(Q_START_RE);
+    // 4. 检查题目起始题号（如 "1. 下列各式中..."、"**1.** ..."）
+    const qStart = matchQuestionStart(line);
     if (qStart) {
-      const num = parseInt(qStart[1], 10);
-      const rest = qStart[2].trim();
+      const num = qStart.num;
+      const rest = qStart.rest;
 
       // 第一大题之前的杂项/注意事项过滤（序号小于等于 0 或大题标题仍为前导说明）
       if (drafts.length === 0 && (line.includes("注意事项") || line.includes("准考证号") || line.includes("密封线内"))) {
@@ -278,28 +368,47 @@ export function segmentExamPaper(
         continue;
       }
 
-      // 边界防护：解答题/综合题中的子小问识别（例如已处理到第 15 题，遇到 (1)、(2) 或题号倒退/重复）
-      const isSubQuestion = currentDraft && (
-        (num < currentDraft.num && (currentDraft.type === "short" || currentDraft.type === "material" || /^[（(【]/.test(line))) ||
-        (draftByNum.has(num) && /^[（(【]/.test(line))
-      );
+      // 边界防护：母题采用 N. / **N.** 编号时，其下的 (1)、(2)、(3) 属于子问或图注（如 "(1) 班统计图"），归属母题不拆分
+      const isSubQuestion = currentDraft && qStart.isParen && !currentDraft.startedWithParen;
 
-      if (isSubQuestion) {
-        // 作为当前试题的题干行追加，不创建新题目，防止冲垮之前的同名真题
+      if (isSubQuestion && currentDraft) {
         currentDraft.stemLines.push(line);
         continue;
       }
 
       currentDraft = {
         num,
+        startedWithParen: qStart.isParen,
         sectionTitle: currentSectionTitle,
         type: currentType,
-        stemLines: [rest],
+        stemLines: [],
         options: [],
         answer: "",
         analysisLines: [],
         score: currentScore,
       };
+
+      // 若首行同时携带题干 + 水平选项（如 PDF 单行提取 "1. 题干 A. 1 B. 2 C. 3 D. 4 Answer: B"），就地拆分
+      let headRest = rest;
+      const headAnsMatch = headRest.match(/(?:【(?:参考)?答案】|(?:参考)?答案\s*[:：]|ANSWER\s*[:：]|KEY\s*[:：])\s*([^\n\r]+)$/i);
+      if (headAnsMatch && headAnsMatch.index != null && headAnsMatch.index > 0) {
+        currentDraft.answer = headAnsMatch[1].trim();
+        headRest = headRest.slice(0, headAnsMatch.index).trim();
+      }
+      const inlineOptAnchor = headRest.match(/\s+(?=[(（]?A[.、:：)）]\s*\S[\s\S]*\s[(（]?B[.、:：)）]\s*\S)/i);
+      if (inlineOptAnchor && inlineOptAnchor.index != null && inlineOptAnchor.index > 0) {
+        const stemPart = headRest.slice(0, inlineOptAnchor.index).trim();
+        const optPart = headRest.slice(inlineOptAnchor.index).trim();
+        currentDraft.stemLines.push(stemPart);
+        const splitHeadOpts = splitHorizontalOptionsLine(optPart);
+        if (splitHeadOpts && splitHeadOpts.length > 0) {
+          currentDraft.options.push(...splitHeadOpts);
+        } else {
+          currentDraft.stemLines[0] = headRest;
+        }
+      } else {
+        currentDraft.stemLines.push(headRest);
+      }
 
       drafts.push(currentDraft);
       draftByNum.set(num, currentDraft);
@@ -329,19 +438,13 @@ export function segmentExamPaper(
         continue;
       }
 
-      // 检查水平/单行选项（例如 "A. 3   B. -3   C. 1   D. 0" 或 "(A) 3  (B) -3" 或单个 "A. 3"）
-      // 匹配当前选项标号到下一个选项标号（或行尾）之间的内容，不排斥选项文本中的任何字母（如"选项A"、"Apple"）
-      if (/^[(（]?[A-Ja-j][.、\s)）]/.test(line) || /\s+[(（]?[A-Ja-j][.、\s)）]/.test(line)) {
-        const matches = Array.from(line.matchAll(/(?:^|\s+)[(（]?([A-Ja-j])[.、\s)）]\s*(.*?)(?=(?:\s+[(（]?[A-Ja-j][.、\s)）])|$)/g));
-        if (matches.length > 0) {
-          for (const m of matches) {
-            const optText = m[2].trim();
-            if (optText) {
-              currentDraft.options.push(optText);
-            }
-          }
-          continue;
+      // 检查水平/单行选项（例如 "A. 3   B. -3   C. 1   D. 0"、"(A) 3 (B) -3"、"A $.83$ 分   B $.84$ 分"）
+      const splitOpts = splitHorizontalOptionsLine(line);
+      if (splitOpts && splitOpts.length > 0) {
+        for (const optText of splitOpts) {
+          currentDraft.options.push(optText);
         }
+        continue;
       }
 
       // 多行选项粘连缝合与题干拼接：
@@ -391,8 +494,8 @@ export function segmentExamPaper(
     if (d.options.length >= 2 && finalType !== "single" && finalType !== "multiple") {
       finalType = "single";
     } else if (d.options.length === 0 && finalType === "single") {
-      // 无选项的选择题，若题干有括号或下划线则降级为填空题，否则为问答题
-      finalType = cleanStem.includes("____") || cleanStem.includes("（   ）") || cleanStem.includes("()") ? "fill" : "short";
+      // 无选项的选择题，若题干含填空占位（含 \underline / \rule / （ ） / ____）则归为填空题，否则为简答题
+      finalType = hasBlankPlaceholder(cleanStem) ? "fill" : "short";
     }
 
     // 答案归一化与缺答案保护（防静默填补假答案与破坏客观题真实性）
@@ -402,9 +505,11 @@ export function segmentExamPaper(
       else if (answer === "×" || answer.toLowerCase() === "false" || answer === "错误") answer = "错";
     }
 
-    if (!answer && (finalType === "single" || finalType === "multiple" || finalType === "judge")) {
+    if (!answer && (finalType === "single" || finalType === "multiple" || finalType === "judge" || finalType === "fill" || finalType === "short")) {
       qStatus = "draft";
-      warnings.push(`第 ${d.num} 题未提取到有效答案，已降级为草稿 (draft) 存盘，请在入库后核验补录。`);
+      if (finalType === "single" || finalType === "multiple" || finalType === "judge") {
+        warnings.push(`第 ${d.num} 题未提取到有效答案，已降级为草稿 (draft)（待补答案，可在审校或题库补全）。`);
+      }
     }
 
     const analysis = d.analysisLines.join("\n").trim();
@@ -429,6 +534,7 @@ export function segmentExamPaper(
     const { question: fixedQ } = autoFixQuestion(q);
     const lintReport = lintQuestion(fixedQ);
     fixedQ.confidence = Math.round(lintReport.score) / 100;
+    fixedQ.lintIssues = lintReport.issues.map((i) => i.message);
 
     finalQuestions.push(fixedQ);
   }

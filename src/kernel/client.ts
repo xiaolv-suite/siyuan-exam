@@ -300,6 +300,7 @@ export interface IHostBridge {
   getNotebookConf(notebookId: string): Promise<{ name: string; dailyNoteSavePath: string }>;
   createDailyNote(notebookId?: string): Promise<string>;
   exportNotebookSy(notebookId: string): Promise<{ zipPath: string }>;
+  exportDocTreeSy?(docIds: string[]): Promise<{ zipPath: string }>;
   importSyUpload(file: Blob, filename?: string): Promise<void>;
   listNotebooks(): Promise<{ id: string; name: string }[]>;
   listAllNotebooks(): Promise<{ id: string; name: string; closed: boolean }[]>;
@@ -450,6 +451,39 @@ export class KernelApiClient implements IHostBridge {
     const r = await this.writePost("/api/export/exportNotebookSY", { id: notebookId });
     const zip = String((r.data as Record<string, unknown>)?.zip ?? "");
     if (!zip) throw new KernelError("fatal", "exportNotebookSY", "响应缺少 zip 路径");
+    return { zipPath: zip };
+  }
+
+  /** 文档子树导出 .sy.zip（统一空间子目录题库分享；仅打包指定文档子树，绝不触碰宿主整库） */
+  async exportDocTreeSy(docIds: string[]): Promise<{ zipPath: string }> {
+    const ids = docIds.map((id) => id.trim()).filter(Boolean);
+    if (!ids.length) {
+      throw new KernelError("fatal", "exportSY", "题库子树下暂无可导出的文档");
+    }
+    let zip = "";
+    let lastErr: unknown;
+    try {
+      const r = ids.length === 1
+        ? await this.writePost("/api/export/exportSY", { id: ids[0] })
+        : await this.writePost("/api/export/exportSYs", { ids });
+      zip = String((r.data as Record<string, unknown>)?.zip ?? "");
+    } catch (e) {
+      lastErr = e;
+    }
+    if (!zip) {
+      try {
+        const r = ids.length === 1
+          ? await this.writePost("/api/export/exportMd", { id: ids[0], includeSubDocs: true })
+          : await this.writePost("/api/export/exportMds", { ids, includeSubDocs: true });
+        zip = String((r.data as Record<string, unknown>)?.zip ?? "");
+      } catch (e) {
+        lastErr = lastErr ?? e;
+      }
+    }
+    if (!zip) {
+      if (lastErr) throw lastErr;
+      throw new KernelError("fatal", "exportSY", "响应缺少 zip 路径");
+    }
     return { zipPath: zip };
   }
 

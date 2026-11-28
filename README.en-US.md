@@ -9,7 +9,7 @@
 > **Personal Notes → Independent Retrieval → Honest Evidence → Wrongbook Elimination → Timed Mock Verification**  
 > Every question is a native, searchable, linkable **SiYuan block** in your own workspace — never locked in an external cloud.
 
-[![Release](https://img.shields.io/badge/release-v0.15.7-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.8-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
 [![CI](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml/badge.svg)](https://github.com/xiaolv-suite/siyuan-exam/actions/workflows/check.yml)
 [![SiYuan](https://img.shields.io/badge/SiYuan-%3E%3D%203.8.4-blue)](https://github.com/siyuan-note/siyuan)
 [![License](https://img.shields.io/badge/license-MIT-green)](#-license)
@@ -22,14 +22,17 @@
 
 ---
 
-## 🚀 What's New in v0.15.7 (2026-11-26 Milestone Release)
+## 🚀 What's New in v0.15.8 (2026-11-27 Maintenance Release)
 
-- **Home-First Landing & Session Resume Cards**: Opening Lv Exam via Xiaolv Launchpad, topbar icon, command palette, or tab reload always lands calmly on the **Today** home screen; unfinished practice or recite sessions appear as explicit Resume / Discard cards instead of auto-entering questions;
-- **Unified `.lv-ai-thinking` Wait UI & True AbortSignal Cancellation**: Moved `/api/asset/ocr` and `/api/asset/upload` onto non-blocking transport to eliminate SiYuan's fullscreen `Requesting...` blocker during image/paper OCR; unified Socratic guidance, progressive hints, AI studio, variant drill, error diagnosis, and report AI explanations onto animated `.lv-ai-thinking` cards with full `AbortSignal` cancellation;
-- **Shared Ecosystem Hubs & 4-Level Collapsible Diary Zone**: Integrated Launchpad, unified AI Router, Block Assistant 1–8 native base + custom double-click, Activity Stream, and Backup/Restore; practice and mock exam daily summaries probe native daily notes and write into `#### 🐴 小驴记录`, filtering out sync-conflict copies;
-- **60fps Zero `:has()` / Zero Heavy-Blur Polish**: Eliminated CSS `:has()` selectors and `blur(>=15px)` across the compiled bundle, fixed variant modal type badges, wrongbook sprint button wrapping, mock blueprint headers, and duplicate manual option hints across light, dark, and `390×844` mobile viewports;
-- **Startup Slim-Down & Lazy Loading**: Converged boot storage reads to 1 core slot, removed the closed-notebook keepalive scan, and lazy-loaded tab views and SheetJS at runtime;
-- **Native Settings Gear & Micro-Capsule Tokens**: Implemented `openSetting()` for SiYuan's plugin manager gear icon and modernized setting group badges.
+- **Full-Page Bank Manager & 13-to-6 Navigation Slimming**: Redesigned the full-page question bank manager, streamlined main navigation from 13 to 6 core sections, and clarified module boundaries;
+- **Mobile Mock Exam & Walkthrough Polish**: Fixed the `390×844` mobile mock exam blank screen and layout; resolved Socratic Esc/Enter handling, bank menu clipping, mobile back navigation, `pinAttributes` persistence, manual draft preservation on failure, and wrongbook filter resets;
+- **Ecosystem `lv-kit` & UI Polish**: Completed wave-2 blindspot and `ui-checker` P0/P1 polish, synced `lv-kit` zero-Protyle-DOM-residue fixes and Batch 1 A1–A4 updates while preserving `.lv-ai-thinking` wait UX, zero `:has()`, and zero heavy blur.
+
+<details>
+<summary>View Historical Release Highlights (v0.15.7 and earlier)</summary>
+
+- **v0.15.7 (2026-11-26 Milestone Release)**: Home-first landing with dual resume cards, unified `.lv-ai-thinking` AI/OCR wait UI with `AbortSignal`, shared ecosystem hubs & `#### 🐴 小驴记录` diary zone, zero `:has()` / zero heavy blur 60fps polish, and startup slim-down.
+</details>
 
 ---
 

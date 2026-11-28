@@ -10,6 +10,8 @@ import { parseTimeToSec, formatSecToTime } from "@/core/materialNotes";
 import { locatedUrl } from "@/core/materialNotes";
 import { escapeHtml } from "@/libs/sanitize";
 import { safeDocTitleFromHPath } from "@/libs/lv-notice-kit";
+import { loadChunk } from "@/libs/chunk-loader";
+import { extractPdfPagesFromBytes, type PdfJsModuleLike } from "@/core/pdfImport";
 
 export interface MaterialRegisterMeta {
   subject?: string;
@@ -184,55 +186,391 @@ export function resolveMaterialLocatedUrl(
   return locatedUrl(base, locator);
 }
 
-/** 从 docx 二进制流中零依赖提取文字段落 */
-export async function extractDocxTextFromBytes(bytes: Uint8Array): Promise<string> {
-  let offset = 0;
-  while (offset < bytes.length - 30) {
-    if (bytes[offset] === 0x50 && bytes[offset + 1] === 0x4b && bytes[offset + 2] === 0x03 && bytes[offset + 3] === 0x04) {
-      const compression = bytes[offset + 8] | (bytes[offset + 9] << 8);
-      const compressedSize = bytes[offset + 18] | (bytes[offset + 19] << 8) | (bytes[offset + 20] << 16) | (bytes[offset + 21] << 24);
-      const fnLen = bytes[offset + 26] | (bytes[offset + 27] << 8);
-      const extraLen = bytes[offset + 28] | (bytes[offset + 29] << 8);
-      const fileName = new TextDecoder().decode(bytes.subarray(offset + 30, offset + 30 + fnLen));
-      const dataOffset = offset + 30 + fnLen + extraLen;
-      if (fileName === "word/document.xml") {
-        const compressedData = bytes.subarray(dataOffset, dataOffset + compressedSize);
-        let xml = "";
-        if (compression === 0) {
-          xml = new TextDecoder().decode(compressedData);
-        } else if (compression === 8 && typeof DecompressionStream !== "undefined") {
-          try {
-            const ds = new DecompressionStream("deflate-raw");
-            const writer = ds.writable.getWriter();
-            const chunk = new Uint8Array(compressedSize);
-            chunk.set(compressedData);
-            writer.write(chunk);
-            writer.close();
-            const res = await new Response(ds.readable).arrayBuffer();
-            xml = new TextDecoder().decode(res);
-          } catch {
-            // 解压流降级
-          }
-        }
-        if (xml) {
-          const paragraphs = xml.split(/<\/w:p>/);
-          const lines = paragraphs.map((p) => {
-            const matches = [...p.matchAll(/<w:t[^>]*>(.*?)<\/w:t>/g)];
-            return matches.map((m) => m[1]).join("").trim();
-          }).filter(Boolean);
-          return lines.join("\n\n");
-        }
+function readU16LE(bytes: Uint8Array, offset: number): number {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readU32LE(bytes: Uint8Array, offset: number): number {
+  return (
+    bytes[offset] |
+    (bytes[offset + 1] << 8) |
+    (bytes[offset + 2] << 16) |
+    (bytes[offset + 3] << 24)
+  ) >>> 0;
+}
+
+function decodeXmlEntities(str: string): string {
+  return str
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_m, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+async function decompressZipPayload(compression: number, payload: Uint8Array): Promise<Uint8Array | null> {
+  if (compression === 0) return payload;
+  if (compression !== 8) return null;
+  if (typeof DecompressionStream !== "undefined") {
+    try {
+      const ds = new DecompressionStream("deflate-raw");
+      const writer = ds.writable.getWriter();
+      const copy = new Uint8Array(payload.byteLength);
+      copy.set(payload);
+      const writePromise = writer.write(copy).then(() => writer.close());
+      const resPromise = new Response(ds.readable).arrayBuffer();
+      const [, ab] = await Promise.all([writePromise, resPromise]);
+      return new Uint8Array(ab);
+    } catch {
+      /* 降级尝试其他解压路径 */
+    }
+  }
+  return null;
+}
+
+interface ZipEntryMeta {
+  fileName: string;
+  compression: number;
+  compressedSize: number;
+  dataOffset: number;
+}
+
+function findZipEntriesFromCentralDirectory(bytes: Uint8Array): Map<string, ZipEntryMeta> | null {
+  // 扫描 End of Central Directory (PK\x05\x06)，距文件尾最多 65KB + 22B
+  const minPos = Math.max(0, bytes.length - 65558);
+  let eocdOffset = -1;
+  for (let i = bytes.length - 22; i >= minPos; i--) {
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset < 0) return null;
+
+  const cdOffset = readU32LE(bytes, eocdOffset + 16);
+  const totalEntries = readU16LE(bytes, eocdOffset + 10);
+  if (cdOffset >= bytes.length) return null;
+
+  const entries = new Map<string, ZipEntryMeta>();
+  const decoder = new TextDecoder();
+  let pos = cdOffset;
+
+  for (let idx = 0; idx < totalEntries && pos + 46 <= bytes.length; idx++) {
+    if (bytes[pos] !== 0x50 || bytes[pos + 1] !== 0x4b || bytes[pos + 2] !== 0x01 || bytes[pos + 3] !== 0x02) {
+      break;
+    }
+    const compression = readU16LE(bytes, pos + 10);
+    const compressedSize = readU32LE(bytes, pos + 20);
+    const fnLen = readU16LE(bytes, pos + 28);
+    const extraLen = readU16LE(bytes, pos + 30);
+    const commentLen = readU16LE(bytes, pos + 32);
+    const localHeaderOffset = readU32LE(bytes, pos + 42);
+    const fileName = decoder.decode(bytes.subarray(pos + 46, pos + 46 + fnLen));
+
+    if (
+      localHeaderOffset + 30 <= bytes.length &&
+      bytes[localHeaderOffset] === 0x50 &&
+      bytes[localHeaderOffset + 1] === 0x4b &&
+      bytes[localHeaderOffset + 2] === 0x03 &&
+      bytes[localHeaderOffset + 3] === 0x04
+    ) {
+      const lfhFnLen = readU16LE(bytes, localHeaderOffset + 26);
+      const lfhExtraLen = readU16LE(bytes, localHeaderOffset + 28);
+      const dataOffset = localHeaderOffset + 30 + lfhFnLen + lfhExtraLen;
+      entries.set(fileName, { fileName, compression, compressedSize, dataOffset });
+    }
+    pos += 46 + fnLen + extraLen + commentLen;
+  }
+
+  return entries.size > 0 ? entries : null;
+}
+
+function findNextZipRecordOffset(bytes: Uint8Array, start: number): number {
+  for (let i = start; i <= bytes.length - 4; i++) {
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b) {
+      const b2 = bytes[i + 2];
+      const b3 = bytes[i + 3];
+      if ((b2 === 0x07 && b3 === 0x08) || (b2 === 0x03 && b3 === 0x04) || (b2 === 0x01 && b3 === 0x02)) {
+        return i;
       }
-      offset = dataOffset + Math.max(0, compressedSize);
+    }
+  }
+  return bytes.length;
+}
+
+function findZipEntriesFromLocalHeaders(bytes: Uint8Array): Map<string, ZipEntryMeta> {
+  const entries = new Map<string, ZipEntryMeta>();
+  const decoder = new TextDecoder();
+  let offset = 0;
+
+  while (offset <= bytes.length - 30) {
+    if (bytes[offset] === 0x50 && bytes[offset + 1] === 0x4b && bytes[offset + 2] === 0x03 && bytes[offset + 3] === 0x04) {
+      const flags = readU16LE(bytes, offset + 6);
+      const compression = readU16LE(bytes, offset + 8);
+      let compressedSize = readU32LE(bytes, offset + 18);
+      const fnLen = readU16LE(bytes, offset + 26);
+      const extraLen = readU16LE(bytes, offset + 28);
+      const fileName = decoder.decode(bytes.subarray(offset + 30, offset + 30 + fnLen));
+      const dataOffset = offset + 30 + fnLen + extraLen;
+
+      // 兼容 Bit-3 Data Descriptor 流式写入（LFH 内 compressedSize 为 0）
+      if ((flags & 0x08) !== 0 && compressedSize === 0) {
+        const nextRec = findNextZipRecordOffset(bytes, dataOffset);
+        compressedSize = Math.max(0, nextRec - dataOffset);
+      }
+
+      entries.set(fileName, { fileName, compression, compressedSize, dataOffset });
+      offset = dataOffset + compressedSize;
+      // 跳过紧随其后的 PK\x07\x08 Data Descriptor（16 字节）
+      if (
+        offset + 16 <= bytes.length &&
+        bytes[offset] === 0x50 &&
+        bytes[offset + 1] === 0x4b &&
+        bytes[offset + 2] === 0x07 &&
+        bytes[offset + 3] === 0x08
+      ) {
+        offset += 16;
+      }
     } else {
       offset++;
     }
   }
-  return "";
+  return entries;
 }
 
-/** 智能读取资料文件真实正文（Word/Markdown/纯文本/笔记） */
+function extractBalancedTagContent(xml: string, tagName: string): string {
+  const openRe = new RegExp(`<${tagName}(?:\\s[^>]*)?>`, "i");
+  const m = openRe.exec(xml);
+  if (!m) return "";
+  const start = m.index + m[0].length;
+  let depth = 1;
+  const stepRe = new RegExp(`<(\\/?)${tagName}(?:\\s[^>]*)?>`, "gi");
+  stepRe.lastIndex = start;
+  let step: RegExpExecArray | null;
+  while ((step = stepRe.exec(xml)) !== null) {
+    if (step[1] === "/") {
+      depth--;
+      if (depth === 0) return xml.slice(start, step.index);
+    } else {
+      depth++;
+    }
+  }
+  return xml.slice(start);
+}
+
+function ommlNodeToLatex(ommlXml: string): string {
+  let s = ommlXml;
+  // 递归转换嵌套分式/根式/上下标/括号/求和积分
+  const replaceNested = (tag: string, handler: (inner: string, rawTag: string) => string) => {
+    const openRe = new RegExp(`<${tag}(?:\\s[^>]*)?>`, "i");
+    let guard = 0;
+    while (guard++ < 64) {
+      const m = openRe.exec(s);
+      if (!m) break;
+      const openIdx = m.index;
+      const bodyStart = openIdx + m[0].length;
+      let depth = 1;
+      let closeEnd = s.length;
+      let bodyEnd = s.length;
+      const stepRe = new RegExp(`<(\\/?)${tag}(?:\\s[^>]*)?>`, "gi");
+      stepRe.lastIndex = bodyStart;
+      let step: RegExpExecArray | null;
+      while ((step = stepRe.exec(s)) !== null) {
+        if (step[1] === "/") {
+          depth--;
+          if (depth === 0) {
+            bodyEnd = step.index;
+            closeEnd = step.index + step[0].length;
+            break;
+          }
+        } else {
+          depth++;
+        }
+      }
+      const inner = s.slice(bodyStart, bodyEnd);
+      const replaced = handler(inner, m[0]);
+      s = s.slice(0, openIdx) + replaced + s.slice(closeEnd);
+    }
+  };
+
+  replaceNested("m:f", (inner) => {
+    const num = ommlNodeToLatex(extractBalancedTagContent(inner, "m:num"));
+    const den = ommlNodeToLatex(extractBalancedTagContent(inner, "m:den"));
+    return `\\frac{${num}}{${den}}`;
+  });
+  replaceNested("m:rad", (inner) => {
+    const deg = ommlNodeToLatex(extractBalancedTagContent(inner, "m:deg")).trim();
+    const e = ommlNodeToLatex(extractBalancedTagContent(inner, "m:e"));
+    return deg ? `\\sqrt[${deg}]{${e}}` : `\\sqrt{${e}}`;
+  });
+  replaceNested("m:sSubSup", (inner) => {
+    const e = ommlNodeToLatex(extractBalancedTagContent(inner, "m:e"));
+    const sub = ommlNodeToLatex(extractBalancedTagContent(inner, "m:sub"));
+    const sup = ommlNodeToLatex(extractBalancedTagContent(inner, "m:sup"));
+    return `${e}_{${sub}}^{${sup}}`;
+  });
+  replaceNested("m:sSup", (inner) => {
+    const e = ommlNodeToLatex(extractBalancedTagContent(inner, "m:e"));
+    const sup = ommlNodeToLatex(extractBalancedTagContent(inner, "m:sup"));
+    return `${e}^{${sup}}`;
+  });
+  replaceNested("m:sSub", (inner) => {
+    const e = ommlNodeToLatex(extractBalancedTagContent(inner, "m:e"));
+    const sub = ommlNodeToLatex(extractBalancedTagContent(inner, "m:sub"));
+    return `${e}_{${sub}}`;
+  });
+  replaceNested("m:nary", (inner) => {
+    const chr = inner.match(/<m:chr\b[^>]*m:val="([^"]+)"/i)?.[1] ?? "∑";
+    const op = chr === "∫" ? "\\int" : chr === "∏" ? "\\prod" : "\\sum";
+    const sub = ommlNodeToLatex(extractBalancedTagContent(inner, "m:sub"));
+    const sup = ommlNodeToLatex(extractBalancedTagContent(inner, "m:sup"));
+    const e = ommlNodeToLatex(extractBalancedTagContent(inner, "m:e"));
+    return `${op}${sub ? `_{${sub}}` : ""}${sup ? `^{${sup}}` : ""} ${e}`;
+  });
+  replaceNested("m:d", (inner) => {
+    const beg = inner.match(/<m:begChr\b[^>]*m:val="([^"]+)"/i)?.[1] ?? "(";
+    const end = inner.match(/<m:endChr\b[^>]*m:val="([^"]+)"/i)?.[1] ?? ")";
+    const e = ommlNodeToLatex(extractBalancedTagContent(inner, "m:e"));
+    return `${beg}${e}${end}`;
+  });
+
+  // 剥离剩余 XML 标签并解码实体
+  const plain = decodeXmlEntities(
+    s
+      .replace(/<m:t[^>]*>([\s\S]*?)<\/m:t>/gi, "$1")
+      .replace(/<[^>]+>/g, ""),
+  );
+  return plain.replace(/\s+/g, " ").trim();
+}
+
+function parseDocxRels(relsXml: string): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const m of relsXml.matchAll(/<Relationship\b[^>]*>/gi)) {
+    const tag = m[0];
+    const id = tag.match(/\bId="([^"]+)"/i)?.[1];
+    const target = tag.match(/\bTarget="([^"]+)"/i)?.[1];
+    if (id && target) {
+      map.set(id, target.replace(/^.*\//, ""));
+    }
+  }
+  return map;
+}
+
+function extractDocxParagraphText(pXml: string, relsMap: Map<string, string>): string {
+  let xml = pXml;
+  // 1) 块级公式 <m:oMathPara> 与行内公式 <m:oMath>
+  xml = xml.replace(/<m:oMathPara\b[^>]*>([\s\S]*?)<\/m:oMathPara>/gi, (_m, inner: string) => {
+    const tex = ommlNodeToLatex(inner);
+    return tex ? `$$${tex}$$` : "";
+  });
+  xml = xml.replace(/<m:oMath\b[^>]*>([\s\S]*?)<\/m:oMath>/gi, (_m, inner: string) => {
+    const tex = ommlNodeToLatex(inner);
+    return tex ? `$${tex}$` : "";
+  });
+  // 2) 内嵌图片占位
+  xml = xml.replace(/<w:drawing\b[\s\S]*?<\/w:drawing>|<w:pict\b[\s\S]*?<\/w:pict>/gi, (block) => {
+    const rId = block.match(/\b(?:r:embed|r:id)="([^"]+)"/i)?.[1] ?? "";
+    const mediaName = (rId && relsMap.get(rId)) || "image";
+    return `[图片: ${mediaName}]`;
+  });
+  // 3) 换行与制表符
+  xml = xml.replace(/<w:br\b[^>]*\/?>/gi, "\n").replace(/<w:tab\b[^>]*\/?>/gi, "\t");
+
+  // 4) 按顺序收集纯文本与已转换的公式/图片占位
+  const out: string[] = [];
+  const tokenRe = /<w:t[^>]*>([\s\S]*?)<\/w:t>|\$\$[\s\S]*?\$\$|\$[^$\n]+\$|\[图片:\s*[^\]]+\]|\n|\t/g;
+  let m: RegExpExecArray | null;
+  while ((m = tokenRe.exec(xml)) !== null) {
+    if (m[1] !== undefined) {
+      out.push(decodeXmlEntities(m[1]));
+    } else {
+      out.push(m[0]);
+    }
+  }
+  return out.join("").replace(/[ \t]+\n/g, "\n").trim();
+}
+
+/** 从 docx 二进制流中零依赖提取文字段落（兼容 Bit-3 流式 ZIP、XML 实体解码、OMML 基础公式与图片占位） */
+export async function extractDocxTextFromBytes(bytes: Uint8Array): Promise<string> {
+  const entries = findZipEntriesFromCentralDirectory(bytes) ?? findZipEntriesFromLocalHeaders(bytes);
+  const docEntry = entries.get("word/document.xml");
+  if (!docEntry || docEntry.compressedSize <= 0) return "";
+
+  const end = Math.min(bytes.length, docEntry.dataOffset + docEntry.compressedSize);
+  const rawPayload = bytes.subarray(docEntry.dataOffset, end);
+  const decompressed = await decompressZipPayload(docEntry.compression, rawPayload);
+  if (!decompressed) return "";
+  const xml = new TextDecoder().decode(decompressed);
+  if (!xml) return "";
+
+  let relsMap = new Map<string, string>();
+  const relsEntry = entries.get("word/_rels/document.xml.rels");
+  if (relsEntry && relsEntry.compressedSize > 0) {
+    const rEnd = Math.min(bytes.length, relsEntry.dataOffset + relsEntry.compressedSize);
+    const rBytes = await decompressZipPayload(
+      relsEntry.compression,
+      bytes.subarray(relsEntry.dataOffset, rEnd),
+    );
+    if (rBytes) {
+      relsMap = parseDocxRels(new TextDecoder().decode(rBytes));
+    }
+  }
+
+  // 保留表格与段落顺序：先替换表格为 Markdown 表格占位，再按段落输出
+  const tableBlocks: string[] = [];
+  const xmlWithTables = xml.replace(/<w:tbl\b[^>]*>([\s\S]*?)<\/w:tbl>/gi, (_m, tblInner: string) => {
+    const rows: string[] = [];
+    for (const rowM of tblInner.matchAll(/<w:tr\b[^>]*>([\s\S]*?)<\/w:tr>/gi)) {
+      const cells: string[] = [];
+      for (const cellM of rowM[1].matchAll(/<w:tc\b[^>]*>([\s\S]*?)<\/w:tc>/gi)) {
+        const cellParas = [...cellM[1].matchAll(/<w:p\b[^>]*>([\s\S]*?)<\/w:p>/gi)]
+          .map((pm) => extractDocxParagraphText(pm[1], relsMap))
+          .filter(Boolean);
+        cells.push(cellParas.join(" ").replace(/\|/g, "\\|"));
+      }
+      if (cells.length > 0) {
+        rows.push(`| ${cells.join(" | ")} |`);
+        if (rows.length === 1) {
+          rows.push(`| ${cells.map(() => "---").join(" | ")} |`);
+        }
+      }
+    }
+    if (rows.length === 0) return "";
+    const idx = tableBlocks.length;
+    tableBlocks.push(rows.join("\n"));
+    return `<w:p><w:t>@@DOCXTBL_${idx}@@</w:t></w:p>`;
+  });
+
+  const paragraphs = xmlWithTables.split(/<\/w:p>/i);
+  const lines = paragraphs
+    .map((p) => {
+      const tblMarker = p.match(/@@DOCXTBL_(\d+)@@/);
+      if (tblMarker) return tableBlocks[Number(tblMarker[1])] ?? "";
+      return extractDocxParagraphText(p, relsMap);
+    })
+    .filter(Boolean);
+
+  return lines.join("\n\n");
+}
+
+/** 智能读取资料文件真实正文（Word / PDF 文本层 / Markdown / 纯文本 / 思源笔记） */
 export async function extractMaterialDocText(app: any, material: MaterialDoc): Promise<string> {
+  const siyuanLoc = material.locations.find((l) => /^siyuan:\/\/blocks\//i.test(l.path));
+  if (siyuanLoc && app?.bridge?.exportDocMarkdown) {
+    const blockIdMatch = siyuanLoc.path.match(/siyuan:\/\/blocks\/([0-9a-zA-Z-]+)/i);
+    const docId = blockIdMatch ? blockIdMatch[1] : siyuanLoc.path;
+    if (docId) {
+      try {
+        const res = await app.bridge.exportDocMarkdown(docId);
+        if (res?.content?.trim()) return res.content;
+      } catch {
+        /* 继续尝试资产文件 */
+      }
+    }
+  }
+
   const assetLoc = material.locations.find((l) => l.kind === "assets");
   if (!assetLoc || !app?.bridge?.getFileBytes) return "";
   try {
@@ -241,6 +579,11 @@ export async function extractMaterialDocText(app: any, material: MaterialDoc): P
     const pathLower = assetLoc.path.toLowerCase();
     if (pathLower.endsWith(".docx")) {
       return await extractDocxTextFromBytes(bytes);
+    }
+    if (pathLower.endsWith(".pdf") || material.kind === "pdf") {
+      const pdfjs = await loadChunk<PdfJsModuleLike>("pdfjs");
+      const res = await extractPdfPagesFromBytes(pdfjs, bytes, { maxPages: 30 });
+      return res.combinedText;
     }
     if (/\.(txt|md|text|csv|tsv|json)$/i.test(pathLower)) {
       return new TextDecoder().decode(bytes);
@@ -307,19 +650,31 @@ export async function bridgeMaterialToAiAsync(
   material: MaterialDoc,
   noteText = "",
 ): Promise<{ content: string; toast: string }> {
-  const notes = app.listMaterialNotes(material.id).map((n: MaterialNote) => n.text).join("\n\n");
-  let mainBody = noteText || notes;
-  if (!mainBody && app) {
-    mainBody = await extractMaterialDocText(app, material);
+  const notes = app?.listMaterialNotes?.(material.id)?.map((n: MaterialNote) => n.text).join("\n\n") ?? "";
+  const fileText = app ? await extractMaterialDocText(app, material) : "";
+  const noteSection = (noteText || notes).trim();
+  const bodySection = fileText.trim();
+
+  const parts = [`【资料出处】${[material.subject, material.chapter, material.title].filter(Boolean).join(" / ")}`];
+  if (noteSection) {
+    parts.push(`【重点笔记】\n${noteSection.slice(0, 2000)}`);
   }
-  const content = [
-    `【资料出处】${[material.subject, material.chapter, material.title].filter(Boolean).join(" / ")}`,
-    mainBody ? `【资料正文与重点】\n${mainBody.slice(0, 3500)}` : "",
-  ].filter(Boolean).join("\n\n");
+  if (bodySection) {
+    parts.push(`【资料正文与重点】\n${bodySection.slice(0, 5000)}`);
+  }
+  const content = parts.join("\n\n");
+
+  const toast = bodySection
+    ? `已将资料《${material.title}》正文（${bodySection.length} 字）带入 AI 出题工作台！`
+    : noteSection
+      ? `已将资料《${material.title}》笔记带入 AI 出题工作台！`
+      : material.kind === "pdf"
+        ? `已带入《${material.title}》出处（未检测到 PDF 内嵌文字层，可能是纯扫描件；可截图粘贴或先用外部导入 OCR 识别）`
+        : `已将资料《${material.title}》带入 AI 出题工作台！`;
 
   return {
     content,
-    toast: `已将资料《${material.title}》正文全量带入 AI 出题工作台！`,
+    toast,
   };
 }
 

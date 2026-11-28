@@ -9,6 +9,7 @@
 // ============================================================
 
 import type { Question } from "./types";
+import { OPTION_LETTERS } from "./answer";
 import { renderMathInText, getMathPrintStyles } from "./math";
 import { renderMathAndDiagramsInText } from "./mathDiagram";
 import { renderOcclusionSvg } from "./imageOcclusion";
@@ -81,13 +82,25 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function resolveMaterialText(q?: Question): string {
+  if (!q) return "";
+  const stem = String(q.stem ?? "").trim();
+  const analysis = String(q.analysis ?? "").trim();
+  if (!stem) return analysis;
+  if (!analysis) return stem;
+  return analysis.length > stem.length ? analysis : stem;
+}
+
 /**
  * 依据选项文本与公式长度自适应计算分栏数（exam-zh / MathBank 规范）：
  * - 4 选项：短选项一行4列；中等选项两行两列；长选项单列纵排
  * - 2 选项：短中选项一行2列；长选项单列
  * - 其他数量：默认单列
  */
-export function computeOptionColumns(options: readonly string[]): 1 | 2 | 4 {
+export function computeOptionColumns(
+  options: readonly string[],
+  columnLayout: ColumnLayout = "single",
+): 1 | 2 | 4 {
   if (!options || options.length === 0) return 1;
   const getVisualWidth = (s: string) => {
     const cleaned = String(s ?? "")
@@ -101,27 +114,27 @@ export function computeOptionColumns(options: readonly string[]): 1 | 2 | 4 {
     return w;
   };
   const maxWidth = Math.max(...options.map(getVisualWidth));
+  const fourColLimit = columnLayout === "double" ? 9 : 12;
+  const twoColLimit = columnLayout === "double" ? 18 : 40;
   if (options.length === 4) {
-    // 4 个选项：如果每个都很短（<= 12 字符宽度，约 6 个汉字以内，如数字、字母、符号、极短词），单行 4 列
-    if (maxWidth <= 12) return 4;
-    // 如果适中（<= 40 字符宽度，约 20 个汉字以内），2 行 2 列
-    if (maxWidth <= 40) return 2;
+    if (maxWidth <= fourColLimit) return 4;
+    if (maxWidth <= twoColLimit) return 2;
     return 1;
   }
   if (options.length === 2) {
-    return maxWidth <= 40 ? 2 : 1;
+    return maxWidth <= twoColLimit ? 2 : 1;
   }
   return 1;
 }
 
-/** 渲染装订密封线 HTML (exam-zh sealline 规范) */
+/** 渲染装订密封线 HTML (exam-zh sealline 规范，纯黑白印刷) */
 export function renderSealLineBar(): string {
   return `<div class="seal-line-bar">` +
     `<span class="seal-warning">★ 密封线内不要答题 ★</span>` +
-    `<span>姓名：__________</span>` +
-    `<span>准考证号：__________</span>` +
-    `<span>考场号：__________</span>` +
-    `<span>座位号：__________</span>` +
+    `<span>姓名：____________</span>` +
+    `<span>准考证号：____________</span>` +
+    `<span>考场号：________</span>` +
+    `<span>座位号：________</span>` +
     `</div>`;
 }
 
@@ -269,8 +282,12 @@ export function groupAndSortPaperQuestions(
     if (matched.length > 0) {
       const roman = romanNumerals[secIdx] || String(secIdx + 1);
       const totalScore = matched.reduce((sum, q) => sum + (q.score || 1), 0);
-      const avgScore = Math.round((totalScore / matched.length) * 10) / 10;
-      const notice = `本大题共 ${matched.length} 小题，每小题 ${avgScore} 分，共 ${totalScore} 分。${cfg.notice}`;
+      const scoresEqual = matched.every((q) => (q.score || 1) === (matched[0].score || 1));
+      const perScore = matched[0].score || 1;
+      const countClause = scoresEqual
+        ? `本大题共 ${matched.length} 小题，每小题 ${perScore} 分，共 ${totalScore} 分。`
+        : `本大题共 ${matched.length} 小题，共 ${totalScore} 分。`;
+      const notice = `${countClause}${cfg.notice}`;
       groups.push({
         type: cfg.type,
         sectionIndex: roman,
@@ -302,61 +319,146 @@ export function groupAndSortPaperQuestions(
   return groups;
 }
 
-/** 生成分栏与打印优化 CSS */
+/** 将纯文本中的连续下划线 ____ 替换为印刷级填空横线，不触碰 HTML 标签与 SVG 属性 */
+function injectFillBlanks(renderedHtml: string): string {
+  return renderedHtml
+    .split(/(<[^>]+>)/g)
+    .map((part) => {
+      if (part.startsWith("<")) return part;
+      return part.replace(/_{3,}|＿{3,}/g, `<span class="fill-blank-line" aria-label="填空横线"></span>`);
+    })
+    .join("");
+}
+
+/** 渲染规范题干 HTML（去首尾空行、替换填空下划线、为选择/判断补齐标准括号） */
+function renderQuestionStemHtml(q: Question, addTrailingParen = true): { html: string; hasInlineBlank: boolean } {
+  const raw = String(q.stem ?? "").trim();
+  const hasInlineBlank = /_{3,}|＿{3,}/.test(raw);
+  let html = renderMathAndDiagramsInText(raw);
+  if (q.type === "fill" && hasInlineBlank) {
+    html = injectFillBlanks(html);
+  }
+  if (
+    addTrailingParen &&
+    (q.type === "single" || q.type === "multiple" || q.type === "judge") &&
+    !/[（(]\s*[)）]\s*$/.test(raw)
+  ) {
+    html += `<span class="q-paren">（\u3000\u3000）</span>`;
+  }
+  return { html, hasInlineBlank };
+}
+
+interface RubricViewItem {
+  label: string;
+  weightPct?: number;
+  points?: number;
+  desc?: string;
+}
+
+function extractRubricItems(q: Question): RubricViewItem[] {
+  if (!q.rubric || typeof q.rubric !== "object") return [];
+  const rawCriteria = (q.rubric as {
+    fullScore?: number;
+    total?: number;
+    criteria?: Array<{
+      label?: string;
+      name?: string;
+      weight?: number;
+      points?: number;
+      example?: string;
+      desc?: string;
+    }>;
+  }).criteria;
+  if (!Array.isArray(rawCriteria) || rawCriteria.length === 0) return [];
+  const fullScore =
+    (q.rubric as { fullScore?: number; total?: number }).fullScore ??
+    (q.rubric as { total?: number }).total ??
+    (q.score || 0);
+  return rawCriteria.map((c) => {
+    const label = c.label || c.name || "采分要点";
+    const weightPct = typeof c.weight === "number" ? Math.round(c.weight * 100) : undefined;
+    const points =
+      typeof c.points === "number"
+        ? c.points
+        : typeof c.weight === "number" && fullScore > 0
+          ? Math.round(c.weight * fullScore * 10) / 10
+          : undefined;
+    const desc = c.desc || c.example;
+    return { label, weightPct, points, desc };
+  });
+}
+
+/** 生成分栏与打印优化 CSS（真实中高考/高校/教研印刷级黑白排版规范） */
 export function buildPrintProCss(options: PrintProOptions = {}): string {
   const isDouble = (options.columns ?? "double") === "double";
   const size = options.paperSize === "Letter" ? "Letter" : "A4";
 
   let bodyFontSize = "10.5pt";
-  let bodyLineHeight = "1.55";
+  let bodyLineHeight = "1.7";
   if (options.fontSizeMode === "compact") {
     bodyFontSize = "9.5pt";
-    bodyLineHeight = "1.45";
+    bodyLineHeight = "1.55";
   } else if (options.fontSizeMode === "large") {
     bodyFontSize = "12pt";
-    bodyLineHeight = "1.65";
+    bodyLineHeight = "1.78";
   }
 
   return `
     @page {
       size: ${size} portrait;
-      margin: 12mm 10mm 14mm 10mm;
-      @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #666; }
+      margin: 18mm 16mm 18mm 16mm;
+      @bottom-center {
+        content: "第 " counter(page) " 页  共 " counter(pages) " 页";
+        font-size: 9pt;
+        color: #444;
+        font-family: "SimSun", "NSimSun", "Songti SC", serif;
+      }
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
+    html, body { margin: 0; padding: 0; background: #fff; }
     body {
-      font-family: "Source Han Serif SC", "Noto Serif CJK SC", SimSun, serif;
-      font-size: ${bodyFontSize}; line-height: ${bodyLineHeight}; color: #111;
-      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      font-family: "SimSun", "NSimSun", "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+      font-size: ${bodyFontSize};
+      line-height: ${bodyLineHeight};
+      color: #111;
+      padding: 16mm 16mm 20mm 16mm;
+      position: relative;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     header.sheet-header {
-      display: flex; justify-content: space-between; align-items: baseline;
-      border-bottom: 1px solid #999; padding-bottom: 3px; margin-bottom: 8px;
-      font-size: 9pt; color: #444;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 0.75pt solid #999;
+      padding-bottom: 3pt;
+      margin-bottom: 10pt;
+      font-size: 9pt;
+      color: #444;
+      font-family: "SimSun", "Songti SC", serif;
     }
     .secret-stamp-wrap {
-      margin-bottom: 4pt;
+      margin-bottom: 5pt;
       overflow: hidden;
       page-break-after: avoid;
       break-after: avoid;
     }
     .secret-stamp {
       float: left;
-      font-size: 8.5pt;
+      font-size: 9pt;
       font-weight: 700;
       color: #000;
-      border: 1.2px solid #000;
-      padding: 1pt 5pt;
+      border: 1.2pt solid #000;
+      padding: 1.5pt 6pt;
       letter-spacing: 1px;
-      font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      font-family: "SimHei", "Heiti SC", "Microsoft YaHei", sans-serif;
     }
     .print-watermark {
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
       pointer-events: none;
       z-index: 9999;
-      opacity: 0.055;
+      opacity: 0.05;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-around;
@@ -370,42 +472,52 @@ export function buildPrintProCss(options: PrintProOptions = {}): string {
       transform: rotate(-30deg);
       user-select: none;
       margin: 40pt;
-      font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      font-family: "SimHei", "Heiti SC", sans-serif;
     }
     .sheet-title-banner {
       text-align: center;
-      margin: 4pt 0 8pt;
+      margin: 4pt 0 10pt;
       page-break-after: avoid;
       break-after: avoid;
     }
+    .sheet-title-banner.is-left {
+      text-align: left;
+      border-bottom: 1.5pt solid #111;
+      padding-bottom: 6pt;
+      margin-bottom: 10pt;
+    }
     .sheet-main-title {
-      font-size: 16pt;
+      font-size: 20pt;
       font-weight: 700;
-      letter-spacing: 1.5px;
-      margin: 0 0 3pt;
+      letter-spacing: 2px;
+      margin: 0 0 4pt;
       color: #000;
-      font-family: "Source Han Sans SC", "Noto Sans CJK SC", SimHei, sans-serif;
+      line-height: 1.3;
+      font-family: "SimHei", "Heiti SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
     }
     .sheet-sub-title {
-      font-size: 9.5pt;
-      color: #444;
+      font-size: 10pt;
+      color: #222;
       margin: 0;
+      font-family: "FangSong", "KaiTi", "STKaiti", "SimSun", serif;
     }
     .student-info-bar {
       display: flex;
-      justify-content: space-around;
+      justify-content: space-between;
       align-items: center;
-      padding: 3pt 6pt;
-      margin: 0 0 7pt;
-      border-bottom: 1px dashed #666;
-      font-size: 9pt;
-      color: #222;
-      font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      flex-wrap: wrap;
+      gap: 8pt;
+      padding: 4pt 6pt 5pt;
+      margin: 0 0 9pt;
+      border-bottom: 0.75pt solid #444;
+      font-size: 9.5pt;
+      color: #111;
+      font-family: "SimSun", "Songti SC", serif;
       page-break-after: avoid;
       break-after: avoid;
     }
     .score-grid-wrap {
-      margin: 0 0 8pt;
+      margin: 0 0 9pt;
       display: flex;
       justify-content: center;
       page-break-after: avoid;
@@ -413,96 +525,316 @@ export function buildPrintProCss(options: PrintProOptions = {}): string {
     }
     .score-grid-table {
       border-collapse: collapse;
-      font-size: 8.5pt;
+      font-size: 9pt;
       text-align: center;
-      border: 1.2px solid #222;
+      border: 1pt solid #000;
+      font-family: "SimSun", "Songti SC", serif;
     }
     .score-grid-table th, .score-grid-table td {
-      border: 1px solid #444;
-      padding: 2pt 8pt;
-      min-width: 42pt;
-      height: 16pt;
+      border: 0.75pt solid #222;
+      padding: 2.5pt 8pt;
+      min-width: 44pt;
+      height: 17pt;
     }
     .score-grid-table th {
-      background: #f2f2f2;
-      font-weight: 600;
+      background: #f5f5f5;
+      font-weight: 700;
+      color: #000;
     }
     .score-grid-table .row-label {
-      background: #f9f9f9;
-      font-weight: 600;
+      background: #fafafa;
+      font-weight: 700;
     }
     .paper-section-banner {
-      column-span: all;
-      margin: 10pt 0 6pt;
-      padding: 4pt 8pt;
-      background: #f8fafc;
-      border-left: 4pt solid #1e293b;
-      border-bottom: 1px solid #cbd5e1;
+      margin: 13pt 0 6pt;
+      padding: 0 0 3pt;
+      border-bottom: 0.75pt solid #bbb;
       page-break-after: avoid;
       break-after: avoid;
     }
     .paper-section-title {
-      font-size: 11pt;
+      font-size: 11.5pt;
       font-weight: 700;
-      color: #0f172a;
-      font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      color: #000;
+      letter-spacing: 0.5px;
+      font-family: "SimHei", "Heiti SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
     }
     .paper-section-notice {
-      font-size: 8.5pt;
-      color: #475569;
-      margin-top: 1pt;
+      font-size: 9pt;
+      color: #333;
+      margin-top: 2pt;
+      line-height: 1.45;
+      font-family: "KaiTi", "STKaiti", "SimSun", serif;
     }
     .q-score-box {
       float: right;
       display: flex;
-      gap: 2px;
-      margin-left: 6px;
+      gap: 2pt;
+      margin: 0 0 2pt 8pt;
       page-break-inside: avoid;
       break-inside: avoid;
     }
     .q-score-box table {
       border-collapse: collapse;
-      border: 1px solid #333;
+      border: 0.75pt solid #222;
       font-size: 7.5pt;
       text-align: center;
+      font-family: "SimSun", "Songti SC", serif;
     }
     .q-score-box td {
-      border: 1px solid #555;
-      padding: 1px 4px;
-      min-width: 28pt;
+      border: 0.75pt solid #444;
+      padding: 1pt 4pt;
+      min-width: 26pt;
       height: 12pt;
     }
     .solution-appendix-divider {
       column-span: all;
       page-break-before: always;
       break-before: page;
-      margin-top: 14pt;
-      padding-top: 8pt;
-      border-top: 2px dashed #444;
+      margin-top: 16pt;
+      padding-top: 10pt;
+      border-top: 1.5pt dashed #222;
       text-align: center;
-      font-size: 13pt;
+      font-size: 14pt;
       font-weight: 700;
-      font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      color: #000;
+      font-family: "SimHei", "Heiti SC", "Microsoft YaHei", sans-serif;
     }
-    /* 答题卡卡纸专用填涂与主观题排版规范 */
-    .card-top-row { display: flex; gap: 10px; margin-bottom: 8pt; page-break-inside: avoid; break-inside: avoid; }
-    .card-info-table { border-collapse: collapse; font-size: 8.5pt; width: 100%; border: 1.2px solid #000; }
-    .card-info-table td { border: 1px solid #333; padding: 3pt 6pt; }
-    .card-barcode-box { width: 160pt; border: 1.5px dashed #444; display: flex; align-items: center; justify-content: center; font-size: 8.5pt; color: #666; text-align: center; }
-    .bubble-matrix { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8pt; margin-bottom: 8pt; }
-    .bubble-group-box { border: 1px solid #444; border-radius: 3px; padding: 4pt 6pt; background: #fff; page-break-inside: avoid; break-inside: avoid; }
-    .bubble-row { display: flex; align-items: center; gap: 4pt; font-size: 8.5pt; margin: 2pt 0; font-family: monospace; }
-    .bubble-no { min-width: 18pt; text-align: right; font-weight: 700; color: #111; }
-    .bubble-item { border: 1px solid #222; border-radius: 2px; padding: 0 3px; font-weight: 700; font-size: 7.5pt; color: #111; min-width: 14pt; text-align: center; }
-    .card-subjective-box { border: 1.5px solid #000; margin: 8pt 0; padding: 6pt; page-break-inside: avoid; break-inside: avoid; }
-    .card-subjective-warn { font-size: 7.5pt; color: #666; text-align: right; border-bottom: 1px dashed #ccc; padding-bottom: 2pt; margin-bottom: 4pt; }
+    /* 答题卡（标准机读卡）专用纯黑白印刷规范 */
+    .omr-sheet {
+      position: relative;
+      padding: 16pt 14pt;
+    }
+    .omr-corner {
+      position: absolute;
+      width: 9pt;
+      height: 9pt;
+      background: #000;
+    }
+    .omr-tl { top: 0; left: 0; }
+    .omr-tr { top: 0; right: 0; }
+    .omr-bl { bottom: 0; left: 0; }
+    .omr-br { bottom: 0; right: 0; }
+    .card-notice-box {
+      border: 1pt solid #000;
+      padding: 4pt 8pt;
+      margin-bottom: 8pt;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      color: #111;
+    }
+    .card-top-row {
+      display: flex;
+      gap: 10pt;
+      margin-bottom: 10pt;
+      align-items: stretch;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .card-info-table {
+      border-collapse: collapse;
+      font-size: 9pt;
+      width: 100%;
+      border: 1.2pt solid #000;
+    }
+    .card-info-table td {
+      border: 0.75pt solid #222;
+      padding: 4pt 6pt;
+    }
+    .card-ticket-grid {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 4pt;
+      font-size: 7.5pt;
+      text-align: center;
+      border: 1pt solid #000;
+    }
+    .card-ticket-grid th, .card-ticket-grid td {
+      border: 0.5pt solid #666;
+      padding: 1pt 2pt;
+      line-height: 1.2;
+    }
+    .card-ticket-grid th {
+      height: 15pt;
+      background: #fff;
+      border-bottom: 1pt solid #000;
+    }
+    .card-right-col {
+      width: 155pt;
+      display: flex;
+      flex-direction: column;
+      gap: 6pt;
+    }
+    .card-barcode-box {
+      flex: 1;
+      min-height: 64pt;
+      border: 1.2pt dashed #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 9pt;
+      font-weight: 700;
+      color: #222;
+      text-align: center;
+      padding: 6pt;
+    }
+    .card-absent-box {
+      border: 1pt solid #000;
+      padding: 4pt 6pt;
+      font-size: 8pt;
+      text-align: center;
+    }
+    .bubble-matrix {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8pt;
+      margin-bottom: 10pt;
+    }
+    .bubble-group-box {
+      border: 1pt solid #000;
+      padding: 5pt 7pt;
+      background: #fff;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .bubble-row {
+      display: flex;
+      align-items: center;
+      gap: 5pt;
+      font-size: 8.5pt;
+      margin: 2.5pt 0;
+      font-family: "Courier New", Consolas, monospace;
+    }
+    .bubble-no {
+      min-width: 18pt;
+      text-align: right;
+      font-weight: 700;
+      color: #000;
+    }
+    .bubble-item {
+      border: 0.75pt solid #000;
+      padding: 0 3.5pt;
+      font-weight: 700;
+      font-size: 7.5pt;
+      color: #000;
+      min-width: 16pt;
+      line-height: 1.25;
+      text-align: center;
+      display: inline-block;
+    }
+    .card-subjective-box {
+      border: 1.5pt solid #000;
+      margin: 8pt 0 10pt;
+      padding: 6pt 8pt;
+      background: #fff;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .card-subjective-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 0.75pt dashed #666;
+      padding-bottom: 3pt;
+      margin-bottom: 6pt;
+    }
+    .card-subjective-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #000;
+      font-family: "SimHei", "Heiti SC", sans-serif;
+    }
+    .card-subjective-warn {
+      font-size: 7.5pt;
+      color: #333;
+    }
+    .card-forbid-zone {
+      border: 1pt dashed #444;
+      text-align: center;
+      font-size: 8.5pt;
+      color: #444;
+      letter-spacing: 3px;
+      padding: 6pt;
+      margin-top: 8pt;
+    }
+    /* 独立答案册速查表 */
+    .answer-quick-section {
+      column-span: all;
+      margin-bottom: 12pt;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .answer-quick-title {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #000;
+      margin-bottom: 5pt;
+      font-family: "SimHei", "Heiti SC", sans-serif;
+    }
+    .answer-quick-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(145pt, 1fr));
+      gap: 5pt;
+    }
+    .answer-quick-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1pt solid #000;
+      font-size: 8.5pt;
+      text-align: center;
+    }
+    .answer-quick-table th, .answer-quick-table td {
+      border: 0.5pt solid #444;
+      padding: 2pt 3pt;
+    }
+    .answer-quick-table th {
+      background: #f4f4f4;
+      font-weight: 700;
+    }
+    .answer-quick-table td {
+      font-weight: 700;
+      color: #000;
+    }
     ${isDouble
-      ? `section.questions { column-count: 2; column-gap: 8mm; column-rule: 1px dotted #ccc; column-fill: auto; }`
+      ? `section.questions { column-count: 2; column-gap: 8mm; column-rule: 0.5pt solid #bbb; column-fill: balance; }
+         @media print { section.questions { column-fill: auto; } }`
       : `section.questions { column-count: 1; }`}
     .q {
       page-break-inside: avoid;
       break-inside: avoid;
-      margin: 0 0 10px;
+      margin: 0 0 10pt;
+    }
+    .q-stem-line {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .q-no {
+      font-weight: 700;
+      color: #000;
+      margin-right: 3pt;
+    }
+    .q-type-inline {
+      font-size: 0.9em;
+      color: #333;
+      margin-right: 3pt;
+    }
+    .q-score-inline {
+      font-size: 0.92em;
+      color: #222;
+      margin-right: 3pt;
+    }
+    .q-paren {
+      white-space: nowrap;
+      margin-left: 2pt;
+    }
+    .fill-blank-line {
+      display: inline-block;
+      min-width: 4.5em;
+      border-bottom: 0.75pt solid #111;
+      height: 0.95em;
+      vertical-align: -1.5pt;
+      margin: 0 2pt;
     }
     /* 材料卡片与首道小题强制同页同栏保护 */
     .material-block {
@@ -510,134 +842,196 @@ export function buildPrintProCss(options: PrintProOptions = {}): string {
       break-inside: avoid;
       page-break-after: avoid;
       break-after: avoid;
-      background: #f6f6f6; border-left: 3px solid #888;
-      padding: 5px 8px; margin: 0 0 6px;
-      font-size: 9.8pt; white-space: pre-wrap; overflow-wrap: anywhere;
+      background: #f8f8f8;
+      border-left: 2pt solid #333;
+      padding: 5pt 8pt;
+      margin: 0 0 6pt;
+      font-size: 0.96em;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
     .section-divider {
       column-span: all;
       font-weight: 700;
       font-size: 10.5pt;
       margin: 10pt 0 5pt;
-      padding: 2pt 6pt;
-      background: #f1f5f9;
-      border-left: 3.5pt solid #0284c7;
-      color: #0f172a;
+      padding: 3pt 8pt;
+      background: #f5f5f5;
+      border-left: 3pt solid #111;
+      border-bottom: 0.5pt solid #ccc;
+      color: #000;
+      font-family: "SimHei", "Heiti SC", "Microsoft YaHei", sans-serif;
       page-break-after: avoid;
       break-after: avoid;
     }
     .homework-student-bar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 4pt 8pt; margin: 0 0 8pt; border: 1px dashed #666; border-radius: 4px;
-      font-size: 9pt; color: #222; font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8pt;
+      padding: 5pt 8pt;
+      margin: 0 0 10pt;
+      border-top: 0.75pt solid #333;
+      border-bottom: 0.75pt solid #333;
+      font-size: 9.5pt;
+      color: #111;
+      font-family: "SimSun", "Songti SC", serif;
     }
     .homework-reflection-box {
-      column-span: all; margin-top: 10pt; padding: 6pt 8pt;
-      border: 1px solid #888; border-radius: 4px; background: #fafafa;
-      font-size: 8.5pt; color: #333; page-break-inside: avoid; break-inside: avoid;
+      column-span: all;
+      margin-top: 14pt;
+      padding: 7pt 10pt;
+      border: 0.75pt solid #333;
+      background: #fff;
+      font-size: 9pt;
+      line-height: 1.65;
+      color: #111;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .q-group-head { page-break-after: avoid; break-after: avoid; }
-    .q-head { font-weight: 700; margin-bottom: 2px; }
-    .q-type { font-size: 8.5pt; color: #555; border: 1px solid #999; border-radius: 2px; padding: 0 3px; margin-right: 5px; }
-    .q-score { float: right; font-weight: 400; font-size: 9pt; color: #555; }
-    .q-stem { white-space: pre-wrap; overflow-wrap: anywhere; }
-    .opt { margin-left: 1.2em; }
+    .q-head { font-weight: 700; margin-bottom: 3pt; color: #000; }
+    .q-type { font-size: 0.88em; color: #222; margin-right: 4pt; font-weight: 700; }
+    .q-score { float: right; font-weight: 400; font-size: 0.9em; color: #333; }
+    .q-stem { white-space: pre-line; overflow-wrap: anywhere; }
+    .opt { margin-left: 1.4em; }
     /* 选项自适应网格 (exam-zh choices 规范) */
     .opt-grid {
       display: grid;
-      gap: 2px 8px;
-      margin: 3px 0 3px 1.2em;
-      font-size: 10pt;
+      gap: 3pt 12pt;
+      margin: 4pt 0 2pt 1.4em;
+      font-size: inherit;
     }
-    .opt-grid-4 { grid-template-columns: repeat(4, 1fr); }
-    .opt-grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .opt-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .opt-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .opt-grid-1 { grid-template-columns: 1fr; }
     .opt-grid .opt { margin-left: 0; }
     .opt-item { min-width: 0; overflow-wrap: anywhere; }
 
-    /* 装订密封线 (exam-zh sealline 规范) */
+    /* 装订密封线 (exam-zh sealline 规范，纯黑白印刷) */
     .seal-line-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 3pt 8pt;
-      margin-bottom: 6pt;
-      border-top: 1px dashed #666;
-      border-bottom: 2px dashed #333;
-      font-size: 8.5pt;
-      color: #222;
-      font-family: "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+      flex-wrap: wrap;
+      gap: 8pt;
+      padding: 4pt 8pt;
+      margin-bottom: 10pt;
+      border-top: 0.75pt dashed #444;
+      border-bottom: 1.5pt dashed #111;
+      font-size: 9pt;
+      color: #111;
+      font-family: "SimSun", "Songti SC", serif;
       page-break-after: avoid;
       break-after: avoid;
     }
     .seal-warning {
       font-weight: 700;
-      letter-spacing: 2px;
-      color: #333;
+      letter-spacing: 1.5px;
+      color: #000;
+      font-family: "SimHei", "Heiti SC", sans-serif;
     }
 
-    /* 卷首考生须知框 */
+    /* 卷首考生须知框（纯黑白规范） */
     .exam-notice-box {
-      border: 1px solid #777;
-      border-radius: 3px;
-      padding: 4pt 8pt;
-      margin-bottom: 7pt;
-      font-size: 8.5pt;
-      line-height: 1.45;
-      color: #333;
-      background: #fafafa;
+      border: 0.75pt solid #333;
+      padding: 5pt 10pt;
+      margin-bottom: 10pt;
+      font-size: 9pt;
+      line-height: 1.55;
+      color: #111;
+      background: #fff;
       page-break-after: avoid;
       break-after: avoid;
     }
     .exam-notice-title {
       font-weight: 700;
-      font-size: 9pt;
+      font-size: 9.5pt;
       margin-bottom: 2pt;
-      color: #111;
+      color: #000;
       text-align: center;
+      font-family: "SimHei", "Heiti SC", sans-serif;
     }
     .exam-notice-list {
       margin: 0;
-      padding-left: 14pt;
+      padding-left: 16pt;
     }
     .exam-notice-list li {
       margin: 1pt 0;
     }
 
-    /* 自定义厘米级答题留白框 */
+    /* 作答留白区 */
     .answer-area-custom {
-      border: 1px dashed #888;
-      border-radius: 2px;
-      margin: 4px 0 0 1.2em;
-      background: #fafafa;
+      border: 0.5pt dashed #aaa;
+      margin: 5pt 0 2pt 1.4em;
+      background: #fff;
       page-break-inside: avoid;
       break-inside: avoid;
     }
-    .answer-area { border-bottom: 1px solid #999; height: 1.8em; margin: 4px 0 0 1.2em; }
-    .ans-analysis { color: #333; font-size: 9.8pt; margin-left: 1.2em; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .kp-tag { color: #666; font-size: 8.5pt; }
-    .teacher-box {
-      margin: 4px 0 0 1.2em;
-      padding: 5px 8px;
-      background: #fafafa;
-      border: 1px dashed #bbb;
-      border-left: 3px solid #2e7d32;
-      border-radius: 2px;
-      font-size: 9.3pt;
-      line-height: 1.45;
+    .answer-area-ruled {
+      border: 0.5pt solid #bbb;
+      margin: 5pt 0 2pt 1.4em;
+      background-color: #fff;
+      background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 21pt,
+        #dcdcdc 21pt,
+        #dcdcdc 21.75pt
+      );
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
-    .teacher-ans { color: #1b5e20; font-weight: 700; }
-    .teacher-meta { color: #666; font-size: 8.5pt; margin: 2px 0; }
-    .teacher-rubric { color: #0277bd; font-size: 8.8pt; margin: 2px 0; }
-    .teacher-analysis { color: #333; margin-top: 2px; }
+    .answer-area {
+      border-bottom: 0.75pt solid #444;
+      height: 2em;
+      margin: 4pt 0 2pt 1.4em;
+    }
+    .ans-analysis {
+      color: #222;
+      font-size: 0.94em;
+      margin: 2pt 0 0 1.4em;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .kp-tag {
+      color: #444;
+      font-size: 0.85em;
+      border: 0.5pt solid #999;
+      padding: 0 3pt;
+      margin-left: 4pt;
+    }
+    /* 教师备课与授课讲义分层解析卡（克制沉稳教研风） */
+    .teacher-box {
+      margin: 6pt 0 2pt 1.4em;
+      padding: 6pt 10pt;
+      background: #f8f9fa;
+      border: 0.75pt solid #d0d7de;
+      border-left: 3pt solid #334155;
+      font-size: 0.92em;
+      line-height: 1.6;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .teacher-ans { color: #111; font-weight: 700; }
+    .teacher-meta { color: #475569; font-size: 0.9em; margin: 3pt 0; }
+    .teacher-rubric { color: #1e293b; font-size: 0.92em; margin: 3pt 0; }
+    .teacher-analysis { color: #1f2937; margin-top: 3pt; }
+    .teacher-expansion { color: #334155; margin-top: 3pt; padding-top: 3pt; border-top: 0.5pt dashed #cbd5e1; }
     footer.sheet-footer {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      border-top: 1px solid #ccc; padding-top: 2px; margin-top: 8px;
-      font-size: 8.5pt; color: #666; display: flex; justify-content: space-between;
+      margin-top: 18pt;
+      border-top: 0.75pt solid #bbb;
+      padding-top: 4pt;
+      font-size: 8.5pt;
+      color: #555;
+      display: flex;
+      justify-content: space-between;
+      font-family: "SimSun", "Songti SC", serif;
     }
     @media print {
-      body { margin: 0; }
-      footer.sheet-footer { position: fixed; }
+      body { margin: 0; padding: 0; }
+      .omr-sheet { padding: 0; }
     }
     ${getMathPrintStyles()}
   `;
@@ -653,8 +1047,8 @@ function renderFooter(note?: string, today: string = new Date().toLocaleDateStri
 }
 
 /**
- * 生成 A4 双栏紧凑作答卷 HTML（68-04 核心）。
- * 安全红线：绝不输出标准答案与解析字段。
+ * 生成 A4 单栏/双栏紧凑作答卷 HTML（标准测试卷 · 纯黑白真实印刷规范）。
+ * 安全红线：绝不输出标准答案与解析字段（除非用户显式开启 appendSolutionsAtEnd）。
  */
 export function buildCompactQuestionSheetPro(
   title: string,
@@ -663,8 +1057,10 @@ export function buildCompactQuestionSheetPro(
 ): string {
   const showArea = options.showAnswerArea !== false;
   const showScore = options.showScore === true;
-  const groupByKp = options.groupByKp !== false;
+  const groupByKp = options.groupByKp === true;
+  const colLayout: ColumnLayout = options.columns ?? "double";
   const mainTitle = options.headerTitle || title;
+  const hasSealLine = options.showSealLine === true;
 
   const parts: string[] = [
     `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(mainTitle)}</title><style>${buildPrintProCss(options)}</style></head><body>`,
@@ -680,7 +1076,7 @@ export function buildCompactQuestionSheetPro(
     parts.push(renderSecretStamp(options.secretLevel));
   }
 
-  if (options.showSealLine) {
+  if (hasSealLine) {
     parts.push(renderSealLineBar());
   }
 
@@ -692,7 +1088,8 @@ export function buildCompactQuestionSheetPro(
   }
   parts.push(`</div>`);
 
-  if (options.showStudentInfoBar) {
+  // 启用装订密封线时，密封线已包含姓名/准考证号/考场号/座位号，绝不再重复渲染第二排考生信息条
+  if (options.showStudentInfoBar && !hasSealLine) {
     parts.push(renderStudentInfoBar());
   }
   if (options.showScoreGrid) {
@@ -710,18 +1107,18 @@ export function buildCompactQuestionSheetPro(
   let lastKp = "";
   let overallNo = 0;
 
-  const renderSingleQuestion = (q: Question, no: number) => {
-    // 考点章节分组排版
+  const renderSingleQuestion = (q: Question, no: number, showInlineType: boolean) => {
     if (groupByKp && q.kp && q.kp !== lastKp) {
       lastKp = q.kp;
-      parts.push(`<div class="section-divider">📌 考点章节：${escapeHtml(q.kp)}</div>`);
+      parts.push(`<div class="section-divider">考点章节：${escapeHtml(q.kp)}</div>`);
     }
 
     let materialHtml = "";
     if (q.group && !printedGroups.has(q.group)) {
-      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && m.analysis);
-      if (carrier?.analysis) {
-        materialHtml = `<div class="material-block q-group-head">${renderMathInText(carrier.analysis)}</div>`;
+      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && Boolean(resolveMaterialText(m)));
+      const carrierBody = resolveMaterialText(carrier);
+      if (carrierBody) {
+        materialHtml = `<div class="material-block q-group-head">${renderMathAndDiagramsInText(carrierBody)}</div>`;
         printedGroups.add(q.group);
       }
     }
@@ -731,39 +1128,48 @@ export function buildCompactQuestionSheetPro(
         if (materialHtml) parts.push(`<div class="q">${materialHtml}</div>`);
         return;
       }
-      if (q.analysis) {
-        parts.push(`<div class="q">${materialHtml}<div class="material-block">${renderMathInText(q.analysis)}</div></div>`);
+      const selfBody = resolveMaterialText(q);
+      if (selfBody) {
+        parts.push(`<div class="q"><div class="material-block">${renderMathAndDiagramsInText(selfBody)}</div></div>`);
       }
       return;
     }
 
     parts.push(`<div class="q">`);
     if (materialHtml) parts.push(materialHtml);
-    const scoreHtml = showScore ? `<span class="q-score">${q.score} 分</span>` : "";
+
     let scoreBoxHtml = "";
     if (options.showPerQuestionScoreBox && (q.type === "short" || q.type === "fill")) {
       scoreBoxHtml = `<div class="q-score-box"><table><tr><td>得分</td></tr><tr><td>&nbsp;</td></tr></table><table><tr><td>评卷人</td></tr><tr><td>&nbsp;</td></tr></table></div>`;
     }
-    parts.push(`<div class="q-head">${scoreBoxHtml}<span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreHtml}</div>`);
-    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
+
+    const typeInline = showInlineType ? `<span class="q-type-inline">（${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}）</span>` : "";
+    const scoreInline = showScore ? `<span class="q-score-inline">（${q.score || 1} 分）</span>` : "";
+    const { html: stemHtml, hasInlineBlank } = renderQuestionStemHtml(q, true);
+
+    parts.push(
+      `<div class="q-stem-line">${scoreBoxHtml}<span class="q-no">${no}.</span>${typeInline}${scoreInline}<span class="q-stem">${stemHtml}</span></div>`,
+    );
+
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
     if (q.options && q.options.length > 0) {
-      const cols = computeOptionColumns(q.options);
+      const cols = computeOptionColumns(q.options, colLayout);
       parts.push(`<div class="opt-grid opt-grid-${cols}">`);
       q.options.forEach((o, oi) => {
         parts.push(`<div class="opt opt-item">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
       });
       parts.push(`</div>`);
     }
-    if (showArea && (q.type === "fill" || q.type === "short")) {
-      if (q.type === "short" && options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0) {
-        const cm = Math.max(0.5, Math.min(30, options.shortAnswerSpaceCm));
+    if (showArea) {
+      if (q.type === "short") {
+        const cm = options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0
+          ? Math.max(0.5, Math.min(30, options.shortAnswerSpaceCm))
+          : 2.8;
         parts.push(`<div class="answer-area-custom" style="min-height:${cm}cm"></div>`);
-      } else {
+      } else if (q.type === "fill" && !hasInlineBlank) {
         parts.push(`<div class="answer-area"></div>`);
-        if (q.type === "short") parts.push(`<div class="answer-area"></div><div class="answer-area"></div>`);
       }
     }
     parts.push(`</div>`);
@@ -777,31 +1183,38 @@ export function buildCompactQuestionSheetPro(
       parts.push(`</div>`);
       for (const sq of sec.questions) {
         overallNo++;
-        renderSingleQuestion(sq, overallNo);
+        renderSingleQuestion(sq, overallNo, false);
       }
     }
   } else {
     questions.forEach((q, i) => {
       overallNo = i + 1;
-      renderSingleQuestion(q, overallNo);
+      renderSingleQuestion(q, overallNo, true);
     });
   }
 
   // 如果开启卷尾附加参考答案与解析
   if (options.appendSolutionsAtEnd) {
+    const orderedForAppendix = sections ? sections.flatMap((s) => s.questions) : questions;
     parts.push(`<div class="solution-appendix-divider">【参考答案与解题分析附录】</div>`);
     let solNo = 0;
-    for (const sq of questions) {
+    for (const sq of orderedForAppendix) {
       if (sq.type === "material") continue;
       solNo++;
       parts.push(`<div class="q">`);
-      parts.push(`<div class="q-head">${solNo}. <strong>${escapeHtml(sq.answer)}</strong>${sq.kp ? ` <span class="kp-tag">${escapeHtml(sq.kp)}</span>` : ""}</div>`);
-      if (sq.type === "short" && sq.rubric?.criteria?.length) {
-        const rubricText = sq.rubric.criteria.map((c) => `${c.label}(${Math.round(c.weight * 100)}%)`).join(" · ");
-        parts.push(`<div class="ans-analysis">📋 采分点标准：${escapeHtml(rubricText)}</div>`);
+      parts.push(`<div class="q-head">${solNo}. <strong>${escapeHtml(formatDisplayAnswer(sq.answer) || sq.answer)}</strong>${sq.kp ? ` <span class="kp-tag">${escapeHtml(sq.kp)}</span>` : ""}</div>`);
+      const rubricItems = extractRubricItems(sq);
+      if (sq.type === "short" && rubricItems.length > 0) {
+        const rubricText = rubricItems
+          .map((item) => {
+            const ptsPart = item.points !== undefined ? `+${item.points}分` : item.weightPct !== undefined ? `${item.weightPct}%` : "";
+            return ptsPart ? `${item.label}(${ptsPart})` : item.label;
+          })
+          .join(" · ");
+        parts.push(`<div class="ans-analysis">采分点标准：${escapeHtml(rubricText)}</div>`);
       }
-      if (sq.analysis) parts.push(`<div class="ans-analysis">💡 详细解析：${renderMathInText(sq.analysis)}</div>`);
-      if (sq.expansion) parts.push(`<div class="ans-analysis" style="color:#0284c7">⚡ 思路拓展与秒杀要诀：${renderMathInText(sq.expansion)}</div>`);
+      if (sq.analysis) parts.push(`<div class="ans-analysis">详细解析：${renderMathInText(sq.analysis)}</div>`);
+      if (sq.expansion) parts.push(`<div class="ans-analysis">思路拓展与秒杀要诀：${renderMathInText(sq.expansion)}</div>`);
       parts.push(`</div>`);
     }
   }
@@ -819,30 +1232,59 @@ export function buildStandardAnswerCardPro(
   options: PrintProOptions = {},
 ): string {
   const mainTitle = options.headerTitle || title;
+  const autoGroup = options.autoGroupSections !== false;
+  const orderedQuestions = autoGroup
+    ? groupAndSortPaperQuestions(questions).flatMap((sec) => sec.questions)
+    : [...questions];
+
   const parts: string[] = [
     `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(mainTitle)} · 答题卡</title><style>${buildPrintProCss({ ...options, columns: "single" })}</style></head><body>`,
-    renderHeader(`${mainTitle} · 答题卡`, `总题量：${questions.length} 题`, options.paperNo),
+    `<div class="omr-sheet">`,
+    `<span class="omr-corner omr-tl" aria-hidden="true"></span>`,
+    `<span class="omr-corner omr-tr" aria-hidden="true"></span>`,
+    `<span class="omr-corner omr-bl" aria-hidden="true"></span>`,
+    `<span class="omr-corner omr-br" aria-hidden="true"></span>`,
+    renderHeader(`${mainTitle} · 答题卡`, `总题量：${orderedQuestions.filter((q) => q.type !== "material").length} 题`, options.paperNo),
   ];
 
   parts.push(`<div class="sheet-title-banner">`);
   parts.push(`<h1 class="sheet-main-title">${escapeHtml(mainTitle)} · 答题卡</h1>`);
-  parts.push(`<p class="sheet-sub-title">请使用 2B 铅笔规范填涂选择题，用黑色签字笔在指定矩形框内书写主观题</p>`);
+  parts.push(`<p class="sheet-sub-title">${escapeHtml(options.subtitle || "机读填涂与主观题规范作答卡")}</p>`);
   parts.push(`</div>`);
+
+  // 考生注意事项与填涂样例
+  parts.push(`<div class="card-notice-box">`);
+  parts.push(`<strong>注意事项：</strong>1. 答题前请将姓名、班级、考场、座位号及准考证号填写清楚。2. 选择题必须使用 2B 铅笔规范填涂，修改时用橡皮擦干净。3. 主观题必须使用 0.5mm 黑色签字笔在各题黑色矩形边框内作答，超出边框无效。 &nbsp;|&nbsp; <strong>填涂样例：</strong>正确 <strong>[■]</strong> &nbsp;错误 [✓] [×] [／]`);
+  parts.push(`</div>`);
+
+  // 顶部考生信息 + 准考证号 [0]-[9] 填涂矩阵 + 条形码粘贴区
+  const ticketCols = 8;
+  const ticketHeaderCells = Array(ticketCols).fill(`<th>&nbsp;</th>`).join("");
+  const ticketRows = Array.from({ length: 10 }, (_, digit) => {
+    const cells = Array(ticketCols).fill(`<td>[${digit}]</td>`).join("");
+    return `<tr>${cells}</tr>`;
+  }).join("");
 
   parts.push(`<div class="card-top-row">`);
   parts.push(`<div style="flex:1">`);
   parts.push(`<table class="card-info-table">`);
   parts.push(`<tr><td>姓名：__________________</td><td>班级：__________________</td></tr>`);
   parts.push(`<tr><td>考场：__________________</td><td>座位号：________________</td></tr>`);
-  parts.push(`<tr><td colspan="2">准考证号：[ ][ ][ ][ ][ ][ ][ ][ ][ ][ ]</td></tr>`);
+  parts.push(`</table>`);
+  parts.push(`<table class="card-ticket-grid" aria-label="准考证号填涂区">`);
+  parts.push(`<thead><tr><th colspan="${ticketCols}" style="height:auto;padding:2pt;background:#f5f5f5;font-weight:700">准考证号填涂区（先写数字，再对应涂黑）</th></tr><tr>${ticketHeaderCells}</tr></thead>`);
+  parts.push(`<tbody>${ticketRows}</tbody>`);
   parts.push(`</table>`);
   parts.push(`</div>`);
-  parts.push(`<div class="card-barcode-box">条形码粘贴区<br><span style="font-size:7.5pt">(居中对齐粘贴)</span></div>`);
+  parts.push(`<div class="card-right-col">`);
+  parts.push(`<div class="card-barcode-box"><div>条形码粘贴区</div><div style="font-size:7.5pt;font-weight:400;margin-top:3pt">(正面朝上，切勿贴出虚线框)</div></div>`);
+  parts.push(`<div class="card-absent-box">缺考标记 [ ] &nbsp; 违纪 [ ]<br><span style="font-size:7pt;color:#555">（由监考老师填涂）</span></div>`);
+  parts.push(`</div>`);
   parts.push(`</div>`);
 
-  const objectiveQuestions = questions.filter((q) => q.type === "single" || q.type === "multiple" || q.type === "judge");
+  const objectiveQuestions = orderedQuestions.filter((q) => q.type === "single" || q.type === "multiple" || q.type === "judge");
   if (objectiveQuestions.length > 0) {
-    parts.push(`<div class="section-divider" style="margin-top:4pt">一、客观选择题填涂区（请用 2B 铅笔正确填涂 [■]）</div>`);
+    parts.push(`<div class="paper-section-banner" style="margin-top:4pt"><div class="paper-section-title">一、客观选择题填涂区</div><div class="paper-section-notice">请使用 2B 铅笔将对应题号选定选项框涂黑，每 5 题为一组。</div></div>`);
     parts.push(`<div class="bubble-matrix">`);
 
     const groupSize = 5;
@@ -851,9 +1293,13 @@ export function buildStandardAnswerCardPro(
       parts.push(`<div class="bubble-group-box">`);
       slice.forEach((q, sIdx) => {
         const qIndex = gi + sIdx + 1;
-        const bubbles = q.type === "judge"
-          ? `<span class="bubble-item">[T]</span><span class="bubble-item">[F]</span>`
-          : `<span class="bubble-item">[A]</span><span class="bubble-item">[B]</span><span class="bubble-item">[C]</span><span class="bubble-item">[D]</span>`;
+        const bubbles =
+          q.type === "judge"
+            ? `<span class="bubble-item">[T]</span><span class="bubble-item">[F]</span>`
+            : Array.from(
+                { length: Math.max(4, Math.min(8, q.options?.length || 4)) },
+                (_, oi) => `<span class="bubble-item">[${String.fromCharCode(65 + oi)}]</span>`,
+              ).join("");
         parts.push(`<div class="bubble-row"><span class="bubble-no">${qIndex}.</span>${bubbles}</div>`);
       });
       parts.push(`</div>`);
@@ -861,87 +1307,171 @@ export function buildStandardAnswerCardPro(
     parts.push(`</div>`);
   }
 
-  const subjectiveQuestions = questions.filter((q) => q.type === "fill" || q.type === "short");
+  const subjectiveQuestions = orderedQuestions.filter((q) => q.type === "fill" || q.type === "short");
   if (subjectiveQuestions.length > 0) {
-    parts.push(`<div class="section-divider" style="margin-top:6pt">二、非选择题作答区（请在各题黑色边框内作答，超出边框无效）</div>`);
+    parts.push(`<div class="paper-section-banner" style="margin-top:6pt"><div class="paper-section-title">二、非选择题作答区</div><div class="paper-section-notice">请用黑色签字笔在各题黑色矩形边框限定区域内作答，超出边框无效。</div></div>`);
     let subNo = objectiveQuestions.length;
     subjectiveQuestions.forEach((q) => {
       subNo++;
       const minHeight = q.type === "short"
-        ? (options.shortAnswerSpaceCm ? `${options.shortAnswerSpaceCm}cm` : "32mm")
-        : "16mm";
+        ? (options.shortAnswerSpaceCm ? `${Math.max(2, options.shortAnswerSpaceCm)}cm` : "38mm")
+        : "18mm";
       parts.push(`<div class="card-subjective-box" style="min-height:${minHeight}">`);
-      parts.push(`<div class="card-subjective-warn">第 ${subNo} 题 (${q.score || 1} 分) · 请在黑色边框内作答，超出无效</div>`);
+      parts.push(`<div class="card-subjective-head"><span class="card-subjective-title">第 ${subNo} 题（${q.score || 1} 分 · ${q.type === "fill" ? "填空题" : "解答题"}）</span><span class="card-subjective-warn">请在黑色边框内作答，超出边框无效</span></div>`);
+      if (q.type === "fill") {
+        const blankCount = Math.max(1, (q.stem.match(/_{3,}|＿{3,}/g) || []).length || (q.answer.includes(";;") ? q.answer.split(";;").length : 1));
+        const lines = Array.from({ length: blankCount }, (_, bi) => `<div style="margin:6pt 0;font-size:9pt">(${bi + 1}) ________________________________________________</div>`).join("");
+        parts.push(lines);
+      } else {
+        parts.push(`<div class="answer-area-ruled" style="margin:0;border:none;min-height:calc(${minHeight} - 24pt)"></div>`);
+      }
       parts.push(`</div>`);
     });
   }
 
-  parts.push(renderFooter(options.footerNote || "小驴考试 · 标准答题卡"), `</body></html>`);
+  parts.push(`<div class="card-forbid-zone">请 勿 在 此 区 域 内 作 答 或 做 任 何 标 记</div>`);
+  parts.push(renderFooter(options.footerNote || "小驴考试 · 标准填涂答题卡"), `</div>`, `</body></html>`);
   return parts.join("\n");
 }
 
 /**
- * 生成 A4 双栏紧凑详解答案册 HTML。
+ * 生成 A4 独立答案与采分册 HTML（客观题 5 题一组速查 + 主观题分步采分标准）。
  */
 export function buildCompactAnswerSheetPro(
   title: string,
   questions: readonly Question[],
   options: PrintProOptions = {},
 ): string {
+  const mainTitle = options.headerTitle || title;
+  const autoGroup = options.autoGroupSections !== false;
+  const orderedQuestions = autoGroup
+    ? groupAndSortPaperQuestions(questions).flatMap((sec) => sec.questions)
+    : [...questions];
+  const nonMaterial = orderedQuestions.filter((q) => q.type !== "material");
+  const totalScore = nonMaterial.reduce((sum, q) => sum + (q.score || 1), 0);
+
   const parts: string[] = [
-    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)} · 答案册</title><style>${buildPrintProCss(options)}</style></head><body>`,
-    renderHeader(`${title} · 答案册`, `共 ${questions.length} 题（与题册同序）`, options.paperNo),
+    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(mainTitle)} · 答案册</title><style>${buildPrintProCss(options)}</style></head><body>`,
+    renderHeader(`${mainTitle} · 答案册`, `共 ${nonMaterial.length} 题（与题册同序）`, options.paperNo),
+    `<div class="sheet-title-banner">`,
+    `<h1 class="sheet-main-title">${escapeHtml(mainTitle)} · 参考答案与采分标准</h1>`,
+    `<p class="sheet-sub-title">共 ${nonMaterial.length} 题 · 满分 ${totalScore} 分 · 按题册同序编排</p>`,
+    `</div>`,
     `<section class="questions">`,
   ];
 
-  let no = 0;
-  for (const q of questions) {
-    if (q.type === "material") continue;
-    no++;
-    parts.push(`<div class="q">`);
-    parts.push(`<div class="q-head">${no}. <strong>${escapeHtml(q.answer)}</strong>${q.kp ? ` <span class="kp-tag">${escapeHtml(q.kp)}</span>` : ""}</div>`);
-    if (q.type === "short" && q.rubric?.criteria?.length) {
-      const rubricText = q.rubric.criteria.map((c) => `${c.label}(${Math.round(c.weight * 100)}%)`).join(" · ");
-      parts.push(`<div class="ans-analysis">采分点：${escapeHtml(rubricText)}</div>`);
+  // 一、客观题 5 题一组速查表
+  const numberedItems = nonMaterial.map((q, idx) => ({ q, no: idx + 1 }));
+  const objectiveItems = numberedItems.filter(
+    ({ q }) => q.type === "single" || q.type === "multiple" || q.type === "judge",
+  );
+  if (objectiveItems.length > 0) {
+    parts.push(`<div class="answer-quick-section">`);
+    parts.push(`<div class="answer-quick-title">一、客观题极速核对表</div>`);
+    parts.push(`<div class="answer-quick-grid">`);
+    for (let i = 0; i < objectiveItems.length; i += 5) {
+      const slice = objectiveItems.slice(i, i + 5);
+      const ths = slice.map((item) => `<th>${item.no}</th>`).join("");
+      const tds = slice
+        .map((item) => `<td>${escapeHtml(formatDisplayAnswer(item.q.answer) || item.q.answer || "—")}</td>`)
+        .join("");
+      parts.push(`<table class="answer-quick-table"><thead><tr>${ths}</tr></thead><tbody><tr>${tds}</tr></tbody></table>`);
     }
-    if (q.analysis) parts.push(`<div class="ans-analysis">${renderMathInText(q.analysis)}</div>`);
+    parts.push(`</div>`);
     parts.push(`</div>`);
   }
 
-  parts.push(`</section>`, renderFooter(options.footerNote), `</body></html>`);
+  parts.push(`<div class="paper-section-banner" style="margin-top:4pt"><div class="paper-section-title">二、逐题答案、分步采分点与简明解析</div></div>`);
+
+  for (const { q, no } of numberedItems) {
+    const rawAnswer = String(q.answer ?? "").trim();
+    const displayAns =
+      q.type === "single" || q.type === "multiple" || q.type === "judge"
+        ? rawAnswer
+        : formatDisplayAnswer(rawAnswer) || rawAnswer;
+
+    parts.push(`<div class="q">`);
+    parts.push(
+      `<div class="q-head">${no}. <strong>${escapeHtml(displayAns)}</strong>` +
+        `${q.score ? ` <span style="font-weight:400;color:#444;font-size:0.9em">（${q.score} 分）</span>` : ""}` +
+        `${q.kp ? ` <span class="kp-tag">${escapeHtml(q.kp)}</span>` : ""}</div>`,
+    );
+
+    const rubricItems = extractRubricItems(q);
+    if (q.type === "short" && rubricItems.length > 0) {
+      const pctParts = rubricItems.map((item) => {
+        if (item.weightPct !== undefined) return `${item.label}(${item.weightPct}%)`;
+        if (item.points !== undefined) return `${item.label}(+${item.points}分)`;
+        return item.label;
+      });
+      parts.push(`<div class="ans-analysis">采分点：${escapeHtml(pctParts.join(" · "))}</div>`);
+      const stepLines = rubricItems
+        .filter((item) => item.points !== undefined || item.desc)
+        .map((item, ri) => {
+          const ptsTag = item.points !== undefined ? ` +${item.points} 分` : "";
+          const descPart = item.desc ? `：${item.desc}` : "";
+          return `<div>（${ri + 1}）${escapeHtml(item.label)}${escapeHtml(ptsTag)}${escapeHtml(descPart)}</div>`;
+        });
+      if (stepLines.length > 0 && rubricItems.some((item) => item.points !== undefined)) {
+        parts.push(`<div class="ans-analysis">${stepLines.join("")}</div>`);
+      }
+    }
+    if (q.analysis) {
+      parts.push(`<div class="ans-analysis">${renderMathInText(q.analysis)}</div>`);
+    }
+    parts.push(`</div>`);
+  }
+
+  parts.push(`</section>`, renderFooter(options.footerNote || "小驴考试 · 独立答案与采分册"), `</body></html>`);
   return parts.join("\n");
 }
 
 /**
- * 生成 A4 双栏/单栏【教师备课与授课讲义卷】HTML（教师教研核心）。
- * 特性：题面 + 选项 + 教师参考答案 + 考点难度 + 采分点标准 + 破题教学解析 + 数学公式。
+ * 生成 A4 单栏/双栏【教师备课与授课讲义卷】HTML（教师教研核心）。
+ * 特性：学术讲义抬头 + 题面与选项 + 参考答案 + 考点难度 + 采分点标准 + 教学点拨 + 思路拓展秒杀要诀。
  */
 export function buildTeacherLectureSheetPro(
   title: string,
   questions: readonly Question[],
   options: PrintProOptions = {},
 ): string {
+  const mainTitle = options.headerTitle || title;
+  const lectureOptions: PrintProOptions = {
+    columns: "single",
+    fontSizeMode: options.fontSizeMode ?? "large",
+    ...options,
+  };
+  const colLayout: ColumnLayout = lectureOptions.columns ?? "single";
+  const autoGroup = options.autoGroupSections !== false;
+  const sections = autoGroup ? groupAndSortPaperQuestions(questions) : null;
+  const groupByKp = options.groupByKp === true;
+  const nonMaterialCount = questions.filter((q) => q.type !== "material").length;
+
   const parts: string[] = [
-    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)} · 教师讲义教案卷</title><style>${buildPrintProCss(options)}</style></head><body>`,
-    renderHeader(`${title} · 教师授课讲义卷`, `共 ${questions.length} 题`, options.paperNo),
+    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(mainTitle)} · 教师讲义教案卷</title><style>${buildPrintProCss(lectureOptions)}</style></head><body>`,
+    renderHeader(`${mainTitle} · 教师授课讲义卷`, `共 ${nonMaterialCount} 题`, options.paperNo),
+    `<div class="sheet-title-banner is-left">`,
+    `<h1 class="sheet-main-title" style="font-size:18pt">${escapeHtml(mainTitle)} · 教师授课讲义卷</h1>`,
+    `<p class="sheet-sub-title">${escapeHtml(options.subtitle || `教研讲义版 · 共 ${nonMaterialCount} 题 · 含参考答案、采分细则与课堂点拨`)}</p>`,
+    `</div>`,
     `<section class="questions">`,
   ];
 
   const printedGroups = new Set<string>();
-  const groupByKp = options.groupByKp !== false;
   let lastKp = "";
+  let overallNo = 0;
 
-  questions.forEach((q, i) => {
-    const no = i + 1;
+  const renderLectureQuestion = (q: Question, no: number, showInlineType: boolean) => {
     if (groupByKp && q.kp && q.kp !== lastKp) {
       lastKp = q.kp;
-      parts.push(`<div class="section-divider">📌 考点章节：${escapeHtml(q.kp)}</div>`);
+      parts.push(`<div class="section-divider">考点专题：${escapeHtml(q.kp)}</div>`);
     }
     let materialHtml = "";
     if (q.group && !printedGroups.has(q.group)) {
-      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && m.analysis);
-      if (carrier?.analysis) {
-        materialHtml = `<div class="material-block q-group-head">${renderMathInText(carrier.analysis)}</div>`;
+      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && Boolean(resolveMaterialText(m)));
+      const carrierBody = resolveMaterialText(carrier);
+      if (carrierBody) {
+        materialHtml = `<div class="material-block q-group-head">${renderMathAndDiagramsInText(carrierBody)}</div>`;
         printedGroups.add(q.group);
       }
     }
@@ -951,22 +1481,26 @@ export function buildTeacherLectureSheetPro(
         if (materialHtml) parts.push(`<div class="q">${materialHtml}</div>`);
         return;
       }
-      if (q.analysis) {
-        parts.push(`<div class="q">${materialHtml}<div class="material-block">${renderMathInText(q.analysis)}</div></div>`);
+      const selfBody = resolveMaterialText(q);
+      if (selfBody) {
+        parts.push(`<div class="q"><div class="material-block">${renderMathAndDiagramsInText(selfBody)}</div></div>`);
       }
       return;
     }
 
     parts.push(`<div class="q">`);
     if (materialHtml) parts.push(materialHtml);
-    const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
-    parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
-    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
+    const typeInline = showInlineType ? `<span class="q-type-inline">[${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}]</span>` : "";
+    const scoreText = q.score ? `（${q.score} 分）` : "";
+    const { html: stemHtml } = renderQuestionStemHtml(q, true);
+    parts.push(
+      `<div class="q-stem-line"><span class="q-no">${no}.</span>${typeInline}${scoreText ? `<span class="q-score-inline">${scoreText}</span>` : ""}<span class="q-stem">${stemHtml}</span></div>`,
+    );
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
     if (q.options && q.options.length > 0) {
-      const cols = computeOptionColumns(q.options);
+      const cols = computeOptionColumns(q.options, colLayout);
       parts.push(`<div class="opt-grid opt-grid-${cols}">`);
       q.options.forEach((o, oi) => {
         parts.push(`<div class="opt opt-item">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
@@ -974,61 +1508,107 @@ export function buildTeacherLectureSheetPro(
       parts.push(`</div>`);
     }
 
-    // 教师备课核心卡片
+    // 教师备课分层解析卡
+    const ansDisplay =
+      q.type === "single" || q.type === "multiple" || q.type === "judge"
+        ? q.answer
+        : formatDisplayAnswer(q.answer) || q.answer;
     parts.push(`<div class="teacher-box">`);
-    parts.push(`<div>【<span class="teacher-ans">参考答案</span>】：<strong>${escapeHtml(q.answer)}</strong></div>`);
+    parts.push(`<div>【<span class="teacher-ans">参考答案</span>】：<strong>${escapeHtml(ansDisplay)}</strong></div>`);
     const metaParts: string[] = [];
-    if (q.kp) metaParts.push(`🏷️ 考点：${escapeHtml(q.kp)}`);
-    if (q.difficulty) metaParts.push(`⭐ 难度：${"★".repeat(Math.min(5, Math.max(1, q.difficulty)))}${"☆".repeat(Math.max(0, 5 - Math.min(5, q.difficulty)))}`);
+    if (q.kp) metaParts.push(`考点归属：${escapeHtml(q.kp)}`);
+    if (q.difficulty) metaParts.push(`难度：${"★".repeat(Math.min(5, Math.max(1, q.difficulty)))}${"☆".repeat(Math.max(0, 5 - Math.min(5, q.difficulty)))}`);
     if (metaParts.length) parts.push(`<div class="teacher-meta">${metaParts.join(" · ")}</div>`);
 
-    if (q.type === "short" && q.rubric?.criteria?.length) {
-      const rubricText = q.rubric.criteria.map((c) => `${c.label}(${Math.round(c.weight * 100)}%)`).join("；");
-      parts.push(`<div class="teacher-rubric">📋 采分点标准：${escapeHtml(rubricText)}</div>`);
+    const rubricItems = extractRubricItems(q);
+    if (q.type === "short" && rubricItems.length > 0) {
+      const rubricText = rubricItems
+        .map((item) => {
+          const ptsTag = item.points !== undefined ? `+${item.points}分` : item.weightPct !== undefined ? `${item.weightPct}%` : "";
+          return ptsTag ? `${item.label}(${ptsTag})` : item.label;
+        })
+        .join("；");
+      parts.push(`<div class="teacher-rubric"><strong>采分点细则：</strong>${escapeHtml(rubricText)}</div>`);
     }
 
     if (q.analysis) {
-      parts.push(`<div class="teacher-analysis">💡 <strong>教学点拨与破题分析</strong>：${renderMathInText(q.analysis)}</div>`);
+      parts.push(`<div class="teacher-analysis"><strong>教学点拨与破题分析：</strong>${renderMathInText(q.analysis)}</div>`);
     }
-    parts.push(`</div>`); // end .teacher-box
-    parts.push(`</div>`); // end .q
-  });
+    if (q.expansion) {
+      parts.push(`<div class="teacher-expansion"><strong>讲评拓展与秒杀要诀：</strong>${renderMathInText(q.expansion)}</div>`);
+    }
+    parts.push(`</div>`);
+    parts.push(`</div>`);
+  };
+
+  if (sections && sections.length > 0) {
+    for (const sec of sections) {
+      parts.push(`<div class="paper-section-banner">`);
+      parts.push(`<div class="paper-section-title">${escapeHtml(sec.sectionTitle)}</div>`);
+      parts.push(`</div>`);
+      for (const sq of sec.questions) {
+        overallNo++;
+        renderLectureQuestion(sq, overallNo, false);
+      }
+    }
+  } else {
+    questions.forEach((q, i) => {
+      overallNo = i + 1;
+      renderLectureQuestion(q, overallNo, true);
+    });
+  }
 
   parts.push(`</section>`, renderFooter(options.footerNote || "小驴考试 · 教师备课授课讲义"), `</body></html>`);
   return parts.join("\n");
 }
 
 /**
- * 生成 A4 双栏【学生课后作业与分层导学单】HTML（学校教师教学核心）。
- * 特性：学生信息填写条 + 题干与选项 + 规范作答书写框 + 课后自我诊断反思栏。
+ * 生成 A4 单栏/双栏【学生课后分层作业单】HTML（轻量清爽作业纸）。
+ * 特性：简洁抬头 + 单行学生信息条 + 宽松手写/演算留白 + 页尾自评与错因勾选栏。
  */
 export function buildStudentHomeworkSheetPro(
   title: string,
   questions: readonly Question[],
   options: PrintProOptions = {},
 ): string {
+  const mainTitle = options.headerTitle || title;
+  const hwOptions: PrintProOptions = {
+    columns: "single",
+    fontSizeMode: options.fontSizeMode ?? "large",
+    ...options,
+  };
+  const colLayout: ColumnLayout = hwOptions.columns ?? "single";
+  const autoGroup = options.autoGroupSections !== false;
+  const sections = autoGroup ? groupAndSortPaperQuestions(questions) : null;
+  const groupByKp = options.groupByKp === true;
+  const nonMaterialCount = questions.filter((q) => q.type !== "material").length;
+
   const parts: string[] = [
-    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)} · 课后作业导学单</title><style>${buildPrintProCss(options)}</style></head><body>`,
-    renderHeader(`${title} · 课后作业导学单`, `共 ${questions.length} 题`, options.paperNo),
-    `<div class="homework-student-bar"><span>班级：___________</span><span>姓名：___________</span><span>学号：___________</span><span>日期：___________</span><span>得分：___________</span></div>`,
+    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(mainTitle)} · 课后作业导学单</title><style>${buildPrintProCss(hwOptions)}</style></head><body>`,
+    renderHeader(`${mainTitle} · 课后作业导学单`, `共 ${nonMaterialCount} 题`, options.paperNo),
+    `<div class="sheet-title-banner">`,
+    `<h1 class="sheet-main-title" style="font-size:17.5pt">${escapeHtml(mainTitle)} · 课后分层作业单</h1>`,
+    options.subtitle ? `<p class="sheet-sub-title">${escapeHtml(options.subtitle)}</p>` : "",
+    `</div>`,
+    `<div class="homework-student-bar"><span>班级：___________</span><span>姓名：___________</span><span>日期：___________</span><span>用时：_____ 分钟</span><span>完成度：_____</span></div>`,
     `<section class="questions">`,
   ];
 
   const printedGroups = new Set<string>();
-  const groupByKp = options.groupByKp !== false;
   let lastKp = "";
+  let overallNo = 0;
 
-  questions.forEach((q, i) => {
-    const no = i + 1;
+  const renderHomeworkQuestion = (q: Question, no: number) => {
     if (groupByKp && q.kp && q.kp !== lastKp) {
       lastKp = q.kp;
-      parts.push(`<div class="section-divider">📌 练习考点：${escapeHtml(q.kp)}</div>`);
+      parts.push(`<div class="section-divider">练习考点：${escapeHtml(q.kp)}</div>`);
     }
     let materialHtml = "";
     if (q.group && !printedGroups.has(q.group)) {
-      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && m.analysis);
-      if (carrier?.analysis) {
-        materialHtml = `<div class="material-block q-group-head">${renderMathInText(carrier.analysis)}</div>`;
+      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && Boolean(resolveMaterialText(m)));
+      const carrierBody = resolveMaterialText(carrier);
+      if (carrierBody) {
+        materialHtml = `<div class="material-block q-group-head">${renderMathAndDiagramsInText(carrierBody)}</div>`;
         printedGroups.add(q.group);
       }
     }
@@ -1038,43 +1618,63 @@ export function buildStudentHomeworkSheetPro(
         if (materialHtml) parts.push(`<div class="q">${materialHtml}</div>`);
         return;
       }
-      if (q.analysis) {
-        parts.push(`<div class="q">${materialHtml}<div class="material-block">${renderMathInText(q.analysis)}</div></div>`);
+      const selfBody = resolveMaterialText(q);
+      if (selfBody) {
+        parts.push(`<div class="q"><div class="material-block">${renderMathAndDiagramsInText(selfBody)}</div></div>`);
       }
       return;
     }
 
-    parts.push(`<div class="q">`);
+    parts.push(`<div class="q" style="margin-bottom:13pt">`);
     if (materialHtml) parts.push(materialHtml);
-    const scoreText = q.score ? `<span class="q-score">${q.score} 分</span>` : "";
-    parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}.${scoreText}</div>`);
-    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
+    const { html: stemHtml, hasInlineBlank } = renderQuestionStemHtml(q, true);
+    parts.push(
+      `<div class="q-stem-line"><span class="q-no">${no}.</span><span class="q-stem">${stemHtml}</span></div>`,
+    );
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
     if (q.options && q.options.length > 0) {
-      const cols = computeOptionColumns(q.options);
+      const cols = computeOptionColumns(q.options, colLayout);
       parts.push(`<div class="opt-grid opt-grid-${cols}">`);
       q.options.forEach((o, oi) => {
         parts.push(`<div class="opt opt-item">${String.fromCharCode(65 + oi)}. ${renderMathInText(o)}</div>`);
       });
       parts.push(`</div>`);
     }
-    if (q.type === "fill" || q.type === "short") {
-      const defaultHeight = q.type === 'short' ? '30mm' : '10mm';
-      const heightStyle = q.type === 'short' && options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0
-        ? `${Math.max(0.5, Math.min(30, options.shortAnswerSpaceCm))}cm`
-        : defaultHeight;
-      parts.push(`<div class="answer-area" style="min-height:${heightStyle};border:1px dashed #aaa;margin-top:4pt"></div>`);
+    if (q.type === "short") {
+      const cm = options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0
+        ? Math.max(1.5, Math.min(30, options.shortAnswerSpaceCm))
+        : 3.6;
+      parts.push(`<div class="answer-area-ruled" style="min-height:${cm}cm"></div>`);
+    } else if (q.type === "fill" && !hasInlineBlank) {
+      parts.push(`<div class="answer-area" style="margin-top:6pt"></div>`);
     }
     parts.push(`</div>`);
-  });
+  };
+
+  if (sections && sections.length > 0) {
+    for (const sec of sections) {
+      parts.push(`<div class="paper-section-banner">`);
+      parts.push(`<div class="paper-section-title">${escapeHtml(sec.sectionTitle)}</div>`);
+      parts.push(`</div>`);
+      for (const sq of sec.questions) {
+        overallNo++;
+        renderHomeworkQuestion(sq, overallNo);
+      }
+    }
+  } else {
+    questions.forEach((q, i) => {
+      overallNo = i + 1;
+      renderHomeworkQuestion(q, overallNo);
+    });
+  }
 
   parts.push(
     `</section>`,
     `<div class="homework-reflection-box">`,
-    `<div><strong>【学生自我诊断与订正栏】</strong> 本次练习掌握感：[ ] 熟练掌握 · [ ] 稍有困难 · [ ] 需请教老师</div>`,
-    `<div style="margin-top:4pt;border-top:1px dashed #ccc;padding-top:4pt;color:#666">错因记录与疑问：__________________________________________________________________________</div>`,
+    `<div><strong>【学生自我诊断与订正栏】</strong> 本次练习掌握感：[ ] 熟练掌握 · [ ] 稍有困难 · [ ] 需请教老师 &nbsp;|&nbsp; 错因归类：[ ] 审题不清 · [ ] 概念模糊 · [ ] 计算失误</div>`,
+    `<div style="margin-top:6pt;border-top:0.5pt dashed #999;padding-top:5pt;color:#333">错因记录与疑问：__________________________________________________________________________</div>`,
     `</div>`,
     renderFooter(options.footerNote || "小驴考试 · 课后分层作业导学单"),
     `</body></html>`,
@@ -1091,28 +1691,34 @@ export function buildWrongbookRetestSheetPro(
   questions: readonly Question[],
   options: PrintProOptions = {},
 ): string {
+  const mainTitle = options.headerTitle || title;
   const parts: string[] = [
-    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)} · 错题清零重测卷</title><style>${buildPrintProCss(options)}</style></head><body>`,
-    renderHeader(`${title} · 错题清零重测卷`, `共 ${questions.length} 道错题待攻坚`, options.paperNo),
+    `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(mainTitle)} · 错题清零重测卷</title><style>${buildPrintProCss(options)}</style></head><body>`,
+    renderHeader(`${mainTitle} · 错题清零重测卷`, `共 ${questions.length} 道错题待攻坚`, options.paperNo),
+    `<div class="sheet-title-banner">`,
+    `<h1 class="sheet-main-title" style="font-size:17pt">${escapeHtml(mainTitle)} · 错题清零重测卷</h1>`,
+    `</div>`,
     `<div class="homework-student-bar"><span>姓名：___________</span><span>班级：___________</span><span>日期：___________</span><span>原错题数：${questions.length}</span><span>本次目标：错题清零</span></div>`,
     `<section class="questions">`,
   ];
 
   const printedGroups = new Set<string>();
-  const groupByKp = options.groupByKp !== false;
+  const groupByKp = options.groupByKp === true;
+  const colLayout: ColumnLayout = options.columns ?? "double";
   let lastKp = "";
 
   questions.forEach((q, i) => {
     const no = i + 1;
     if (groupByKp && q.kp && q.kp !== lastKp) {
       lastKp = q.kp;
-      parts.push(`<div class="section-divider">📌 攻坚考点：${escapeHtml(q.kp)}</div>`);
+      parts.push(`<div class="section-divider">攻坚考点：${escapeHtml(q.kp)}</div>`);
     }
     let materialHtml = "";
     if (q.group && !printedGroups.has(q.group)) {
-      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && m.analysis);
-      if (carrier?.analysis) {
-        materialHtml = `<div class="material-block q-group-head">${renderMathInText(carrier.analysis)}</div>`;
+      const carrier = questions.find((m) => m.group === q.group && m.type === "material" && Boolean(resolveMaterialText(m)));
+      const carrierBody = resolveMaterialText(carrier);
+      if (carrierBody) {
+        materialHtml = `<div class="material-block q-group-head">${renderMathAndDiagramsInText(carrierBody)}</div>`;
         printedGroups.add(q.group);
       }
     }
@@ -1122,16 +1728,17 @@ export function buildWrongbookRetestSheetPro(
         if (materialHtml) parts.push(`<div class="q">${materialHtml}</div>`);
         return;
       }
-      if (q.analysis) {
-        parts.push(`<div class="q">${materialHtml}<div class="material-block">${renderMathInText(q.analysis)}</div></div>`);
+      const selfBody = resolveMaterialText(q);
+      if (selfBody) {
+        parts.push(`<div class="q"><div class="material-block">${renderMathAndDiagramsInText(selfBody)}</div></div>`);
       }
       return;
     }
 
     parts.push(`<div class="q">`);
     if (materialHtml) parts.push(materialHtml);
-    parts.push(`<div class="q-head"><span class="q-type">${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}</span>${no}. <span class="lv-chip sm" style="font-size:8pt;color:#d97706;border:1px solid #fde68a;padding:0 3px">错题重练</span></div>`);
-    parts.push(`<div class="q-stem">${renderMathAndDiagramsInText(q.stem)}</div>`);
+    const { html: stemHtml, hasInlineBlank } = renderQuestionStemHtml(q, true);
+    parts.push(`<div class="q-stem-line"><span class="q-no">${no}.</span><span class="q-type-inline">[错题重练 · ${escapeHtml(TYPE_NAMES[q.type] ?? q.type)}]</span><span class="q-stem">${stemHtml}</span></div>`);
     if (q.occlusion) {
       parts.push(`<div class="occlusion-wrap">${renderOcclusionSvg(q.occlusion, { printMode: true })}</div>`);
     }
@@ -1139,22 +1746,24 @@ export function buildWrongbookRetestSheetPro(
     if (q.type === "single" || q.type === "multiple") {
       const letters = "ABCDEFGHIJ";
       if (q.options && q.options.length > 0) {
-        const cols = computeOptionColumns(q.options);
+        const cols = computeOptionColumns(q.options, colLayout);
         parts.push(`<div class="opt-grid opt-grid-${cols}">`);
         q.options.forEach((opt, oi) => {
-          parts.push(`<div class="opt opt-item"><b>${letters[oi]}.</b> ${renderMathInText(opt)}</div>`);
+          parts.push(`<div class="opt opt-item">${letters[oi]}. ${renderMathInText(opt)}</div>`);
         });
         parts.push(`</div>`);
       }
-      parts.push(`<div class="answer-area" style="height:1.8em;border-bottom:1px solid #888;margin-top:3pt">作答：______</div>`);
+      parts.push(`<div class="answer-area" style="height:1.8em;margin-top:3pt">作答：______</div>`);
     } else if (q.type === "judge") {
       parts.push(`<div class="opt" style="margin-top:3pt">作答判断：[ ] 正确 (T)  /  [ ] 错误 (F)</div>`);
     } else {
-      const defaultHeight = q.type === 'short' ? '28mm' : '9mm';
-      const heightStyle = q.type === 'short' && options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0
+      const defaultHeight = q.type === "short" ? "28mm" : "9mm";
+      const heightStyle = q.type === "short" && options.shortAnswerSpaceCm && options.shortAnswerSpaceCm > 0
         ? `${Math.max(0.5, Math.min(30, options.shortAnswerSpaceCm))}cm`
         : defaultHeight;
-      parts.push(`<div class="answer-area" style="min-height:${heightStyle};border:1px dashed #aaa;margin-top:4pt"></div>`);
+      if (q.type === "short" || !hasInlineBlank) {
+        parts.push(`<div class="answer-area-ruled" style="min-height:${heightStyle}"></div>`);
+      }
     }
     parts.push(`</div>`);
   });
@@ -1163,7 +1772,7 @@ export function buildWrongbookRetestSheetPro(
     `</section>`,
     `<div class="homework-reflection-box">`,
     `<div><strong>【错题清零自我归因与二次反思】</strong> 本次订正情况：[ ] 彻底弄懂 [ ] 仍有疑问 · 错因反思：[ ] 粗心失误 [ ] 概念盲区 [ ] 审题陷阱</div>`,
-    `<div style="margin-top:4pt;border-top:1px dashed #ccc;padding-top:4pt;color:#666">核心考点领悟与关键步骤：__________________________________________________________________________</div>`,
+    `<div style="margin-top:4pt;border-top:0.5pt dashed #999;padding-top:4pt;color:#444">核心考点领悟与关键步骤：__________________________________________________________________________</div>`,
     `</div>`,
     renderFooter(options.footerNote || "小驴考试 · 错题清零纯净重测卷"),
     `</body></html>`,
@@ -1213,14 +1822,29 @@ export function buildInteractiveReviewSheetPro(
   options: PrintProOptions = {},
 ): string {
   const displayTitle = options.headerTitle || title;
-  const letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
-  const totalScore = questions.reduce((sum, q) => sum + (q.score || 1), 0);
+  const nonMaterialQuestions = questions.filter((q) => q.type !== "material");
+  const totalScore = nonMaterialQuestions.reduce((sum, q) => sum + (q.score || 1), 0);
 
   const questionsHtml: string[] = [];
+  let no = 0;
 
   questions.forEach((q, idx) => {
-    const no = idx + 1;
-    const qid = q.id || `q_${no}`;
+    if (q.type === "material") {
+      const matBody = resolveMaterialText(q);
+      if (matBody) {
+        questionsHtml.push(`
+          <div class="material-block" style="margin-bottom:14px;padding:12px 16px;background:var(--card-bg);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:var(--radius)">
+            <div style="font-size:12px;font-weight:700;color:var(--brand);margin-bottom:6px">📄 阅读材料</div>
+            <div class="material-body">${renderMathAndDiagramsInText(matBody)}</div>
+          </div>
+        `);
+      }
+      return;
+    }
+
+    no++;
+    const qid = q.id || `q_${idx + 1}`;
+    const safeQid = escapeHtml(qid);
     const score = q.score || 1;
     const typeName = TYPE_NAMES[q.type] || q.type;
 
@@ -1228,50 +1852,53 @@ export function buildInteractiveReviewSheetPro(
     if (q.options && q.options.length > 0) {
       const isMulti = q.type === "multiple";
       const inputType = isMulti ? "checkbox" : "radio";
+      const useTwoCol = computeOptionColumns(q.options, "single") >= 2;
       const opts = q.options.map((opt, oi) => {
-        const letter = letters[oi];
+        const letter = OPTION_LETTERS[oi] ?? String.fromCharCode(65 + oi);
         return `<label class="interactive-opt">
-          <input type="${inputType}" name="ans_${qid}" value="${letter}" class="opt-input">
+          <input type="${inputType}" name="ans_${safeQid}" value="${letter}" class="opt-input">
           <span class="opt-letter">${letter}.</span>
           <span class="opt-text">${renderMathInText(opt)}</span>
         </label>`;
       }).join("\n");
-      optionsMarkup = `<div class="interactive-opts-group">${opts}</div>`;
+      optionsMarkup = `<div class="interactive-opts-group${useTwoCol ? " is-2col" : ""}">${opts}</div>`;
     } else if (q.type === "judge") {
-      optionsMarkup = `<div class="interactive-opts-group">
+      optionsMarkup = `<div class="interactive-opts-group is-2col">
         <label class="interactive-opt">
-          <input type="radio" name="ans_${qid}" value="对" class="opt-input">
+          <input type="radio" name="ans_${safeQid}" value="对" class="opt-input">
           <span class="opt-letter">√</span>
           <span class="opt-text">正确 (True)</span>
         </label>
         <label class="interactive-opt">
-          <input type="radio" name="ans_${qid}" value="错" class="opt-input">
+          <input type="radio" name="ans_${safeQid}" value="错" class="opt-input">
           <span class="opt-letter">×</span>
           <span class="opt-text">错误 (False)</span>
         </label>
       </div>`;
     } else if (q.type === "fill") {
       optionsMarkup = `<div class="interactive-input-wrap">
-        <input type="text" name="ans_${qid}" class="interactive-text-input" placeholder="输入填空答案（多空请用半角 ;; 分隔）…">
+        <input type="text" name="ans_${safeQid}" class="interactive-text-input" placeholder="输入填空答案（多空请用半角 ;; 分隔）…">
       </div>`;
     } else if (q.type === "short") {
       optionsMarkup = `<div class="interactive-input-wrap">
-        <textarea name="ans_${qid}" class="interactive-textarea" rows="3" placeholder="写下你的简答核心要点…"></textarea>
+        <textarea name="ans_${safeQid}" class="interactive-textarea" rows="3" placeholder="写下你的简答核心要点…"></textarea>
       </div>`;
     }
 
     // 采分点标准呈现
     let rubricHtml = "";
-    if (q.rubric && typeof q.rubric === "object") {
-      const criteria = (q.rubric as { criteria?: Array<{ name?: string; points?: number; desc?: string }> })?.criteria;
-      if (Array.isArray(criteria) && criteria.length) {
-        rubricHtml = `<div class="rubric-box">
-          <div class="rubric-title">🎯 官方采分点细则标准：</div>
-          <ul class="rubric-list">
-            ${criteria.map((c) => `<li><b>${escapeHtml(c.name || "要点")}</b>（${c.points ?? 1}分）：${escapeHtml(c.desc || "")}</li>`).join("")}
-          </ul>
-        </div>`;
-      }
+    const rubricItems = extractRubricItems(q);
+    if (rubricItems.length > 0) {
+      rubricHtml = `<div class="rubric-box">
+        <div class="rubric-title">🎯 官方采分点细则标准：</div>
+        <ul class="rubric-list">
+          ${rubricItems.map((item) => {
+            const pts = item.points ?? (item.weightPct !== undefined ? `${item.weightPct}%` : 1);
+            const ptsStr = typeof pts === "number" ? `${pts}分` : pts;
+            return `<li><b>${escapeHtml(item.label)}</b>（${escapeHtml(ptsStr)}）${item.desc ? `：${escapeHtml(item.desc)}` : ""}</li>`;
+          }).join("")}
+        </ul>
+      </div>`;
     }
 
     const formattedAnswer = formatDisplayAnswer(q.answer);
@@ -1516,16 +2143,25 @@ export function buildInteractiveReviewSheetPro(
       color: #991b1b;
     }
     .q-card-stem {
-      font-size: 15px;
+      font-size: 15.5px;
       font-weight: 500;
+      line-height: 1.72;
       margin-bottom: 14px;
       color: var(--text);
     }
     .interactive-opts-group {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: 1fr;
       gap: 8px;
       margin-bottom: 14px;
+    }
+    .interactive-opts-group.is-2col {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    @media (max-width: 640px) {
+      .interactive-opts-group.is-2col {
+        grid-template-columns: 1fr;
+      }
     }
     .interactive-opt {
       display: flex;
@@ -1611,13 +2247,18 @@ export function buildInteractiveReviewSheetPro(
     body.mode-test .test-answer-space { display: block; }
 
     @media print {
-      body { background: #fff; padding: 0; }
-      header.header-bar { border: 0; box-shadow: none; padding: 0 0 10px; }
-      .toolbar-row, .btn-toggle-answer, .scoreboard-banner { display: none !important; }
-      .q-answer-details { display: block !important; }
-      .q-card { page-break-inside: avoid; break-inside: avoid; border: 1px solid #ccc; box-shadow: none; margin-bottom: 12px; }
-      .test-answer-space { display: block !important; }
-      .expansion-body { page-break-inside: avoid; break-inside: avoid; }
+      body { background: #fff; padding: 0; color: #111; font-family: "SimSun", "Songti SC", serif; }
+      header.header-bar { border: 0; border-bottom: 1pt solid #111; border-radius: 0; box-shadow: none; padding: 0 0 8pt; margin-bottom: 10pt; }
+      .header-title { color: #000; font-family: "SimHei", "Heiti SC", sans-serif; }
+      .badge { background: #fff; color: #111; border: 0.5pt solid #666; }
+      .toolbar-row, .btn-toggle-answer, .scoreboard-banner, .interactive-input-wrap, .opt-input { display: none !important; }
+      .q-answer-details { display: block !important; background: #fff; border: 0.5pt solid #bbb; }
+      .q-card { page-break-inside: avoid; break-inside: avoid; border: 0.75pt solid #999; border-radius: 2pt; box-shadow: none; margin-bottom: 10pt; }
+      .q-type-badge { background: #fff; color: #111; border: 0.75pt solid #111; }
+      .interactive-opt { border: none; padding: 2pt 4pt; }
+      .opt-letter { color: #000; }
+      .test-answer-space { display: block !important; background: #fff; border: 0.5pt dashed #888; }
+      .expansion-body { page-break-inside: avoid; break-inside: avoid; background: #fff; border-left: 2pt solid #333; color: #222; }
     }
     ${getMathPrintStyles()}
   </style>
@@ -1626,9 +2267,12 @@ export function buildInteractiveReviewSheetPro(
   <div class="wrapper">
     <header class="header-bar">
       <div class="header-title-row">
-        <h1 class="header-title">📖 ${escapeHtml(displayTitle)}</h1>
+        <div>
+          <h1 class="header-title">📖 ${escapeHtml(displayTitle)}</h1>
+          ${options.subtitle ? `<div style="font-size:13px;color:var(--text-muted);margin-top:4px">${escapeHtml(options.subtitle)}</div>` : ""}
+        </div>
         <div class="header-meta">
-          <span class="badge">共 ${questions.length} 题</span>
+          <span class="badge">共 ${nonMaterialQuestions.length} 题</span>
           <span class="badge">总计 ${totalScore} 分</span>
           <span>生成日期：${new Date().toLocaleDateString("zh-CN")}</span>
         </div>
@@ -1729,27 +2373,27 @@ export function buildInteractiveReviewSheetPro(
       const cards = document.querySelectorAll('.q-card');
 
       cards.forEach(function(card) {
-        const qid = card.getAttribute('data-qid');
         const qtype = card.getAttribute('data-type');
+        if (qtype === 'material') return;
         const rawAns = (card.getAttribute('data-answer') || '').trim();
         const score = parseFloat(card.getAttribute('data-score')) || 1;
         totalScore += score;
 
         let myAns = '';
         if (qtype === 'single' || qtype === 'judge') {
-          const sel = card.querySelector('input[name="ans_' + qid + '"]:checked');
+          const sel = card.querySelector('input[type="radio"]:checked');
           if (sel) myAns = sel.value.trim();
         } else if (qtype === 'multiple') {
-          const checked = card.querySelectorAll('input[name="ans_' + qid + '"]:checked');
+          const checked = card.querySelectorAll('input[type="checkbox"]:checked');
           const arr = [];
           checked.forEach(function(c) { arr.push(c.value.trim()); });
           arr.sort();
           myAns = arr.join('');
         } else if (qtype === 'fill') {
-          const inp = card.querySelector('input[name="ans_' + qid + '"]');
+          const inp = card.querySelector('.interactive-text-input');
           if (inp) myAns = inp.value.trim();
         } else if (qtype === 'short') {
-          const ta = card.querySelector('textarea[name="ans_' + qid + '"]');
+          const ta = card.querySelector('.interactive-textarea');
           if (ta) myAns = ta.value.trim();
         }
 
@@ -1804,7 +2448,7 @@ export function generatePaperVariant(
   questions: readonly Question[],
   variantKind: "A" | "B",
 ): Question[] {
-  const letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
+  const letters = [...OPTION_LETTERS];
   const seedNum = variantKind === "A" ? 1337 : 4242;
 
   let seed = seedNum;
@@ -1827,7 +2471,7 @@ export function generatePaperVariant(
       const cleanUpper = (orig.answer || "").toUpperCase();
       const origAnswerLetters = cleanUpper.includes(",") || cleanUpper.includes(" ") || cleanUpper.includes("、")
         ? cleanUpper.split(/[,，、\s]+/).map((l) => l.trim()).filter(Boolean)
-        : cleanUpper.replace(/[^A-H]/g, "").split("");
+        : cleanUpper.replace(/[^A-J]/g, "").split("");
       const origAnswerIndices = origAnswerLetters
         .map((l) => letters.indexOf(l))
         .filter((idx) => idx >= 0);

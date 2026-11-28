@@ -11,7 +11,7 @@ import vitePluginYamlI18n from "./yaml-plugin.js";
 const env = process.env;
 const isSrcmap = env.VITE_SOURCEMAP === "inline";
 const isDev = env.NODE_ENV === "development";
-const chunkTarget = env.VITE_CHUNK === "sheetjs" ? "sheetjs" : "";
+const chunkTarget = env.VITE_CHUNK === "sheetjs" ? "sheetjs" : env.VITE_CHUNK === "pdfjs" ? "pdfjs" : "";
 // 本插件无 kernel.js（docs/03 决策 #9）：仅 app target；kernel 死分支已于 26.3 移除
 
 const outputDir = isDev ? "dev" : "dist";
@@ -37,14 +37,14 @@ export default defineConfig(chunkTarget ? {
         minify: true,
         sourcemap: isSrcmap ? "inline" : false,
         lib: {
-            entry: resolve(import.meta.dirname, "src/chunks/sheetjs.ts"),
-            name: "lvChunk_sheetjs",
-            fileName: () => "chunks/sheetjs.js",
+            entry: resolve(import.meta.dirname, `src/chunks/${chunkTarget}.ts`),
+            name: `lvChunk_${chunkTarget}`,
+            fileName: () => `chunks/${chunkTarget}.js`,
             formats: ["iife"],
         },
         rollupOptions: {
             output: {
-                entryFileNames: "chunks/sheetjs.js",
+                entryFileNames: `chunks/${chunkTarget}.js`,
             },
         },
     },
@@ -112,7 +112,14 @@ export default defineConfig(chunkTarget ? {
                 }),
             ],
 
-            external: ["siyuan", "process", "xlsx"],
+            external: [
+                "siyuan",
+                "process",
+                "xlsx",
+                "pdfjs-dist",
+                "pdfjs-dist/legacy/build/pdf.mjs",
+                "pdfjs-dist/legacy/build/pdf.worker.mjs",
+            ],
 
             output: {
                 entryFileNames: "[name].js",

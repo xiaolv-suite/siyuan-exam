@@ -383,6 +383,7 @@ export interface BlankManualFormState {
   studyPhonetic: string;
   status: QuestionLifecycleStatus;
   family?: Question["family"];
+  sourceBlockId?: string;
 }
 
 /**
@@ -414,6 +415,7 @@ export function createBlankManualFormState(): BlankManualFormState {
     studyPhonetic: "",
     status: "published",
     family: undefined,
+    sourceBlockId: "",
   };
 }
 
@@ -427,6 +429,7 @@ export function createManualDraftSnapshot(state: Partial<BlankManualFormState>):
     options: [...(state.options ?? [])],
     answer: state.answer ?? "",
     analysis: state.analysis ?? "",
+    expansion: state.expansion ?? "",
     kp: state.kp ?? "",
     secondaryKps: state.secondaryKps ?? "",
     prerequisites: state.prerequisites ?? "",
@@ -444,6 +447,7 @@ export function createManualDraftSnapshot(state: Partial<BlankManualFormState>):
     studyLang: state.studyLang ?? "zh-CN",
     studyPhonetic: state.studyPhonetic ?? "",
     status: state.status ?? "published",
+    ...(state.sourceBlockId ? { sourceBlockId: state.sourceBlockId } : {}),
     ...(state.family ? { family: state.family } : {}),
   };
 }
@@ -534,6 +538,122 @@ export async function executeSwitchManualTypeWithConfirm(options: {
     if (!ok) return { confirmed: false };
   }
   return { confirmed: true, cleanState: getCleanStateOnTypeSwitch(nextType) };
+}
+
+export interface PostSaveManualResetResult {
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  expansion: string;
+  clearUnpinnedMeta: boolean;
+}
+
+/**
+ * 计算保存成功后的表单重置策略（pinAttributes=true 时保留题型、考点、出处等属性）
+ */
+export function computePostSaveManualReset(
+  type: QuestionType,
+  pinAttributes: boolean,
+): PostSaveManualResetResult {
+  const isChoice = type === "single" || type === "multiple";
+  return {
+    stem: "",
+    options: isChoice ? ["", ""] : [],
+    answer: "",
+    analysis: "",
+    expansion: "",
+    clearUnpinnedMeta: !pinAttributes,
+  };
+}
+
+/**
+ * 严格等待保存成功后执行表单重置与聚焦（保存失败或异常时完整保留草稿）
+ */
+export async function executeSaveAndContinueManual(options: {
+  save: () => Promise<boolean>;
+  resetForm: () => void | Promise<void>;
+  focusStem: () => void;
+}): Promise<boolean> {
+  let ok = false;
+  try {
+    ok = (await options.save()) === true;
+  } catch {
+    return false;
+  }
+  if (!ok) return false;
+  await options.resetForm();
+  options.focusStem();
+  return true;
+}
+
+const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  single: "单选题",
+  multiple: "多选题",
+  judge: "判断题",
+  fill: "填空题",
+  short: "简答题",
+  material: "材料题",
+};
+
+/**
+ * 构建用于追加到原笔记末尾的折叠题目引用块（不带 custom-exam-id，避免题库重复统计）
+ */
+export function buildFoldedQuestionNoteMarkdown(q: Question): string {
+  const typeLabel = QUESTION_TYPE_LABELS[q.type] ?? q.type;
+  const kpPart = q.kp ? ` · ${q.kp}` : "";
+  const lines: string[] = [`> [!NOTE] 📝 随堂题库卡片（${typeLabel}${kpPart}）`];
+  const stemLines = q.stem.trim().split(/\r?\n/);
+  lines.push(`> **题干**：${stemLines[0] ?? ""}`);
+  for (const extra of stemLines.slice(1)) {
+    lines.push(`> ${extra}`);
+  }
+  if (q.options.length > 0) {
+    lines.push(">");
+    q.options.forEach((opt, i) => {
+      lines.push(`> - ${String.fromCharCode(65 + i)}. ${opt}`);
+    });
+  }
+  lines.push(">");
+  lines.push(`> **参考答案**：${q.answer.replace(/\r?\n/g, " / ") || "（略）"}`);
+  if (q.analysis?.trim()) {
+    const analysisLines = q.analysis.trim().split(/\r?\n/);
+    lines.push(`> **解析**：${analysisLines[0]}`);
+    for (const extra of analysisLines.slice(1)) {
+      lines.push(`> ${extra}`);
+    }
+  }
+  const safeId = q.id.replace(/[^a-zA-Z0-9_-]/g, "");
+  return `${lines.join("\n")}\n{: fold="1" custom-exam-mirror="${safeId}"}`;
+}
+
+/**
+ * 将已保存题目的折叠卡片同步追加到原绑定笔记文档末尾
+ */
+export async function appendQuestionMirrorToSourceNote(
+  app: ExamApp,
+  sourceBlockId: string,
+  q: Question,
+): Promise<string | null> {
+  const rawId = sourceBlockId.trim();
+  if (!rawId || !app?.bridge?.appendBlock) return null;
+  let targetDocId = rawId;
+  if (typeof app.bridge.sql === "function") {
+    try {
+      const rows = await app.bridge.sql(
+        `SELECT root_id FROM blocks WHERE id = '${rawId.replace(/'/g, "''")}' LIMIT 1`,
+      );
+      const rootId = rows?.[0]?.root_id;
+      if (typeof rootId === "string" && rootId.trim()) {
+        targetDocId = rootId.trim();
+      }
+    } catch {
+      /* SQL 不可用时回退直接使用 sourceBlockId */
+    }
+  }
+  const md = buildFoldedQuestionNoteMarkdown(q);
+  await app.bridge.appendBlock(targetDocId, md);
+  return targetDocId;
 }
 
 

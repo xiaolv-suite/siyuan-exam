@@ -1,4 +1,5 @@
-import { showMessage } from "siyuan";
+import * as siyuanApi from "siyuan";
+const { showMessage } = siyuanApi;
 import manifest from "../../plugin.json";
 import { lvBackup, lvLaunchpad, lvNotify, lvOmnisearch } from "@/libs/lv-notice-kit";
 import { mountLvExamBridge } from "../core/examBridge";
@@ -22,6 +23,17 @@ export function cleanupExamLocalStorage(): void {
 }
 
 export function setupEarlyEcosystem(plugin: PluginHost): void {
+  // 注册宿主思源 API，供罗盘工作台跨插件无依赖打开文档与发内核请求
+  const safeGet = <T>(getter: () => T): T | undefined => {
+    try { return getter(); } catch { return undefined; }
+  };
+  lvLaunchpad.registerHostApi({
+    openTab: safeGet(() => (typeof siyuanApi.openTab === "function" ? siyuanApi.openTab : undefined)),
+    openMobileFileById: safeGet(() => (typeof siyuanApi.openMobileFileById === "function" ? siyuanApi.openMobileFileById : undefined)),
+    fetchSyncPost: safeGet(() => (typeof siyuanApi.fetchSyncPost === "function" ? siyuanApi.fetchSyncPost : undefined)),
+    app: plugin.app,
+  });
+
   // 挂载罗盘全端统一入口（Protocol v1.7.5 Unified Entry 顶栏+悬浮球收敛）
   plugin.disposer.add(lvLaunchpad.ensureUnifiedEntry(plugin));
   plugin.disposer.add(() => {

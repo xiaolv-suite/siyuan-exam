@@ -4,13 +4,19 @@
   import type { Question } from "../../core/types";
   import type { BankInfo } from "../../app";
   import type { GleanClip } from "@/core/gleanBridge";
+  import { PROMPT_PRESETS } from "@/ai/gen";
   import StudioSubNav from "./StudioSubNav.svelte";
+
+  const AI_GEN_TYPES: Question["type"][] = ["single", "multiple", "judge", "fill", "short"];
+  const AI_PRESET_KEYS = Object.keys(PROMPT_PRESETS) as Array<keyof typeof PROMPT_PRESETS>;
 
   interface Props {
     hasBank: boolean;
     activeBankId: string;
     banks: BankInfo[];
     aiCustomEndpointSet: boolean;
+    aiKeyConfigured?: boolean;
+    onopenSettings?: () => void;
     aiError: string;
     aiSource: string;
     aiSourceOrigin: string;
@@ -21,6 +27,7 @@
     gleanPendingDone: GleanClip[];
     gleanDoneBusy: boolean;
     gleanDoneNote: string;
+    aiTypes?: Question["type"][];
     aiCount: number;
     aiDifficulty: "easy" | "medium" | "hard" | "mixed";
     aiPreset: string;
@@ -44,7 +51,7 @@
     aiTaskLog: any[];
     t: (k: string, fb?: string) => string;
     onback: () => void;
-    onchangeView: (view: "manual" | "materials" | "import" | "ai") => void;
+    onchangeView: (view: "manual" | "siyuan" | "materials" | "import" | "ai") => void;
     onfromDoc: () => void;
     onimportGlean: () => void;
     onmarkGleanDone: () => void;
@@ -66,6 +73,8 @@
     activeBankId,
     banks,
     aiCustomEndpointSet,
+    aiKeyConfigured = false,
+    onopenSettings,
     aiError,
     aiSource = $bindable(),
     aiSourceOrigin = $bindable(),
@@ -76,6 +85,7 @@
     gleanPendingDone,
     gleanDoneBusy,
     gleanDoneNote,
+    aiTypes = $bindable(["single", "multiple", "judge", "fill", "short"]),
     aiCount = $bindable(),
     aiDifficulty = $bindable(),
     aiPreset = $bindable(),
@@ -124,8 +134,21 @@
     <p>{t("head.ai.desc")}</p>
   </div>
   <StudioSubNav currentView="ai" {t} {onchangeView} />
+  {#if !aiKeyConfigured}
+    <div class="lv-card" role="status" style="margin:8px 0 10px;padding:10px 14px;background:var(--lv-amber-soft);border:1px solid color-mix(in srgb, var(--lv-amber) 32%, transparent);border-radius:var(--lv-r-2);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12.5px;line-height:1.55;color:var(--lv-text);min-width:0;flex:1 1 260px">
+        <strong style="color:var(--lv-amber-deep, var(--lv-amber));display:block;margin-bottom:2px">前置条件提示：尚未配置模型 API 密钥</strong>
+        <span class="lv-muted" style="font-size:12px">AI 智能出题依赖外部大模型接口与联网。若您已在「思源设置 → AI 服务」配置可用模型可直接生成；否则请先前往插件设置填写兼容接口地址、模型与 API 密钥。</span>
+      </div>
+      {#if onopenSettings}
+        <button type="button" class="lv-btn sm lv-btn--primary" onclick={onopenSettings}>
+          <Icon name="settings" size={13} /> 打开插件设置
+        </button>
+      {/if}
+    </div>
+  {/if}
   <!-- AI 出题使用说明向导卡片 -->
-  <div class="lv-card" style="margin:8px 0 10px;padding:12px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
+  <div class="lv-card lv-studio-intro-card" style="margin:8px 0 10px;padding:12px 14px;background:color-mix(in srgb, var(--lv-accent-soft) 25%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);font-size:12px;line-height:1.6">
     <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 AI 智能出题使用说明：</b>
     1. <b>出题材料</b>：在左侧粘贴课文段落、读书笔记或知识点（亦可从思源笔记或考纲资料库一键带入）；<br />
     2. <b>生成配置</b>：可自选题量、难度倾向与重点提示词，点击「开始生成」；<br />
@@ -192,10 +215,31 @@
         </div>
       </div>
       <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
+        <div class="lv-session-dock" role="group" aria-label={t("manual.type", "题型")}>
+          <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("manual.type", "题型")}</span>
+          {#each AI_GEN_TYPES as qt (qt)}
+            {@const active = aiTypes.includes(qt)}
+            <button
+              type="button"
+              class="lv-chip"
+              class:acc={active}
+              aria-pressed={active}
+              onclick={() => {
+                if (active) {
+                  if (aiTypes.length > 1) aiTypes = aiTypes.filter((x) => x !== qt);
+                } else {
+                  aiTypes = [...aiTypes, qt];
+                }
+              }}
+            >{t("qtype." + qt)}</button>
+          {/each}
+        </div>
+      </div>
+      <div class="lv-row" style="margin:4px 0;gap:var(--lv-space-3);flex-wrap:wrap">
         <div class="lv-session-dock" role="group" aria-label={t("ai.preset")}>
           <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("ai.preset")}</span>
-          {#each ["default", "medical", "legal", "exam_cn"] as p, _i (_i)}
-            <button type="button" class="lv-chip" class:acc={aiPreset === p} aria-pressed={aiPreset === p} onclick={() => (aiPreset = p)}>{t("ai.preset." + p)}</button>
+          {#each AI_PRESET_KEYS as p (p)}
+            <button type="button" class="lv-chip" class:acc={aiPreset === p} aria-pressed={aiPreset === p} onclick={() => (aiPreset = p)}>{t("ai.preset." + p, PROMPT_PRESETS[p].label)}</button>
           {/each}
         </div>
         <div class="lv-session-dock" role="group" aria-label={t("ai.quality")}>
@@ -230,7 +274,7 @@
         {#if aiUsageTotal}<span class="lv-chip lv-chip--data num" style="display:inline-flex;align-items:center;gap:4px" title={t("ai.usageTitle")}><Icon name="activity" size={11} /> ≈{aiUsageTotal.totalTokens} tok · {aiUsageTotal.totalCalls} {t("ai.usageCalls")}</span>{/if}
       </div>
     </div>
-    <section class="lv-ai-review">
+    <section class="lv-card lv-pad-card lv-ai-review">
       <div class="lv-section-head">
         <div><span class="lv-eyebrow">审核工作区</span><h2>{t("ai.queue")}</h2></div>
         {#if aiQueue.length}<span class="lv-chip lv-chip--data num">{aiQueue.length} 待审核</span>{/if}

@@ -1,6 +1,6 @@
 {
   "name": "siyuan-exam",
-  "version": "0.15.7",
+  "version": "0.15.8",
   "type": "module",
   "description": "小驴考试 (Lv Exam) — Local-first question bank & exam prep workspace in SiYuan: import, active-recall practice, wrongbook, mock exam, FSRS flashcards, AI. 思源笔记本地题库与备考工作台",
   "repository": "https://github.com/xiaolv-suite/siyuan-exam",
@@ -57,7 +57,7 @@
     "check:svelte": "svelte-check --tsconfig ./tsconfig.json",
     "clean": "node ./scripts/clean.js",
     "build": "run-s clean build:chunks build:app",
-    "build:chunks": "cross-env NODE_ENV=production VITE_CHUNK=sheetjs vite build",
+    "build:chunks": "cross-env NODE_ENV=production VITE_CHUNK=sheetjs vite build && cross-env NODE_ENV=production VITE_CHUNK=pdfjs vite build",
     "build:app": "cross-env NODE_ENV=production VITE_BUILD_TARGET=app vite build",
     "make-link": "node --no-warnings ./scripts/make_dev_link.js",
     "make-link-win": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/elevate.ps1 -scriptPath ./scripts/make_dev_link.js",
@@ -102,6 +102,7 @@
   },
   "dependencies": {
     "dompurify": "^3.4.17",
+    "pdfjs-dist": "^6.5.438",
     "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   }
 }

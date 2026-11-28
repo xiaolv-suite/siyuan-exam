@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from "../shared/Icon.svelte";
   import type { Question } from "@/core/types";
+  import { escapeHtml } from "@/libs/sanitize";
   import {
     buildCompactQuestionSheetPro,
     buildTeacherLectureSheetPro,
@@ -45,16 +46,17 @@
   let preflightOpen = $state(false);
 
   let paperFormat = $state<PaperFormat>("exam");
+  let activeQuickPreset = $state<"standard" | "homework" | "lecture" | "compact" | null>("standard");
   let mainTitle = $state("");
   let subtitle = $state("");
   let paperNo = $state("");
-  let columns = $state<ColumnLayout>("double");
+  let columns = $state<ColumnLayout>("single");
   let paperSize = $state<PaperSize>("A4");
   let fontSizeMode = $state<"standard" | "compact" | "large">("standard");
 
   let autoGroupSections = $state(true);
   let showSealLine = $state(true);
-  let showStudentInfoBar = $state(true);
+  let showStudentInfoBar = $state(false);
   let showScoreGrid = $state(true);
   let showPerQuestionScoreBox = $state(true);
   let showExamNotice = $state(true);
@@ -62,15 +64,21 @@
   let appendSolutionsAtEnd = $state(false);
   let shortAnswerSpaceCm = $state(5);
   let zoomLevel = $state<number>(100);
+  let previewIframeHeight = $state<number>(1180);
 
+  let wasOpen = false;
   $effect(() => {
-    if (open) {
-      activeQuestions = [...questions];
+    if (open && !wasOpen) {
+      wasOpen = true;
+      const incoming = [...questions];
+      activeQuestions = incoming;
       const label = bankName || "模拟自测卷";
       mainTitle = label;
-      const totalScore = activeQuestions.reduce((sum, q) => sum + (q.score || 1), 0);
+      const totalScore = incoming.reduce((sum, q) => sum + (q.score || 1), 0);
       subtitle = `考试时长：120 分钟 · 满分：${totalScore} 分 · 适用年级/范围：全卷综合`;
       paperNo = `EXAM-${localDateKeyOf(Date.now()).replace(/-/g, "")}`;
+    } else if (!open && wasOpen) {
+      wasOpen = false;
     }
   });
 
@@ -94,13 +102,71 @@
     return mainTitle;
   });
 
-  function applyPresetTemplate(preset: "standard" | "homework" | "lecture" | "compact") {
-    switch (preset) {
-      case "standard":
-        columns = "double";
+  function selectPaperFormat(fmt: PaperFormat) {
+    paperFormat = fmt;
+    switch (fmt) {
+      case "exam":
+        columns = "single";
         fontSizeMode = "standard";
         showSealLine = true;
+        showStudentInfoBar = false;
+        showScoreGrid = true;
+        showPerQuestionScoreBox = true;
+        showExamNotice = true;
+        appendSolutionsAtEnd = false;
+        shortAnswerSpaceCm = 5;
+        activeQuickPreset = "standard";
+        break;
+      case "card":
+        columns = "single";
+        fontSizeMode = "standard";
+        activeQuickPreset = null;
+        break;
+      case "lecture":
+        columns = "single";
+        fontSizeMode = "standard";
+        showSealLine = false;
+        showStudentInfoBar = false;
+        showScoreGrid = false;
+        showPerQuestionScoreBox = false;
+        showExamNotice = false;
+        activeQuickPreset = "lecture";
+        break;
+      case "homework":
+        columns = "single";
+        fontSizeMode = "large";
+        showSealLine = false;
         showStudentInfoBar = true;
+        showScoreGrid = false;
+        showPerQuestionScoreBox = false;
+        showExamNotice = false;
+        shortAnswerSpaceCm = 4;
+        activeQuickPreset = "homework";
+        break;
+      case "answer":
+        columns = "double";
+        fontSizeMode = "compact";
+        showSealLine = false;
+        showStudentInfoBar = false;
+        showScoreGrid = false;
+        showPerQuestionScoreBox = false;
+        showExamNotice = false;
+        activeQuickPreset = null;
+        break;
+      case "interactive":
+        activeQuickPreset = null;
+        break;
+    }
+  }
+
+  function applyPresetTemplate(preset: "standard" | "homework" | "lecture" | "compact") {
+    activeQuickPreset = preset;
+    switch (preset) {
+      case "standard":
+        columns = "single";
+        fontSizeMode = "standard";
+        showSealLine = true;
+        showStudentInfoBar = false;
         showScoreGrid = true;
         showPerQuestionScoreBox = true;
         showExamNotice = true;
@@ -121,7 +187,7 @@
         paperFormat = "homework";
         break;
       case "lecture":
-        columns = "double";
+        columns = "single";
         fontSizeMode = "standard";
         showSealLine = false;
         showStudentInfoBar = false;
@@ -134,13 +200,13 @@
       case "compact":
         columns = "double";
         fontSizeMode = "compact";
-        showSealLine = true;
+        showSealLine = false;
         showStudentInfoBar = true;
-        showScoreGrid = true;
+        showScoreGrid = false;
         showPerQuestionScoreBox = false;
         showExamNotice = false;
         appendSolutionsAtEnd = false;
-        shortAnswerSpaceCm = 3;
+        shortAnswerSpaceCm = 2;
         paperFormat = "exam";
         break;
     }
@@ -179,14 +245,14 @@
       watermarkText: watermarkText.trim() || undefined,
       showScore,
       showSealLine,
-      showStudentInfoBar,
+      showStudentInfoBar: showSealLine ? false : showStudentInfoBar,
       showScoreGrid,
       showPerQuestionScoreBox,
       showExamNotice,
       fontSizeMode,
       appendSolutionsAtEnd,
       shortAnswerSpaceCm,
-      groupByKp: true,
+      groupByKp: false,
       autoGroupSections,
     };
 
@@ -206,6 +272,20 @@
         return buildCompactQuestionSheetPro(displayTitle, effectiveQuestions, opts);
     }
   });
+
+  function handlePreviewIframeLoad(e: Event) {
+    const iframe = e.currentTarget as HTMLIFrameElement | null;
+    if (!iframe) return;
+    try {
+      const doc = iframe.contentDocument;
+      if (doc?.documentElement) {
+        const h = Math.max(1123, doc.documentElement.scrollHeight + 24);
+        previewIframeHeight = h;
+      }
+    } catch {
+      // ignore cross-origin guard
+    }
+  }
 
   function handleDirectPrint() {
     if (!previewHtml) return;
@@ -252,12 +332,24 @@
   function handleExportWordDoc() {
     if (!previewHtml) return;
     try {
-      const wordHtml = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><meta charset='utf-8'><title>${mainTitle || "试卷"}</title></head>
-        <body>${previewHtml}</body>
-        </html>
-      `;
+      const styleMatch = previewHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+      const bodyMatch = previewHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const extractedStyle = styleMatch ? styleMatch[1] : "";
+      const extractedBody = bodyMatch ? bodyMatch[1] : previewHtml;
+      const wordHtml = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(mainTitle || "试卷")}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+<style>
+@page WordSection1 { size: ${paperSize === "Letter" ? "8.5in 11in" : "21cm 29.7cm"}; margin: 1.8cm 1.6cm; }
+div.WordSection1 { page: WordSection1; }
+${extractedStyle}
+</style>
+</head>
+<body><div class="WordSection1">${extractedBody}</div></body>
+</html>`;
       const blob = new Blob([wordHtml], { type: "application/msword;charset=utf-8;" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -406,15 +498,15 @@
       <!-- 主体分栏：左侧配置面板 + 右侧纸张拟真渲染预览 -->
       <div class="lv-assemble-body" style="flex:1;display:flex;overflow:hidden">
         <!-- 左侧排版参数调节面板 -->
-        <div class="lv-assemble-sidebar" style="width:clamp(280px, 32vw, 390px);min-width:0;border-right:1px solid var(--lv-border);background:var(--lv-surface);display:flex;flex-direction:column;overflow-y:auto;padding:16px;gap:14px">
+        <div class="lv-assemble-sidebar" style="width:clamp(270px, 27vw, 350px);min-width:0;border-right:1px solid var(--lv-border);background:var(--lv-surface);display:flex;flex-direction:column;overflow-y:auto;padding:14px;gap:12px">
           <!-- 快速排版风格预设条 -->
           <div class="lv-card" style="padding:10px 12px;background:var(--lv-surface-2);border-radius:6px;border:1px solid var(--lv-border-subtle)">
             <div class="lv-muted" style="font-size:11px;font-weight:700;margin-bottom:6px">⚡ 快速套用排版预设:</div>
             <div class="lv-row" style="margin:0;gap:6px;flex-wrap:wrap">
-              <button type="button" class="lv-chip sm" onclick={() => applyPresetTemplate("standard")}>🏫 期末统考</button>
-              <button type="button" class="lv-chip sm" onclick={() => applyPresetTemplate("homework")}>📝 课后作业</button>
-              <button type="button" class="lv-chip sm" onclick={() => applyPresetTemplate("lecture")}>📖 教师讲义</button>
-              <button type="button" class="lv-chip sm" onclick={() => applyPresetTemplate("compact")}>⚡ 极速省纸</button>
+              <button type="button" class="lv-chip sm" class:acc={activeQuickPreset === "standard"} onclick={() => applyPresetTemplate("standard")}>🏫 期末统考</button>
+              <button type="button" class="lv-chip sm" class:acc={activeQuickPreset === "homework"} onclick={() => applyPresetTemplate("homework")}>📝 课后作业</button>
+              <button type="button" class="lv-chip sm" class:acc={activeQuickPreset === "lecture"} onclick={() => applyPresetTemplate("lecture")}>📖 教师讲义</button>
+              <button type="button" class="lv-chip sm" class:acc={activeQuickPreset === "compact"} onclick={() => applyPresetTemplate("compact")}>⚡ 极速省纸</button>
             </div>
           </div>
 
@@ -436,10 +528,10 @@
                 class="lv-card"
                 class:selected-format={paperFormat === "exam"}
                 style="padding:8px 12px;text-align:left;border-radius:6px;cursor:pointer;border:1px solid {paperFormat === 'exam' ? 'var(--lv-brand)' : 'var(--lv-border)'};background:{paperFormat === 'exam' ? 'var(--lv-brand-soft, rgba(59,130,246,0.08))' : 'var(--lv-surface)'}"
-                onclick={() => (paperFormat = "exam")}
+                onclick={() => selectPaperFormat("exam")}
               >
                 <div style="font-weight:700;font-size:13px;color:var(--lv-text)">📄 标准测试卷 (学生实测版)</div>
-                <div class="lv-muted" style="font-size:11px;margin-top:2px">中缝密封线 · 卷首总分表 · 双栏紧凑 · 留白作答 · 绝无答案</div>
+                <div class="lv-muted" style="font-size:11px;margin-top:2px">装订密封线 · 卷首总分表 · 黑白五号宋体 · 留白作答 · 绝无答案</div>
               </button>
 
               <button
@@ -447,10 +539,10 @@
                 class="lv-card"
                 class:selected-format={paperFormat === "card"}
                 style="padding:8px 12px;text-align:left;border-radius:6px;cursor:pointer;border:1px solid {paperFormat === 'card' ? 'var(--lv-brand)' : 'var(--lv-border)'};background:{paperFormat === 'card' ? 'var(--lv-brand-soft, rgba(59,130,246,0.08))' : 'var(--lv-surface)'}"
-                onclick={() => (paperFormat = "card")}
+                onclick={() => selectPaperFormat("card")}
               >
                 <div style="font-weight:700;font-size:13px;color:var(--lv-text)">📋 标准填涂答题卡 (学生填涂版)</div>
-                <div class="lv-muted" style="font-size:11px;margin-top:2px">客观题 2B 填涂矩阵 · 准考证条形码区 · 主观题限定黑框</div>
+                <div class="lv-muted" style="font-size:11px;margin-top:2px">2B 填涂矩阵 · 准考证号填涂区 · 条形码框 · 主观题限定黑框</div>
               </button>
 
               <button
@@ -458,10 +550,10 @@
                 class="lv-card"
                 class:selected-format={paperFormat === "lecture"}
                 style="padding:8px 12px;text-align:left;border-radius:6px;cursor:pointer;border:1px solid {paperFormat === 'lecture' ? 'var(--lv-brand)' : 'var(--lv-border)'};background:{paperFormat === 'lecture' ? 'var(--lv-brand-soft, rgba(59,130,246,0.08))' : 'var(--lv-surface)'}"
-                onclick={() => (paperFormat = "lecture")}
+                onclick={() => selectPaperFormat("lecture")}
               >
                 <div style="font-weight:700;font-size:13px;color:var(--lv-text)">📖 教师备课与授课讲义卷</div>
-                <div class="lv-muted" style="font-size:11px;margin-top:2px">题目 + 标准答案 + 采分点细则 + 详细推导 + 💡秒杀要诀</div>
+                <div class="lv-muted" style="font-size:11px;margin-top:2px">大字清晰抬头 · 参考答案 · 考点难度 · 采分细则 · 破题拓展</div>
               </button>
 
               <button
@@ -469,10 +561,10 @@
                 class="lv-card"
                 class:selected-format={paperFormat === "homework"}
                 style="padding:8px 12px;text-align:left;border-radius:6px;cursor:pointer;border:1px solid {paperFormat === 'homework' ? 'var(--lv-brand)' : 'var(--lv-border)'};background:{paperFormat === 'homework' ? 'var(--lv-brand-soft, rgba(59,130,246,0.08))' : 'var(--lv-surface)'}"
-                onclick={() => (paperFormat = "homework")}
+                onclick={() => selectPaperFormat("homework")}
               >
                 <div style="font-weight:700;font-size:13px;color:var(--lv-text)">🎯 课后分层作业单</div>
-                <div class="lv-muted" style="font-size:11px;margin-top:2px">学生信息条 · 规范作答书写框 · 课后自我诊断与错因归因栏</div>
+                <div class="lv-muted" style="font-size:11px;margin-top:2px">单行学生信息条 · 横线书写区 · 自我评估与错因归因栏</div>
               </button>
 
               <button
@@ -480,10 +572,10 @@
                 class="lv-card"
                 class:selected-format={paperFormat === "answer"}
                 style="padding:8px 12px;text-align:left;border-radius:6px;cursor:pointer;border:1px solid {paperFormat === 'answer' ? 'var(--lv-brand)' : 'var(--lv-border)'};background:{paperFormat === 'answer' ? 'var(--lv-brand-soft, rgba(59,130,246,0.08))' : 'var(--lv-surface)'}"
-                onclick={() => (paperFormat = "answer")}
+                onclick={() => selectPaperFormat("answer")}
               >
                 <div style="font-weight:700;font-size:13px;color:var(--lv-text)">🔍 独立答案与采分册</div>
-                <div class="lv-muted" style="font-size:11px;margin-top:2px">两栏极速核对 · 选择题答案串 · 大题按步骤给分标准</div>
+                <div class="lv-muted" style="font-size:11px;margin-top:2px">5 题一组速查表 · 两栏极速核对 · 大题分步采分标准</div>
               </button>
 
               <button
@@ -491,7 +583,7 @@
                 class="lv-card"
                 class:selected-format={paperFormat === "interactive"}
                 style="padding:8px 12px;text-align:left;border-radius:6px;cursor:pointer;border:1px solid {paperFormat === 'interactive' ? 'var(--lv-brand)' : 'var(--lv-border)'};background:{paperFormat === 'interactive' ? 'var(--lv-brand-soft, rgba(59,130,246,0.08))' : 'var(--lv-surface)'}"
-                onclick={() => (paperFormat = "interactive")}
+                onclick={() => selectPaperFormat("interactive")}
               >
                 <div style="font-weight:700;font-size:13px;color:var(--lv-text)">🌐 离线交互讲题自测卷</div>
                 <div class="lv-muted" style="font-size:11px;margin-top:2px">单文件 HTML，断网双击即开，支持讲评与考生自测双模切换</div>
@@ -561,15 +653,15 @@
 
             <div class="lv-row" style="margin:0;gap:8px;align-items:center">
               <span class="lv-muted" style="font-size:12px;min-width:60px">分栏布局</span>
-              <select class="lv-select" style="flex:1;font-size:12px" bind:value={columns}>
+              <select class="lv-select" style="flex:1;font-size:12px" bind:value={columns} onchange={() => (activeQuickPreset = null)}>
+                <option value="single">A4 纵向单栏 (标准考卷/大字通栏)</option>
                 <option value="double">A4 纵向双栏 (紧凑省纸40%)</option>
-                <option value="single">A4 纵向单栏 (大字通栏)</option>
               </select>
             </div>
 
             <div class="lv-row" style="margin:0;gap:8px;align-items:center">
               <span class="lv-muted" style="font-size:12px;min-width:60px">字体字号</span>
-              <select class="lv-select" style="flex:1;font-size:12px" bind:value={fontSizeMode}>
+              <select class="lv-select" style="flex:1;font-size:12px" bind:value={fontSizeMode} onchange={() => (activeQuickPreset = null)}>
                 <option value="standard">标准 10.5pt (五号，正规试卷)</option>
                 <option value="compact">紧凑 9.5pt (小五，高密度印刷)</option>
                 <option value="large">大字 12pt (小四，护眼清晰)</option>
@@ -602,10 +694,14 @@
                 <input type="checkbox" bind:checked={autoGroupSections} /> 自动大题归类
               </label>
               <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-                <input type="checkbox" bind:checked={showSealLine} /> 装订密封线
+                <input
+                  type="checkbox"
+                  bind:checked={showSealLine}
+                  onchange={() => { if (showSealLine) showStudentInfoBar = false; }}
+                /> 装订密封线
               </label>
-              <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-                <input type="checkbox" bind:checked={showStudentInfoBar} /> 考生信息条
+              <label style="display:flex;align-items:center;gap:5px;cursor:{showSealLine ? 'not-allowed' : 'pointer'};opacity:{showSealLine ? 0.55 : 1}" title={showSealLine ? '已启用装订密封线（含姓名/准考证号/考场/座号），无需重复显示' : '在主标题下方显示单行考生信息条'}>
+                <input type="checkbox" bind:checked={showStudentInfoBar} disabled={showSealLine} /> 考生信息条
               </label>
               <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
                 <input type="checkbox" bind:checked={showScoreGrid} /> 卷首总分表
@@ -625,17 +721,20 @@
 
         <!-- 右侧拟真白底 A4 纸张实时预览区 -->
         <div style="flex:1;background:var(--lv-surface-3, var(--b3-theme-background-light, var(--lv-surface-2)));display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:24px">
-          <div
-            class="a4-sheet-container"
-            style="width:210mm;min-height:297mm;background:var(--lv-print-paper-bg, var(--lv-surface, #ffffff));box-shadow:var(--lv-sh-pop, 0 8px 30px rgba(0,0,0,0.18));border-radius:2px;overflow:hidden;transform:scale({zoomLevel / 100});transform-origin:top center;transition:transform 0.15s ease"
-          >
-            {#if previewHtml}
-              <iframe
-                title="试卷排版实时预览"
-                srcdoc={previewHtml}
-                style="width:100%;height:1400px;border:none;display:block;background:var(--lv-print-paper-bg, var(--lv-surface, #ffffff))"
-              ></iframe>
-            {/if}
+          <div style="width:calc(210mm * {zoomLevel / 100});min-height:calc({previewIframeHeight}px * {zoomLevel / 100});flex-shrink:0">
+            <div
+              class="a4-sheet-container"
+              style="width:210mm;min-height:297mm;background:var(--lv-print-paper-bg, #ffffff);box-shadow:var(--lv-sh-pop, 0 8px 30px rgba(0,0,0,0.18));border-radius:2px;overflow:hidden;transform:scale({zoomLevel / 100});transform-origin:top left;transition:transform 0.15s ease"
+            >
+              {#if previewHtml}
+                <iframe
+                  title="试卷排版实时预览"
+                  srcdoc={previewHtml}
+                  onload={handlePreviewIframeLoad}
+                  style="width:100%;height:{previewIframeHeight}px;border:none;display:block;background:var(--lv-print-paper-bg, #ffffff)"
+                ></iframe>
+              {/if}
+            </div>
           </div>
         </div>
       </div>

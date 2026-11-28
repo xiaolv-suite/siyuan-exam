@@ -2,7 +2,7 @@
   "name": "siyuan-exam",
   "author": "xiaolv-suite",
   "url": "https://github.com/xiaolv-suite/siyuan-exam",
-  "version": "0.15.7",
+  "version": "0.15.8",
   "minAppVersion": "3.8.4",
   "settingsWindow": true,
   "backends": [
@@ -24,7 +24,8 @@
   "disabledInPublish": true,
   "publish": {
     "resources": [
-      "chunks/sheetjs.js"
+      "chunks/sheetjs.js",
+      "chunks/pdfjs.js"
     ]
   },
   "displayName": {

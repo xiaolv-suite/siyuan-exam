@@ -30,11 +30,41 @@ const JUDGE_AFFIRMATIVE = new Set(["对", "正确", "√", "v", "V", "true", "T"
 const JUDGE_NEGATIVE = new Set(["错", "错误", "×", "x", "X", "false", "F", "NO", "N", "否", "0"]);
 
 /**
- * 判定文本中是否包含真正的挖空占位符（连续下划线、空白括号、花括号挖空等）
+ * 判定文本中是否包含真正的挖空占位符（连续下划线、LaTeX 下划线/标尺、空白括号、花括号挖空等）
  */
 export function hasBlankPlaceholder(text: string): boolean {
   if (!text) return false;
-  return /_{2,}|（\s*）|\(\s*\)|【\s*】|\[\s*\]|［\s*］|\{\{c\d+::/i.test(text);
+  const withoutMdMedia = text.replace(/!?\[[^\]]*\]\([^)]*\)/g, "");
+  return /_{2,}|\\underline\s*\{[^}]*\}|\\rule\s*\{[^}]*\}(?:\s*\{[^}]*\})?|（\s*）|\(\s*\)|【\s*】|\[\s*\]|［\s*］|\{\{c\d+::/i.test(withoutMdMedia);
+}
+
+/**
+ * 剥离题干开头的题号前缀（兼容 **1.**、**1、**、**(1)**、**1)**、【例1】、1. 等，绝不误伤 1.5 等小数或 "6 个人"）
+ */
+export function stripQuestionNumberPrefix(text: string): string {
+  let s = String(text ?? "").trim();
+  s = s.replace(/^(?:#{1,6}\s+|[-*+]\s+)/, "").trim();
+  s = s.replace(/^【(?:单选题?|多选题?|不定项|判断题?|填空题?|简答题?|论述题?|主观题?|材料题?)】\s*/, "").trim();
+  const closedBoldRe = /^\*\*\s*(?:第\s*\d+\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】|[（(]\d+[)）]|\d+(?:\.(?!\d)|[、)）]))\s*\*\*\s*/;
+  if (closedBoldRe.test(s)) {
+    return s.replace(closedBoldRe, "").trim();
+  }
+  const openBoldRe = /^\*\*\s*(?:第\s*\d+\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】|[（(]\d+[)）]|\d+(?:\.(?!\d)|[、)）]))\s*/;
+  if (openBoldRe.test(s)) {
+    const rest = s.replace(openBoldRe, "").trim();
+    const firstLine = rest.split(/\r?\n/, 1)[0] ?? "";
+    return firstLine.includes("**") ? `**${rest}` : rest;
+  }
+  const plainRe = /^(?:第\s*\d+\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】|[（(]\d+[)）]|\d+(?:\.(?!\d)|[、)）]))\s*/;
+  return s.replace(plainRe, "").trim();
+}
+
+/**
+ * 判定独立成行的粗体小节/知识点标题（如 **知识点 1 算术平均数**、**类型 2 ...**、**思想 1 ...**）
+ */
+export function isBoldSectionHeadingLine(line: string): boolean {
+  const trimmed = String(line ?? "").trim();
+  return /^\*\*\s*(?:知识点|考点|类型|专题|思想方法|思想|题型|模块|基础提优|综合应用|创新拓展|第[一二三四五六七八九十\d]+[部分节课时讲章])[^*\n]{0,80}\*\*\s*$/.test(trimmed);
 }
 
 /**
@@ -125,7 +155,7 @@ export function lintQuestion(q: Partial<Question>): QuestionLintReport {
     if (!answer) {
       issues.push({
         code: "MISSING_ANSWER",
-        message: "未检测到参考答案",
+        message: "未检测到参考答案（待补答案，可在审校或题库补全）",
         severity: "error",
       });
       score -= 30;

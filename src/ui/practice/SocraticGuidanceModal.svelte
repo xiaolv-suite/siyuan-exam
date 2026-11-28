@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Question } from "@/core/types";
+  import { lvSurfaceStack } from "@/libs/lv-notice-kit";
   import Icon from "../shared/Icon.svelte";
   import AiThinkingCard from "../shared/AiThinkingCard.svelte";
 
@@ -36,6 +37,112 @@
   }: Props = $props();
 
   let followUpText = $state("");
+  let modalEl = $state<HTMLDivElement | null>(null);
+  let returnFocusEl: HTMLElement | null = null;
+  let wasOpen = false;
+  let handledEscEvent: KeyboardEvent | null = null;
+
+  function dismissByEsc(e?: KeyboardEvent) {
+    if (!open) return false;
+    if (e) {
+      if (handledEscEvent === e) return true;
+      handledEscEvent = e;
+    }
+    onclose();
+    return true;
+  }
+
+  $effect(() => {
+    if (!open) return;
+    const popSurface = lvSurfaceStack.push({
+      id: "lv-exam-socratic-modal",
+      dismiss: () => dismissByEsc(),
+    });
+    const onCaptureKeydown = (e: KeyboardEvent) => handleWindowKeydown(e);
+    window.addEventListener("keydown", onCaptureKeydown, true);
+    return () => {
+      popSurface();
+      window.removeEventListener("keydown", onCaptureKeydown, true);
+    };
+  });
+
+  $effect(() => {
+    if (open && modalEl) {
+      if (!wasOpen) {
+        wasOpen = true;
+        returnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        queueMicrotask(() => modalEl?.focus());
+      }
+    } else if (!open && wasOpen) {
+      wasOpen = false;
+      const target = returnFocusEl;
+      returnFocusEl = null;
+      queueMicrotask(() => target?.focus?.());
+    }
+  });
+
+  function getModalFocusables(): HTMLElement[] {
+    if (!modalEl) return [];
+    const candidates = Array.from(
+      modalEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    return candidates.filter((el) => {
+      if (el.hidden || el.getAttribute("aria-hidden") === "true") return false;
+      if (typeof el.getClientRects === "function" && el.getClientRects().length === 0) return false;
+      return true;
+    });
+  }
+
+  function handleWindowKeydown(e: KeyboardEvent) {
+    if (!open) return;
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === "Escape") {
+      if (handledEscEvent === e) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === "function") {
+        e.stopImmediatePropagation();
+      }
+      lvSurfaceStack.pop("lv-exam-socratic-modal");
+      dismissByEsc(e);
+    }
+  }
+
+  function handleDialogTabTrap(e: KeyboardEvent) {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key !== "Tab") return;
+    const focusables = getModalFocusables();
+    if (!focusables.length) {
+      e.preventDefault();
+      modalEl?.focus();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (!active || !modalEl?.contains(active) || active === modalEl) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+      return;
+    }
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  function handleInputKeydown(e: KeyboardEvent) {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
 
   const modalTitle = $derived.by(() => {
     if (mode === "socratic") return "🦉 苏格拉底启发式导学";
@@ -57,29 +164,18 @@
     followUpText = "";
     onsendFollowUp?.(val);
   }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.isComposing || e.keyCode === 229) return;
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      onclose();
-    }
-  }
 </script>
 
 {#if open}
   <div class="lv-hotkeys-backdrop" onclick={onclose} aria-hidden="true"></div>
   <div
+    bind:this={modalEl}
     class="lv-socratic-modal"
     role="dialog"
     aria-modal="true"
     aria-labelledby="socratic-modal-title"
     tabindex="-1"
-    onkeydown={handleKeydown}
+    onkeydown={handleDialogTabTrap}
   >
     <!-- 头部导航 -->
     <header class="lv-socratic-head">
@@ -177,7 +273,7 @@
               class="lv-input sm lv-socratic-input"
               placeholder="输入你的推导思路或猜测，与苏格拉底对话… (Enter 发送)"
               bind:value={followUpText}
-              onkeydown={handleKeydown}
+              onkeydown={handleInputKeydown}
             />
             <button
               type="button"

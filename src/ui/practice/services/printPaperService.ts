@@ -30,7 +30,7 @@ export async function printQuestionsByFormat(
     if (format === "card") {
       const html = buildStandardAnswerCardPro(`${label} · 标准答题卡`, targetQuestions, {
         paperSize: "A4",
-        columns: "double",
+        columns: "single",
         ...customOptions,
       });
       openOrDownloadHtml(html, `${label}-标准答题卡.html`, "已生成标准答题卡文件", showMessage);
@@ -55,8 +55,8 @@ export async function printQuestionsByFormat(
     if (format === "lecture") {
       const html = buildTeacherLectureSheetPro(label, targetQuestions, {
         paperSize: "A4",
-        columns: "double",
-        groupByKp: true,
+        columns: "single",
+        groupByKp: false,
         ...customOptions,
       });
       openOrDownloadHtml(html, `${label}-授课讲义卷.html`, "已生成授课讲义卷文件", showMessage);
@@ -65,19 +65,21 @@ export async function printQuestionsByFormat(
     if (format === "homework") {
       const html = buildStudentHomeworkSheetPro(label, targetQuestions, {
         paperSize: "A4",
-        columns: "double",
-        groupByKp: true,
+        columns: "single",
+        groupByKp: false,
         ...customOptions,
       });
       openOrDownloadHtml(html, `${label}-留白作业单.html`, "已生成留白作业单文件", showMessage);
       return;
     }
+    const showSealLine = customOptions.showSealLine ?? true;
     const html = buildCompactQuestionSheetPro(`${label} · 标准测试卷`, targetQuestions, {
       headerTitle: `${label} · 标准试卷`,
       paperSize: "A4",
-      columns: "double",
-      groupByKp: true,
-      showSealLine: customOptions.showSealLine ?? true,
+      columns: "single",
+      groupByKp: false,
+      showSealLine,
+      showStudentInfoBar: showSealLine ? false : customOptions.showStudentInfoBar,
       showExamNotice: customOptions.showExamNotice ?? true,
       ...customOptions,
     });
@@ -124,11 +126,13 @@ export async function printSelectedQuestionsPaper(
   if (!targetQuestions.length) return;
   try {
     const { buildCompactQuestionSheetPro } = await import("@/core/printPro");
+    const showSealLine = customOptions.showSealLine ?? true;
     const html = buildCompactQuestionSheetPro(`${bankName || "题库"} · 勾选精选题卷`, targetQuestions, {
       headerTitle: `${bankName || "题库"} · 精选练习`,
-      columns: "double",
-      groupByKp: true,
-      showSealLine: customOptions.showSealLine ?? true,
+      columns: "single",
+      groupByKp: false,
+      showSealLine,
+      showStudentInfoBar: showSealLine ? false : customOptions.showStudentInfoBar,
       showExamNotice: customOptions.showExamNotice ?? true,
       ...customOptions,
     });

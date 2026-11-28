@@ -20,14 +20,15 @@
     open = false,
     onclose,
     project,
+    wrongBadge,
     onproject,
     onquickcreate,
   }: {
     active: "practice" | "mock" | "report";
     plugin: ExamPluginLike;
-    /** Tab 内上下文导航项（如练习台的浏览/错题本/导入/录题…） */
+    /** Tab 内上下文导航项（可选，6 项主导航瘦身后一般留空） */
     items?: { icon: string; name: string; on: boolean; badge?: string; onclick: () => void }[];
-    /** R54 五项任务导航的当前项及宿主接管。 */
+    /** 6 项主导航当前项及宿主接管 */
     taskactive?: TaskTarget;
     ontasknavigate?: (target: TaskTarget) => void;
     tasknavhidden?: boolean;
@@ -36,6 +37,8 @@
     onclose?: () => void;
     /** 73-02/原型 project-switch：当前题库上下文卡（品牌位下方） */
     project?: { name: string; kicker: string };
+    /** 错题本待消灭角标计数 */
+    wrongBadge?: string;
     onproject?: () => void;
     /** R54 任务入口：在练习工作台直接录入一道题。 */
     onquickcreate?: () => void;
@@ -81,7 +84,7 @@
     if (restoreFocus) launcherBtn?.focus({ preventScroll: true });
   }
 
-  function runQuickAction(act: "drill" | "create" | "mock" | "wrong" | "siyuan" | "import" | "ai") {
+  function runQuickAction(act: "drill" | "create" | "wrong" | "mock") {
     closeLauncher();
     if (drawerOpen) onclose?.();
     switch (act) {
@@ -92,20 +95,11 @@
         if (onquickcreate) onquickcreate();
         else openPracticeView(plugin, "manual");
         break;
-      case "siyuan":
-        openPracticeView(plugin, "siyuan");
-        break;
-      case "mock":
-        plugin?.openMock?.();
-        break;
       case "wrong":
         openPracticeView(plugin, "wrongbook");
         break;
-      case "import":
-        openPracticeView(plugin, "import");
-        break;
-      case "ai":
-        openPracticeView(plugin, "ai");
+      case "mock":
+        plugin?.openMock?.();
         break;
     }
   }
@@ -304,18 +298,18 @@
     if (target === "report") return plugin?.openReport?.();
     if (target === "marketplace") return openPracticeView(plugin, "marketplace");
     if (target === "wrong") return openPracticeView(plugin, "wrongbook");
-    const view = target === "today" ? "entry" : target === "bank" ? "browse" : "manual";
+    const view = target === "today" ? "entry" : target === "bank" ? "banks" : "manual";
     openPracticeView(plugin, view);
   }
 
-  const globals = [
+  const globals = $derived([
     { target: "today" as const, icon: "home", label: t("task.today", "今日") },
     { target: "bank" as const, icon: "book", label: t("task.bank", "题库") },
-    { target: "marketplace" as const, icon: "sparkles", label: t("task.marketplace", "集市") },
-    { target: "create" as const, icon: "create", label: t("task.create", "出题") },
+    { target: "wrong" as const, icon: "target", label: t("task.wrong", "错题本"), badge: wrongBadge },
+    { target: "create" as const, icon: "create", label: t("task.create", "出题工作台") },
     { target: "mock" as const, icon: "clock", label: t("task.mock", "模考") },
     { target: "report" as const, icon: "chart", label: t("task.report", "复盘") },
-  ];
+  ]);
   // 移动端底部任务导航（聚焦手机端高频消费动作：刷题 / 错题 / 题库 / 模考 / 复盘；出题导入收纳至抽屉与电脑端）
   const mobileGlobals = [
     { target: "today" as const, icon: "play", label: "刷题" },
@@ -380,6 +374,7 @@
       {#each globals as g (g.target)}
         <button class="lv-rail-btn" class:on={activeTask === g.target} title={g.label} aria-label={g.label} onclick={() => { goTask(g.target); if (drawerOpen) onclose?.(); }} aria-current={activeTask === g.target ? "page" : undefined}>
           <Icon name={g.icon} size={16} /> <span class="lv-rail-btn-text">{g.label}</span>
+          {#if g.badge}<span class="lv-rail-badge">{g.badge}</span>{/if}
         </button>
       {/each}
       {#if items.length}
@@ -419,39 +414,18 @@
             <span class="lv-quick-item-desc">{t("rail.quickCreateHint", "录入一道新题目")}</span>
           </div>
         </button>
+        <button class="lv-quick-menu-item" role="menuitem" tabindex="-1" onclick={() => runQuickAction("wrong")}>
+          <span class="lv-quick-item-badge lv-quick-item-badge--red"><Icon name="xcircle" size={13} /></span>
+          <div class="lv-quick-item-meta">
+            <span class="lv-quick-item-title">{t("rail.quickWrong", "错题消灭")}</span>
+            <span class="lv-quick-item-desc">{t("rail.quickWrongHint", "消灭在册错题")}</span>
+          </div>
+        </button>
         <button class="lv-quick-menu-item" role="menuitem" tabindex="-1" onclick={() => runQuickAction("mock")}>
           <span class="lv-quick-item-badge lv-quick-item-badge--clock"><Icon name="clock" size={13} /></span>
           <div class="lv-quick-item-meta">
             <span class="lv-quick-item-title">{t("rail.quickMock", "全真模考")}</span>
             <span class="lv-quick-item-desc">{t("rail.quickMockHint", "标准模拟考试")}</span>
-          </div>
-        </button>
-        <button class="lv-quick-menu-item" role="menuitem" tabindex="-1" onclick={() => runQuickAction("wrong")}>
-          <span class="lv-quick-item-badge lv-quick-item-badge--red"><Icon name="xcircle" size={13} /></span>
-          <div class="lv-quick-item-meta">
-            <span class="lv-quick-item-title">{t("rail.quickWrong", "错题特训")}</span>
-            <span class="lv-quick-item-desc">{t("rail.quickWrongHint", "消灭在册错题")}</span>
-          </div>
-        </button>
-        <button class="lv-quick-menu-item" role="menuitem" tabindex="-1" onclick={() => runQuickAction("siyuan")}>
-          <span class="lv-quick-item-badge lv-quick-item-badge--book"><Icon name="book" size={13} /></span>
-          <div class="lv-quick-item-meta">
-            <span class="lv-quick-item-title">{t("rail.quickSiyuan", "思源出题")}</span>
-            <span class="lv-quick-item-desc">{t("rail.quickSiyuanHint", "从笔记/高亮/标签提炼")}</span>
-          </div>
-        </button>
-        <button class="lv-quick-menu-item" role="menuitem" tabindex="-1" onclick={() => runQuickAction("import")}>
-          <span class="lv-quick-item-badge lv-quick-item-badge--lavender"><Icon name="import" size={13} /></span>
-          <div class="lv-quick-item-meta">
-            <span class="lv-quick-item-title">{t("rail.quickImport", "外部导入")}</span>
-            <span class="lv-quick-item-desc">{t("rail.quickImportHint", "Excel / CSV / 剪贴板")}</span>
-          </div>
-        </button>
-        <button class="lv-quick-menu-item" role="menuitem" tabindex="-1" onclick={() => runQuickAction("ai")}>
-          <span class="lv-quick-item-badge lv-quick-item-badge--accent"><Icon name="sparkles" size={13} /></span>
-          <div class="lv-quick-item-meta">
-            <span class="lv-quick-item-title">{t("rail.quickAi", "AI 出题")}</span>
-            <span class="lv-quick-item-desc">{t("rail.quickAiHint", "智能解析与出题")}</span>
           </div>
         </button>
       </div>
@@ -618,11 +592,12 @@
       border-radius: 8px;
     }
     .lv-rail-btn-text {
-      font-size: 11px;
-      line-height: 1;
+      font-size: 10px;
+      line-height: 1.15;
       font-weight: 500;
       white-space: nowrap;
       text-align: center;
+      max-width: 100%;
     }
     .lv-rail-btn :global(svg) {
       flex: 0 0 auto;
@@ -777,8 +752,6 @@
   .lv-quick-item-badge--pen { background: var(--lv-accent-soft); color: var(--lv-accent); }
   .lv-quick-item-badge--clock { background: color-mix(in srgb, var(--lv-accent) 15%, transparent); color: var(--lv-accent); }
   .lv-quick-item-badge--red { background: var(--lv-red-soft); color: var(--lv-red); }
-  .lv-quick-item-badge--lavender { background: color-mix(in srgb, var(--lv-accent) 12%, transparent); color: var(--lv-accent); }
-  .lv-quick-item-badge--accent { background: var(--lv-accent-soft); color: var(--lv-accent); }
   .lv-quick-item-meta {
     display: flex;
     flex-direction: column;

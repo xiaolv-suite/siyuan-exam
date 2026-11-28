@@ -10,6 +10,7 @@
 import type { Question, QuestionType } from "./types";
 import { makeQuestion } from "./blockTemplate";
 import { normalizeLatexFormula } from "./math";
+import { hasBlankPlaceholder, stripQuestionNumberPrefix } from "./questionLinter";
 
 export interface OcrParseOptions {
   /** 默认题型回退（缺省时根据选项与答案自动推断） */
@@ -240,8 +241,8 @@ export function parseOcrQuestionText(
 
   // 5. 组合与清理题干
   let stem = stemLines.join("\n").trim();
-  // 去除题目前置题号：如 "1."、"2、"、"第1题："、"12. "、"【单选题】"
-  stem = restore(stem.replace(/^(?:【[^】]+】\s*)?(?:第?\s*\d+\s*[题.、:：]\s*)/, "").trim());
+  // 去除题目前置题号：兼容 "1."、"2、"、"**1.**"、"**(1)**"、"第1题："、"【单选题】"
+  stem = stripQuestionNumberPrefix(restore(stem));
   if (shouldNormalize) {
     stem = normalizeLatexFormula(stem);
   }
@@ -258,7 +259,7 @@ export function parseOcrQuestionText(
       }
     } else if (/正确|错误|对|错|√|×|T|F/i.test(extractedAnswer) || /^(正确|错误|对|错)$/.test(stem)) {
       detectedType = "judge";
-    } else if (stem.includes("____") || stem.includes("(   )") || stem.includes("（   ）")) {
+    } else if (hasBlankPlaceholder(stem)) {
       detectedType = "fill";
     } else {
       detectedType = options.fallbackType ?? (parsedOptions.length > 0 ? "single" : "short");

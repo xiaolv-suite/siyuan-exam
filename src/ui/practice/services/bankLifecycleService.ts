@@ -61,8 +61,9 @@ export function getSampleBankMeta(kind: SampleBankKind): { targetName: string; t
 export async function executeCreateBank(
   app: ExamApp,
   newBankName: string,
+  category: BankCategory = "general",
 ): Promise<{ bank: BankInfo; banks: BankInfo[] }> {
-  const b = await app.createBank(newBankName.trim());
+  const b = await app.createBank(newBankName.trim(), category);
   const banks = app.listBanks();
   return { bank: b, banks };
 }
@@ -121,6 +122,20 @@ export async function executeCycleBankCategory(
   const banks = app.listBanks();
   const badge = getBankCategoryMeta(nextCategory).badge;
   return { nextCategory, banks, badge };
+}
+
+/**
+ * 直接更新题库场景分类
+ */
+export async function executeSetBankCategory(
+  app: ExamApp,
+  bankId: string,
+  category: BankCategory,
+): Promise<{ category: BankCategory; banks: BankInfo[]; label: string }> {
+  await app.updateBankCategory(bankId, category);
+  const banks = app.listBanks();
+  const label = getBankCategoryMeta(category).label;
+  return { category, banks, label };
 }
 
 /**

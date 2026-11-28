@@ -63,10 +63,16 @@ export interface PlanTrace {
   done: number; // 当日实际完成（按流水）
   /** 连续缺席天数（有计划但零完成；链断即归零） */
   absentStreak: number;
+  /** 昨日是否存在真实计划（区分首日 prev === null 与真实跨日轨迹） */
+  hasYesterdayPlan?: boolean;
+  /** 昨日计划题数（仅当 hasYesterdayPlan 为 true 时有意义） */
+  yesterdayPlanned?: number;
 }
 
 /** 生成今日计划轨迹（昨日轨迹 + 昨日完成数 + 今日计划数；纯函数）。
  *  44-05 口径：缺席=有计划但零完成（完成数以调用方传入的 doneYesterday 为准）；
+ *  prev === null（首日）→ hasYesterdayPlan=false；
+ *  prev === today（同日刷新）→ 保留同日已有昨日轨迹；
  *  prev 非昨日（链断/首日）→ absentStreak 归零重新计 */
 export function nextPlanTrace(
   prev: PlanTrace | null,
@@ -75,10 +81,27 @@ export function nextPlanTrace(
   doneYesterday: number,
 ): PlanTrace {
   let absentStreak = 0;
-  if (prev && prev.planned > 0 && prev.date === yesterdayOf(today)) {
-    absentStreak = doneYesterday === 0 ? prev.absentStreak + 1 : 0;
+  let hasYesterdayPlan = false;
+  let yesterdayPlanned = 0;
+  if (prev && prev.date === today) {
+    absentStreak = prev.absentStreak;
+    hasYesterdayPlan = Boolean(prev.hasYesterdayPlan);
+    yesterdayPlanned = prev.yesterdayPlanned ?? 0;
+  } else if (prev && prev.date === yesterdayOf(today)) {
+    hasYesterdayPlan = prev.planned > 0;
+    yesterdayPlanned = prev.planned;
+    if (prev.planned > 0) {
+      absentStreak = doneYesterday === 0 ? prev.absentStreak + 1 : 0;
+    }
   }
-  return { date: today, planned: plannedToday, done: doneYesterday, absentStreak };
+  return {
+    date: today,
+    planned: plannedToday,
+    done: doneYesterday,
+    absentStreak,
+    hasYesterdayPlan,
+    yesterdayPlanned,
+  };
 }
 
 function yesterdayOf(today: string): string {

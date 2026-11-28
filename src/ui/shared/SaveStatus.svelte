@@ -58,6 +58,8 @@
         align-items: center; 
         gap: 6px; 
         padding: 4px 12px; 
+        white-space: nowrap;
+        flex-shrink: 0;
         border-radius: var(--lv-radius-pill); 
         font-size: var(--lv-font-size-sm); 
         font-weight: var(--lv-font-weight-medium); 

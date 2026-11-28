@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import Icon from "../shared/Icon.svelte";
   import { validateLatexSyntax } from "@/core/math";
   import { renderMathAndDiagramsInText } from "@/core/mathDiagram";
@@ -7,6 +7,7 @@
   import type { Question, QuestionLifecycleStatus } from "../../core/types";
   import StudioSubNav from "./StudioSubNav.svelte";
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
+  import { computePostSaveManualReset, executeSaveAndContinueManual } from "./services/manualStudioService";
   import AiThinkingCard from "../shared/AiThinkingCard.svelte";
 
   interface Props {
@@ -44,13 +45,17 @@
     ocrModalOpen: boolean;
     ocrInputText: string;
     ocrUploadBusy: boolean;
+    manualImageBusy?: boolean;
+    lastPastedManualImage?: { file: File | Blob; assetPath: string } | null;
+    onrunOcrOnLastImage?: () => void;
+    ondismissLastImage?: () => void;
     t: (k: string, fb?: string) => string;
     sanitizeRichHtml: (s: string) => string;
     renderMathInText: (s: string) => string;
     renderMathDiagramsInText: (s: string) => string;
     removeChoiceOption: (type: any, opts: string[], ans: string, idx: number) => { options: string[]; answer: string };
     onback: () => void;
-    onchangeView: (view: "manual" | "materials" | "import" | "ai") => void;
+    onchangeView: (view: "manual" | "siyuan" | "materials" | "import" | "ai") => void;
     onmanualPaste: (e: ClipboardEvent) => void;
     onopenOcrModal: () => void;
     onnormalizeFormulas: () => void;
@@ -61,7 +66,7 @@
     onswitchManualType: (t: any) => void;
     onclearManualValidation: () => void;
     onsetCorrectOption: (idx: number) => void;
-    onsaveManual: (status: QuestionLifecycleStatus) => void;
+    onsaveManual: (status: QuestionLifecycleStatus, opts?: { syncAppendToNote?: boolean }) => Promise<boolean> | boolean | void;
     onblankManualDraft: () => void;
     onshowChartMessage: () => void;
     mSourceBlockId?: string;
@@ -104,6 +109,10 @@
     ocrModalOpen = $bindable(),
     ocrInputText = $bindable(),
     ocrUploadBusy,
+    manualImageBusy = false,
+    lastPastedManualImage = null,
+    onrunOcrOnLastImage = () => {},
+    ondismissLastImage = () => {},
     t,
     sanitizeRichHtml,
     renderMathInText,
@@ -192,9 +201,40 @@
         if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
           onsetCorrectOption(0);
         }
-        void onsaveManual("published");
+        void onsaveManual("published", { syncAppendToNote });
       }
     }
+  }
+
+  async function handleSaveAndContinue() {
+    if (mSaving || !hasStem) return;
+    if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
+      onsetCorrectOption(0);
+    }
+    const savedStem = mStem;
+    await executeSaveAndContinueManual({
+      save: async () => (await onsaveManual("published", { syncAppendToNote })) === true,
+      resetForm: async () => {
+        if (mStem !== "" && mStem !== savedStem) return;
+        const reset = computePostSaveManualReset(mType, pinAttributes);
+        mStem = reset.stem;
+        mOptions = reset.options;
+        mAnswer = reset.answer;
+        mAnalysis = reset.analysis;
+        mExpansion = reset.expansion;
+        if (reset.clearUnpinnedMeta) {
+          mKp = "";
+          mSecondaryKps = "";
+          mPrerequisites = "";
+          mSource = "";
+          mGroup = "";
+        }
+        await tick();
+      },
+      focusStem: () => {
+        document.getElementById("lv-manual-stem")?.focus();
+      },
+    });
   }
 
   // 题干近重复查重预警
@@ -252,6 +292,27 @@
     if (nearDupeMatched.answer && !mAnswer) mAnswer = nearDupeMatched.answer;
   }
 
+  function renderPreviewWithImages(raw: string): string {
+    if (!raw) return "";
+    const parts: string[] = [];
+    let last = 0;
+    const imgRe = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = imgRe.exec(raw)) !== null) {
+      if (m.index > last) {
+        parts.push(renderMathAndDiagramsInText(raw.slice(last, m.index), renderMathInText, renderMathDiagramsInText));
+      }
+      const alt = m[1].replace(/"/g, "&quot;");
+      const src = m[2].replace(/"/g, "&quot;");
+      parts.push(`<img src="${src}" alt="${alt || "配图"}" style="max-width:100%;max-height:220px;border-radius:6px;margin:4px 0;display:block" />`);
+      last = m.index + m[0].length;
+    }
+    if (last < raw.length) {
+      parts.push(renderMathAndDiagramsInText(raw.slice(last), renderMathInText, renderMathDiagramsInText));
+    }
+    return sanitizeRichHtml(parts.join(""));
+  }
+
   // 选项整段秒拆
   let quickSplitOpen = $state(false);
   let quickSplitInput = $state("");
@@ -273,20 +334,17 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="lv-pad" onpaste={onmanualPaste}>
-  <div class="lv-screen-head" style="margin:0 0 10px">
-    <div class="lv-row" style="margin:0;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <h1 class="lv-h1" style="font-size:18px;margin:0">{t("head.manual.title")}</h1>
-        <span class="lv-muted" style="font-size:12px">{t("head.manual.desc")}</span>
-      </div>
-      <span class="lv-eyebrow" style="margin:0">{t("head.manual.eyebrow")}</span>
-    </div>
+  <div class="lv-screen-head">
+    <span class="lv-eyebrow">{t("head.manual.eyebrow")}</span>
+    <h1 class="lv-h1">{t("head.manual.title")}</h1>
+    <p>{t("head.manual.desc")}</p>
   </div>
   <StudioSubNav currentView="manual" {t} {onchangeView} />
   <div class="lv-row">
     <button class="lv-btn lv-btn--ghost lv-mobile-back" onclick={onback} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
     <span class="lv-chip">{t("manual.title")}</span>
     <button class="lv-btn sm lv-btn--primary" onclick={onopenOcrModal} title="粘贴整段试题文本或试卷图片，一键智能拆分填入所有字段"><Icon name="sparkles" size={13} /> ⚡ 智能粘贴拆单</button>
+    <button type="button" class="lv-btn sm" onclick={() => { ocrModalOpen = true; }} disabled={ocrUploadBusy} title="上传或粘贴题目图片执行识图转文字 (OCR)"><Icon name="camera" size={13} /> 识图转文字 (OCR)</button>
     <button class="lv-btn sm" onclick={onnormalizeFormulas} title="清洗题干与选项中公式的空格与语法"><Icon name="sparkles" size={13} /> {t("manual.formulaNormalize")}</button>
     <select class="lv-select" style="max-width:135px" aria-label="插入数学图表" onchange={(e) => {
       const val = (e.target as HTMLSelectElement).value;
@@ -366,49 +424,6 @@
       />
     </div>
   {/if}
-  <div class="lv-row" style="margin:6px 0 10px;gap:6px;align-items:center;flex-wrap:wrap">
-    <span class="lv-muted" style="font-size:11px">⚡ 快速填充题型模板：</span>
-    <button type="button" class="lv-chip sm" onclick={() => {
-      mType = "single";
-      mStem = "计算机网络中负责端到端可靠数据传输的协议是？";
-      mOptions = ["TCP", "UDP", "IP", "ICMP"];
-      mAnswer = "A";
-      mAnalysis = "TCP（传输控制协议）提供面向连接的、可靠的字节流传输服务。";
-      mKp = "计算机网络/传输层";
-    }}>单选题</button>
-    <button type="button" class="lv-chip sm" onclick={() => {
-      mType = "multiple";
-      mStem = "下列各项中，属于操作系统基本特征的有？";
-      mOptions = ["并发", "共享", "虚拟", "异步"];
-      mAnswer = "ABCD";
-      mAnalysis = "操作系统的四大基本特征为并发性、共享性、虚拟性和异步性。";
-      mKp = "操作系统/基础概念";
-    }}>多选题</button>
-    <button type="button" class="lv-chip sm" onclick={() => {
-      mType = "judge";
-      mStem = "死锁是指两个或两个以上的进程因争夺系统资源而产生的一种互相等待的现象。";
-      mOptions = [];
-      mAnswer = "对";
-      mAnalysis = "死锁产生的四个必要条件：互斥、请求与保持、不剥夺、循环等待。";
-      mKp = "操作系统/死锁处理";
-    }}>判断题</button>
-    <button type="button" class="lv-chip sm" onclick={() => {
-      mType = "fill";
-      mStem = "在 TCP/IP 参考模型中，网络层主要通过 ____ 协议实现不同网络之间的寻址与路由转发。";
-      mOptions = [];
-      mAnswer = "IP";
-      mAnalysis = "IP 协议（网际协议）是 TCP/IP 体系中网络层的核心协议。";
-      mKp = "计算机网络/网络层";
-    }}>填空题</button>
-    <button type="button" class="lv-chip sm" onclick={() => {
-      mType = "short";
-      mStem = "简述进程与线程的区别与联系。";
-      mOptions = [];
-      mAnswer = "1. 进程是系统资源分配的基本单位；\n2. 线程是 CPU 调度和执行的基本单位；\n3. 一个进程可以包含多个线程，同一进程下的线程共享该进程的地址空间和资源。";
-      mAnalysis = "经典核心考点，重点区分资源拥有权与调度单位。";
-      mKp = "操作系统/进程与线程";
-    }}>简答题</button>
-  </div>
   <div class="lv-studio-grid lv-studio-grid--manual">
     <div class="lv-card lv-pad-card lv-studio-form" data-manual-form>
       {#if manualErrorMsg}
@@ -417,7 +432,7 @@
           <span>{manualErrorMsg}</span>
         </div>
       {/if}
-      <div class="lv-row" style="margin:0 0 12px;gap:var(--lv-space-3);flex-wrap:wrap;align-items:center;justify-content:space-between">
+      <div class="lv-row" style="margin:0 0 12px;gap:var(--lv-space-2);flex-wrap:wrap;align-items:center;justify-content:space-between">
         <div class="lv-session-dock" role="group" aria-label={t("manual.type", "题型")}>
           <span class="lv-chip" style="color:var(--lv-text-3);cursor:default">{t("manual.type")}</span>
           {#each ["single", "multiple", "judge", "fill", "short"] as tt, _i (_i)}
@@ -434,25 +449,61 @@
             <Icon name="pin" size={12} /> {pinAttributes ? "属性已锁定" : "锁定属性"}
           </button>
         </div>
-        <div class="lv-row" style="margin:0;gap:6px">
-          <button type="button" class="lv-chip sm lv-chip--acc" title="一键填充典型单选题示范，无需手动逐个敲字" onclick={() => {
-            onswitchManualType("single");
-            mStem = "计算机网络中，HTTP 默认使用的传输层端口号是？";
-            mOptions = ["80", "443", "8080", "22"];
-            mAnswer = "A";
-            mAnalysis = "HTTP 协议默认端口为 80，HTTPS 默认端口为 443。";
-            mKp = "计算机网络/应用层";
+        <select
+          class="lv-select sm"
+          style="max-width:158px"
+          aria-label="填入题型示范模板"
+          title="选择任意题型一键填入示范内容"
+          onchange={(e) => {
+            const val = (e.target as HTMLSelectElement).value;
+            if (!val) return;
+            if (val === "single") {
+              mType = "single";
+              mStem = "计算机网络中负责端到端可靠数据传输的协议是？";
+              mOptions = ["TCP", "UDP", "IP", "ICMP"];
+              mAnswer = "A";
+              mAnalysis = "TCP（传输控制协议）提供面向连接的、可靠的字节流传输服务。";
+              mKp = "计算机网络/传输层";
+            } else if (val === "multiple") {
+              mType = "multiple";
+              mStem = "下列各项中，属于操作系统基本特征的有？";
+              mOptions = ["并发", "共享", "虚拟", "异步"];
+              mAnswer = "ABCD";
+              mAnalysis = "操作系统的四大基本特征为并发性、共享性、虚拟性和异步性。";
+              mKp = "操作系统/基础概念";
+            } else if (val === "judge") {
+              mType = "judge";
+              mStem = "死锁是指两个或两个以上的进程因争夺系统资源而产生的一种互相等待的现象。";
+              mOptions = [];
+              mAnswer = "对";
+              mAnalysis = "死锁产生的四个必要条件：互斥、请求与保持、不剥夺、循环等待。";
+              mKp = "操作系统/死锁处理";
+            } else if (val === "fill") {
+              mType = "fill";
+              mStem = "在 TCP/IP 参考模型中，网络层主要通过 ____ 协议实现不同网络之间的寻址与路由转发。";
+              mOptions = [];
+              mAnswer = "IP";
+              mAnalysis = "IP 协议（网际协议）是 TCP/IP 体系中网络层的核心协议。";
+              mKp = "计算机网络/网络层";
+            } else if (val === "short") {
+              mType = "short";
+              mStem = "简述进程与线程的区别与联系。";
+              mOptions = [];
+              mAnswer = "1. 进程是系统资源分配的基本单位；\n2. 线程是 CPU 调度和执行的基本单位；\n3. 一个进程可以包含多个线程，同一进程下的线程共享该进程的地址空间和资源。";
+              mAnalysis = "经典核心考点，重点区分资源拥有权与调度单位。";
+              mKp = "操作系统/进程与线程";
+            }
             onclearManualValidation();
-          }}>⚡ 填入选择题示例</button>
-          <button type="button" class="lv-chip sm lv-chip--acc" title="一键填充典型填空题示范" onclick={() => {
-            onswitchManualType("fill");
-            mStem = "在中华人民共和国境内，一切权力属于____。";
-            mAnswer = "人民";
-            mAnalysis = "《宪法》第二条规定：中华人民共和国的一切权力属于人民。";
-            mKp = "宪法学/国家制度";
-            onclearManualValidation();
-          }}>⚡ 填入填空题示例</button>
-        </div>
+            (e.target as HTMLSelectElement).value = "";
+          }}
+        >
+          <option value="">⚡ 填入题型示例…</option>
+          <option value="single">单选题示例</option>
+          <option value="multiple">多选题示例</option>
+          <option value="judge">判断题示例</option>
+          <option value="fill">填空题示例</option>
+          <option value="short">简答题示例</option>
+        </select>
       </div>
       <div class="lv-field">
         <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
@@ -466,7 +517,7 @@
           </div>
         </div>
         <!-- 独立的符号快捷工具条，绝不挤压 label -->
-        <div class="lv-symbol-dock-row" role="toolbar" aria-label="符号快捷选择栏" style="margin-bottom:8px;padding:4px 6px;background:var(--lv-surface-2);border-radius:var(--lv-r-2);border:1px solid var(--lv-border-subtle);display:flex;flex-wrap:wrap;gap:4px;max-width:100%">
+        <div class="lv-symbol-dock-row" role="toolbar" aria-label="符号快捷选择栏">
           {#if manualSymbolTab === "math"}
             <button type="button" class="lv-chip sm" title="上标 x²" onclick={() => oninsertMathSnippet("x^2")}>x²</button>
             <button type="button" class="lv-chip sm" title="根号 √x" onclick={() => oninsertMathSnippet("\\sqrt{x}")}>√x</button>
@@ -522,6 +573,21 @@
           {/if}
         </div>
         <textarea id="lv-manual-stem" class="lv-input lv-textarea" style="min-height:90px;resize:vertical!important;width:100%" bind:value={mStem} oninput={onclearManualValidation} placeholder={t("manual.stemPlaceholder")} data-manual-field="stem" aria-invalid={manualErrorField === "stem" ? "true" : undefined} aria-describedby={manualErrorField === "stem" ? "manual-validation-error" : undefined}></textarea>
+        {#if manualImageBusy}
+          <div class="lv-chip sm" style="margin-top:4px">正在上传粘贴的配图到思源资产库…</div>
+        {:else if lastPastedManualImage}
+          <div class="lv-row" style="margin:6px 0 0;padding:6px 10px;background:var(--lv-surface-2);border:1px solid var(--lv-border-subtle);border-radius:var(--lv-r-2);align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;color:var(--lv-text);display:inline-flex;align-items:center;gap:5px">
+              <Icon name="check" size={12} /> 已插入图文混排配图 <code>{lastPastedManualImage.assetPath}</code>
+            </span>
+            <div class="lv-row" style="margin:0;gap:6px">
+              <button type="button" class="lv-btn sm" disabled={ocrUploadBusy} onclick={onrunOcrOnLastImage} title="若剪贴板是整道试题截图，可点此转为文字填入表单">
+                <Icon name="camera" size={12} /> 识图转文字 (OCR)
+              </button>
+              <button type="button" class="lv-btn sm lv-btn--ghost" onclick={ondismissLastImage} aria-label="关闭提示"><Icon name="close" size={11} /></button>
+            </div>
+          </div>
+        {/if}
         {#if !stemLatexIssue.valid}
           <div class="lv-chip sm lv-chip--amb" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px">
             <Icon name="alert-triangle" size={11} /> {stemLatexIssue.message}
@@ -677,7 +743,7 @@
       {/if}
       <div class="lv-field">
         <label class="lv-muted" for="lv-manual-analysis" style="font-weight:600;font-size:13px">{t("manual.analysis")}</label>
-        <textarea id="lv-manual-analysis" class="lv-input lv-textarea" style="min-height:80px;resize:vertical!important;width:100%" bind:value={mAnalysis} placeholder="输入破题思路、考点解析或记忆技巧（可选）"></textarea>
+        <textarea id="lv-manual-analysis" data-manual-field="analysis" class="lv-input lv-textarea" style="min-height:80px;resize:vertical!important;width:100%" bind:value={mAnalysis} placeholder="输入破题思路、考点解析或记忆技巧（支持 Ctrl+V 直接粘贴配图）"></textarea>
         {#if !analysisLatexIssue.valid}
           <div class="lv-chip sm lv-chip--amb" style="margin-top:4px;display:inline-flex;align-items:center;gap:4px">
             <Icon name="alert-triangle" size={11} /> {analysisLatexIssue.message}
@@ -795,29 +861,11 @@
           if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
             onsetCorrectOption(0);
           }
-          onsaveManual("published");
+          onsaveManual("published", { syncAppendToNote });
         }} disabled={mSaving || !hasStem} aria-busy={mSaving} title="保存题目并直接存为思源笔记题库块 (Ctrl+Enter 连录)">
           <Icon name="save" size={14} /> {mSaving ? "正在写入思源块…" : "入库并存为思源块"} {#if !mSaving}<span class="lv-kbd">Ctrl+Enter</span>{/if}
         </button>
-        <button class="lv-btn" onclick={() => {
-          if (!hasAnswer && mType === "single" && mOptions.length >= 2) {
-            onsetCorrectOption(0);
-          }
-          onsaveManual("published");
-          mStem = "";
-          mOptions = mType === "single" || mType === "multiple" ? ["", ""] : [];
-          mAnswer = "";
-          mAnalysis = "";
-          if (!pinAttributes) {
-            mKp = "";
-            mSecondaryKps = "";
-            mPrerequisites = "";
-            mSource = "";
-            mGroup = "";
-          }
-          const stemEl = document.getElementById("lv-manual-stem");
-          if (stemEl) stemEl.focus();
-        }} disabled={mSaving || !hasStem} title={pinAttributes ? "属性已锁定：入库并保留当前题型与考点，直接连续录入下一题" : "保存当前题后保留考点与出处，直接继续录入下一题"}>
+        <button class="lv-btn" onclick={() => void handleSaveAndContinue()} disabled={mSaving || !hasStem} title={pinAttributes ? "属性已锁定：入库并保留当前题型与考点，直接连续录入下一题" : "保存当前题后保留考点与出处，直接继续录入下一题"}>
           <Icon name="plus" size={13} /> {pinAttributes ? "📌 连录下一题" : "入库并继续下一题"}
         </button>
         <button class="lv-btn" onclick={() => onsaveManual("draft")} disabled={mSaving || !hasStem} title="未填答案亦可保存为思源草稿块，方便随时暂存">
@@ -839,13 +887,13 @@
       </div>
       <div class="lv-preview-face">
         <span class="lv-chip lv-chip--acc">{t("qtype." + mType)}</span>
-        <h3>{@html sanitizeRichHtml(renderMathAndDiagramsInText(mStem.trim() || t("manual.stemPlaceholder"), renderMathInText, renderMathDiagramsInText))}</h3>
+        <h3>{@html renderPreviewWithImages(mStem.trim() || t("manual.stemPlaceholder"))}</h3>
         {#if mType === "single" || mType === "multiple"}
           <div class="lv-preview-options">
             {#each mOptions as option, i (i)}
               <div class="lv-preview-option" class:selected={mAnswer.includes(String.fromCharCode(65 + i))}>
                 <span class="lv-preview-key">{String.fromCharCode(65 + i)}</span>
-                <span>{@html sanitizeRichHtml(renderMathInText(option.trim() || "待填写选项"))}</span>
+                <span>{@html renderPreviewWithImages(option.trim() || "待填写选项")}</span>
               </div>
             {/each}
           </div>
@@ -909,3 +957,32 @@
     </section>
   </div>
 </div>
+
+<style>
+  .lv-symbol-dock-row {
+    margin-bottom: 8px;
+    padding: 4px 6px;
+    background: var(--lv-surface-2);
+    border-radius: var(--lv-r-2);
+    border: 1px solid var(--lv-border-subtle);
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 4px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .lv-symbol-dock-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lv-symbol-dock-row :global(.lv-chip.sm) {
+    flex: 0 0 auto;
+    height: 26px;
+    min-height: 26px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+</style>

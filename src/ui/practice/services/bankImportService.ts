@@ -38,13 +38,22 @@ export async function exportBankPackageZip(
   if (!activeBankId) return;
   try {
     const { zipPath, filename } = await app.exportBankSyZip(activeBankId);
+    if (!zipPath?.trim()) {
+      throw new Error("导出响应缺少有效下载路径");
+    }
+    const resolvedHref = /^https?:|^blob:|^data:/i.test(zipPath)
+      ? zipPath
+      : (() => {
+          const normalized = zipPath.startsWith("/") ? zipPath : `/${zipPath}`;
+          return typeof window !== "undefined" ? `${window.location.origin}${normalized}` : normalized;
+        })();
     if (typeof document !== "undefined") {
       const a = document.createElement("a");
-      a.href = typeof window !== "undefined" ? `${window.location.origin}${zipPath}` : zipPath;
-      a.download = filename;
+      a.href = resolvedHref;
+      a.download = filename || "bank.sy.zip";
       a.click();
     }
-    showMessage(t("share.exportDone") + filename, 4000, "info");
+    showMessage(t("share.exportDone") + (filename || "bank.sy.zip"), 4000, "info");
   } catch (e) {
     showMessage(offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e), 4200, "error");
   }
@@ -170,13 +179,13 @@ export type ImportDrawerDropResult =
   | { kind: "error"; messageKey: string };
 
 /**
- * 处理导入抽屉文件拖拽（支持 Excel 文件流、文本文件直接读取为文本）
+ * 处理导入抽屉文件拖拽（支持 Excel/Word/PDF 文件流、文本文件直接读取为文本）
  */
 export async function processImportDrawerDrop(file: File): Promise<ImportDrawerDropResult> {
-  if (/\.(xlsx|xls|csv)$/i.test(file.name)) {
+  if (/\.(xlsx|xls|csv|tsv|docx|pdf)$/i.test(file.name)) {
     return { kind: "excel", file };
   }
-  if (/\.(txt|md|gift|aiken)$/i.test(file.name)) {
+  if (/\.(txt|md|gift|aiken|json|qcard|lvcards)$/i.test(file.name)) {
     try {
       const text = await file.text();
       return { kind: "text", text };

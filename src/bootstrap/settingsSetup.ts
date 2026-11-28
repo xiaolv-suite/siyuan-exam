@@ -161,6 +161,14 @@ export function setupPluginSettings(plugin: PluginHost): Map<string, unknown> {
     value: "",
     direction: "row",
   });
+  plugin.settingUtils.addItem({
+    title: `[OCR识图] ${plugin.i18n["setting.ocrEndpoint.title"]}`,
+    description: plugin.i18n["setting.ocrEndpoint.desc"],
+    type: "textinput",
+    key: "ocrEndpoint",
+    value: "",
+    direction: "row",
+  });
   let pendingAiKeyInput: HTMLInputElement | null = null;
   let pendingAiKeyClear = false;
   const syncAiKeyPlaceholder = (el: HTMLInputElement) => {

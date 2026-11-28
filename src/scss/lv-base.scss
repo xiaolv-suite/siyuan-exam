@@ -811,6 +811,41 @@ details summary {
   }
 }
 
+.lv-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lv-space-3);
+  margin-bottom: var(--lv-space-3);
+
+  > div {
+    min-width: 0;
+  }
+
+  .lv-eyebrow,
+  .eyebrow {
+    display: block;
+    font-size: var(--lv-font-size-xs);
+    letter-spacing: 1.2px;
+    font-weight: var(--lv-font-weight-bold);
+    color: var(--lv-brand);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: var(--lv-font-size-h3);
+    font-weight: var(--lv-font-weight-bold);
+    line-height: 1.3;
+  }
+
+  > .lv-chip {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
 /* —— Tab 内容公共容器：居中限宽 + 视图入场动画（原型 main-wrap/screen-enter） —— */
 .lv-pad {
   width: 100%;
@@ -910,12 +945,17 @@ details summary {
     border-radius: var(--lv-r-2);
   }
 
-  /* AUTH-04：暗黑模式下试题数学插图/几何线稿智能去刺眼白底与柔和反色 */
+  /* AUTH-04：暗黑模式下仅对显式标注的线稿/公式图柔和反色，保护彩色配图不失真 */
   [data-lv-theme="dark"] &,
   [data-theme-mode="dark"] &,
   [data-theme="dark"] &,
   .theme--dark & {
     img {
+      filter: brightness(0.95);
+    }
+
+    img.lv-diagram-img,
+    img[data-lv-invert="true"] {
       filter: invert(0.88) hue-rotate(180deg) contrast(1.1) brightness(0.92);
       mix-blend-mode: screen;
       background: transparent;
@@ -1209,14 +1249,14 @@ input[type="range"] {
   }
 }
 
-/* 窄桌面/平板分屏（760px - 1119px）：自适应切换为 72px 极窄图标模式，文字隐藏防挤压错位 */
+/* 窄桌面/平板分屏（760px - 1119px）：自适应切换为 78px 极窄图标模式，文字居中防挤压错位 */
 @container lv-exam (min-width: 760px) and (max-width: 1119px) {
   .lv-shell {
-    grid-template-columns: 72px minmax(0, 1fr);
+    grid-template-columns: 78px minmax(0, 1fr);
   }
   .lv-shell > .lv-rail {
-    width: 72px;
-    min-width: 72px;
+    width: 78px;
+    min-width: 78px;
     flex-shrink: 0;
   }
 }
@@ -1407,6 +1447,7 @@ input[type="range"] {
   min-width: 44px;
   min-height: 44px;
 }
+.lv-more.lv-report-mobile-more,
 .lv-report-mobile-more {
   display: none;
 }
@@ -1435,6 +1476,8 @@ input[type="range"] {
   gap: var(--lv-space-2);
   color: var(--lv-text);
   font-size: var(--lv-font-size-body-compact);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* —— 共用原语（上收自三 Tab 的逐字重复定义；改一处三处生效） —— */
@@ -1456,6 +1499,47 @@ input[type="range"] {
   background: var(--lv-red-soft);
   color: var(--lv-red);
   font-size: var(--lv-font-size-body);
+}
+.lvx-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 20px;
+  text-align: center;
+  border: 1px solid color-mix(in srgb, var(--lv-red) 24%, transparent);
+  border-radius: var(--lv-r-3);
+  background: color-mix(in srgb, var(--lv-red-soft) 55%, var(--lv-surface));
+  box-shadow: var(--lv-sh-1);
+}
+.lvx-error__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--lv-red-soft);
+  border: 1px solid color-mix(in srgb, var(--lv-red) 22%, transparent);
+  color: var(--lv-red);
+}
+.lvx-error__title {
+  font-size: var(--lv-font-size-body-emphasis);
+  font-weight: var(--lv-font-weight-semibold);
+  color: var(--lv-red);
+}
+.lvx-error__desc {
+  font-size: var(--lv-font-size-sm);
+  color: var(--lv-text-3);
+  max-width: 340px;
+}
+.lvx-error__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
 }
 .lv-kpis {
   /* auto-fit：窄容器（宿主设置浮层挤压主区等）优雅降级，不挤碎文字 */
@@ -2235,11 +2319,11 @@ input[type="range"] {
 .lv-preview-note { margin: 12px 2px 0; line-height: 1.55; }
 .lv-studio-grid--ai { grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr); }
 .lv-ai-source-card { margin: 8px 0; box-shadow: var(--lv-sh-card), var(--lv-inset-highlight, inset 0 1px 0 transparent); border-radius: var(--lv-r-3); border: 1px solid var(--lv-border-subtle, var(--lv-border)); }
-.lv-ai-review { min-width: 0; }
+.lv-ai-review { min-width: 0; margin: 8px 0; }
 .lv-ai-review > .lv-card { margin: 8px 0; }
 .lv-ai-review .lv-qrow { margin-bottom: 12px; border: 1px solid var(--lv-border-subtle, var(--lv-border)); border-radius: var(--lv-r-2); box-shadow: var(--lv-sh-1); transition: transform var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out); }
 .lv-ai-review .lv-qrow:hover { transform: translateY(-1px); border-color: var(--lv-border-hover, var(--lv-accent)); box-shadow: var(--lv-sh-2); }
-.lv-ai-empty { min-height: 220px; display: grid; place-items: center; align-content: center; text-align: center; padding: 36px 24px; border-radius: var(--lv-r-3); border: 1.5px dashed var(--lv-border); background: color-mix(in srgb, var(--lv-surface-2) 40%, var(--lv-surface)); }
+.lv-ai-empty { min-height: 220px; display: grid; place-items: center; align-content: center; text-align: center; padding: 36px 24px; border-radius: var(--lv-r-2); border: 1.5px dashed var(--lv-border); background: color-mix(in srgb, var(--lv-surface-2) 40%, var(--lv-surface)); box-shadow: none; }
 .lv-ai-empty b { margin-top: 14px; font-size: var(--lv-font-size-h3); font-weight: var(--lv-font-weight-bold); color: var(--lv-text); }
 .lv-ai-empty p { max-width: 400px; margin: 8px auto 0; line-height: 1.65; color: var(--lv-text-3); }
 .lv-materials-workspace { display: grid; grid-template-columns: minmax(220px, .36fr) minmax(0, .64fr); gap: var(--lv-space-panel); align-items: start; margin-top: 14px; }
@@ -2303,7 +2387,7 @@ input[type="range"] {
 .stack > *, .stack-sm > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
 
 @media (max-width: 680px) {
-  .lv-studio-nav + .lv-card {
+  .lv-studio-nav ~ .lv-studio-intro-card {
     display: none !important;
   }
 
@@ -2321,20 +2405,28 @@ input[type="range"] {
   }
 
   .lv-studio-nav {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
     gap: 4px !important;
     width: 100% !important;
+    max-width: 100% !important;
+    padding: 4px !important;
+    border-radius: var(--lv-r-2, 12px) !important;
     margin-bottom: 8px !important;
+    box-sizing: border-box !important;
 
     .lv-studio-tab {
-      min-width: 0 !important;
-      padding: 6px 4px !important;
-      font-size: 12px !important;
+      flex: 0 0 auto !important;
+      min-width: 44px !important;
+      min-height: 38px !important;
+      padding: 6px 12px !important;
+      border-radius: var(--lv-radius-control-sm, 8px) !important;
+      font-size: 12.5px !important;
       justify-content: center !important;
       white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
     }
   }
 
@@ -2720,7 +2812,7 @@ input[type="range"] {
   }
 }
 
-/* ── 错题原块深度穿透脉冲高亮 (Error Notebook Deep Traceback) ──────── */
+/* ── 错题原块深度穿透脉冲高亮 (Zero-Touch document.body 悬浮高亮框) ──────── */
 @keyframes lvExamTracePulse {
   0% {
     opacity: 0.35;
@@ -2728,20 +2820,28 @@ input[type="range"] {
   }
   30% {
     opacity: 1;
-    transform: scale(1.02);
+    transform: scale(1.01);
   }
   60% {
     opacity: 0.85;
     transform: scale(0.995);
   }
   100% {
-    opacity: 1;
+    opacity: 0.95;
     transform: scale(1);
   }
 }
 
-.lv-exam-trace-pulse {
-  animation: lvExamTracePulse 2s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+.lv-exam-trace-overlay {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 2px solid var(--lv-accent, var(--b3-theme-primary, #0284c7));
+  background: color-mix(in srgb, var(--lv-accent, var(--b3-theme-primary, #0284c7)) 10%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lv-accent, var(--b3-theme-primary, #0284c7)) 22%, transparent);
+  animation: lvExamTracePulse 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform, opacity;
 }
 

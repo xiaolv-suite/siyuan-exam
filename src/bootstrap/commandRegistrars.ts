@@ -109,11 +109,26 @@ export function registerCommands(plugin: PluginHost): void {
   });
 }
 
+export const PROTYLE_SLASH_CONVERT_ID = "lv-exam-convert-to-question";
+
+export function unregisterProtyleSlash(plugin: PluginHost): void {
+  if (!Array.isArray(plugin.protyleSlash)) return;
+  for (let i = plugin.protyleSlash.length - 1; i >= 0; i--) {
+    if (plugin.protyleSlash[i]?.id === PROTYLE_SLASH_CONVERT_ID) {
+      plugin.protyleSlash.splice(i, 1);
+    }
+  }
+}
+
 export function registerProtyleSlash(plugin: PluginHost): void {
+  if (!Array.isArray(plugin.protyleSlash)) {
+    plugin.protyleSlash = [];
+  }
+  unregisterProtyleSlash(plugin);
   plugin.protyleSlash.push({
     filter: ["转为试题", "录入试题", "提取试题", "zhuanwei", "exam", "tiqu", "shiti"],
     html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconExam"></use></svg><span class="b3-list-item__text">${plugin.i18n["slash.convertToQuestion"] ?? "转为小驴试题（录入题库）"}</span></div>`,
-    id: "lv-exam-convert-to-question",
+    id: PROTYLE_SLASH_CONVERT_ID,
     callback: async (_protyle: unknown, nodeElement: HTMLElement) => {
       const blockId = nodeElement?.getAttribute?.("data-node-id") || nodeElement?.dataset?.nodeId || "";
       if (!blockId || !plugin.examApp) {

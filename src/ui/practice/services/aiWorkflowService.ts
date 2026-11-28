@@ -27,14 +27,14 @@ export async function createAiChannel(client: KernelApiClient, config: AiChannel
     return new OpenAiChannel({ endpoint, apiKey, model: model || "gpt-4o-mini" }, (u, i) => fetch(u, i));
   }
 
-  // 2. 统一 AI 网关 (lvAi)：若全生态已存在共享 Key 且当前无客户端专属代理，免填 Key 自动继承复用
+  // 2. 统一 AI 网关 (lvAi)：若全生态已存在共享 Key，免填 Key 自动继承复用
   const shared = lvAi.getConfig();
   const hasSharedSecret = Boolean(
     shared?.apiKey ||
     shared?.hasSecret ||
     (typeof window !== "undefined" && (window as { hasTier2SecretConfigured?: () => boolean }).hasTier2SecretConfigured?.()),
   );
-  if (hasSharedSecret && !client?.aiChat) {
+  if (hasSharedSecret) {
     return new LvGatewayAiChannel(source);
   }
 

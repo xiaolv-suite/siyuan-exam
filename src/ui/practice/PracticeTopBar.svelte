@@ -30,7 +30,6 @@
     onopenPalette: () => void;
     onbankSwitch: () => void;
     onopenBankHub: () => void;
-    onopenMarketplace: () => void;
     oncloseMobile: () => void;
   }
 
@@ -61,7 +60,6 @@
     onopenPalette,
     onbankSwitch,
     onopenBankHub,
-    onopenMarketplace,
     oncloseMobile,
   }: Props = $props();
 
@@ -74,9 +72,9 @@
   <!-- 原型 .breadcrumbs：题库 / 当前页（muted/当前 双色导航语境） -->
   {#if view === "session" && !sessionDone}<div class="lv-focus-brand"><Icon name="book" size={15} /><strong>{t("session.focusTitle", "专注练习")}</strong></div>{/if}
   <div class="lv-crumbs" class:lv-focus-context={view === "session" && !sessionDone}>
-    <span class="lv-crumb">{bankName || t("guard.title")}</span>
+    <span class="lv-crumb">{view === "banks" ? "小驴考试" : view === "marketplace" ? "题库管理" : (bankName || t("guard.title"))}</span>
     <span class="lv-crumb-sep" aria-hidden="true">/</span>
-    <span class="lv-crumb-current">{t("tab.practice")}</span>
+    <span class="lv-crumb-current">{view === "banks" ? t("bank.hubTitle") : view === "browse" ? t("browse.title", "题目浏览") : view === "marketplace" ? "题库集市" : t("tab.practice")}</span>
   </div>
   {#if app?.saves}<SaveStatus gate={app.saves} {t} />{/if}
   <span class="fn__flex-1 lv-topbar-spacer"></span>
@@ -101,8 +99,8 @@
     {#if planTrace && planTrace.absentStreak >= 2}
       <!-- 44-05 lite：连续缺席提醒（配额恒定不爆量，仅可见性） -->
       <span class="lv-chip lv-chip--amb num" title={t("entry.absentTip")}><Icon name="alert-triangle" size={11} /> {t("entry.absent").replace("{n}", String(planTrace.absentStreak))}</span>
-    {:else if planTrace && planTrace.planned > 0 && planTrace.done >= 0}
-      <span class="lv-chip num" title={t("entry.yesterdayTip")}><Icon name="calendar" size={12} /> {t("entry.yesterday").replace("{p}", String(planTrace.planned)).replace("{d}", String(planTrace.done))}</span>
+    {:else if planTrace && planTrace.hasYesterdayPlan && (planTrace.yesterdayPlanned ?? 0) > 0 && planTrace.done >= 0}
+      <span class="lv-chip num" title={t("entry.yesterdayTip")}><Icon name="calendar" size={12} /> {t("entry.yesterday").replace("{p}", String(planTrace.yesterdayPlanned)).replace("{d}", String(planTrace.done))}</span>
     {/if}
     {#if planTime && view !== "entry"}
       <!-- 53-01 lite：分钟预算 chip（入口页已在 hero 卡内展示，避免重复） -->
@@ -125,17 +123,7 @@
     {:else if hasBank}
       <span class="lv-chip sm">{bankName}</span>
     {/if}
-    <button class="lv-btn sm lv-btn--ghost" onclick={onopenBankHub} disabled={isActionBusy} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> <span class="lv-topbar-btn-label">{t("bank.hubTitle")}</span></button>
-    <button
-      type="button"
-      class="lv-btn sm lv-btn--ghost"
-      onclick={onopenMarketplace}
-      disabled={isActionBusy}
-      title="题库与闪卡公共集市：精选公版题库与网络卡包"
-      aria-label="题库集市"
-    >
-      <Icon name="sparkles" size={13} /> <span class="lv-topbar-btn-label">🏛️ 题库集市</span>
-    </button>
+    <button class="lv-btn sm lv-btn--ghost" class:acc={view === "banks"} onclick={onopenBankHub} disabled={isActionBusy} title={t("bank.hubTitle")} aria-label={t("bank.hubTitle")}><Icon name="folder" size={13} /> <span class="lv-topbar-btn-label">{t("bank.hubTitle")}</span></button>
   </div>
   <button type="button" class="lv-mobile-close-btn" aria-label="关闭" title="关闭" onclick={oncloseMobile}>
     <Icon name="close" size={18} />

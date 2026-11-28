@@ -265,6 +265,7 @@ export function verifyQueueBankMatch(
 
 
 export interface GenOptionsSnapshotParams {
+  types?: Question["type"][];
   count: number;
   difficulty: "easy" | "medium" | "hard" | "mixed";
   kp: string;
@@ -277,6 +278,8 @@ export interface GenOptionsSnapshotParams {
   profilePrefix?: string;
 }
 
+const VALID_GEN_TYPES: Question["type"][] = ["single", "multiple", "judge", "fill", "short"];
+
 /**
  * 构建出题参数快照
  */
@@ -288,8 +291,10 @@ export function buildGenOptionsSnapshot(params: GenOptionsSnapshotParams): GenOp
     .filter(Boolean)
     .join("\n");
 
+  const filteredTypes = (params.types ?? []).filter((t): t is Question["type"] => VALID_GEN_TYPES.includes(t));
+
   return {
-    types: ["single", "multiple", "judge"],
+    types: filteredTypes.length > 0 ? filteredTypes : ["single", "multiple", "judge", "fill", "short"],
     count: params.count,
     difficulty: params.difficulty,
     kp: params.kp,

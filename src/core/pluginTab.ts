@@ -3,7 +3,7 @@ import type { Question } from "./types";
 import type { ExamApp } from "../app";
 import type { AiKeyHost } from "../ai/secrets";
 
-export type PracticeViewTarget = "wrongbook" | "entry" | "browse" | "manual" | "import" | "siyuan" | "ai" | "materials" | "recite" | "marketplace";
+export type PracticeViewTarget = "wrongbook" | "entry" | "banks" | "browse" | "manual" | "import" | "siyuan" | "ai" | "materials" | "recite" | "marketplace";
 export interface PracticeViewRequest {
   id: string;
   view: PracticeViewTarget;

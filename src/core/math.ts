@@ -418,13 +418,25 @@ export function renderLatex(latex: string, displayMode = false): string {
   return renderSemanticLatex(cleaned, displayMode);
 }
 
-/**
- * 文本内数学公式全量解析与渲染（自动识别 $$...$$ 与 $...$ 并安全替换）
- */
-export function renderMathInText(text: string): string {
-  if (!text) return "";
+function isSafeMarkdownImageSrc(rawSrc: string): string | null {
+  const trimmed = String(rawSrc ?? "").trim();
+  if (!trimmed) return null;
+  // 剥离可选 Markdown 图片 title（![alt](url "title")）
+  const titleMatch = trimmed.match(/^([^\s"]+?)(?:\s+"[^"]*")?$/);
+  const url = titleMatch ? titleMatch[1] : trimmed;
+  if (!url || /[\s"'<>\\]/.test(url)) return null;
+  if (/^(?:assets\/|\/assets\/)/i.test(url)) {
+    return url.includes("..") ? null : url;
+  }
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^data:image\/(?:png|jpe?g|gif|webp|bmp|avif);base64,[A-Za-z0-9+/=]+$/i.test(url)) return url;
+  return null;
+}
 
-  // 若不含 $ 或 \( 或 \[，直接纯文本转义返回
+const MARKDOWN_IMAGE_RE = /!\[([^\]\r\n]*)\]\(((?:[^()\r\n]+|\([^()\r\n]*\))+)\)/g;
+
+function renderMathChunkSegment(text: string): string {
+  if (!text) return "";
   if (!text.includes("$") && !text.includes("\\(") && !text.includes("\\[")) {
     return escapeHtml(text);
   }
@@ -490,6 +502,44 @@ export function renderMathInText(text: string): string {
       return escapeHtml(chunk.content);
     })
     .join("");
+}
+
+/**
+ * 文本内数学公式与安全配图全量解析与渲染（自动识别 $$...$$、$...$ 与安全 Markdown 配图 ![alt](assets/...)）
+ */
+export function renderMathInText(text: string): string {
+  if (!text) return "";
+
+  // 若不含 $ / \( / \[ / ![，直接纯文本转义返回
+  if (!text.includes("$") && !text.includes("\\(") && !text.includes("\\[") && !text.includes("![")) {
+    return escapeHtml(text);
+  }
+
+  if (!text.includes("![")) {
+    return renderMathChunkSegment(text);
+  }
+
+  let out = "";
+  let lastIndex = 0;
+  MARKDOWN_IMAGE_RE.lastIndex = 0;
+  let imgMatch: RegExpExecArray | null;
+  while ((imgMatch = MARKDOWN_IMAGE_RE.exec(text)) !== null) {
+    if (imgMatch.index > lastIndex) {
+      out += renderMathChunkSegment(text.slice(lastIndex, imgMatch.index));
+    }
+    const alt = imgMatch[1] ?? "";
+    const safeSrc = isSafeMarkdownImageSrc(imgMatch[2] ?? "");
+    if (safeSrc) {
+      out += `<img class="lv-math-img" src="${escapeHtml(safeSrc)}" alt="${escapeHtml(alt || "配图")}" style="max-width:100%;max-height:240px;height:auto;vertical-align:middle;border-radius:4px;margin:4px 0" />`;
+    } else {
+      out += escapeHtml(imgMatch[0]);
+    }
+    lastIndex = imgMatch.index + imgMatch[0].length;
+  }
+  if (lastIndex < text.length) {
+    out += renderMathChunkSegment(text.slice(lastIndex));
+  }
+  return out;
 }
 
 /**

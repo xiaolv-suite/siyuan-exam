@@ -521,23 +521,142 @@ export class BankDomainService {
   }
 
   async exportBankSyZip(bankId: string): Promise<{ zipPath: string; filename: string }> {
-    const { zipPath } = await this.deps.bridge.exportNotebookSy(bankId);
-    const filename = decodeURIComponent(zipPath.split("/").pop() ?? "bank.sy.zip");
+    const bank = this.getBank(bankId);
+    const isSubtreeBank = Boolean(
+      bank?.rootHPath ||
+      bankId.startsWith("bank-") ||
+      (bank?.notebookId && bank.notebookId !== bank.id),
+    );
+    if (!isSubtreeBank) {
+      const { zipPath } = await this.deps.bridge.exportNotebookSy(bank?.notebookId || bankId);
+      const filename = decodeURIComponent(zipPath.split("/").pop() ?? "bank.sy.zip");
+      return { zipPath, filename };
+    }
+
+    const { notebookId, rootHPath } = this.resolveBankScope(bankId);
+    const cleanRoot = rootHPath.replace(/\/+$/, "");
+    if (!cleanRoot) {
+      throw new Error("统一空间子目录题库缺少根路径，无法安全导出");
+    }
+
+    let docs: { id: string; hpath: string }[] = [];
+    if (typeof this.deps.bridge.docTree === "function") {
+      try {
+        const tree = await this.deps.bridge.docTree(notebookId, cleanRoot);
+        docs = Array.isArray(tree?.docs) ? tree.docs : [];
+      } catch {
+        docs = [];
+      }
+    }
+    if (docs.length === 0 && typeof this.deps.bridge.sql === "function") {
+      const box = notebookId.replace(/'/g, "''");
+      const escapedRoot = cleanRoot.replace(/'/g, "''");
+      const rows = await this.deps.bridge.sql<{ id: string; hpath: string }>(
+        `SELECT id, hpath FROM blocks WHERE box='${box}' AND type='d' AND (hpath='${escapedRoot}' OR hpath LIKE '${escapedRoot}/%') ORDER BY hpath, id`,
+      );
+      docs = Array.isArray(rows)
+        ? rows.map((r) => ({ id: String(r.id ?? ""), hpath: String(r.hpath ?? "") })).filter((d) => d.id)
+        : [];
+    }
+    if (docs.length === 0) {
+      throw new Error(`题库「${bank?.name || bankId}」下暂无可导出的文档`);
+    }
+
+    const docHPaths = new Set(docs.map((d) => d.hpath.replace(/\/+$/, "")));
+    const exactRoot = docs.find((d) => d.hpath.replace(/\/+$/, "") === cleanRoot);
+    const topIds = exactRoot
+      ? [exactRoot.id]
+      : docs
+          .filter((d) => {
+            const norm = d.hpath.replace(/\/+$/, "");
+            const parent = norm.slice(0, norm.lastIndexOf("/"));
+            return !docHPaths.has(parent);
+          })
+          .map((d) => d.id);
+    const exportIds = topIds.length ? topIds : docs.map((d) => d.id);
+
+    let zipPath = "";
+    if (typeof this.deps.bridge.exportDocTreeSy === "function") {
+      const res = await this.deps.bridge.exportDocTreeSy(exportIds);
+      zipPath = res.zipPath;
+    } else if (typeof this.deps.bridge.rawPost === "function") {
+      let lastErr: unknown;
+      try {
+        const r = exportIds.length === 1
+          ? await this.deps.bridge.rawPost("/api/export/exportSY", { id: exportIds[0] })
+          : await this.deps.bridge.rawPost("/api/export/exportSYs", { ids: exportIds });
+        zipPath = String((r.data as Record<string, unknown> | null)?.zip ?? "");
+      } catch (e) {
+        lastErr = e;
+      }
+      if (!zipPath) {
+        try {
+          const mdR = exportIds.length === 1
+            ? await this.deps.bridge.rawPost("/api/export/exportMd", { id: exportIds[0], includeSubDocs: true })
+            : await this.deps.bridge.rawPost("/api/export/exportMds", { ids: exportIds, includeSubDocs: true });
+          zipPath = String((mdR.data as Record<string, unknown> | null)?.zip ?? "");
+        } catch (e) {
+          lastErr = lastErr ?? e;
+        }
+      }
+      if (!zipPath && lastErr) throw lastErr;
+    } else {
+      throw new Error("当前宿主环境不支持导出题库文档子树");
+    }
+
+    if (!zipPath) {
+      throw new Error("题库子树导出响应缺少 zip 路径");
+    }
+    const filename = decodeURIComponent(zipPath.split("/").pop() || `${bank?.name || "bank"}.sy.zip`);
     return { zipPath, filename };
+  }
+
+  private async notebookHasExamQuestions(notebookId: string): Promise<boolean> {
+    if (typeof this.deps.bridge.sql === "function") {
+      try {
+        const escaped = notebookId.replace(/'/g, "''");
+        const rows = await this.deps.bridge.sql<{ id: string }>(
+          `SELECT a.block_id AS id FROM attributes a JOIN blocks b ON a.block_id = b.id WHERE b.box='${escaped}' AND a.name='custom-exam-id' LIMIT 1`,
+        );
+        if (Array.isArray(rows) && rows.length > 0) return true;
+      } catch {
+        /* 回退 listQuestions 探测 */
+      }
+    }
+    if (typeof this.deps.bridge.listQuestions === "function") {
+      try {
+        const qs = await this.deps.bridge.listQuestions(notebookId);
+        if (Array.isArray(qs) && qs.length > 0) return true;
+      } catch {
+        /* 忽略探测失败 */
+      }
+    }
+    return false;
   }
 
   async importBankSyZip(file: Blob, filename = "bank.sy.zip"): Promise<{ registered: string[] }> {
     await this.deps.bridge.importSyUpload(file, filename);
     const all = await this.deps.bridge.listNotebooks();
-    const known = new Set(this.banks.map((b) => b.id));
+    const known = new Set<string>();
+    for (const b of this.banks) {
+      known.add(b.id);
+      if (b.notebookId) known.add(b.notebookId);
+    }
     const registered: string[] = [];
     for (const nb of all) {
-      if (known.has(nb.id) || !nb.name.startsWith("题库/")) continue;
+      if (known.has(nb.id)) continue;
+      const isBankPrefixed = nb.name.startsWith("题库/");
+      let shouldRegister = isBankPrefixed;
+      if (!shouldRegister && !/^(🐴\s*)?小驴(生态|空间|笔记本)/.test(nb.name?.trim() || "")) {
+        shouldRegister = await this.notebookHasExamQuestions(nb.id);
+      }
+      if (!shouldRegister) continue;
       this.banks.push({
         id: nb.id,
-        name: nb.name.replace(/^题库\//, "") || nb.name,
+        name: isBankPrefixed ? (nb.name.replace(/^题库\//, "") || nb.name) : nb.name,
         createdAt: this.deps.now?.() ?? Date.now(),
       });
+      known.add(nb.id);
       registered.push(nb.name);
     }
     if (registered.length) await this.saveBankRegistry();

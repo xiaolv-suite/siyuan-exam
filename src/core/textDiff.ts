@@ -121,7 +121,7 @@ export function computeStemSimilarity(s1: string = "", s2: string = ""): number 
 }
 
 /**
- * 将整段选项文本（如 "A. 选项1 B. 选项2 C. 选项3 D. 选项4"）智能秒拆为选项数组
+ * 将整段选项文本（如 "A. 选项1 B. 选项2 C. 选项3 D. 选项4" 或 "(A) 10 (B) 20 (C) 30 (D) 40" / "（A）...（B）..."）智能秒拆为选项数组
  */
 export function splitRawOptionsText(text: string): { options: string[]; answer?: string } {
   const raw = String(text ?? "").trim();
@@ -129,39 +129,121 @@ export function splitRawOptionsText(text: string): { options: string[]; answer?:
 
   // 检查是否包含 "答案: B" 或 "【答案】B" 等显式答案标记
   let extractedAnswer: string | undefined;
-  const ansMatch = raw.match(/(?:答案|参考答案|【答案】)[：:\s]*([A-Fa-f√×对错]+)/i);
+  const ansMatch = raw.match(/(?:答案|参考答案|【答案】)[：:\s]*([A-Ja-j√×对错]+)/i);
   if (ansMatch) {
     extractedAnswer = ansMatch[1].toUpperCase();
   }
 
   // 剥除末尾答案部分避免混入最后一个选项
-  const cleanedText = raw.replace(/(?:答案|参考答案|【答案】)[：:\s]*[A-Fa-f√×对错]+/i, "").trim();
-
+  const cleanedText = raw.replace(/(?:答案|参考答案|【答案】)[：:\s]*[A-Ja-j√×对错]+/i, "").trim();
   const normalized = cleanedText.replace(/\r\n/g, "\n");
-  const pattern = /(?:^|\n|\s+)(?:[A-Fa-f][.、:：\s]|\([A-Fa-f]\)|[①②③④⑤⑥]|\d+[.、\s])/g;
-  const indices: number[] = [];
-  let m: RegExpExecArray | null;
 
-  while ((m = pattern.exec(normalized)) !== null) {
-    indices.push(m.index);
+  // 保护代码块、LaTeX 公式与 Markdown 图片，防止公式内 (a)/(b) 或数字被误拆
+  const spans: string[] = [];
+  const tokenOf = (s: string) => {
+    const idx = spans.length;
+    spans.push(s);
+    return `@@OPTDIFF_${idx}@@`;
+  };
+  const masked = normalized
+    .replace(/```[\s\S]*?```/g, tokenOf)
+    .replace(/`[^`\n\r]+?`/g, tokenOf)
+    .replace(/\$\$[\s\S]*?\$\$/g, tokenOf)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, tokenOf)
+    .replace(/(?<!\\)\$[^$\n\r]+?\$/g, tokenOf);
+  const restore = (s: string) => s.replace(/@@OPTDIFF_(\d+)@@/g, (_m, i: string) => spans[Number(i)] ?? _m);
+
+  // 1. 优先匹配带行首或空白边界的字母选项（支持 A. / A、 / A: / (A) / （A） / A) ），
+  // 防止把正文中的内嵌括号如 "A. 维生素(B)群 B. ..." 误切为 B 选项；
+  // 仅当无空白分隔选项标号时（如 "（A）10（B）20"），才兜底启用紧凑括号匹配
+  const collectSequentialLetterMatches = (
+    re: RegExp,
+    getLetter: (match: RegExpExecArray) => string,
+  ): Array<{ code: number; index: number; len: number }> => {
+    const out: Array<{ code: number; index: number; len: number }> = [];
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(masked)) !== null) {
+      const letter = getLetter(match).toUpperCase();
+      const expectedCode = 65 + out.length;
+      if (letter.charCodeAt(0) === expectedCode) {
+        out.push({ code: letter.charCodeAt(0), index: match.index, len: match[0].length });
+        if (out.length >= 10) break;
+      } else if (out.length >= 2) {
+        break;
+      }
+    }
+    return out;
+  };
+
+  const spacedLetterRe = /(?:^|\n|\s+)(?:[（(]([A-Ja-j])[)）]|([A-Ja-j])[.、:：)）])\s*/g;
+  let letterMatches = collectSequentialLetterMatches(spacedLetterRe, (match) => match[1] || match[2]);
+  if (letterMatches.length < 2) {
+    const compactParenRe = /[（(]([A-Ja-j])[)）]\s*/g;
+    letterMatches = collectSequentialLetterMatches(compactParenRe, (match) => match[1]);
   }
-
-  if (indices.length >= 2) {
+  let m: RegExpExecArray | null;
+  if (letterMatches.length >= 2) {
     const parts: string[] = [];
-    for (let i = 0; i < indices.length; i++) {
-      const start = indices[i];
-      const end = i < indices.length - 1 ? indices[i + 1] : normalized.length;
-      const rawPart = normalized.slice(start, end).trim();
-      const cleaned = rawPart.replace(/^(?:[A-Fa-f][.、:：\s]+|\([A-Fa-f]\)\s*|[①②③④⑤⑥]\s*|\d+[.、\s]+)/, "").trim();
+    for (let i = 0; i < letterMatches.length; i++) {
+      const start = letterMatches[i].index + letterMatches[i].len;
+      const end = i < letterMatches.length - 1 ? letterMatches[i + 1].index : masked.length;
+      const cleaned = restore(masked.slice(start, end)).trim();
       if (cleaned) parts.push(cleaned);
     }
     if (parts.length >= 2) return { options: parts, answer: extractedAnswer };
   }
 
-  // 兜底按换行切分
+  // 2. 匹配带圆圈序号 ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩
+  const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩";
+  const circledRe = /[①②③④⑤⑥⑦⑧⑨⑩]\s*/g;
+  const circledMatches: Array<{ idx: number; index: number; len: number }> = [];
+  while ((m = circledRe.exec(masked)) !== null) {
+    const ord = CIRCLED.indexOf(m[0].trim()[0]);
+    if (ord === circledMatches.length) {
+      circledMatches.push({ idx: ord, index: m.index, len: m[0].length });
+    } else if (circledMatches.length >= 2) {
+      break;
+    }
+  }
+  if (circledMatches.length >= 2) {
+    const parts: string[] = [];
+    for (let i = 0; i < circledMatches.length; i++) {
+      const start = circledMatches[i].index + circledMatches[i].len;
+      const end = i < circledMatches.length - 1 ? circledMatches[i + 1].index : masked.length;
+      const cleaned = restore(masked.slice(start, end)).trim();
+      if (cleaned) parts.push(cleaned);
+    }
+    if (parts.length >= 2) return { options: parts, answer: extractedAnswer };
+  }
+
+  // 3. 匹配严格带点或顿号的数字序号 1. 2. 3. 或 1、 2、 3、（绝不匹配纯空格后的 "10 "）
+  const digitRe = /(?:^|\n|\s+)(\d+)[.、)）]\s*/g;
+  const digitMatches: Array<{ num: number; index: number; len: number }> = [];
+  while ((m = digitRe.exec(masked)) !== null) {
+    const num = parseInt(m[1], 10);
+    if (num === digitMatches.length + 1) {
+      digitMatches.push({ num, index: m.index, len: m[0].length });
+    } else if (digitMatches.length >= 2) {
+      break;
+    }
+  }
+  if (digitMatches.length >= 2) {
+    const parts: string[] = [];
+    for (let i = 0; i < digitMatches.length; i++) {
+      const start = digitMatches[i].index + digitMatches[i].len;
+      const end = i < digitMatches.length - 1 ? digitMatches[i + 1].index : masked.length;
+      const cleaned = restore(masked.slice(start, end)).trim();
+      if (cleaned) parts.push(cleaned);
+    }
+    if (parts.length >= 2) return { options: parts, answer: extractedAnswer };
+  }
+
+  // 4. 兜底按换行切分
   const lines = normalized.split("\n").map((l) => l.trim()).filter(Boolean);
   if (lines.length >= 2) {
-    const cleanedLines = lines.map((l) => l.replace(/^[A-Fa-f][.、:：\s]+/, "").trim()).filter(Boolean);
+    const cleanedLines = lines
+      .map((l) => l.replace(/^(?:[（(][A-Ja-j][)）]|[A-Ja-j][.、:：\s)）]|[①②③④⑤⑥⑦⑧⑨⑩]|\d+[.、)）])\s*/, "").trim())
+      .filter(Boolean);
     return { options: cleanedLines, answer: extractedAnswer };
   }
 

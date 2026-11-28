@@ -136,16 +136,115 @@ export function buildPrompt(chunk: string, opt: GenOptions): AiMessage[] {
   ];
 }
 
-/** 容错 JSON 解析：剥代码围栏、截取首个 [..] 平衡段、忽略尾随文本 */
+/** 修复 LLM 输出 JSON 中的常见畸形：尾随逗号与未双写转义的 LaTeX 反斜杠 */
+function repairLlmJsonString(jsonText: string): string {
+  // 1) 逐字符扫描字符串字面量，修正非法反斜杠（如 \frac, \sqrt, \times, \theta, \underline 等）
+  let out = "";
+  let inStr = false;
+  for (let i = 0; i < jsonText.length; i++) {
+    const ch = jsonText[i];
+    if (!inStr) {
+      if (ch === '"') inStr = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = false;
+      out += ch;
+      continue;
+    }
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const next = jsonText[i + 1];
+    if (next == null) {
+      out += "\\\\";
+      continue;
+    }
+    if (next === '"' || next === "\\" || next === "/") {
+      out += ch + next;
+      i++;
+      continue;
+    }
+    if (next === "u") {
+      const hex = jsonText.slice(i + 2, i + 6);
+      if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+        out += "\\u" + hex;
+        i += 5;
+        continue;
+      }
+      out += "\\\\u";
+      i++;
+      continue;
+    }
+    if (next === "b" || next === "f" || next === "n" || next === "r" || next === "t") {
+      // 若后面紧跟明确的 LaTeX 命令（如 \frac, \times, \theta, \text, \to, \right, \rule, \neq, \beta, \begin），按 LaTeX 转义；
+      // 严禁使用 [a-zA-Z]{2,} 泛化兜底，以免把合法 JSON 换行 \nTherefore 错改为字面量 \\nTherefore
+      const tail = jsonText.slice(i + 1, i + 16);
+      if (/^(?:frac|fbox|forall|times|theta|textbf|textit|textrm|tfrac|text|top|to(?![a-zA-Z])|tan(?![a-zA-Z])|tau(?![a-zA-Z])|triangle|rightarrow|right|rangle|rceil|rfloor|rho(?![a-zA-Z])|rule|neq|nu(?![a-zA-Z])|nabla|notin|bar(?![a-zA-Z])|beta|binom|boldsymbol|bot(?![a-zA-Z])|begin|because|bullet)/.test(tail)) {
+        out += "\\\\" + next;
+      } else {
+        out += ch + next;
+      }
+      i++;
+      continue;
+    }
+    // 其余任意反斜杠转义（\sqrt, \underline, \cdot, \le, \ge, \alpha, \pi, \{, \} 等）一律补全为 \\
+    out += "\\\\" + next;
+    i++;
+  }
+
+  // 2) 移除字符串外部的尾随逗号（如 ,] 或 ,}）
+  let noTrailing = "";
+  inStr = false;
+  let esc = false;
+  for (let i = 0; i < out.length; i++) {
+    const ch = out[i];
+    if (esc) {
+      noTrailing += ch;
+      esc = false;
+      continue;
+    }
+    if (inStr) {
+      if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      noTrailing += ch;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+      noTrailing += ch;
+      continue;
+    }
+    if (ch === ",") {
+      let j = i + 1;
+      while (j < out.length && /\s/.test(out[j])) j++;
+      if (out[j] === "]" || out[j] === "}") {
+        continue;
+      }
+    }
+    noTrailing += ch;
+  }
+  return noTrailing;
+}
+
+/** 容错 JSON 解析：剥代码围栏（含残缺围栏）、截取首个 [..] 平衡段、容错 LaTeX 反斜杠与尾随逗号 */
 export function extractJsonArray(raw: string): unknown[] | null {
   let s = raw.trim();
+  // 剥离开头/中间的 ```json 或 ``` 代码围栏（即使末尾无闭合 ```）
+  const firstFence = s.match(/```(?:json)?\s*([\s\S]*)/i);
+  if (firstFence && s.indexOf("[") > (firstFence.index ?? 0)) {
+    s = firstFence[1];
+  }
   s = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
   const start = s.indexOf("[");
   if (start < 0) return null;
   let depth = 0,
     inStr = false,
     esc = false,
-    end = -1;
+    end = -1,
+    lastObjEnd = -1;
   for (let i = start; i < s.length; i++) {
     const ch = s[i];
     if (esc) {
@@ -158,21 +257,33 @@ export function extractJsonArray(raw: string): unknown[] | null {
     }
     if (ch === '"') inStr = !inStr;
     if (inStr) continue;
-    if (ch === "[") depth++;
-    else if (ch === "]") {
+    if (ch === "[" || ch === "{") depth++;
+    else if (ch === "}" || ch === "]") {
       depth--;
-      if (depth === 0) {
+      if (ch === "}" && depth === 1) lastObjEnd = i;
+      if (ch === "]" && depth === 0) {
         end = i;
         break;
       }
     }
   }
-  if (end < 0) return null;
+  const candidate = end >= 0
+    ? s.slice(start, end + 1)
+    : lastObjEnd > start
+      ? `${s.slice(start, lastObjEnd + 1)}]`
+      : "";
+  if (!candidate) return null;
   try {
-    const arr = JSON.parse(s.slice(start, end + 1));
+    const arr = JSON.parse(candidate);
     return Array.isArray(arr) ? arr : null;
   } catch {
-    return null;
+    try {
+      const repaired = repairLlmJsonString(candidate);
+      const arr = JSON.parse(repaired);
+      return Array.isArray(arr) ? arr : null;
+    } catch {
+      return null;
+    }
   }
 }
 

@@ -23,45 +23,190 @@ export interface WrongDocOption {
   count: number;
 }
 
+const TRACE_OVERLAY_ATTR = "data-lv-exam-trace-overlay";
+const PROTECTED_EDITOR_SELECTOR = ".protyle-wysiwyg, .protyle-attr, [contenteditable='true']";
+
+let activeOverlayCleanup: (() => void) | null = null;
+let activeOverlay: HTMLElement | null = null;
+
+function isOwnedBodyOverlay(node: Element | null): node is HTMLElement {
+  if (!node || typeof document === "undefined" || !document.body) return false;
+  if (node.parentElement !== document.body) return false;
+  if (node.getAttribute(TRACE_OVERLAY_ATTR) !== "1") return false;
+  if (node.closest(PROTECTED_EDITOR_SELECTOR)) return false;
+  return true;
+}
+
 /**
- * 错题原块高亮脉冲：为 DOM 目标块添加临时类名并在 2 秒后清除恢复
+ * 清除所有残留的原块溯源悬浮高亮框（Zero-Touch 脱离式挂载在 document.body）
+ * 严格限定仅清理模块持有的 activeOverlay 及 document.body 直接子元素中的插件自有浮层，
+ * 严禁全局 querySelectorAll 触碰编辑器受保护子树。
+ */
+export function clearTracePulseOverlays(): void {
+  if (activeOverlayCleanup) {
+    activeOverlayCleanup();
+    activeOverlayCleanup = null;
+  }
+  if (activeOverlay) {
+    if (isOwnedBodyOverlay(activeOverlay)) {
+      activeOverlay.remove();
+    }
+    activeOverlay = null;
+  }
+  if (typeof document !== "undefined" && document.body) {
+    for (const el of Array.from(document.body.children)) {
+      if (
+        el.getAttribute(TRACE_OVERLAY_ATTR) === "1" &&
+        !el.closest(PROTECTED_EDITOR_SELECTOR)
+      ) {
+        el.remove();
+      }
+    }
+  }
+}
+
+/**
+ * 错题原块高亮脉冲：100% Zero-Touch .protyle-wysiwyg，
+ * 仅读取 getBoundingClientRect() 并在 document.body 挂载脱离式悬浮高亮框，
+ * 到时、滚动、尺寸变化或销毁时自动移除。
  */
 export function highlightTracePulse(blockId: string, durationMs = 2000): void {
   if (typeof document === "undefined" || !blockId) return;
 
+  clearTracePulseOverlays();
+
   let pollCount = 0;
+  let cancelled = false;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let rafId: number | null = null;
   const maxPolls = 20;
 
+  const cancelPendingPoll = () => {
+    cancelled = true;
+    if (pollTimer !== null) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    if (rafId !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  };
+
+  activeOverlayCleanup = cancelPendingPoll;
+
+  const mountOverlay = (el: HTMLElement) => {
+    if (cancelled || !document.body) return;
+
+    const overlay = document.createElement("div");
+    overlay.className = "lv-exam-trace-overlay";
+    overlay.setAttribute(TRACE_OVERLAY_ATTR, "1");
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.dataset.traceBlockId = blockId;
+
+    const syncPos = (): boolean => {
+      if (!el.isConnected) return false;
+      const rect = el.getBoundingClientRect();
+      const pad = 4;
+      overlay.style.position = "fixed";
+      overlay.style.pointerEvents = "none";
+      overlay.style.left = `${Math.max(0, rect.left - pad)}px`;
+      overlay.style.top = `${Math.max(0, rect.top - pad)}px`;
+      overlay.style.width = `${Math.max(0, rect.width + pad * 2)}px`;
+      overlay.style.height = `${Math.max(0, rect.height + pad * 2)}px`;
+      return true;
+    };
+
+    syncPos();
+    document.body.appendChild(overlay);
+    activeOverlay = overlay;
+
+    const createdAt = Date.now();
+    let cleaned = false;
+    let expireTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      cancelPendingPoll();
+      if (expireTimer !== null) {
+        clearTimeout(expireTimer);
+        expireTimer = null;
+      }
+      if (isOwnedBodyOverlay(overlay)) {
+        overlay.remove();
+      }
+      if (activeOverlay === overlay) {
+        activeOverlay = null;
+      }
+      if (typeof window !== "undefined") {
+        window.removeEventListener("scroll", onScroll, true);
+        window.removeEventListener("wheel", cleanup, true);
+        window.removeEventListener("touchmove", cleanup, true);
+        window.removeEventListener("resize", cleanup);
+        window.removeEventListener("pagehide", cleanup);
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (activeOverlayCleanup === cleanup) {
+        activeOverlayCleanup = null;
+      }
+    };
+
+    const onScroll = () => {
+      // scrollIntoView({ behavior: "smooth" }) 初始约 400ms 内同步跟框，之后任何滚动立即移除
+      if (Date.now() - createdAt <= 450) {
+        if (!syncPos()) cleanup();
+      } else {
+        cleanup();
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") cleanup();
+    };
+
+    activeOverlayCleanup = cleanup;
+    expireTimer = setTimeout(cleanup, durationMs);
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+      window.addEventListener("wheel", cleanup, { capture: true, passive: true });
+      window.addEventListener("touchmove", cleanup, { capture: true, passive: true });
+      window.addEventListener("resize", cleanup, { passive: true });
+      window.addEventListener("pagehide", cleanup);
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  };
+
   const tryApply = () => {
+    if (cancelled) return;
     const el = document.querySelector<HTMLElement>(`[data-node-id="${blockId}"]`);
     if (el) {
       try {
-        el.scrollIntoView({ behavior: (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) ? "auto" : "smooth", block: "center" });
+        el.scrollIntoView({
+          behavior:
+            typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "auto"
+              : "smooth",
+          block: "center",
+        });
       } catch {
         /* fail-soft */
       }
-      el.classList.add("lv-exam-trace-pulse");
-
-      setTimeout(() => {
-        el.classList.remove("lv-exam-trace-pulse");
-        // 联动契约：动画结束后若无其他类，恢复原类属性，避免污染思源块渲染
-        if (!el.getAttribute("class") || el.classList.length === 0) {
-          el.removeAttribute("class");
-        }
-      }, durationMs);
+      mountOverlay(el);
       return;
     }
 
     pollCount++;
     if (pollCount < maxPolls) {
-      setTimeout(tryApply, 100);
+      pollTimer = setTimeout(tryApply, 100);
     }
   };
 
   if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(tryApply);
+    rafId = requestAnimationFrame(tryApply);
   } else {
-    setTimeout(tryApply, 50);
+    pollTimer = setTimeout(tryApply, 50);
   }
 }
 

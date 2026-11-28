@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import type { Question } from "@/core/types";
   import Icon from "../shared/Icon.svelte";
@@ -85,35 +86,46 @@
   let newSourceUrl = $state("");
   let loadingCatalog = $state(false);
   let catalogError = $state<string | null>(null);
+  let studioInitialized = false;
+  let catalogRequestSeq = 0;
 
   $effect(() => {
-    customSources = loadMarketplaceSources(readLocal);
-    try {
-      const rawCart = readLocal(CART_STORAGE_KEY);
-      if (rawCart) {
-        const parsed = JSON.parse(rawCart);
-        if (Array.isArray(parsed)) cartItems = parsed;
+    if (studioInitialized) return;
+    studioInitialized = true;
+    untrack(() => {
+      customSources = loadMarketplaceSources(readLocal);
+      try {
+        const rawCart = readLocal(CART_STORAGE_KEY);
+        if (rawCart) {
+          const parsed = JSON.parse(rawCart);
+          if (Array.isArray(parsed)) cartItems = parsed;
+        }
+      } catch {
+        // 容错忽略
       }
-    } catch {
-      // 容错忽略
-    }
-    localBanks = app ? app.listBanks() : [];
-    void refreshCatalog(currentSourceUrl);
+      localBanks = app ? app.listBanks() : [];
+      void refreshCatalog(currentSourceUrl);
+    });
   });
 
   async function refreshCatalog(url: string) {
+    const reqId = ++catalogRequestSeq;
     loadingCatalog = true;
     catalogError = null;
     try {
       const res = await fetchMarketplaceCatalog(url);
+      if (reqId !== catalogRequestSeq) return;
       catalog = res.catalog;
       if (res.error) {
         catalogError = res.error;
       }
     } catch (e) {
+      if (reqId !== catalogRequestSeq) return;
       catalogError = String(e instanceof Error ? e.message : e);
     } finally {
-      loadingCatalog = false;
+      if (reqId === catalogRequestSeq) {
+        loadingCatalog = false;
+      }
     }
   }
 
@@ -503,8 +515,9 @@
           class="lv-chip sm"
           class:acc={currentSourceUrl === "official"}
           onclick={() => { currentSourceUrl = "official"; void refreshCatalog("official"); }}
+          title="随插件内置，无需联网即可浏览与一键克隆入库"
         >
-          🌐 官方精选公版源
+          内置精选（离线立即可用）
         </button>
         {#if customSources.length > 0}
           <select
@@ -512,14 +525,18 @@
             style="min-height:28px;padding:2px 8px;font-size:12px;border:none;background:transparent"
             bind:value={currentSourceUrl}
             onchange={(e) => void refreshCatalog((e.target as HTMLSelectElement).value)}
+            aria-label="切换自定义网络订阅源"
           >
-            <option value="official">官方精选公版源</option>
+            <option value="official">内置精选（离线立即可用）</option>
             {#each customSources as cs (cs.id)}
-              <option value={cs.url}>{cs.name}</option>
+              <option value={cs.url}>网络订阅：{cs.name}（需联网）</option>
             {/each}
           </select>
         {/if}
       </div>
+      <span class="lv-chip sm" class:lv-chip--grn={currentSourceUrl === "official"} class:lv-chip--amb={currentSourceUrl !== "official"}>
+        {currentSourceUrl === "official" ? "当前源：内置精选 · 离线可用" : "当前源：自定义网络订阅 · 需联网拉取"}
+      </span>
     </div>
 
     <!-- 分类芯片与排序过滤工具栏 -->
@@ -621,6 +638,15 @@
                 {item.kind === "both" ? "题卡两用" : item.kind === "exam_bank" ? "考试题库" : "记忆闪卡"}
               </span>
               <div class="lv-row" style="margin:0;gap:6px;align-items:center;flex-wrap:wrap">
+                <span
+                  class="lv-chip sm"
+                  class:lv-chip--grn={item.downloadUrl.startsWith("embedded:")}
+                  class:lv-chip--amb={!item.downloadUrl.startsWith("embedded:")}
+                  style="font-size:11px"
+                  title={item.downloadUrl.startsWith("embedded:") ? "内置精选资源，无需联网立即可用" : "外部网络订阅资源，克隆时需联网拉取"}
+                >
+                  {item.downloadUrl.startsWith("embedded:") ? "内置离线可用" : "网络订阅拉取"}
+                </span>
                 {#if item.verified}
                   <span class="lv-chip sm num" style="color:var(--lv-green);background:var(--lv-green-soft, rgba(16,185,129,0.1));font-size:11px" title="零版权争议认证">
                     ✓ 公版认证

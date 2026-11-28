@@ -200,6 +200,28 @@
     order: 3;
   }
 
+  .lv-studio-nav {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 4px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 4px !important;
+    border-radius: var(--lv-r-2, 12px) !important;
+    margin-bottom: 8px !important;
+  }
+
+  .lv-studio-nav .lv-studio-tab {
+    flex: 0 0 auto !important;
+    min-width: 44px !important;
+    min-height: 38px !important;
+    padding: 6px 12px !important;
+    border-radius: var(--lv-radius-control-sm, 8px) !important;
+    font-size: 12.5px !important;
+    white-space: nowrap !important;
+  }
+
   .lv-screen-head {
     display: none !important;
   }
@@ -214,8 +236,17 @@
   }
 
   .lv-exam-tab > .block__icons.lv-focus-toolbar {
-    min-height: 38px;
-    height: 38px;
+    min-height: 46px;
+    height: 46px;
+  }
+
+  .lv-exam-tab > .block__icons.lv-focus-toolbar .lv-focus-brand {
+    display: none;
+  }
+
+  .lv-exam-tab > .block__icons :is(.lv-chip, .lv-save-status) {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .lv-pad {
@@ -302,7 +333,7 @@
 
 @container lv-exam (min-width: 760px) and (max-width: 1119px) {
   .lv-shell {
-    grid-template-columns: 74px minmax(0, 1fr);
+    grid-template-columns: 78px minmax(0, 1fr);
   }
 }
 

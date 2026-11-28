@@ -157,6 +157,45 @@ export class HostBridge implements IHostBridge {
     return this.client.exportNotebookSy(notebookId);
   }
 
+  exportDocTreeSy(docIds: string[]): Promise<{ zipPath: string }> {
+    const c = this.client as unknown as { exportDocTreeSy?: (ids: string[]) => Promise<{ zipPath: string }> };
+    if (typeof c.exportDocTreeSy === "function") {
+      return c.exportDocTreeSy(docIds);
+    }
+    if (this.canRawPost()) {
+      const ids = docIds.map((id) => id.trim()).filter(Boolean);
+      if (!ids.length) return Promise.reject(new Error("题库子树下暂无可导出的文档"));
+      return (async () => {
+        let zip = "";
+        let lastErr: unknown;
+        try {
+          const r = ids.length === 1
+            ? await this.rawPost("/api/export/exportSY", { id: ids[0] })
+            : await this.rawPost("/api/export/exportSYs", { ids });
+          zip = String((r.data as Record<string, unknown> | null)?.zip ?? "");
+        } catch (e) {
+          lastErr = e;
+        }
+        if (!zip) {
+          try {
+            const r = ids.length === 1
+              ? await this.rawPost("/api/export/exportMd", { id: ids[0], includeSubDocs: true })
+              : await this.rawPost("/api/export/exportMds", { ids, includeSubDocs: true });
+            zip = String((r.data as Record<string, unknown> | null)?.zip ?? "");
+          } catch (e) {
+            lastErr = lastErr ?? e;
+          }
+        }
+        if (!zip) {
+          if (lastErr) throw lastErr;
+          throw new Error("响应缺少 zip 路径");
+        }
+        return { zipPath: zip };
+      })();
+    }
+    return Promise.reject(new Error("exportDocTreeSy not supported by client"));
+  }
+
   importSyUpload(file: Blob, filename = "bank.sy.zip"): Promise<void> {
     return this.client.importSyUpload(file, filename);
   }

@@ -529,9 +529,24 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       if (bankDataDirty && view === "config" && !starting && !resumeBusy && !discardBusy) void loadMockData();
     }
 
+    function clearRunningExamState() {
+      if (timer) { clearInterval(timer); timer = null; }
+      if (snapshotTimer) { clearTimeout(snapshotTimer); snapshotTimer = null; }
+      disarmExamHistory();
+      session = null;
+      scratchpadOpen = false;
+      handInConfirming = false;
+      submitting = false;
+      if (isFullscreen) {
+        isFullscreen = false;
+        applyNativeDocksForFullscreen(false);
+      }
+    }
+
     /** 所有回配置页的入口统一在此消费考试/成绩期间积累的题库变化。 */
     function showConfig() {
       if (scoreWriteBusy || scoreExportBusy || rewrongBusy) return;
+      clearRunningExamState();
       view = "config";
       refreshPendingBankData();
     }
@@ -592,11 +607,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         }),
         onExamEvent<{ blueprint: Blueprint; bankId?: string }>("apply-blueprint", (event) => {
           if (event?.payload?.blueprint) {
+            clearRunningExamState();
             bp = event.payload.blueprint;
             if (event.payload.bankId) {
               activeBankId = event.payload.bankId;
             }
             view = "config";
+            refreshPendingBankData();
             showMessage(t("mock2.blueprintLoaded", "已载入试卷蓝图：{name}", {name: bp.name}), 3000, "info");
           }
         }),
@@ -1007,8 +1024,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       }
     }
 
-    let mockPrintFormat = $state<"exam" | "answer" | "lecture" | "homework">("exam");
-    let reportPrintFormat = $state<"answer" | "lecture" | "exam" | "homework">("answer");
+    let mockPrintFormat = $state<"exam" | "card" | "answer" | "lecture" | "homework" | "interactive">("exam");
+    let reportPrintFormat = $state<"answer" | "card" | "lecture" | "exam" | "homework" | "interactive">("answer");
     let mockAssembleOpen = $state(false);
     let mockAssembleQuestions = $state<Question[]>([]);
 
@@ -1021,14 +1038,22 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       mockAssembleOpen = true;
     }
 
-    async function printMockByFormat(format: "exam" | "answer" | "lecture" | "homework" | "interactive") {
+    async function printMockByFormat(format: "exam" | "card" | "answer" | "lecture" | "homework" | "interactive") {
       if (printBusy || !activeBankId || !questions.length) return;
       printBusy = true;
       const title = bp.name || "全真模拟试卷";
       try {
         let html: string;
         let suffix: string;
-        if (format === "interactive") {
+        if (format === "card") {
+          if (typeof app.buildStandardAnswerCard === "function") {
+            html = await app.buildStandardAnswerCard(title, activeBankId);
+          } else {
+            const { buildStandardAnswerCardPro } = await import("../../core/printPro");
+            html = buildStandardAnswerCardPro(title, questions, { paperSize: "A4", columns: "single" });
+          }
+          suffix = "标准答题卡";
+        } else if (format === "interactive") {
           const { buildInteractiveReviewSheetPro } = await import("../../core/printPro");
           html = buildInteractiveReviewSheetPro(title, questions);
           suffix = "交互式讲题自测卷";
@@ -1344,6 +1369,8 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       selected = answeredMap[session.state.qids[cursor]] ?? "";
       if (bp.sectionTimed && currentSection) session.enterSection(currentSection, Date.now());
       persistRun();
+      const mainEl = tabRoot?.querySelector<HTMLElement>(".lv-main");
+      if (mainEl && mainEl.scrollTop > 0) mainEl.scrollTop = 0;
     }
 
     let attemptsRecorded = false;
@@ -1783,10 +1810,12 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       plugin.openPractice?.();
     }
 
-    function onTaskNav(target: "today" | "bank" | "create" | "mock" | "report") {
+    function onTaskNav(target: "today" | "wrong" | "bank" | "marketplace" | "create" | "mock" | "report") {
       if (target === "mock") return;
       if (target === "report") return plugin.openReport?.();
-      const next = target === "today" ? "entry" : target === "bank" ? "browse" : "manual";
+      if (target === "wrong") return openPracticeView(plugin, "wrongbook");
+      if (target === "marketplace") return openPracticeView(plugin, "marketplace");
+      const next = target === "today" ? "entry" : target === "bank" ? "banks" : "manual";
       openPracticeView(plugin, next);
     }
 
@@ -2164,7 +2193,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       {:else if activeBankName}
         <span class="lv-chip sm">{activeBankName}</span>
       {/if}
-      <button class="lv-btn sm lv-btn--ghost" onclick={() => { plugin.openPractice?.(); }} title={t("mock2.openBankHub", "打开题库画廊管理")} aria-label="打开题库画廊管理">
+      <button class="lv-btn sm lv-btn--ghost" onclick={() => { openPracticeView(plugin, "banks"); }} title={t("mock2.openBankHub", "打开题库画廊管理")} aria-label="打开题库画廊管理">
         <Icon name="folder" size={13} /> <span class="lv-topbar-btn-label">{t("bank.hubTitle", "题库管理")}</span>
       </button>
     </div>
@@ -2179,11 +2208,12 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       </span>
       {#if (session?.state.extraTimeS ?? 0) > 0}
         <span class="lv-chip lv-chip--amb num" title={t("mock.extraTip")}><Icon name="clock" size={13} />+{Math.round((session!.state.extraTimeS ?? 0) / 60)}{t("entry.minutes")}</span>
+      {:else}
+        <!-- 55-06 lite：单次条件覆盖——延时入快照与成绩记录，原卷不变 -->
+        <button class="lv-chip" title={t("mock.extraTip")} disabled={extraTimeBusy || examLocked} onclick={extendExamTime}>
+          <Icon name="clock" size={13} />+5{t("entry.minutes")}
+        </button>
       {/if}
-      <!-- 55-06 lite：单次条件覆盖——延时入快照与成绩记录，原卷不变 -->
-        <button class="lv-chip" title={t("mock.extraTip")} disabled={(session?.state.extraTimeS ?? 0) > 0 || extraTimeBusy || examLocked} onclick={extendExamTime}>
-        <Icon name="clock" size={13} />+5{t("entry.minutes")}
-      </button>
     {/if}
     <button type="button" class="lv-mobile-close-btn" aria-label="关闭" title="关闭" onclick={() => { lvLaunchpad.haptic(8); void plugin?.closeMobileDialog?.(); }}>
       <Icon name="close" size={18} />
@@ -2193,7 +2223,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
   <Rail active="mock" taskactive="mock" tasknavhidden={view === "exam" || view === "report"} ontasknavigate={onTaskNav} {plugin} open={railOpen} onclose={closeRail}
     project={{ name: railBankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => plugin.openPractice?.()} />
   <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: calc(${viewportBottomPad + 16}px + env(safe-area-inset-bottom, 0px));` : undefined}>
-  <div class="fn__flex-1 lv-pad">
+  <div class="fn__flex-1 lv-pad" class:lv-pad--mock-exam={view === "exam"}>
   {#if view === "config"}
     <div class="lv-screen-head"><span class="lv-eyebrow">{t("head.mock.eyebrow")}</span><h1 class="lv-h1">{t("head.mock.title")}</h1><p>{t("head.mock.desc")}</p></div>
   {/if}
@@ -2336,18 +2366,20 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
             <option value="mixed">{t("mock.sourceMixed", "不限来源")}</option><option value="real">{t("mock.sourceReal")}</option><option value="mock">{t("mock.sourceMock")}</option>
           </select></label>
           <!-- 55-02 lite：考点配额（前缀匹配；缺口显式计入短缺，不用其他考点补齐） -->
-          <div class="lv-row" style="margin:0;gap:4px;align-items:center;flex-wrap:wrap">
-            <span class="lv-bp-field-label" style="width:100%">{t("mock.secKp")}</span>
-            <input class="lv-input" style="flex:1;min-width:90px" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
-              aria-label={t("mock.secKp")}
-              oninput={(e) => updateSection(i, { kp: (e.target as HTMLInputElement).value.trim() || undefined })} />
-            <label class="lv-chip sm" style="cursor:pointer;margin:0;padding:2px 5px" title={t("mock2.secondaryKpTip", "允许匹配题目的辅助考查知识点")}>
-              <input type="checkbox" checked={!!s.matchSecondaryKp} onchange={(e) => updateSection(i, { matchSecondaryKp: (e.target as HTMLInputElement).checked })} />
-              <span style="font-size:10px">辅考点</span>
-            </label>
+          <div class="lv-bp-field lv-bp-kp-cell">
+            <span class="lv-bp-field-label">{t("mock.secKp")}</span>
+            <div class="lv-bp-kp-controls">
+              <input class="lv-input" value={s.kp ?? ""} placeholder={t("mock.secKpHint")}
+                aria-label={t("mock.secKp")}
+                oninput={(e) => updateSection(i, { kp: (e.target as HTMLInputElement).value.trim() || undefined })} />
+              <label class="lv-chip sm lv-bp-sec-kp-chip" title={t("mock2.secondaryKpTip", "允许匹配题目的辅助考查知识点")}>
+                <input type="checkbox" checked={!!s.matchSecondaryKp} onchange={(e) => updateSection(i, { matchSecondaryKp: (e.target as HTMLInputElement).checked })} />
+                <span>辅考点</span>
+              </label>
+            </div>
           </div>
           <!-- MathCyclus 难度梯度分桶配比 (7:2:1 标准 / 5:3:2 拔高) -->
-          <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.difficulty", "难度配比")}</span><select class="lv-select" style="max-width:130px" aria-label="难度梯度配比"
+          <label class="lv-bp-field"><span class="lv-bp-field-label">{t("mock.difficulty", "难度配比")}</span><select class="lv-select" aria-label="难度梯度配比"
             value={s.difficultyQuota ? (s.difficultyQuota.easy === 7 ? "721" : s.difficultyQuota.easy === 5 ? "532" : "111") : "none"}
             onchange={(e) => {
               const val = (e.target as HTMLSelectElement).value;
@@ -2519,12 +2551,18 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       {/if}
       {/if}
     </details>
-  {:else if view === "exam" && session && currentQ}
+  {:else if view === "exam" && !session}
+    <div class="lvx-error" role="alert" style="padding:48px 16px;text-align:center">
+      <span class="lvx-error__icon"><Icon name="alert-triangle" size={26} /></span>
+      <span class="lvx-error__title">{t("mock.emptyPaper", "当前考卷试题内容为空或无法读取")}</span>
+      <span class="lvx-error__actions"><button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button></span>
+    </div>
+  {:else if view === "exam" && session}
     <!-- ===== S6 全真考试 ===== -->
     <div class="lv-row lv-mock-exam-head">
       <span class="lv-chip">{currentSection}</span>
       {#if bp.sectionTimed}
-        {@const sr = session.sectionRemaining(currentSection, Date.now())}
+        {@const sr = session.sectionRemaining(currentSection, nowTick)}
         <span class="lv-chip num" class:lv-chip--red={sr !== null && sr < 60_000}>
           <Icon name="clock" size={13} /> {t("mock.secTime")} {sr !== null ? `${Math.max(0, Math.floor(sr / 60_000))}:${String(Math.floor((sr % 60_000) / 1000)).padStart(2, "0")}` : "--"}
         </span>
@@ -2542,7 +2580,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       <button class="lv-btn sm lv-flag-btn" class:lv-flag-btn--on={session.flags.has(current)} title={`${t("mock.flag")} (F)`} aria-label={`${t("mock.flag")} (F)`} aria-pressed={session.flags.has(current)} disabled={examLocked} onclick={(e) => handleToggleFlag(e.currentTarget)}><Icon name="pin" size={14} /> <span class="lv-kbd sm">F</span></button>
       <button class="lv-btn sm lv-flag-btn" class:acc={scratchpadOpen} title={t("scratchpad.tip")} aria-label={t("scratchpad.tip")} aria-pressed={scratchpadOpen} disabled={examLocked} onclick={() => scratchpadOpen = !scratchpadOpen}><Icon name="pencil" size={13} /></button>
       <button class="lv-btn sm" class:acc={isFullscreen} title={isFullscreen ? t("mock.exitFullscreen") : t("mock.fullscreen")} aria-label={isFullscreen ? t("mock.exitFullscreen") : t("mock.fullscreen")} disabled={examLocked} onclick={(e) => void toggleExamFullscreen(e.currentTarget)}><Icon name={isFullscreen ? "close" : "expand"} size={14} /></button>
-      <button class="lv-btn lv-btn--primary sm" disabled={examLocked || handInConfirming} aria-busy={submitting || handInConfirming} onclick={() => finishExam(false)}>{submitting ? t("mock.savingScore", "正在保存成绩…") : handInConfirming ? t("mock.confirmingHandIn", "等待交卷确认…") : t("mock.handIn")}</button>
+      <button class="lv-btn lv-btn--primary sm lv-mock-handin-btn" disabled={examLocked || handInConfirming} aria-busy={submitting || handInConfirming} onclick={() => finishExam(false)}>{submitting ? t("mock.savingScore", "正在保存成绩…") : handInConfirming ? t("mock.confirmingHandIn", "等待交卷确认…") : t("mock.handIn")}</button>
     </div>
     {#if submitError}
       <div class="lv-error" role="alert" style="margin:8px 0">
@@ -3106,6 +3144,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
         </div>
       </div>
     {/if}
+  {:else if view === "report" && !score}
+    <div class="lv-empty" role="status" style="padding:48px 16px;text-align:center">
+      <div class="lv-empty-icon"><Icon name="chart" size={24} /></div>
+      <b>{t("mock.scoreNotReady", "成绩单尚未结算")}</b>
+      <p class="lv-muted">{t("mock.scoreNotReadyDesc", "请在考场作答后点击交卷生成成绩单。")}</p>
+      <button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button>
+    </div>
   {:else if view === "report" && score}
     <!-- ===== S7 成绩单 ===== -->
     <div class="lv-row">
@@ -3517,6 +3562,7 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       <button class="lv-btn lv-btn--ghost sm" onclick={exportScoreMd} disabled={scoreExportBusy}><Icon name="table" size={13} /> {scoreExportBusy ? "…" : t("mock.exportScore")}</button>
       <select class="lv-select sm" bind:value={reportPrintFormat} disabled={printBusy} aria-label="选择考后打印版式">
         <option value="answer">独立答案册</option>
+        <option value="card">🗂️ 标准答题卡</option>
         <option value="lecture">授课讲义卷</option>
         <option value="exam">标准测试卷</option>
         <option value="homework">留白作业单</option>
@@ -3543,6 +3589,13 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       </div>
     {/if}
     {#if scoreWriteError}<div class="lv-error" role="alert">{scoreWriteError}</div>{/if}
+  {:else}
+    <div class="lv-empty" role="status" style="padding:48px 16px;text-align:center">
+      <div class="lv-empty-icon"><Icon name="clock" size={26} /></div>
+      <b>{t("mock.emptyView", "考场视图暂不可用")}</b>
+      <p class="lv-muted">{t("mock.emptyViewDesc", "请点击下方按钮返回考场配置。")}</p>
+      <button class="lv-btn lv-btn--primary sm" onclick={showConfig}>返回考场配置</button>
+    </div>
   {/if}
 </div>
   </div>
@@ -3591,12 +3644,19 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
   .lv-opt.eliminated .lv-opt-text { text-decoration: line-through; }
   .lv-opt.eliminated .key { opacity: 0.6; text-decoration: line-through; }
   .lv-bp-table { border: 1px solid var(--lv-border); border-radius: 12px; overflow-x: auto; margin: 10px 0; background: var(--lv-surface); }
-  .lv-bp-row { display: grid; grid-template-columns: 1fr .45fr .45fr .65fr 1.1fr .85fr 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border)); align-items: center; min-width: 680px; }
+  .lv-bp-row { display: grid; grid-template-columns: minmax(128px, 1.25fr) 68px 68px 104px minmax(186px, 1.55fr) 118px 36px; gap: var(--lv-space-2); padding: 8px 12px; border-bottom: 1px solid var(--lv-border-subtle, var(--lv-border)); align-items: center; min-width: 756px; }
+  .lv-bp-row > * { min-width: 0; }
+  .lv-bp-field { display: block; min-width: 0; width: 100%; }
+  .lv-bp-kp-controls { display: flex; align-items: center; gap: 4px; min-width: 0; width: 100%; }
+  .lv-bp-sec-kp-chip { flex: 0 0 auto; white-space: nowrap; margin: 0; padding: 2px 6px; cursor: pointer; font-size: 11px; }
   .lv-bp-row:last-child { border-bottom: none; }
   .lv-bp-row:not(.head):hover { background: var(--lv-surface-2); }
   .lv-bp-row.head { background: var(--lv-surface-2); font-size: var(--lv-font-size-caption); font-weight: var(--lv-font-weight-bold); color: var(--lv-text-3); border-bottom: 1px solid var(--lv-border); }
-  /* 蓝图行数据网格密度（规范 v6）：34px 控件，行更紧凑 */
-  .lv-bp-row .lv-input, .lv-bp-row .lv-select { min-height: 34px; padding: 5px 10px; border-radius: var(--lv-radius-control-sm); font-size: var(--lv-font-size-body-compact); }
+  .lv-bp-row.head > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 蓝图行数据网格密度（规范 v6）：34px 控件，列宽与表头严格同轨 */
+  .lv-bp-row .lv-input, .lv-bp-row .lv-select, .lv-bp-row .lv-input.num { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; min-height: 34px; padding: 5px 10px; border-radius: var(--lv-radius-control-sm); font-size: var(--lv-font-size-body-compact); }
+  .lv-bp-kp-controls .lv-input { flex: 1 1 0; width: auto; min-width: 0; }
+  .lv-bp-del { width: 36px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
   .lv-bp-del:hover:not(:disabled) { border-color: var(--lv-red); color: var(--lv-red); background: var(--lv-red-soft); }
   /* 答题卡（规范 v6 §5.4）：现代微质感 CBT 格子矩阵 */
   .lv-sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--lv-space-2); margin-top: 14px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -3643,19 +3703,35 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
       max-width: 100% !important;
       min-width: 0;
     }
-    .lv-bp-row:not(.head) > .lv-row {
+    .lv-bp-row:not(.head) > .lv-row,
+    .lv-bp-row:not(.head) > .lv-bp-kp-cell {
       grid-column: 1 / -1;
       min-width: 0;
     }
+    .lv-pad.lv-pad--mock-exam {
+      padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+    }
     .lv-mock-exam-head {
-      flex-wrap: nowrap;
-      gap: 4px;
-      overflow-x: auto;
-      scrollbar-width: none;
+      flex-wrap: wrap;
+      row-gap: 6px;
+      column-gap: 4px;
+      overflow: visible;
       margin: 0 0 8px;
     }
-    .lv-mock-exam-head::-webkit-scrollbar {
-      display: none;
+    .lv-mock-exam-head > .lv-chip:first-child {
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .lv-mock-exam-head > .fn__flex-1 {
+      flex: 1 1 100%;
+      height: 0;
+      margin: 0;
+      padding: 0;
+    }
+    .lv-mock-exam-head .lv-mock-handin-btn {
+      margin-left: auto;
     }
     .lv-mock-exam-head .lv-btn.sm {
       min-height: 36px;
@@ -3672,6 +3748,9 @@ import { sanitizeRichHtml } from "@/libs/sanitize";
     }
     .lv-mock-exam-head .lv-kbd {
       display: none;
+    }
+    :global(.lv-exam-tab.lv-keyboard-open) .lv-mock-floating-pills {
+      display: none !important;
     }
     .lv-mock-floating-pills {
       right: 10px !important;

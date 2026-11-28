@@ -22,7 +22,7 @@ import { rankWeakTags, sampleWeakSpotDrill } from "@/core/weakSpot";
 import { sanitizeRichHtml } from "@/libs/sanitize";
 import { confirmDialogSync } from "@/libs/dialog";
     import { ttsSpeak, ttsStop, ttsSupported } from "@/core/tts";
-    import type { ExamApp, BankInfo } from "../../app";
+    import type { ExamApp } from "../../app";
     import type { Question } from "../../core/types";
     import { parseText, extractTextRowAt, type ImportReport } from "../../importer/pipeline";
     import { columnLabel, emptyAssignment, type MapAssignment } from "../../importer/mapping";
@@ -59,8 +59,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     import PracticeTopBar from "./PracticeTopBar.svelte";
     import AdaptiveDiagnosisModal from "./AdaptiveDiagnosisModal.svelte";
     import ShortcutsHelpModal from "./ShortcutsHelpModal.svelte";
-    import BankGalleryModal from "./BankGalleryModal.svelte";
-    import MarketplaceModal from "./MarketplaceModal.svelte";
+    import BankManagerView from "./BankManagerView.svelte";
     import MarketplaceStudioView from "./MarketplaceStudioView.svelte";
     import SessionSheetModal from "./SessionSheetModal.svelte";
     import SocraticGuidanceModal from "./SocraticGuidanceModal.svelte";
@@ -244,10 +243,13 @@ import { confirmDialogSync } from "@/libs/dialog";
       createBlankManualFormState,
       createManualDraftSnapshot,
       assembleManualFormData,
+      computePostSaveManualReset,
+      appendQuestionMirrorToSourceNote,
     } from "./services/manualStudioService";
     import {
       parseOcrFormResult,
       processOcrImageUpload,
+      uploadManualAssetImage,
       findImageInClipboard,
     } from "./services/manualOcrService";
     import {
@@ -337,6 +339,10 @@ import { confirmDialogSync } from "@/libs/dialog";
       extractDocxTextFromBytes,
     } from "./services/materialManagementService";
     import {
+      extractPdfPaperTextWithFallback,
+      recognizeImageBlobWithFallback,
+    } from "./services/pdfOcrService";
+    import {
       loadSmartViewsAux,
       isViewBankMismatched,
       loadExcelMappingsAux,
@@ -423,14 +429,17 @@ import { confirmDialogSync } from "@/libs/dialog";
       executeCreateSampleBank,
       resolveRetainedSampleBank,
       formatSampleNoticeText,
-      executeCycleBankCategory,
+      executeSetBankCategory,
       executeSyncBankToDoc,
       executeSaveWrongbookToDoc,
       executeRemoveBankWithConfirm,
       resolveInitialActiveBankId,
       type SampleBankKind,
     } from "./services/bankLifecycleService";
-    import { getBankCategoryMeta } from "@/core/bankCategory";
+    import {
+      fetchBanksMetricsBatch,
+      type BankMetrics,
+    } from "./services/bankStatsService";
     import { answerChoices, displayedAnswerChoices, isChoiceQuestion, removeChoiceOption, toggleChoice } from "@/core/answerChoices";
     import { isQuestionDisputed, type DisputeReason } from "@/core/dispute";
     import { isStubbornWrong, getStubbornRemediation } from "@/core/stubborn";
@@ -463,7 +472,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       try { globalThis.localStorage?.removeItem(key); } catch { /* optional */ }
     };
 
-    type View = "entry" | "session" | "browse" | "import" | "siyuan" | "recite" | "manual" | "ai" | "materials" | "wrongbook" | "marketplace";
+    type View = "entry" | "session" | "banks" | "browse" | "import" | "siyuan" | "recite" | "manual" | "ai" | "materials" | "wrongbook" | "marketplace";
     let view: View = $state("entry");
     let soundEnabled = $state(readLocal("lv-exam/sound") !== "0");
     $effect(() => {
@@ -629,17 +638,18 @@ import { confirmDialogSync } from "@/libs/dialog";
       showMessage(`已开启艾宾浩斯临界考点背诵流（共 ${qs.length} 题）`, 3000, "info");
     }
 
-    // 题库管理画廊 Hub 状态
-    let bankHubOpen = $state(false);
-    let marketplaceOpen = $state(false);
+    // 题库管理中心与集市状态
+    let bankMetrics = $state<Record<string, BankMetrics>>({});
+    let metricsRefreshing = $state(false);
+    let marketplaceReturnView = $state<View>("banks");
     let sessionSheetOpen = $state(false);
 
-    async function cycleBankCategory(b: BankInfo) {
+    async function setBankCategory(id: string, category: import("@/core/bankCategory").BankCategory) {
       if (!app) return;
       try {
-        const res = await executeCycleBankCategory(app, b);
+        const res = await executeSetBankCategory(app, id, category);
         banks = res.banks;
-        showMessage(`题库「${b.name}」场景分类已更新为：${res.badge} ✓`, 2500, "info");
+        showMessage(`题库分类已更新为：${res.label} ✓`, 2500, "info");
       } catch (e) {
         showMessage(`更新分类失败：${String(e instanceof Error ? e.message : e)}`, 3500, "error");
       }
@@ -1605,16 +1615,17 @@ import { confirmDialogSync } from "@/libs/dialog";
           // 45-06：恢复未提交的录题草稿（切视图/重载不丢输入）
           try {
             const d = await loadManualDraftAux(app);
-            if (d?.stem?.trim()) {
+            if (d?.stem?.trim() || d?.expansion?.trim()) {
               mType = (d.type as typeof mType) ?? "single";
-              mStem = d.stem; mOptions = d.options?.length ? d.options : ["", ""];
-              mAnswer = d.answer ?? ""; mAnalysis = d.analysis ?? "";
+              mStem = d.stem ?? ""; mOptions = d.options?.length ? d.options : ["", ""];
+              mAnswer = d.answer ?? ""; mAnalysis = d.analysis ?? ""; mExpansion = d.expansion ?? "";
               mKp = d.kp ?? ""; mSecondaryKps = d.secondaryKps ?? ""; mPrerequisites = d.prerequisites ?? ""; mSource = d.source ?? ""; mGroup = d.group ?? "";
               mSpecOpen = d.specOpen ?? false; mSpecUnit = d.specUnit ?? ""; mSpecAbsTol = d.specAbsTol ?? ""; mSpecRelPct = d.specRelPct ?? ""; mSpecAltUnits = d.specAltUnits ?? "";
               mSpecOrderIndependent = d.orderIndependent ?? false;
               mRubricOpen = d.rubricOpen ?? false; mRubricText = d.rubricText ?? "";
               mStudyLang = d.studyLang ?? "zh-CN"; mStudyPhonetic = d.studyPhonetic ?? "";
               mStatus = d.status ?? "published"; mFamily = d.family;
+              mSourceBlockId = d.sourceBlockId ?? "";
               draftRestored = true;
             }
           } catch { /* 草稿读取失败静默 */ }
@@ -1778,7 +1789,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       const onOpenView = (env: import("@/core/bus").BusEvent<{ view: string; requestId?: string }>) => {
         if (!tabRoot?.isConnected) return;
         const next = env.payload.view;
-        if (!["wrongbook", "entry", "browse", "manual", "import", "siyuan", "ai", "materials", "recite", "marketplace"].includes(next)) return;
+        if (!["wrongbook", "entry", "banks", "browse", "manual", "import", "siyuan", "ai", "materials", "recite", "marketplace"].includes(next)) return;
         let request: import("@/core/pluginTab").PracticeViewRequest | undefined;
         const requestId = env.payload.requestId;
         if (requestId) {
@@ -1916,7 +1927,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (pendingQuiz) {
         (plugin as any).pendingExternalQuiz = null;
         applyQuizDraft(pendingQuiz);
-      } else if (["wrongbook", "entry", "browse", "manual", "import", "siyuan", "ai", "materials", "recite", "marketplace"].includes(initialView ?? "")) {
+      } else if (["wrongbook", "entry", "banks", "browse", "manual", "import", "siyuan", "ai", "materials", "recite", "marketplace"].includes(initialView ?? "")) {
         if (plugin) plugin.pendingInitialView = undefined;
         if (pendingView) appliedPracticeViewRequestId = pendingView.id;
         applyMaterialRequest(pendingView);
@@ -1993,22 +2004,37 @@ import { confirmDialogSync } from "@/libs/dialog";
       loading = false;
     }
 
-    async function refreshBankCounts() {
-      if (!app || !banks.length) return;
-      const next: Record<string, number> = { ...bankQuestionCounts };
-      for (const b of banks) {
-        try {
-          if (b.id === activeBankId && questionsLoaded) {
-            next[b.id] = questions.filter((q) => q.type !== "material").length;
-          } else {
-            const qs = await app.listQuestions(b.id);
-            next[b.id] = qs.filter((q) => q.type !== "material").length;
-          }
-        } catch {
-          next[b.id] = next[b.id] ?? 0;
-        }
+    async function refreshBankCounts(force = false) {
+      if (!app || !banks.length) {
+        bankMetrics = {};
+        return;
       }
-      bankQuestionCounts = next;
+      metricsRefreshing = true;
+      try {
+        const snapshot = await fetchBanksMetricsBatch(app, banks, {
+          activeBankId,
+          activeQuestions: questions,
+          activeQuestionsLoaded: questionsLoaded,
+          existingMetrics: bankMetrics,
+          force,
+          onProgress: (nextMetrics) => {
+            bankMetrics = nextMetrics;
+            const counts: Record<string, number> = { ...bankQuestionCounts };
+            for (const [id, m] of Object.entries(nextMetrics)) {
+              if (m.status === "ready" && m.total !== null) counts[id] = m.total;
+            }
+            bankQuestionCounts = counts;
+          },
+        });
+        bankMetrics = snapshot;
+        const counts: Record<string, number> = { ...bankQuestionCounts };
+        for (const [id, m] of Object.entries(snapshot)) {
+          if (m.status === "ready" && m.total !== null) counts[id] = m.total;
+        }
+        bankQuestionCounts = counts;
+      } finally {
+        metricsRefreshing = false;
+      }
     }
 
     async function switchToNonEmptyBank() {
@@ -2021,7 +2047,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         showMessage(`已切换至题库「${target.name}」（共 ${bankQuestionCounts[target.id]} 题）✓`, 2800, "info");
         return;
       }
-      bankHubOpen = true;
+      switchView("banks");
     }
 
     async function refreshQuestionsAfterWrite(minCount: number) {
@@ -2225,20 +2251,25 @@ import { confirmDialogSync } from "@/libs/dialog";
       } finally { flashCommitBusy = ""; }
     }
 
-    async function createBank() {
-      if (!newBankName.trim() || creating) return false;
+    async function createBank(nameOverride?: string, categoryOverride: import("@/core/bankCategory").BankCategory = "general") {
+      const targetName = (nameOverride ?? newBankName).trim();
+      if (!targetName || creating) return false;
       creating = true; errorMsg = ""; bankCreateError = ""; sampleNotice = "";
       try {
-        const { bank, banks: nextBanks } = await executeCreateBank(app, newBankName);
+        const { bank, banks: nextBanks } = await executeCreateBank(app, targetName, categoryOverride);
         banks = nextBanks;
         activeBankId = bank.id;
         rememberBank(bank.id);
-        newBankName = "";
-        await refreshQuestionsAfterWrite(3);
+        if (nameOverride === undefined) newBankName = "";
+        await refreshQuestionsAfterWrite(0);
+        void refreshBankCounts(true);
         emitExamEvent("bank-changed", { bank: bank.id });
+        showMessage(`已新建题库「${bank.name}」✓`, 2400, "info");
         return true;
       } catch (e) {
-        bankCreateError = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
+        const msg = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
+        bankCreateError = msg;
+        showMessage(msg, 3500, "error");
         return false;
       } finally { creating = false; }
     }
@@ -2319,10 +2350,22 @@ import { confirmDialogSync } from "@/libs/dialog";
       });
       if (res.removed && res.nextBanks) {
         banks = res.nextBanks;
+        if (targetId in bankMetrics) {
+          const restMetrics = { ...bankMetrics };
+          delete restMetrics[targetId];
+          bankMetrics = restMetrics;
+        }
         if (activeBankId === targetId) {
           activeBankId = res.nextActiveBankId ?? "";
           rememberBank(activeBankId);
-          emitExamEvent("bank-changed", { bank: activeBankId });
+          if (activeBankId) {
+            await onBankSwitch();
+          } else {
+            questions = [];
+            questionsLoaded = true;
+            plan = null;
+            emitExamEvent("bank-changed", { bank: "" });
+          }
         }
       }
     }
@@ -2483,6 +2526,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
       errorMsg = "";
       view = next;
+      if (next === "banks") {
+        void refreshBankCounts();
+      }
       if (next === "import") {
         void checkImportCheckpoint();
       }
@@ -2492,15 +2538,9 @@ import { confirmDialogSync } from "@/libs/dialog";
         }
       }
     }
-    const railItems = $derived([
-      { icon: "grid", name: t("mode.browse"), on: (view as string) === "browse", onclick: () => { switchView("browse"); void loadQuestions(); } },
-      { icon: "target", name: t("wrongbook.title"), on: (view as string) === "wrongbook", badge: wrongList.length ? String(wrongList.length) : undefined, onclick: () => { dataRev++; switchView("wrongbook"); void loadQuestions(); } },
-      { icon: "book", name: t("siyuan.title", "思源出题"), on: (view as string) === "siyuan", onclick: () => switchView("siyuan") },
-      { icon: "import", name: t("import.title", "外部导入"), on: (view as string) === "import", onclick: () => switchView("import") },
-      { icon: "clipboard", name: t("entry.manual", "手工录题"), on: (view as string) === "manual", onclick: () => switchView("manual") },
-      { icon: "sparkles", name: t("ai.title", "AI 出题"), on: (view as string) === "ai", onclick: () => switchView("ai") },
-      { icon: "material", name: t("materials.title", "学习资料"), on: (view as string) === "materials", onclick: () => { switchView("materials"); loadMaterials(); } },
-    ]);
+    // 左侧主导航已收束为 6 大核心入口（今日 / 题库 / 错题本 / 出题工作台 / 模考 / 复盘），
+    // 不再重复平铺「浏览」及 5 个出题子入口。
+    const railItems: Array<{ icon: string; name: string; on: boolean; badge?: string; onclick: () => void }> = [];
 
     let paletteOpen = $state(false);
     const paletteCommands = $derived(buildPracticePaletteCommands({
@@ -2545,6 +2585,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
       if (target === "marketplace") {
+        marketplaceReturnView = "banks";
         switchView("marketplace");
         return;
       }
@@ -2565,18 +2606,6 @@ import { confirmDialogSync } from "@/libs/dialog";
         return;
       }
       if (target === "report") {
-        const attemptCount = app?.attempts?.all?.()?.length ?? 0;
-        if (attemptCount === 0) {
-          const { confirmDialogSync } = await import("../../libs/dialog");
-          const proceed = await confirmDialogSync({
-            title: "学情复盘报告使用说明",
-            content: `<p style="margin:0 0 8px;font-size:13.5px;line-height:1.6">学情复盘中心提供三维度学情诊断、四象限薄弱考点雷达与连续自律趋势大屏。</p><p class="lv-hint" style="text-align:left;line-height:1.55">检测到您当前尚未产生作答记录。<br/>在「今日」完成日常练习或参加一次模考后，系统将自动基于您的真实作答证据演算出专属复盘大屏！<br/>点击「确定」仍打开报告中心；点击「取消」前往今日练习。</p>`,
-          });
-          if (!proceed) {
-            switchView("entry");
-            return;
-          }
-        }
         showMessage("正在打开学情诊断与复盘报告中心… ✓", 2600, "info");
         plugin.openReport?.();
         return;
@@ -4248,23 +4277,32 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     let ocrUploadBusy = $state(false);
     let ocrAbortCtrl: AbortController | null = null;
+    let manualImageBusy = $state(false);
+    let lastPastedManualImage = $state<{ file: File | Blob; assetPath: string } | null>(null);
 
     function cancelOcrImageUpload() {
       ocrAbortCtrl?.abort();
     }
 
-    async function handleOcrImageFile(file: File | Blob) {
+    async function handleOcrImageFile(file: File | Blob, existingAssetPath?: string) {
       if (ocrUploadBusy || !app) return;
       const ctrl = new AbortController();
       ocrAbortCtrl = ctrl;
       ocrUploadBusy = true;
       try {
-        const res = await processOcrImageUpload(app, file, t, ctrl.signal);
+        const ocrEndpoint = String(plugin.settingUtils?.get?.("ocrEndpoint") ?? "");
+        const res = await processOcrImageUpload(app, file, t, ctrl.signal, {
+          assetPath: existingAssetPath,
+          ocrEndpoint,
+        });
         if (res.cancelled || ctrl.signal.aborted) {
           showMessage("已取消图片 OCR 识别", 2200, "info");
           return;
         }
-        if (res.form) applyOcrForm(res.form);
+        if (res.form) {
+          applyOcrForm(res.form);
+          lastPastedManualImage = null;
+        }
         showMessage(res.message, res.isError ? 4000 : 3000, res.isError ? "error" : "info");
       } finally {
         if (ocrAbortCtrl === ctrl) ocrAbortCtrl = null;
@@ -4281,12 +4319,74 @@ import { confirmDialogSync } from "@/libs/dialog";
       input.value = "";
     }
 
+    function insertTextAtCursorOrAppend(
+      currentVal: string,
+      snippet: string,
+      el: HTMLTextAreaElement | HTMLInputElement | null,
+      inlineJoin = false,
+    ): string {
+      if (el && typeof el.selectionStart === "number" && typeof el.selectionEnd === "number") {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const prefix = currentVal.slice(0, start);
+        const suffix = currentVal.slice(end);
+        const needLeading = prefix && !/[\s\n]$/.test(prefix) ? (inlineJoin ? " " : "\n") : "";
+        const needTrailing = suffix && !/^[\s\n]/.test(suffix) ? (inlineJoin ? " " : "\n") : "";
+        return `${prefix}${needLeading}${snippet}${needTrailing}${suffix}`;
+      }
+      if (!currentVal.trim()) return snippet;
+      return inlineJoin ? `${currentVal.trimEnd()} ${snippet}` : `${currentVal.trimEnd()}\n${snippet}`;
+    }
+
+    async function handleDirectPasteManualImage(
+      file: File,
+      targetField: string,
+      targetEl: HTMLTextAreaElement | HTMLInputElement | null,
+    ) {
+      if (!app || manualImageBusy) return;
+      manualImageBusy = true;
+      try {
+        const res = await uploadManualAssetImage(app, file);
+        if (!res.success || !res.markdown || !res.assetPath) {
+          showMessage(res.message, 3800, "error");
+          return;
+        }
+        if (targetField === "analysis") {
+          mAnalysis = insertTextAtCursorOrAppend(mAnalysis, res.markdown, targetEl);
+        } else if (targetField === "answer") {
+          mAnswer = insertTextAtCursorOrAppend(mAnswer, res.markdown, targetEl);
+        } else if (targetField.startsWith("option-")) {
+          const optIdx = parseInt(targetField.slice(7), 10);
+          if (!Number.isNaN(optIdx) && optIdx >= 0 && optIdx < mOptions.length) {
+            mOptions[optIdx] = insertTextAtCursorOrAppend(mOptions[optIdx] ?? "", res.markdown, targetEl, true);
+            mOptions = [...mOptions];
+          } else {
+            mStem = insertTextAtCursorOrAppend(mStem, res.markdown, targetEl);
+          }
+        } else {
+          mStem = insertTextAtCursorOrAppend(mStem, res.markdown, targetEl);
+        }
+        clearManualValidation();
+        lastPastedManualImage = { file, assetPath: res.assetPath };
+        showMessage(`${res.message}（若需识字可点「识图转文字」）`, 3600, "info");
+      } finally {
+        manualImageBusy = false;
+      }
+    }
+
     function onManualPaste(e: ClipboardEvent) {
       const file = findImageInClipboard(e);
-      if (file) {
-        e.preventDefault();
+      if (!file) return;
+      e.preventDefault();
+      if (ocrModalOpen) {
         void handleOcrImageFile(file);
+        return;
       }
+      const targetEl = e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement
+        ? e.target
+        : null;
+      const targetField = targetEl?.dataset?.manualField || "stem";
+      void handleDirectPasteManualImage(file, targetField, targetEl);
     }
 
     let printWrongBusy = $state(false);
@@ -4396,19 +4496,23 @@ import { confirmDialogSync } from "@/libs/dialog";
     // ---------- 录题草稿保护（45-06 lite）：输入防抖自动保存 → 重载/切视图恢复 → 提交成功清理 ----------
     let draftRestored = $state(false);
     let pinAttributes = $state(readLocal("lv-exam/pin-attributes") === "1");
+    $effect(() => {
+      writeLocal("lv-exam/pin-attributes", pinAttributes ? "1" : "0");
+    });
     let draftTimer: ReturnType<typeof setTimeout> | null = null;
     $effect(() => {
       // 读取全部草稿字段建立依赖；防抖 800ms 落盘（切视图/崩溃后可恢复）
       const snap = createManualDraftSnapshot({
         type: mType, stem: mStem, options: mOptions, answer: mAnswer,
-        analysis: mAnalysis, kp: mKp, secondaryKps: mSecondaryKps, prerequisites: mPrerequisites, source: mSource, group: mGroup,
+        analysis: mAnalysis, expansion: mExpansion, kp: mKp, secondaryKps: mSecondaryKps, prerequisites: mPrerequisites, source: mSource, group: mGroup,
         specOpen: mSpecOpen, specUnit: mSpecUnit, specAbsTol: mSpecAbsTol, specRelPct: mSpecRelPct, specAltUnits: mSpecAltUnits,
         orderIndependent: mSpecOrderIndependent,
         rubricOpen: mRubricOpen, rubricText: mRubricText,
         studyLang: mStudyLang, studyPhonetic: mStudyPhonetic, status: mStatus, family: mFamily,
+        sourceBlockId: mSourceBlockId,
       });
       if (draftTimer) clearTimeout(draftTimer);
-      if (!snap.stem.trim() && !snap.answer.trim() && !snap.analysis.trim()) return; // 空草稿不写
+      if (!snap.stem.trim() && !snap.answer.trim() && !snap.analysis.trim() && !snap.expansion.trim()) return; // 空草稿不写
       draftTimer = setTimeout(() => {
         void saveManualDraftAux(app, snap);
       }, 800);
@@ -4435,10 +4539,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       return form;
     }
 
-    async function saveManual(targetStatus?: QuestionLifecycleStatus) {
+    async function saveManual(targetStatus?: QuestionLifecycleStatus, opts?: { syncAppendToNote?: boolean }): Promise<boolean> {
       const statusToSave = targetStatus ?? mStatus;
-      if (mSaving || !mStem.trim()) return;
-      if (statusToSave === "published" && !mAnswer.trim() && mType !== "short") return;
+      if (mSaving || !mStem.trim()) return false;
       const targetBankId = activeBankId;
       const formData = currentManualFormData(statusToSave);
       const signature = JSON.stringify(formData);
@@ -4447,23 +4550,45 @@ import { confirmDialogSync } from "@/libs/dialog";
         const res = await processAndSaveManualQuestion(app, targetBankId, formData, mRubricRevision);
 
         if (!res.success) {
-          manualErrorMsg = res.errorMsg || "";
+          manualErrorMsg = res.errorMsg || "保存失败，请检查题目内容";
           manualErrorField = res.errorField || "";
+          showMessage(manualErrorMsg, 3600, "error");
           await tick();
           document.querySelector<HTMLElement>(`[data-manual-field="${manualErrorField}"]`)?.focus();
-          return;
+          return false;
+        }
+
+        let mirrorNoteFailed = false;
+        if (opts?.syncAppendToNote && formData.sourceBlockId && res.question && statusToSave === "published") {
+          try {
+            await appendQuestionMirrorToSourceNote(app, formData.sourceBlockId, res.question);
+          } catch (syncErr) {
+            mirrorNoteFailed = true;
+            console.warn("[LvExam] syncAppendToNote failed:", syncErr);
+          }
         }
 
         mSaved = res.question!.id;
-        showMessage(statusToSave === "draft" ? "试题已成功保存为草稿 ✓" : "试题已成功入库 ✓", 2800, "info");
+        showMessage(
+          mirrorNoteFailed
+            ? "试题已成功入库，但同步追加原笔记失败"
+            : opts?.syncAppendToNote && formData.sourceBlockId && statusToSave === "published"
+              ? "试题已入库并同步追加折叠题块到原笔记 ✓"
+              : statusToSave === "draft"
+                ? "试题已成功保存为草稿 ✓"
+                : "试题已成功入库 ✓",
+          2800,
+          "info",
+        );
         if (signature === JSON.stringify(currentManualFormData(statusToSave))) {
           if (pinAttributes) {
             // 📌 属性锁定 (AUTH-01)：保留当前题型、考点、出处与标签，只清空题干、选项、答案与解析并聚焦首行
-            mStem = "";
-            mOptions = mType === "single" || mType === "multiple" ? ["", ""] : [];
-            mAnswer = "";
-            mAnalysis = "";
-            mExpansion = "";
+            const reset = computePostSaveManualReset(mType, true);
+            mStem = reset.stem;
+            mOptions = reset.options;
+            mAnswer = reset.answer;
+            mAnalysis = reset.analysis;
+            mExpansion = reset.expansion;
             clearManualValidation();
             void clearManualDraftAux(app);
             await tick();
@@ -4473,17 +4598,25 @@ import { confirmDialogSync } from "@/libs/dialog";
           }
         }
         await refreshQuestionsAfterWrite(questions.length + 1);
+        return true;
       } catch (e) {
-        errorMsg = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
+        const errText = offline ? t("state.offlineHint") : String(e instanceof Error ? e.message : e);
+        errorMsg = errText;
+        manualErrorMsg = errText;
+        showMessage(`保存失败，草稿已保留：${errText}`, 4200, "error");
+        return false;
       } finally { mSaving = false; }
     }
 
     function clearManualFormWithoutConfirm() {
       const b = createBlankManualFormState();
       mStem = b.stem; mOptions = b.options; mAnswer = b.answer; mAnalysis = b.analysis;
-      mExpansion = "";
-      mSecondaryKps = "";
-      mPrerequisites = "";
+      mExpansion = b.expansion;
+      mKp = b.kp;
+      mSecondaryKps = b.secondaryKps;
+      mPrerequisites = b.prerequisites;
+      mSource = b.source;
+      mGroup = b.group;
       mSpecOpen = b.specOpen; mSpecUnit = b.specUnit; mSpecAbsTol = b.specAbsTol; mSpecRelPct = b.specRelPct; mSpecAltUnits = b.specAltUnits;
       mSpecOrderIndependent = false;
       mRubricOpen = b.rubricOpen; mRubricText = b.rubricText; mRubricRevision = b.rubricRevision;
@@ -4585,6 +4718,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         gleanError = t("ai.gleanMarkFailed").replace("{message}", String(e instanceof Error ? e.message : e));
       } finally { gleanDoneBusy = false; }
     }
+    let aiTypes = $state<Question["type"][]>(["single", "multiple", "judge", "fill", "short"]);
     let aiCount = $state(5);
     let aiDifficulty = $state<"easy" | "medium" | "hard" | "mixed">("mixed");
     let aiKp = $state("");
@@ -4601,6 +4735,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     let aiQueueOptions = $state<import("@/ai/gen").GenOptions | null>(null);
     function snapshotAiOptions(): import("@/ai/gen").GenOptions {
       return buildGenOptionsSnapshot({
+        types: aiTypes,
         count: aiCount,
         difficulty: aiDifficulty,
         kp: aiKp,
@@ -4687,6 +4822,10 @@ import { confirmDialogSync } from "@/libs/dialog";
           genOptions: requestOptions,
           signal: aiCancel,
         });
+        if (aiCancel.aborted) {
+          showMessage(t("ai.cancelled"), 4200, "info");
+          return;
+        }
         aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
         aiQueue = aiSourceBlockId
           ? r.pending.map((q) => ({ ...q, sourceBlockId: q.sourceBlockId || aiSourceBlockId }))
@@ -4698,9 +4837,6 @@ import { confirmDialogSync } from "@/libs/dialog";
         } catch {
           showMessage(t("ai.usageSaveFailed"), 4200, "error");
         }
-        if (aiCancel.aborted) {
-          showMessage(t("ai.cancelled"), 4200, "info");
-        }
         void persistAiQueue();
         if (r.pending.length && gleanPendingDone.length) {
           const g = probeGlean(window);
@@ -4708,7 +4844,11 @@ import { confirmDialogSync } from "@/libs/dialog";
         }
         if (!r.pending.length && !r.rejected.length) aiError = t("ai.empty");
       } catch (e) {
-        aiError = String(e instanceof Error ? e.message : e);
+        if (aiCancel.aborted || (e instanceof Error && e.name === "AbortError")) {
+          showMessage(t("ai.cancelled"), 3000, "info");
+        } else {
+          aiError = String(e instanceof Error ? e.message : e);
+        }
       } finally {
         aiCancel.aborted = false;
         aiBusy = false;
@@ -4732,6 +4872,7 @@ import { confirmDialogSync } from "@/libs/dialog";
         }
         aiSource = res.content;
         aiSourceOrigin = res.sourceOrigin;
+        aiSourceBlockId = "";
         if (!aiKp.trim() && res.suggestedKp) aiKp = res.suggestedKp;
         showMessage(res.toast, 2600, "info");
       } catch (e) {
@@ -4759,6 +4900,10 @@ import { confirmDialogSync } from "@/libs/dialog";
           genOptions: requestOptions,
           signal: aiCancel,
         });
+        if (aiCancel.aborted) {
+          showMessage(t("ai.cancelled"), 4200, "info");
+          return;
+        }
         aiCost = `≈${r.approxTokens} tok · ${r.calls} ${t("ai.usageCalls")}`;
         aiQueue = [...aiQueue, ...r.pending];
         aiRejected = r.rejected;
@@ -4769,10 +4914,13 @@ import { confirmDialogSync } from "@/libs/dialog";
           showMessage(t("ai.usageSaveFailed"), 4200, "error");
         }
         void persistAiQueue();
-        if (aiCancel.aborted) showMessage(t("ai.cancelled"), 4200, "info");
-        else if (r.pending.length) showMessage(t("ai.repaired").replace("{n}", String(r.pending.length)), 2600, "info");
+        if (r.pending.length) showMessage(t("ai.repaired").replace("{n}", String(r.pending.length)), 2600, "info");
       } catch (e) {
-        aiError = String(e instanceof Error ? e.message : e);
+        if (aiCancel.aborted || (e instanceof Error && e.name === "AbortError")) {
+          showMessage(t("ai.cancelled"), 3000, "info");
+        } else {
+          aiError = String(e instanceof Error ? e.message : e);
+        }
       } finally {
         aiCancel.aborted = false;
         aiBusy = false;
@@ -4916,52 +5064,57 @@ import { confirmDialogSync } from "@/libs/dialog";
       if (sheetRowsCache.get(activeSheet)?.length) parseActiveSheet();
       else { importReport = null; importPreviewBankId = ""; importError = t("import.repreview"); }
     }
-    async function doParseText() {
-      if (importBusy) return;
+    async function parseImportTextCore() {
       importError = ""; importResult = null; retryPool = []; trialConfirmed = []; trialNote = "";
       if (!importText.trim()) { importError = t("import.noInput"); return; }
       const targetBankId = activeBankId;
-      importParsing = true; importReport = null; updateResult = null;
-      try {
-        const trimmed = importText.trim();
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-          const { parseQCardsJson } = await import("@/core/qcard");
-          const qres = parseQCardsJson(trimmed);
-          if (qres.valid && qres.questions.length > 0) {
-            importReport = {
-              ok: qres.questions,
-              errors: [],
-              duplicates: 0,
-              batch: `batch_${Date.now()}`,
-            };
-            importPreviewBankId = targetBankId;
-            showMessage(`已识别标准 Agent 题卡（QCard），成功载入 ${qres.count} 道试题 ✓`, 3500, "info");
-            return;
-          }
-
-          // 逆向桥接：支持从小驴闪卡（.lvcards）或集市闪卡包导入试题
-          const { parseLvCardsJsonToQuestions } = await import("@/core/lvcardsBridge");
-          const lvres = parseLvCardsJsonToQuestions(trimmed);
-          if (lvres.valid && lvres.questions.length > 0) {
-            importReport = {
-              ok: lvres.questions,
-              errors: [],
-              duplicates: 0,
-              batch: `batch_${Date.now()}`,
-            };
-            importPreviewBankId = targetBankId;
-            showMessage(`已识别小驴闪卡包（.lvcards - 《${lvres.deckName || "未命名卡包"}》），成功载入 ${lvres.count} 道试题 ✓`, 3500, "info");
-            return;
-          }
+      importReport = null; updateResult = null;
+      const trimmed = importText.trim();
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        const { parseQCardsJson } = await import("@/core/qcard");
+        const qres = parseQCardsJson(trimmed);
+        if (qres.valid && qres.questions.length > 0) {
+          importReport = {
+            ok: qres.questions,
+            errors: [],
+            duplicates: 0,
+            batch: `batch_${Date.now()}`,
+          };
+          importPreviewBankId = targetBankId;
+          showMessage(`已识别标准 Agent 题卡（QCard），成功载入 ${qres.count} 道试题 ✓`, 3500, "info");
+          return;
         }
 
-        // parseText 按内容特征分流（廿五批）：GIFT / TSV(Anki) / Aiken；
-        // 并存模式（2.3 重复合并策略 lite）：不回灌已有题 hash → 与题库重复的行照常入库（批内去重仍生效）
-        importReport = await parseText(importText, {
-          existingHashes: dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash)),
-          duplicateStrategy: dupeStrategy,
-        });
-        importPreviewBankId = targetBankId;
+        // 逆向桥接：支持从小驴闪卡（.lvcards）或集市闪卡包导入试题
+        const { parseLvCardsJsonToQuestions } = await import("@/core/lvcardsBridge");
+        const lvres = parseLvCardsJsonToQuestions(trimmed);
+        if (lvres.valid && lvres.questions.length > 0) {
+          importReport = {
+            ok: lvres.questions,
+            errors: [],
+            duplicates: 0,
+            batch: `batch_${Date.now()}`,
+          };
+          importPreviewBankId = targetBankId;
+          showMessage(`已识别小驴闪卡包（.lvcards - 《${lvres.deckName || "未命名卡包"}》），成功载入 ${lvres.count} 道试题 ✓`, 3500, "info");
+          return;
+        }
+      }
+
+      // parseText 按内容特征分流（廿五批）：GIFT / TSV(Anki) / Aiken；
+      // 并存模式（2.3 重复合并策略 lite）：不回灌已有题 hash → 与题库重复的行照常入库（批内去重仍生效）
+      importReport = await parseText(importText, {
+        existingHashes: dupeStrategy === "coexist" ? new Set<string>() : new Set(questions.map((q) => q.hash)),
+        duplicateStrategy: dupeStrategy,
+      });
+      importPreviewBankId = targetBankId;
+    }
+
+    async function doParseText() {
+      if (importBusy) return;
+      importParsing = true;
+      try {
+        await parseImportTextCore();
       } catch (e) { importError = String(e); }
       finally { importParsing = false; }
     }
@@ -4983,8 +5136,9 @@ import { confirmDialogSync } from "@/libs/dialog";
         try {
           const content = await file.text();
           importText = content;
+          importSubTab = "standard";
           showMessage(`已成功载入文件《${file.name}》，正在自动解析预览…`, 3000, "info");
-          doParseText();
+          await parseImportTextCore();
         } catch (err) {
           importError = `文本文件读取失败：${String(err instanceof Error ? err.message : err)}`;
         } finally {
@@ -5004,14 +5158,22 @@ import { confirmDialogSync } from "@/libs/dialog";
             importError = `Word 文档《${file.name}》中未提取到有效段落正文`;
           } else {
             importText = docxText;
+            importSubTab = "standard";
             showMessage(`已成功提取 Word 文档《${file.name}》正文文本，正在自动解析试题…`, 3200, "info");
-            doParseText();
+            await parseImportTextCore();
           }
         } catch (err) {
           importError = `Word 文档提取失败：${String(err instanceof Error ? err.message : err)}`;
         } finally {
           importParsing = false;
         }
+        return;
+      }
+
+      // 2.5 如果用户选择了 PDF 文件 (.pdf)：优先通过 pdfjs-dist 提取文字层（L1），扫描页自动走 PNG + 思源 OCR/Umi-OCR（L2）
+      if (/\.pdf$/i.test(fileName) || file.type === "application/pdf") {
+        input.value = "";
+        await handlePdfFileImport(file);
         return;
       }
 
@@ -5026,6 +5188,7 @@ import { confirmDialogSync } from "@/libs/dialog";
     }
 
     let paperOcrBusy = $state(false);
+    let paperOcrStatusText = $state("");
 
     async function doSegmentPaperText(text: string, sourceName = "纸质扫描试卷") {
       if (!text.trim()) return;
@@ -5038,7 +5201,11 @@ import { confirmDialogSync } from "@/libs/dialog";
           defaultKp: bankName || "纸质试卷",
         });
         if (!result.questions.length) {
-          importError = "整卷切题未检测到有效题目，请检查试卷是否有题号（如 1. / 2. / 一、单选）";
+          importText = text;
+          importSubTab = "standard";
+          await parseImportTextCore();
+          if (importReport?.ok?.length) return;
+          importError = "未检测到标准题号（如 1. / 2. / **1.** / 一、单选），已将提取文本填入下方文本框，可手动调整后点击「解析并预览」";
           return;
         }
         const { newBatchId } = await import("@/core/ids");
@@ -5069,31 +5236,92 @@ import { confirmDialogSync } from "@/libs/dialog";
       paperOcrAbortCtrl?.abort();
     }
 
-    async function handlePaperImageFile(file: File | Blob) {
-      if (!app || paperOcrBusy) return;
+    async function handlePdfFileImport(file: File | Blob) {
+      if (paperOcrBusy) return;
       const ctrl = new AbortController();
       paperOcrAbortCtrl = ctrl;
       paperOcrBusy = true;
+      paperOcrStatusText = "正在加载 PDF 解析引擎…";
+      importError = "";
       try {
-        const fileName = (file as File).name || "scanned-paper.png";
-        const assetPath = await app.bridge.uploadAsset(file, fileName, { signal: ctrl.signal });
+        const fileName = (file as File).name || "exam.pdf";
+        const buf = new Uint8Array(await file.arrayBuffer());
+        const umiEndpoint = String(plugin.settingUtils?.get?.("ocrEndpoint") ?? "");
+        const res = await extractPdfPaperTextWithFallback(app, buf, {
+          fileName,
+          umiOcrEndpoint: umiEndpoint,
+          signal: ctrl.signal,
+          onProgress: (p) => {
+            paperOcrStatusText = p.message;
+          },
+        });
         if (ctrl.signal.aborted) return;
-        const ocrData = await app.bridge.assetOcr(assetPath, { signal: ctrl.signal });
-        if (ctrl.signal.aborted) return;
-        if (!ocrData?.text?.trim()) {
-          showMessage("OCR 未在试卷图片中识别到文字内容，请确保图片清晰且无强烈反光", 4500, "error");
+        if (!res.text.trim()) {
+          importError = res.notice;
+          showMessage(res.notice, 5000, "info");
           return;
         }
-        await doSegmentPaperText(ocrData.text, fileName);
+        if (res.failedOcrPages.length > 0) {
+          showMessage(res.notice, 5000, "info");
+        } else {
+          showMessage(res.notice, 3500, "info");
+        }
+        await doSegmentPaperText(res.text, fileName.replace(/\.pdf$/i, ""));
+      } catch (err) {
+        if (ctrl.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
+          showMessage("已取消 PDF 解析识别", 2400, "info");
+          return;
+        }
+        const msg = `PDF 解析失败：${String(err instanceof Error ? err.message : err)}`;
+        importError = msg;
+        showMessage(msg, 4200, "error");
+      } finally {
+        if (paperOcrAbortCtrl === ctrl) paperOcrAbortCtrl = null;
+        paperOcrBusy = false;
+        paperOcrStatusText = "";
+      }
+    }
+
+    async function handlePaperImageFile(file: File | Blob) {
+      if (paperOcrBusy) return;
+      const fileName = (file as File).name || "scanned-paper.png";
+      // 严守思源内核事实：/api/asset/ocr 仅支持图片不接受 .pdf；PDF 一律分流到本地 pdfjs-dist 双轨链路
+      if (/\.pdf$/i.test(fileName) || file.type === "application/pdf") {
+        await handlePdfFileImport(file);
+        return;
+      }
+      if (!app) return;
+      const ctrl = new AbortController();
+      paperOcrAbortCtrl = ctrl;
+      paperOcrBusy = true;
+      paperOcrStatusText = "正在上传试卷图片并识别文字…";
+      try {
+        const umiEndpoint = String(plugin.settingUtils?.get?.("ocrEndpoint") ?? "");
+        const ocrRes = await recognizeImageBlobWithFallback(app, file, {
+          fileName,
+          umiOcrEndpoint: umiEndpoint,
+          signal: ctrl.signal,
+        });
+        if (ctrl.signal.aborted) return;
+        if (!ocrRes.text.trim()) {
+          const msg = ocrRes.warning || "OCR 未在试卷图片中识别到文字内容，请确保图片清晰且无强烈反光";
+          importError = msg;
+          showMessage(msg, 5000, "info");
+          return;
+        }
+        await doSegmentPaperText(ocrRes.text, fileName);
       } catch (err) {
         if (ctrl.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
           showMessage("已取消整卷 OCR 识别", 2400, "info");
           return;
         }
-        showMessage(`试卷 OCR 识别失败：${String(err instanceof Error ? err.message : err)}`, 4000, "error");
+        const msg = `试卷 OCR 识别失败：${String(err instanceof Error ? err.message : err)}`;
+        importError = msg;
+        showMessage(msg, 4200, "error");
       } finally {
         if (paperOcrAbortCtrl === ctrl) paperOcrAbortCtrl = null;
         paperOcrBusy = false;
+        paperOcrStatusText = "";
       }
     }
 
@@ -5318,10 +5546,17 @@ import { confirmDialogSync } from "@/libs/dialog";
 
     /** R54 原型高级交互：把资料/笔记一键带入 AI 材料 */
     async function bridgeMaterialToAi(m: import("../../core/materials").MaterialDoc, noteText = "") {
-      const bridged = await serviceBridgeMaterialToAi(app, m, noteText);
-      aiSource = bridged.content;
-      view = "ai";
-      showMessage(bridged.toast, 2800, "info");
+      materialsBusy = true;
+      try {
+        const bridged = await serviceBridgeMaterialToAi(app, m, noteText);
+        aiSource = bridged.content;
+        aiSourceOrigin = `来源学习资料：${m.title}`;
+        aiSourceBlockId = "";
+        view = "ai";
+        showMessage(bridged.toast, 3400, "info");
+      } finally {
+        materialsBusy = false;
+      }
     }
 
     async function removeMaterialEntry(m: import("../../core/materials").MaterialDoc) {
@@ -5932,14 +6167,15 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
     }
 
-    async function commitImport() {
+    async function commitImport(selectedQuestions?: import("../../core/types").Question[]) {
       if (!importReport || importBusy) return;
       if (importPreviewBankId !== activeBankId) {
         importError = t("import.bankChanged");
         showMessage(importError, 3600, "error");
         return;
       }
-      const remaining = filterUnconfirmedQuestions(importReport.ok, trialConfirmed);
+      const sourceOk = Array.isArray(selectedQuestions) ? selectedQuestions : importReport.ok;
+      const remaining = filterUnconfirmedQuestions(sourceOk, trialConfirmed);
       if (!remaining.length && !importReport.updates?.length) {
         importResult = { written: trialConfirmed.length, confirmed: trialConfirmed.length, missing: 0, verified: true };
         retryPool = []; importReport = null; importText = ""; trialConfirmed = []; trialNote = "";
@@ -5953,8 +6189,10 @@ import { confirmDialogSync } from "@/libs/dialog";
     let trialNote = $state("");
     const remainingImportQuestions = $derived(importReport ? filterUnconfirmedQuestions(importReport.ok, trialConfirmed) : []);
 
-    async function trialImport5() {
-      if (!importReport || importBusy || !remainingImportQuestions.length) return;
+    async function trialImport5(selectedQuestions?: import("../../core/types").Question[]) {
+      const sourceOk = Array.isArray(selectedQuestions) ? selectedQuestions : (importReport?.ok ?? []);
+      const targetPool = importReport ? filterUnconfirmedQuestions(sourceOk, trialConfirmed) : [];
+      if (!importReport || importBusy || !targetPool.length) return;
       if (importPreviewBankId !== activeBankId) {
         importError = t("import.bankChanged");
         showMessage(importError, 3600, "error");
@@ -5962,7 +6200,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       }
       trialBusy = true; importError = ""; trialNote = "";
       try {
-        const res = await executeTrialImport(app, activeBankId, remainingImportQuestions, importReport.batch, t);
+        const res = await executeTrialImport(app, activeBankId, targetPool, importReport.batch, t);
         trialConfirmed = [...new Set([...trialConfirmed, ...res.confirmedIds])];
         trialNote = res.note;
         await refreshQuestionsAfterWrite(0);
@@ -6145,7 +6383,10 @@ import { confirmDialogSync } from "@/libs/dialog";
         importText = "";
         importSubTab = "standard";
         selectedDocIds = {};
-        view = "import";
+        // 留在当前工作台（思源出题原地展开审校入库清单，不再突兀跳页失焦）
+        if (view !== "siyuan") {
+          view = "import";
+        }
         showMessage(res.message, 4200, "info");
       } else {
         showMessage(res.message, toastTime, res.isError ? "error" : "info");
@@ -6416,14 +6657,13 @@ import { confirmDialogSync } from "@/libs/dialog";
     onopenRail={() => railOpen = true}
     onopenPalette={() => paletteOpen = true}
     onbankSwitch={onBankSwitch}
-    onopenBankHub={() => { bankHubOpen = true; }}
-    onopenMarketplace={() => { marketplaceOpen = true; }}
+    onopenBankHub={() => { switchView("banks"); }}
     oncloseMobile={() => { lvLaunchpad.haptic(8); void plugin?.closeMobileDialog?.(); }}
   />
   <div class="lv-shell" class:lv-shell-focus={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)} class:lv-shell-tasknav-hidden={(view === "session" && !sessionDone) || (view === "recite" && !reciteDone)}>
-    <Rail active="practice" taskactive={view === "marketplace" ? "marketplace" : view === "wrongbook" ? "wrong" : (view === "browse" ? "bank" : view === "manual" || view === "siyuan" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} open={railOpen} onclose={closeRail}
+    <Rail active="practice" taskactive={view === "wrongbook" ? "wrong" : (view === "banks" || view === "browse" || view === "marketplace" ? "bank" : view === "manual" || view === "siyuan" || view === "import" || view === "ai" || view === "materials" ? "create" : "today")} tasknavhidden={view === "session" && !sessionDone || view === "recite" && !reciteDone} ontasknavigate={onTaskNav} {plugin} items={railItems} wrongBadge={wrongList.length ? String(wrongList.length) : undefined} open={railOpen} onclose={closeRail}
       project={{ name: bankName || t("guard.title"), kicker: t("rail.projectKicker") }} onproject={() => switchView("entry")}
-      onquickcreate={() => { view = "manual"; }} />
+      onquickcreate={() => { switchView("manual"); }} />
     <div class="lv-main" style={viewportBottomPad > 0 ? `padding-bottom: calc(${viewportBottomPad + 16}px + env(safe-area-inset-bottom, 0px));` : undefined}>
   {#if errorMsg && errorMsg !== t("state.emptyBank") && view !== "session"}
     <div class="lv-pad" style="padding-bottom:0"><div class="lv-error" role="alert">{errorMsg}</div></div>
@@ -6445,7 +6685,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       <p class="lv-muted">{!app ? (t("state.initializing") || "正在初始化小驴考试，请稍候…") : t("entry.loadingQuestions", "正在读取题目，请稍候…")}</p>
       <div class="lv-skeleton" aria-hidden="true"></div>
     </div>
-  {:else if errorMsg === t("state.emptyBank") && view !== "session"}
+  {:else if errorMsg === t("state.emptyBank") && (view === "entry" || view === "browse")}
     <!-- 空题库走居中空态（原型 .empty），其余错误保留语义横幅 -->
     <div class="lv-pad">
       {#if errorMsg === t("state.emptyBank")}
@@ -6531,11 +6771,12 @@ import { confirmDialogSync } from "@/libs/dialog";
       onskipOnboarding={() => { onboardingDismissed = true; writeLocal("lv-exam-onboarded", "1"); }}
       onretryEntryLoad={() => void retryEntryLoad()}
       onnavView={(v, subTab) => {
-        view = v;
+        switchView(v);
         if (subTab) importSubTab = subTab as any;
         if (v === "browse") void loadQuestions();
+        if (v === "materials") void loadMaterials();
       }}
-      onopenBankHub={() => { void refreshBankCounts(); bankHubOpen = true; }}
+      onopenBankHub={() => { switchView("banks"); }}
       onswitchToNonEmptyBank={() => void switchToNonEmptyBank()}
       {bankQuestionCounts}
       {activeBankId}
@@ -6553,6 +6794,58 @@ import { confirmDialogSync } from "@/libs/dialog";
       onloadMaterials={() => void loadMaterials()}
       {lastSyncedDocs}
       onopenInSiYuan={(rid, bid, opt) => openInSiYuan(rid, bid, opt)}
+    />
+  {:else if view === "banks"}
+    <BankManagerView
+      {banks}
+      {activeBankId}
+      {bankMetrics}
+      {metricsRefreshing}
+      {creating}
+      {offline}
+      {readLocal}
+      {writeLocal}
+      {t}
+      onenterBank={async (id) => {
+        if (id !== activeBankId) {
+          activeBankId = id;
+          await onBankSwitch();
+        } else if (!questionsLoaded) {
+          await loadQuestions();
+        }
+        switchView("browse");
+      }}
+      oncreateBank={async (name, category, goImport) => {
+        const ok = await createBank(name, category);
+        if (ok && goImport) switchView("import");
+        return ok;
+      }}
+      oncreateSampleBank={(kind) => void createSampleBank(kind)}
+      onrenameBank={async (id, newName) => {
+        if (!app) return;
+        try {
+          await app.renameBank(id, newName);
+          banks = app.listBanks();
+          showMessage("题库名称已更新 ✓", 2500, "info");
+        } catch (e) {
+          showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
+        }
+      }}
+      onsetBankCategory={setBankCategory}
+      onsyncBankToDoc={syncBankToDoc}
+      onremoveBank={removeActiveBank}
+      onimportToBank={async (id) => {
+        if (id && id !== activeBankId) {
+          activeBankId = id;
+          await onBankSwitch();
+        }
+        switchView("import");
+      }}
+      onopenMarketplace={() => {
+        marketplaceReturnView = "banks";
+        switchView("marketplace");
+      }}
+      onrefreshMetrics={() => void refreshBankCounts(true)}
     />
   {:else if view === "session" && session}
     <PracticeSessionView
@@ -6789,6 +7082,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:wbDocFilter
       bind:wbSortMode
       ontracebackBlock={tracebackBlock}
+      onvariantPromoted={() => { dataRev++; }}
       {filteredWrongQueue}
       {shownWrongQueue}
       {wbQueueHasMore}
@@ -6877,13 +7171,17 @@ import { confirmDialogSync } from "@/libs/dialog";
       bind:ocrModalOpen
       bind:ocrInputText
       {ocrUploadBusy}
+      {manualImageBusy}
+      {lastPastedManualImage}
+      onrunOcrOnLastImage={() => { if (lastPastedManualImage) void handleOcrImageFile(lastPastedManualImage.file, lastPastedManualImage.assetPath); }}
+      ondismissLastImage={() => { lastPastedManualImage = null; }}
       {t}
       {sanitizeRichHtml}
       {renderMathInText}
       {renderMathDiagramsInText}
       {removeChoiceOption}
       onback={() => view = "entry"}
-      onchangeView={(v) => (view = v)}
+      onchangeView={(v) => { switchView(v); if (v === "materials") void loadMaterials(); }}
       onmanualPaste={onManualPaste}
       onopenOcrModal={openOcrModal}
       onnormalizeFormulas={normalizeManualFormulas}
@@ -6894,7 +7192,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onswitchManualType={(tt) => void switchManualType(tt)}
       onclearManualValidation={clearManualValidation}
       onsetCorrectOption={(i) => setCorrectOption(i)}
-      onsaveManual={(st) => void saveManual(st)}
+      onsaveManual={(st, opts) => saveManual(st, opts)}
       onblankManualDraft={blankManualDraft}
       onshowChartMessage={() => showMessage("已在题干插入图表模板", 2500, "info")}
       bind:mSourceBlockId
@@ -6919,6 +7217,8 @@ import { confirmDialogSync } from "@/libs/dialog";
       {activeBankId}
       {banks}
       {aiCustomEndpointSet}
+      aiKeyConfigured={Boolean(resolveAiKey(plugin))}
+      onopenSettings={() => plugin.openSetting?.()}
       {aiError}
       bind:aiSource
       bind:aiSourceOrigin
@@ -6929,6 +7229,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {gleanPendingDone}
       {gleanDoneBusy}
       {gleanDoneNote}
+      bind:aiTypes
       bind:aiCount
       bind:aiDifficulty
       bind:aiPreset
@@ -6952,7 +7253,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {aiTaskLog}
       {t}
       onback={() => view = "entry"}
-      onchangeView={(v) => (view = v)}
+      onchangeView={(v) => { switchView(v); if (v === "materials") void loadMaterials(); }}
       onfromDoc={aiSourceFromCurrentDoc}
       onimportGlean={() => void importGleanClips()}
       onmarkGleanDone={() => void markGleanDone()}
@@ -7009,7 +7310,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {locatorLabel}
       {needsRelocate}
       onback={() => view = "entry"}
-      onchangeView={(v) => (view = v)}
+      onchangeView={(v) => { switchView(v); if (v === "materials") void loadMaterials(); }}
       bind:materialFileInput
       onpickFile={() => materialFileInput?.click()}
       onfileChange={onMaterialFile}
@@ -7184,6 +7485,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onsaveCurrentView={() => void saveCurrentView()}
       onloadSmartViews={() => void loadSmartViews()}
       onbackToEntry={() => { view = "entry"; }}
+      onbackToBanks={() => { switchView("banks"); }}
       onstartFilteredFocusDrill={startFilteredFocusDrill}
       ontoggleSectionTree={() => void toggleSectionTree()}
       ontoggleBatchMode={() => { batchMode = !batchMode; if (!batchMode) selectedIds = {}; }}
@@ -7311,7 +7613,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {selectedGleanCount}
       {t}
       onback={() => view = hasBank ? "entry" : "entry"}
-      onchangeView={(v) => (view = v)}
+      onchangeView={(v) => { switchView(v); if (v === "materials") void loadMaterials(); }}
       onDoSearchDocs={(q) => void doSearchDocs(q)}
       onToggleSelectAllDocs={toggleSelectAllDocs}
       onImportSelectedDocs={importSelectedDocs}
@@ -7327,6 +7629,39 @@ import { confirmDialogSync } from "@/libs/dialog";
       onextractSelectedGlean={() => void importSelectedGleanDocs()}
       ontoggleGleanId={(id) => { selectedGleanIds[id] = !selectedGleanIds[id]; selectedGleanIds = { ...selectedGleanIds }; }}
       ontoggleSelectAllGlean={toggleSelectAllGlean}
+      onPickGleanClip={(c) => void pickAndImportSiyuanDoc(c.id, c.title)}
+      onAiExtractGleanClip={(c) => void aiExtractSiyuanDoc(c.id, c.title)}
+      {importBusy}
+      {importError}
+      bind:importReport
+      {importPreviewBankId}
+      {spotBusy}
+      {spotIds}
+      {spotHtml}
+      {fixRow}
+      {fixCells}
+      bind:fixText
+      {fixNote}
+      {committing}
+      {trialConfirmed}
+      {trialBusy}
+      {commitProgress}
+      {trialNote}
+      {importResult}
+      {updateResult}
+      {retryPool}
+      {escapeHtml}
+      onSpotCheckRender={() => void spotCheckRender()}
+      onStartRowFix={(row) => startRowFix(row)}
+      onApplyRowFix={(row) => void applyRowFix(row)}
+      onCancelRowFix={cancelRowFix}
+      onDownloadErrorsCsv={downloadErrorsCsv}
+      onCommitImport={(qs) => void commitImport(qs)}
+      onCancelCommit={() => { commitCancelRequested = true; }}
+      onTrialImport5={(qs) => void trialImport5(qs)}
+      onRetryMissing={retryMissing}
+      onGoPractice={() => { view = "entry"; void loadQuestions(); }}
+      onGoBrowse={() => { view = "browse"; void loadQuestions(); }}
     />
   {:else if view === "import"}
     <ImportStudioView
@@ -7359,7 +7694,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {MAP_FIELDS}
       {mapErrors}
       {importError}
-      {importReport}
+      bind:importReport
       {importPreviewBankId}
       {spotBusy}
       {spotIds}
@@ -7383,7 +7718,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {escapeHtml}
       {columnLabel}
       onback={() => view = hasBank ? "entry" : "entry"}
-      onchangeView={(v) => (view = v)}
+      onchangeView={(v) => { switchView(v); if (v === "materials") void loadMaterials(); }}
       onResumeCheckpoint={resumeCheckpoint}
       onDiscardCheckpoint={discardCheckpoint}
       onImportFileDrop={onImportFileDrop}
@@ -7423,9 +7758,9 @@ import { confirmDialogSync } from "@/libs/dialog";
       onCancelRowFix={cancelRowFix}
       onDownloadErrorsCsv={downloadErrorsCsv}
       onSaveMapping={saveMapping}
-      onCommitImport={commitImport}
+      onCommitImport={(qs) => void commitImport(qs)}
       onCancelCommit={() => { commitCancelRequested = true; }}
-      onTrialImport5={trialImport5}
+      onTrialImport5={(qs) => void trialImport5(qs)}
       onRetryMissing={retryMissing}
       onGoPractice={() => { view = "entry"; void loadQuestions(); }}
       onGoBrowse={() => { view = "browse"; void loadQuestions(); }}
@@ -7436,6 +7771,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       onDoSearchTags={(tg) => void doSearchTags(tg)}
       onImportTagQuestions={(tg) => void doImportTagQuestions(tg)}
       {paperOcrBusy}
+      {paperOcrStatusText}
       onSegmentPaperText={(txt, name) => void doSegmentPaperText(txt, name)}
       onPaperImageUpload={(file) => void handlePaperImageFile(file)}
       onCancelPaperOcr={cancelPaperOcr}
@@ -7446,7 +7782,7 @@ import { confirmDialogSync } from "@/libs/dialog";
       {readLocal}
       {writeLocal}
       {showMessage}
-      onback={() => { view = "entry"; }}
+      onback={() => { switchView(marketplaceReturnView); }}
       onbankCreated={async (newId) => {
         activeBankId = newId;
         await onBankSwitch();
@@ -7571,47 +7907,6 @@ import { confirmDialogSync } from "@/libs/dialog";
         sessionRev++;
         restoreQuestionControls();
         sessionSheetOpen = false;
-      }}
-    />
-    <BankGalleryModal
-      open={bankHubOpen}
-      {banks}
-      {activeBankId}
-      {bankQuestionCounts}
-      {creating}
-      {offline}
-      {t}
-      {getBankCategoryMeta}
-      onclose={() => bankHubOpen = false}
-      onselectBank={(id) => { activeBankId = id; onBankSwitch(); bankHubOpen = false; }}
-      oncreateSampleBank={(kind) => { bankHubOpen = false; void createSampleBank(kind); }}
-      onrenameBank={async (id, newName) => {
-        if (!app) return;
-        try {
-          await app.renameBank(id, newName);
-          banks = app.listBanks();
-          showMessage("题库名称已更新 ✓", 2500, "info");
-        } catch (e) {
-          showMessage(String(e instanceof Error ? e.message : e), 3500, "error");
-        }
-      }}
-      oncycleBankCategory={cycleBankCategory}
-      onsyncBankToDoc={syncBankToDoc}
-      onremoveBank={removeActiveBank}
-      onopenMarketplace={() => { bankHubOpen = false; marketplaceOpen = true; }}
-    />
-    <MarketplaceModal
-      bind:open={marketplaceOpen}
-      {app}
-      {readLocal}
-      {writeLocal}
-      {showMessage}
-      onclose={() => (marketplaceOpen = false)}
-      onbankCreated={async (newId) => {
-        activeBankId = newId;
-        await onBankSwitch();
-        banks = app.listBanks();
-        marketplaceOpen = false;
       }}
     />
     <ShortcutsHelpModal

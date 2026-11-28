@@ -8,7 +8,9 @@
   import Icon from "../shared/Icon.svelte";
   import type { BankInfo } from "../../app";
   import type { ParsedClozeItem } from "@/core/cloze";
+  import type { ImportReport } from "../../importer/pipeline";
   import StudioSubNav from "./StudioSubNav.svelte";
+  import ImportReviewPanel from "./ImportReviewPanel.svelte";
   import { handleTablistKeydown } from "./services/practiceKeyboardService";
 
   interface Props {
@@ -51,6 +53,39 @@
     onextractSelectedGlean?: () => void;
     ontoggleGleanId?: (id: string) => void;
     ontoggleSelectAllGlean?: () => void;
+    onPickGleanClip?: (clip: { id: string; title: string }) => void;
+    onAiExtractGleanClip?: (clip: { id: string; title: string }) => void;
+    importBusy?: boolean;
+    importError?: string;
+    importReport?: ImportReport | null;
+    importPreviewBankId?: string;
+    spotBusy?: boolean;
+    spotIds?: string[];
+    spotHtml?: Record<string, string>;
+    fixRow?: number | null;
+    fixCells?: string[];
+    fixText?: string;
+    fixNote?: string;
+    committing?: boolean;
+    trialConfirmed?: any[];
+    trialBusy?: boolean;
+    commitProgress?: { done: number; total: number } | null;
+    trialNote?: string;
+    importResult?: any;
+    updateResult?: any;
+    retryPool?: any[];
+    escapeHtml?: (s: string) => string;
+    onSpotCheckRender?: () => void;
+    onStartRowFix?: (row: number) => void;
+    onApplyRowFix?: (row: number) => void;
+    onCancelRowFix?: () => void;
+    onDownloadErrorsCsv?: () => void;
+    onCommitImport?: (selectedQuestions?: any[]) => void;
+    onCancelCommit?: () => void;
+    onTrialImport5?: (selectedQuestions?: any[]) => void;
+    onRetryMissing?: () => void;
+    onGoPractice?: () => void;
+    onGoBrowse?: () => void;
   }
 
   let {
@@ -93,10 +128,44 @@
     onextractSelectedGlean = () => {},
     ontoggleGleanId = () => {},
     ontoggleSelectAllGlean = () => {},
+    onPickGleanClip = () => {},
+    onAiExtractGleanClip = () => {},
+    importBusy = false,
+    importError = "",
+    importReport = $bindable(null),
+    importPreviewBankId = "",
+    spotBusy = false,
+    spotIds = [],
+    spotHtml = {},
+    fixRow = null,
+    fixCells = [],
+    fixText = $bindable(""),
+    fixNote = "",
+    committing = false,
+    trialConfirmed = [],
+    trialBusy = false,
+    commitProgress = null,
+    trialNote = "",
+    importResult = null,
+    updateResult = null,
+    retryPool = [],
+    escapeHtml = (s: string) => s,
+    onSpotCheckRender = () => {},
+    onStartRowFix = () => {},
+    onApplyRowFix = () => {},
+    onCancelRowFix = () => {},
+    onDownloadErrorsCsv = () => {},
+    onCommitImport = () => {},
+    onCancelCommit = () => {},
+    onTrialImport5 = () => {},
+    onRetryMissing = () => {},
+    onGoPractice = () => {},
+    onGoBrowse = () => {},
   }: Props = $props();
 
   // 思源专属出题二级分面：文档提炼 / 标签与闪卡 / 划重点挖空 / 拾遗剪藏
   let subMode = $state<"docs" | "tags" | "cloze" | "glean">("docs");
+  let tipsExpanded = $state(false);
 
   let docSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -217,6 +286,25 @@
             </p>
             <div class="lv-guide-safety" role="note">
               🛡️ 只读安全保障：仅读取文档文本生成题目，绝不修改、覆盖或删除您的原有思源笔记内容。
+            </div>
+            <div class="lv-zero-touch-tips">
+              <button
+                type="button"
+                class="lv-tips-toggle"
+                aria-expanded={tipsExpanded}
+                onclick={() => (tipsExpanded = !tipsExpanded)}
+              >
+                <span>✨ 零破坏书写建议（4 条轻量推荐格式，原笔记零改造即可提取，遵循后精度可达 98%+）</span>
+                <Icon name={tipsExpanded ? "arrow-down" : "chev-right"} size={12} />
+              </button>
+              {#if tipsExpanded}
+                <ol class="lv-tips-list">
+                  <li><b>题目开头：</b>正常写 <code>1. 题干</code> 或 <code>**1.** 题干</code>；大题下的小问请用 <code>(1)(2)</code>，其间的表格与 <code>![图](assets/...)</code> 插图会自动归属母题。</li>
+                  <li><b>答案与解析（可选）：</b>题干括号顺手写 <code>( B )</code> 或文末写 <code>答案：B</code> / <code>&lt;details&gt;</code>；无答案空白卷/教辅章节也可直接提取入审校队列后再补答案。</li>
+                  <li><b>知识点归类：</b>用各级标题（<code>### 知识点 1 算术平均数</code>）或独立加粗行 <code>**知识点 1 ...**</code> 分节，小节名自动写为考点标签。</li>
+                  <li><b>填空与概念笔记：</b>用 <code>____</code> 或 <code>$\underline{'{\\quad}'}$</code> 标空；正文关键词用 <code>==高亮==</code> 或 <code>概念 :: 释义</code> 即可秒变记忆卡。</li>
+                </ol>
+              {/if}
             </div>
           </div>
 
@@ -576,10 +664,65 @@
                       {/if}
                     </div>
                   </div>
+                  <div class="lv-row lv-doc-actions">
+                    <button class="lv-btn sm lv-btn--primary" onclick={() => onPickGleanClip(c)} title="直接提取文中文法题">
+                      <Icon name="import" size={12} /> 直接提取
+                    </button>
+                    <button class="lv-btn sm lv-btn--ghost" onclick={() => onAiExtractGleanClip(c)} title="由 AI 自动阅读此篇剪藏正文提炼试题">
+                      <Icon name="sparkles" size={12} /> AI 提炼
+                    </button>
+                  </div>
                 </div>
               {/each}
             </div>
           {/if}
+        </div>
+      {/if}
+
+      <!-- 原地待入库试题审校与入库闭环（提炼后不跳页失焦） -->
+      {#if importReport || importResult || importError}
+        <div class="lv-siyuan-review-wrap">
+          <ImportReviewPanel
+            banks={_banks}
+            {importBusy}
+            {importError}
+            bind:importReport
+            {importPreviewBankId}
+            {spotBusy}
+            {spotIds}
+            {spotHtml}
+            {fixRow}
+            {fixCells}
+            bind:fixText
+            {fixNote}
+            lastMap={null}
+            mappingBusy={false}
+            {committing}
+            {trialConfirmed}
+            {trialBusy}
+            {commitProgress}
+            {trialNote}
+            {importResult}
+            {updateResult}
+            {retryPool}
+            showEmptyAiFallback={true}
+            {t}
+            {escapeHtml}
+            {onSpotCheckRender}
+            {onStartRowFix}
+            {onApplyRowFix}
+            {onCancelRowFix}
+            {onDownloadErrorsCsv}
+            onSaveMapping={() => {}}
+            {onCommitImport}
+            {onCancelCommit}
+            {onTrialImport5}
+            {onRetryMissing}
+            {onGoPractice}
+            {onGoBrowse}
+            onGoAi={() => onchangeView("ai")}
+            onBackToDocList={() => { importReport = null; subMode = "docs"; onDoSearchDocs(docSearchQuery || ""); }}
+          />
         </div>
       {/if}
     </div>
@@ -684,6 +827,51 @@
       align-items: center;
       gap: 4px;
     }
+
+    .lv-zero-touch-tips {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--lv-border-subtle);
+    }
+
+    .lv-tips-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 6px;
+      border: none;
+      border-radius: var(--lv-r-1, 6px);
+      background: transparent;
+      color: var(--lv-text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+
+      &:hover {
+        background: var(--lv-surface);
+      }
+    }
+
+    .lv-tips-list {
+      margin: 6px 0 0;
+      padding-left: 18px;
+      font-size: 11.5px;
+      line-height: 1.65;
+      color: var(--lv-text-2);
+
+      li + li {
+        margin-top: 3px;
+      }
+    }
+  }
+
+  .lv-siyuan-review-wrap {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--lv-border-subtle);
   }
 
   /* 场景预设模式行 */

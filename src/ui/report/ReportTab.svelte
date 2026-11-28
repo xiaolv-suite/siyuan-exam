@@ -63,13 +63,17 @@
     let railOpen = $state(false);
     let reportMoreOpen = $state(false);
     let reportMoreRoot: HTMLDivElement | null = null;
+    let reportDesktopMoreOpen = $state(false);
+    let reportDesktopMoreRoot: HTMLDivElement | null = null;
     let menuBtn: HTMLButtonElement | null = null;
     function closeRail() { railOpen = false; menuBtn?.focus(); }
 
-    function onTaskNav(target: "today" | "bank" | "create" | "mock" | "report") {
+    function onTaskNav(target: "today" | "wrong" | "bank" | "marketplace" | "create" | "mock" | "report") {
       if (target === "report") return;
       if (target === "mock") return plugin.openMock?.();
-      const next = target === "today" ? "entry" : target === "bank" ? "browse" : "manual";
+      if (target === "wrong") return openPracticeView(plugin, "wrongbook");
+      if (target === "marketplace") return openPracticeView(plugin, "marketplace");
+      const next = target === "today" ? "entry" : target === "bank" ? "banks" : "manual";
       openPracticeView(plugin, next);
     }
 
@@ -494,15 +498,13 @@
       const ctrl = new AbortController();
       explainAbortCtrl = ctrl;
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
+        const { createAiChannel } = await import("@/ui/practice/services/aiWorkflowService");
         const { buildReportExplainMessages } = await import("@/ai/reportExplain");
         const { AiTaskRunner } = await import("@/ai/task");
         const endpoint = String(plugin?.settingUtils?.get?.("aiEndpoint") ?? "");
         const key = resolveAiKey(plugin);
         const model = String(plugin?.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key
-          ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.bridge as any);
+        const ch = await createAiChannel(app.bridge as any, { endpoint, apiKey: key, model }, "考试");
         const cutoff = reportWindowStart(rangeDays);
         const events = reportEvents;
         let attempts = 0, correct = 0;
@@ -569,16 +571,14 @@
       const ctrl = new AbortController();
       nextActionAbortCtrl = ctrl;
       try {
-        const { SiyuanAiChannel, OpenAiChannel } = await import("@/ai/client");
+        const { createAiChannel } = await import("@/ui/practice/services/aiWorkflowService");
         const { buildNextActionMessages } = await import("@/ai/nextAction");
         const { AiTaskRunner } = await import("@/ai/task");
         const { estimatePlanMinutes, avgMsByType } = await import("@/core/timeBudget");
         const endpoint = String(plugin?.settingUtils?.get?.("aiEndpoint") ?? "");
         const key = resolveAiKey(plugin);
         const model = String(plugin?.settingUtils?.get?.("aiModel") ?? "gpt-4o-mini");
-        const ch = endpoint && key
-          ? new OpenAiChannel({ endpoint, apiKey: key, model }, (u, i) => fetch(u, i))
-          : new SiyuanAiChannel(app.bridge as any);
+        const ch = await createAiChannel(app.bridge as any, { endpoint, apiKey: key, model }, "考试");
         // 容量口径：错题重练队列前 10 题（53-01 估算；入口页今日计划不在此上下文，如实标注口径）
         const wrongItems = app.wrongItems();
         let redoQueue: Question[] = [];
@@ -691,15 +691,26 @@
           return await app.listOpenActions().catch(() => [] as typeof openActionList);
         })();
 
+        const fetchBankQuestionsBounded = async (items: typeof bankOptions, concurrency = 4) => {
+          const out: Array<{ bankId: string; questions: Question[] }> = new Array(items.length);
+          let cursor = 0;
+          const workerCount = Math.max(1, Math.min(concurrency, items.length));
+          const runWorker = async () => {
+            while (cursor < items.length) {
+              const i = cursor++;
+              const b = items[i];
+              const qs = await app.listQuestions(b.id).catch(() => [] as Question[]);
+              out[i] = { bankId: b.id, questions: qs };
+            }
+          };
+          await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+          return out;
+        };
+
         const [actions, mocks, bankQuestionLists] = await Promise.all([
           actionsTask,
           app.listMockResults().catch(() => [] as typeof mockHistory),
-          Promise.all(
-            bankOptions.map(async (b) => {
-              const qs = await app.listQuestions(b.id).catch(() => [] as Question[]);
-              return { bankId: b.id, questions: qs };
-            }),
-          ),
+          fetchBankQuestionsBounded(bankOptions, 4),
         ]);
 
         openActionList = actions;
@@ -1110,10 +1121,19 @@
     }
 </script>
 
-<svelte:window onclick={(e) => { if (reportMoreOpen && reportMoreRoot && !reportMoreRoot.contains(e.target as Node)) reportMoreOpen = false; }} />
+<svelte:window
+  onclick={(e) => {
+    if (reportMoreOpen && reportMoreRoot && !reportMoreRoot.contains(e.target as Node)) reportMoreOpen = false;
+    if (reportDesktopMoreOpen && reportDesktopMoreRoot && !reportDesktopMoreRoot.contains(e.target as Node)) reportDesktopMoreOpen = false;
+  }}
+  onkeydown={(e) => {
+    if (reportMoreOpen && e.key === "Escape") { e.stopPropagation(); reportMoreOpen = false; }
+    if (reportDesktopMoreOpen && e.key === "Escape") { e.stopPropagation(); reportDesktopMoreOpen = false; }
+  }}
+/>
 
 <div class="fn__flex-1 lv-exam-tab" bind:this={tabRoot}>
-  <div class="block__icons">
+  <div class="block__icons lv-report-topbar">
     <button class="lv-menu-btn" aria-label={t("menu.open")} aria-expanded={railOpen} bind:this={menuBtn} onclick={() => railOpen = true}><Icon name="menu" size={16} /></button>
     <div class="lv-crumbs">
       <span class="lv-crumb">{railBankName}</span>
@@ -1144,13 +1164,7 @@
     <button class="lv-btn lv-btn--ghost sm lv-palette-btn" onclick={() => paletteOpen = true} title="Ctrl / ⌘ K" aria-label="打开全局命令面板">
       <Icon name="search" size={13} /> <span class="lv-palette-label">{t("palette.open")}</span> <span class="lv-kbd">⌘K</span>
     </button>
-    <div class="lv-row lv-report-desktop-actions" style="margin:0;gap:6px;align-items:center">
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportBadgeWall} disabled={badgeWallBusy} aria-busy={badgeWallBusy} title={t("report.badgeWallExportTip", "导出个人荣誉勋章墙 Markdown")}>
-        <Icon name="star" size={13} /> 勋章墙
-      </button>
-      <button class="lv-btn sm lv-btn--ghost" onclick={exportReadinessReport} disabled={readinessExportBusy} aria-busy={readinessExportBusy} title={t("report.readinessExportTip", "导出备考完备度体检报告")}>
-        <Icon name="activity" size={13} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
-      </button>
+    <div class="lv-row lv-report-desktop-actions" style="margin:0;gap:6px;align-items:center;flex-wrap:nowrap">
       <!-- 117-01 T11 / 117-02：AI 解读与 AI 下一行动（按当前统计范围；只解释/建议，不重算不虚构） -->
       <button class="lv-btn sm" onclick={() => void runReportExplain()} disabled={!app || loading || reportRefreshing || scopeLoading || explainBusy} aria-busy={explainBusy}>
         <Icon name="sparkles" size={13} /> {explainBusy ? "…" : t("reportExplain.ask")}
@@ -1161,6 +1175,21 @@
       <button class="lv-btn sm lv-btn--primary" onclick={exportFullHtmlReport} disabled={fullHtmlExportBusy} aria-busy={fullHtmlExportBusy} title={t("report.fullReportTip", "一键导出全景学情诊断 HTML 报告（可免网直接打印成 A4 PDF）")}>
         <Icon name="file" size={13} /> {fullHtmlExportBusy ? "导出中…" : t("report.fullHtmlReport")}
       </button>
+      <div class="lv-more" bind:this={reportDesktopMoreRoot}>
+        <button type="button" class="lv-btn sm lv-btn--ghost" aria-haspopup="menu" aria-expanded={reportDesktopMoreOpen} onclick={() => (reportDesktopMoreOpen = !reportDesktopMoreOpen)} title="更多专项报告导出">
+          <Icon name="export" size={13} /> <span>更多导出 ▾</span>
+        </button>
+        {#if reportDesktopMoreOpen}
+          <div class="lv-more-pop" role="menu" tabindex="-1" style="right:0;left:auto">
+            <button role="menuitem" disabled={badgeWallBusy} onclick={() => { reportDesktopMoreOpen = false; exportBadgeWall(); }}>
+              <Icon name="star" size={14} /> 勋章墙
+            </button>
+            <button role="menuitem" disabled={readinessExportBusy} onclick={() => { reportDesktopMoreOpen = false; exportReadinessReport(); }}>
+              <Icon name="activity" size={14} /> {readinessExportBusy ? "…" : t("report.readinessReport")}
+            </button>
+          </div>
+        {/if}
+      </div>
     </div>
     <div class="lv-more lv-report-mobile-more" bind:this={reportMoreRoot}>
       <button type="button" class="lv-btn sm lv-btn--ghost lv-report-more-trigger" aria-haspopup="menu" aria-expanded={reportMoreOpen} aria-label="更多导出与AI诊断" title="更多导出与AI诊断" onclick={() => (reportMoreOpen = !reportMoreOpen)}>
@@ -2202,6 +2231,21 @@
 </div>
 
 <style>
+  .lv-report-topbar { flex-wrap: nowrap !important; overflow: visible; }
+  .lv-report-topbar > .lv-crumbs { flex: 0 1 auto !important; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .lv-report-topbar > .lv-crumbs .lv-crumb { max-width: 140px; }
+  .lv-report-topbar .lv-report-picker-group { flex-wrap: nowrap !important; min-width: 0; }
+  .lv-report-topbar .lv-report-picker-group .lv-select { max-width: 150px !important; }
+  .lv-report-topbar .lv-btn,
+  .lv-report-topbar .lv-chip { white-space: nowrap; flex-shrink: 0; }
+  @container lv-exam (max-width: 1320px) {
+    .lv-report-topbar .lv-scope-hint,
+    .lv-report-topbar .lv-report-data-chip { display: none; }
+  }
+  @container lv-exam (max-width: 960px) {
+    .lv-report-topbar .lv-palette-label,
+    .lv-report-topbar .lv-palette-btn .lv-kbd { display: none; }
+  }
   .lv-pad { padding: var(--lv-space-4) 22px var(--lv-space-9); overflow: auto; }
   .lv-report-tabs { display: flex; box-sizing: border-box; gap: 3px; margin: 10px 0 14px; padding: 3px 4px; border: 1px solid var(--lv-border); border-radius: var(--lv-r-2); background: var(--lv-surface-2); width: fit-content; max-width: 100%; overflow-x: auto; box-shadow: var(--lv-inset-subtle, inset 0 1px 0 transparent); }
   .lv-report-tab { min-height: 36px; padding: 4px 14px; border: 0; border-radius: var(--lv-r-1); color: var(--lv-text-3); background: transparent; font-size: var(--lv-font-size-body-compact); font-weight: 600; white-space: nowrap; cursor: pointer; transition: transform var(--lv-dur-micro) var(--lv-ease-out), background var(--lv-dur-micro) var(--lv-ease-out), border-color var(--lv-dur-micro) var(--lv-ease-out), box-shadow var(--lv-dur-micro) var(--lv-ease-out), color var(--lv-dur-micro) var(--lv-ease-out), opacity var(--lv-dur-micro) var(--lv-ease-out); }

@@ -31,6 +31,7 @@ import {
   registerLaunchpad,
   registerCommands,
   registerProtyleSlash,
+  unregisterProtyleSlash,
 } from "./bootstrap/commandRegistrars";
 import { setupPluginSettings } from "./bootstrap/settingsSetup";
 import { MobileDialogController } from "./bootstrap/mobileDialogController";
@@ -152,6 +153,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike, Plug
     });
     this.disposer.add(async () => { await this.examApp?.flush(); });
     this.disposer.add(async () => { await this.tabApps.clear((instance) => unmount(instance)); });
+    this.disposer.add(() => this.settingUtils?.disposeThemeWatch?.());
     this.disposer.add(() => this.mobileController.forceDestroyMobileDialog());
     this.disposer.add(() => this.cancelTier2Schedule());
     this.disposer.add(() => {
@@ -169,6 +171,7 @@ export default class LvExamPlugin extends Plugin implements ExamPluginLike, Plug
     }
     registerCommands(this);
     registerProtyleSlash(this);
+    this.disposer.add(() => unregisterProtyleSlash(this));
 
     const onBlockIcon = (d: any) => handleBlockIconClick(this, d?.detail);
     const onImgMenu = (d: any) => handleImageMenu(this, d?.detail);

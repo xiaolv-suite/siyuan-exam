@@ -13,7 +13,7 @@ import { newBatchId, newQuestionId } from "./ids";
 import type { Question, QuestionType } from "./types";
 import { makeQuestion, parseIal, questionFromBlock, stripInlineKramdownIal } from "./blockTemplate";
 import { OPTION_LETTERS, questionHash } from "./answer";
-import { lintQuestion, autoFixQuestion, hasBlankPlaceholder } from "./questionLinter";
+import { lintQuestion, autoFixQuestion, hasBlankPlaceholder, stripQuestionNumberPrefix, isBoldSectionHeadingLine } from "./questionLinter";
 import { safeDocTitleFromHPath } from "../libs/lv-notice-kit";
 
 export type DocImportProfile = "all" | "paper" | "notes" | "cloze" | "table";
@@ -67,6 +67,9 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
 
   // 0. 剥离思源导出的 YAML Frontmatter 元数据头（--- title: xxx ---）
   s = s.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/m, "");
+
+  // 0.1 清除思源图片节点附带的零宽空格（\u200b![](assets/...)），避免干扰边界与图像链接
+  s = s.replace(/\u200b(?=!\[)/g, "").replace(/(?<=\))\u200b/g, "");
 
   // 1. 移除思源 IAL 块属性行与行内 IAL（例如 {: id="2026..." updated="2026..."}、表格 {: style="..."}、列表行首 IAL），先保护公式/代码块避免误伤
   s = stripInlineKramdownIal(s).replace(/^[ \t]+$/gm, "");
@@ -124,14 +127,31 @@ export function cleanSiyuanDocMarkdown(raw: string): string {
   s = s.replace(/^\s*(?:Q\d*|【问\d*】)\s*[:：]\s*/gim, "");
   s = s.replace(/^\s*(?:A\d*|【答\d*】)\s*[:：]\s*/gim, "【答案】：");
 
-  // 7.1 概念与术语定义卡：**术语**：定义内容 ➔ 转换为问答结构（保护公式/图片防误匹配）
-  const { masked: maskedTerm, restore: restoreTerm } = maskDocProtectedSpans(s);
-  s = maskedTerm.replace(/^\s*\*\*([^*\n\r]{2,40})\*\*\s*[:：]\s*([^\n\r]{4,})/gm, (_m, term: string, def: string) => {
-    return `\n1. 简述 ${term} 的概念与定义。\n【答案】：${def.trim()}\n`;
-  });
-  s = restoreTerm(s);
-
   return s.trim();
+}
+
+/**
+ * 概念与术语定义卡改写：**术语**：定义内容 ➔ 转换为问答结构
+ * （仅用于非 paper 笔记模式，并保护公式/图片、题号、知识点小节与解法/思路等解题词）
+ */
+function rewriteBoldTermDefinitions(raw: string): string {
+  if (!raw) return "";
+  const { masked: maskedTerm, restore: restoreTerm } = maskDocProtectedSpans(raw);
+  const replaced = maskedTerm.replace(
+    /^\s*\*\*([^*\n\r]{2,40})\*\*\s*[:：]\s*([^\n\r]{4,})/gm,
+    (full, term: string, def: string) => {
+      const cleanTerm = term.trim();
+      if (
+        /^\d+(?:\.(?!\d)|[、)）])|^(?:知识点|考点|类型|专题|思想|模块|例题?|试题|解答|答案|解析|解法[一二三四五六七八九十\d]*|思路|分析|证明|提示|点评|小结|归纳|变式|拓展|注意|易错)/.test(
+          cleanTerm,
+        )
+      ) {
+        return full;
+      }
+      return `\n1. 简述 ${cleanTerm} 的概念与定义。\n【答案】：${def.trim()}\n`;
+    },
+  );
+  return restoreTerm(replaced).trim();
 }
 
 /**
@@ -577,7 +597,11 @@ export function parseBoldSentenceDefinitions(rawText: string, docMeta: SiyuanDoc
 /**
  * 解析单道自然格式题目文本（单选、多选、判断、填空、简答）
  */
-export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta): Question | null {
+export function parseSingleNaturalQuestion(
+  item: string,
+  docMeta: SiyuanDocMeta,
+  opts?: { allowUnansweredShort?: boolean; sectionKp?: string },
+): Question | null {
   const trimmed = stripInlineKramdownIal(item).trim();
   if (trimmed.length < 5) return null;
 
@@ -585,10 +609,11 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
   // 防止括号答案与选项切分正则误伤公式和图片路径
   const { masked, restore } = maskDocProtectedSpans(trimmed);
   let body = masked;
-  // 剥离块首部的文档大标题/章节标题（如 "# 第一章 练习题" 或 "## 一、单项选择题"）
+  // 剥离块首部的文档大标题/章节标题（如 "# 第一章 练习题" 或 "## 一、单项选择题"）或独立粗体小节头
   body = body.replace(/^(?:#{1,6}\s+[^\n\r]+\r?\n+)+/, "").trim();
-  // 剥离题目编号前缀（1. / 1、 / (1) / 【例题1】 / 第1题）
-  body = body.replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】\s*)/, "").trim();
+  const hadQuestionNum = /^(?:#{1,6}\s*)?(?:\*\*\s*)?(?:第\s*\d+\s*题|\d+(?:\.(?!\d)|[、)）])|[（(]\d+[)）]|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】)/.test(body);
+  // 剥离题目编号前缀（兼容 **1.**、**1、**、**(1)**、**1)**、【例1】、1. 等）
+  body = stripQuestionNumberPrefix(body);
 
   let analysis: string | undefined;
   const analysisMatch = body.match(/(?:(?:【解析】|解析\s*[:：]|详解\s*[:：]|【详解】)\s*)([\s\S]+)$/i);
@@ -613,7 +638,10 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
     }
   }
 
-  const optSplitRegex = /(?:^|\s+)(?:[(（]?([A-Ja-j])[)）.]|([A-Ja-j])[.、:：])\s+/g;
+  const hasSpaceAlphaSeq = /(?:^|\n)[A-J]\s+\S+.*\s+[B-J]\s+\S+/m.test(body);
+  const optSplitRegex = hasSpaceAlphaSeq
+    ? /(?:^|\s+)(?:[(（]?([A-Ja-j])[)）.]|([A-Ja-j])[.、:：\s])\s*/g
+    : /(?:^|\s+)(?:[(（]?([A-Ja-j])[)）.]|([A-Ja-j])[.、:：])\s+/g;
   const optPositions: Array<{ letter: string; index: number; fullLen: number }> = [];
   let m: RegExpExecArray | null;
   while ((m = optSplitRegex.exec(body)) !== null) {
@@ -626,6 +654,8 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
       break;
     }
   }
+
+  const resolvedKp = opts?.sectionKp || docMeta.title;
 
   if (optPositions.length >= 2 && optPositions[0].letter === "A" && optPositions[1].letter === "B") {
     const stem = restore(body.slice(0, optPositions[0].index).trim().replace(/[-*+•\s]+$/, "").trim());
@@ -645,7 +675,7 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
         // 严禁在缺答案时静默伪造 "A"：保留缺失态交由质检与校对面板显式补充或拦截入库
         answer: answer || "",
         analysis,
-        kp: docMeta.title,
+        kp: resolvedKp,
         source: docMeta.title,
         ...(answer ? {} : { status: "draft" as const }),
       });
@@ -669,7 +699,7 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
         options: [],
         answer: ans,
         analysis,
-        kp: docMeta.title,
+        kp: resolvedKp,
         source: docMeta.title,
       });
       q.sourceKind = "real";
@@ -680,15 +710,16 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
   const restoredBody = restore(body);
   const isFill = hasBlankPlaceholder(restoredBody);
   const type: QuestionType = isFill ? "fill" : "short";
-  if (isFill || (answer && restoredBody.length < 1500)) {
+  if (isFill || (answer && restoredBody.length < 4000) || ((opts?.allowUnansweredShort || hadQuestionNum) && restoredBody.length >= 6 && restoredBody.length < 4000)) {
     const q = makeQuestion({
       type,
       stem: restoredBody,
       options: [],
-      answer: answer || "待补充",
+      answer: answer || "",
       analysis,
-      kp: docMeta.title,
+      kp: resolvedKp,
       source: docMeta.title,
+      ...(answer ? {} : { status: "draft" as const }),
     });
     q.sourceKind = "real";
     return q;
@@ -697,14 +728,88 @@ export function parseSingleNaturalQuestion(item: string, docMeta: SiyuanDocMeta)
   return null;
 }
 
-export function extractNaturalPaperQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
+interface NaturalPaperChunk {
+  text: string;
+  sectionKp?: string;
+  explicitQuestion: boolean;
+}
+
+function splitNaturalPaperChunks(rawText: string): NaturalPaperChunk[] {
   const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
-  const itemSplitRegex = /\n+(?=(?:#{1,6}\s*)?(?:\d+[.、\s]|[(（]\d+[)）]|第\s*\d+\s*题[:：]?|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】))/g;
-  const rawItems = normalized.split(itemSplitRegex);
+  const lines = normalized.split("\n");
+  const hasMajorDotNumbering = /^\s*(?:#{1,6}\s*)?(?:\*\*\s*)?(?:\d+(?:\.(?!\d)|[、)）])|第\s*\d+\s*题|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】)/m.test(normalized);
+  const qStartRe = hasMajorDotNumbering
+    ? /^(?:#{1,6}\s*)?(?:\*\*\s*(?:[（(]\d+[)）]|\d+(?:\.(?!\d)|[、)）])|第\s*\d+\s*题|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】)\s*\*\*|(?:\*\*\s*)?(?:\d+(?:\.(?!\d)|[、)）])|第\s*\d+\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】))/
+    : /^(?:#{1,6}\s*)?(?:\*\*\s*)?(?:\d+(?:\.(?!\d)|[、)）])|[（(]\d+[)）]|第\s*\d+\s*题[:：]?|【(?:例题?|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】)/;
+
+  const chunks: NaturalPaperChunk[] = [];
+  let currentLines: string[] = [];
+  let currentExplicit = false;
+  let currentKp = "";
+  let inCodeFence = false;
+
+  const flush = () => {
+    const text = currentLines.join("\n").trim();
+    if (text && currentExplicit) {
+      chunks.push({ text, sectionKp: currentKp || undefined, explicitQuestion: true });
+    } else if (text && chunks.length === 0 && !hasMajorDotNumbering) {
+      // 兼容单题无题号粘贴
+      chunks.push({ text, sectionKp: currentKp || undefined, explicitQuestion: false });
+    }
+    currentLines = [];
+    currentExplicit = false;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) {
+      inCodeFence = !inCodeFence;
+      currentLines.push(line);
+      continue;
+    }
+    if (inCodeFence) {
+      currentLines.push(line);
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+    const isBoldSec = !headingMatch && isBoldSectionHeadingLine(trimmed);
+    const isQLine = qStartRe.test(trimmed);
+
+    if ((headingMatch || isBoldSec) && !isQLine) {
+      flush();
+      const label = (headingMatch ? headingMatch[1] : trimmed.replace(/^\*\*|\*\*$/g, "")).trim();
+      if (label && !/^(?:目录|前言|总结|附录|参考资料)$/.test(label)) {
+        currentKp = label;
+      }
+      continue;
+    }
+
+    if (isQLine) {
+      flush();
+      currentLines.push(line);
+      currentExplicit = true;
+      continue;
+    }
+
+    if (currentLines.length > 0 || trimmed) {
+      currentLines.push(line);
+    }
+  }
+  flush();
+
+  return chunks;
+}
+
+export function extractNaturalPaperQuestions(rawText: string, docMeta: SiyuanDocMeta): Question[] {
+  const chunks = splitNaturalPaperChunks(rawText);
   const questions: Question[] = [];
 
-  for (const item of rawItems) {
-    const q = parseSingleNaturalQuestion(item, docMeta);
+  for (const chunk of chunks) {
+    const q = parseSingleNaturalQuestion(chunk.text, docMeta, {
+      allowUnansweredShort: chunk.explicitQuestion,
+      sectionKp: chunk.sectionKp,
+    });
     if (q) questions.push(q);
   }
 
@@ -721,14 +826,16 @@ export async function extractNaturalPaperQuestionsAsync(
   onProgress?: (p: { processed: number; total: number; percent: number }) => void,
   batchSize = 50,
 ): Promise<Question[]> {
-  const normalized = (rawText ?? "").replace(/\r\n/g, "\n");
-  const itemSplitRegex = /\n+(?=(?:#{1,6}\s*)?(?:\d+[.、\s]|[(（]\d+[)）]|第\s*\d+\s*题[:：]?|【(?:例题|试题|单选|多选|判断|填空|简答)?\s*\d+】))/g;
-  const rawItems = normalized.split(itemSplitRegex);
+  const chunks = splitNaturalPaperChunks(rawText);
   const questions: Question[] = [];
-  const total = rawItems.length;
+  const total = chunks.length;
 
   for (let i = 0; i < total; i++) {
-    const q = parseSingleNaturalQuestion(rawItems[i], docMeta);
+    const chunk = chunks[i];
+    const q = parseSingleNaturalQuestion(chunk.text, docMeta, {
+      allowUnansweredShort: chunk.explicitQuestion,
+      sectionKp: chunk.sectionKp,
+    });
     if (q) questions.push(q);
 
     if (onProgress && (i % batchSize === 0 || i === total - 1)) {
@@ -754,7 +861,9 @@ export async function parseQuestionsFromSiyuanDoc(
 ): Promise<ImportReport> {
   // 0. 优先无损提取带 custom-exam-type / exam-type IAL 的 {{{row 题块（覆盖 6 种题型、图片与公式）
   const { questions: rowBlockQuestions, remainingMarkdown } = extractRowBlockQuestions(docMarkdown, docMeta);
-  const cleanedText = cleanSiyuanDocMarkdown(remainingMarkdown);
+  const profile: DocImportProfile = options.profile || "all";
+  const baseCleanedText = cleanSiyuanDocMarkdown(remainingMarkdown);
+  const cleanedText = profile === "paper" ? baseCleanedText : rewriteBoldTermDefinitions(baseCleanedText);
   if (!cleanedText && rowBlockQuestions.length === 0) {
     return {
       batch: newBatchId(),
@@ -764,7 +873,6 @@ export async function parseQuestionsFromSiyuanDoc(
     };
   }
 
-  const profile: DocImportProfile = options.profile || "all";
   const shouldRunPaper = profile === "all" || profile === "paper";
   const shouldRunNotes = profile === "all" || profile === "notes";
   const shouldRunCloze = profile === "all" || profile === "cloze" || profile === "notes";
@@ -879,11 +987,11 @@ export async function parseQuestionsFromSiyuanDoc(
     }
   }
 
-  // 题干归一化排重（消除不同提取策略间的重叠题目；保留图片路径与公式差异防误并）
+  // 题干归一化排重（消除不同提取策略间的重叠题目；保留图片路径与公式差异防误并，并在同题冲突时优先保留信息更完整/题型更精准的一份）
   const norm = (stem: string) => {
-    const { masked: mStem, restore: rStem } = maskDocProtectedSpans((stem ?? "").trim());
+    const strippedNum = stripQuestionNumberPrefix((stem ?? "").trim());
+    const { masked: mStem, restore: rStem } = maskDocProtectedSpans(strippedNum);
     const stripped = mStem
-      .replace(/^(?:#{1,6}\s*)?(?:\d+[.、\s]+|[(（]\d+[)）]\s*|第\s*\d+\s*题[:：]?\s*|【(?:例题|试题|单选|多选|判断|填空|简答|材料)?\s*\d+】\s*)/, "")
       .replace(/^(?:简述【|请阐述【|【概念辨析】|【正向考查】|【逆向回忆】)([^】]+)【的概念与核心定义。?/, "$1")
       .replace(/[（([【]\s*[A-Za-z0-9√×对错vVxX正确错误\s]*[)）\]】]/g, "");
     return rStem(stripped)
@@ -891,34 +999,30 @@ export async function parseQuestionsFromSiyuanDoc(
       .toLowerCase();
   };
 
-  const seenStems = new Set<string>();
+  const richnessScore = (q: Question) => {
+    const imgs = (q.stem.match(/!\[[^\]]*\]\([^)]+\)/g) || []).length;
+    const tbls = (q.stem.match(/\|[^\n]+\|/g) || []).length;
+    const typeScore = q.type === "single" || q.type === "multiple" || q.type === "judge" ? 30 : q.type === "fill" ? 20 : 10;
+    return typeScore + q.options.length * 10 + imgs * 20 + tbls * 2 + (q.answer ? 5 : 0);
+  };
+
   const deduplicated: Question[] = [];
+  const seenEntries: Array<{ norm: string; idx: number }> = [];
 
   for (const q of allCandidates) {
     const n = norm(q.stem);
     if (!n) continue;
-    let duplicate = false;
-    for (const s of seenStems) {
-      if (s === n || (s.length >= 6 && n.length >= 6 && (s.includes(n) || n.includes(s)))) {
-        duplicate = true;
-        break;
-      }
-    }
-    if (!duplicate) {
-      seenStems.add(n);
+    const matched = seenEntries.find(
+      (e) => e.norm === n || (e.norm.length >= 6 && n.length >= 6 && (e.norm.includes(n) || n.includes(e.norm))),
+    );
+    if (!matched) {
+      seenEntries.push({ norm: n, idx: deduplicated.length });
       deduplicated.push(q);
+    } else if (richnessScore(q) > richnessScore(deduplicated[matched.idx])) {
+      deduplicated[matched.idx] = q;
+      if (n.length > matched.norm.length) matched.norm = n;
     }
   }
-
-  // 按在原文中的先后出现位置自然排序
-  deduplicated.sort((a, b) => {
-    const na = norm(a.stem).slice(0, 10);
-    const nb = norm(b.stem).slice(0, 10);
-    const ia = na ? cleanedText.indexOf(na) : -1;
-    const ib = nb ? cleanedText.indexOf(nb) : -1;
-    if (ia !== -1 && ib !== -1) return ia - ib;
-    return 0;
-  });
 
   // 如果文档内确实没有任何可提取的题目，归一化错误信息，引导一键 AI 提炼
   if (deduplicated.length === 0) {

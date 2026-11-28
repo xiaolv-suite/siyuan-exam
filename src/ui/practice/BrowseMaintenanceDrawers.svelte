@@ -196,6 +196,20 @@
   let errataFileInput: HTMLInputElement | null = $state(null);
 </script>
 
+{#snippet renderSectionHeading(h: any)}
+  <div class="lv-row" style="margin:2px 0 0;padding-left:{Math.max(0, (h.level ?? 1) - 1) * 14}px">
+    <button class="lv-btn sm lv-btn--ghost" class:acc-btn={sectionSel?.kind === "heading" && sectionSel.hpath === h.hpath}
+      onclick={() => { sectionSel = { kind: "heading", id: h.id, hpath: h.hpath }; }}>
+      {"#".repeat(Math.min(6, Math.max(1, h.level ?? 1)))} {h.text}
+    </button>
+  </div>
+  {#if h.children?.length}
+    {#each h.children as child, _chi (child.id || _chi)}
+      {@render renderSectionHeading(child)}
+    {/each}
+  {/if}
+{/snippet}
+
 {#if sectionOpen}
   <div class="lv-card lv-pad-card" style="padding: var(--lv-space-3) var(--lv-space-4);max-height:260px;overflow:auto">
     <div class="lv-row" style="justify-content:space-between;align-items:center;margin:0 0 6px">
@@ -234,13 +248,8 @@
           <Icon name="file" size={13} /> {doc.title || doc.hpath}
         </button>
       </div>
-      {#each doc.children as h, _hi (_hi)}
-        <div class="lv-row" style="margin:2px 0 0;padding-left:{(h.level - 1) * 14}px">
-          <button class="lv-btn sm lv-btn--ghost" class:acc-btn={sectionSel?.kind === "heading" && sectionSel.hpath === h.hpath}
-            onclick={() => { sectionSel = { kind: "heading", id: h.id, hpath: h.hpath }; }}>
-            {"#".repeat(Math.min(6, h.level))} {h.text}
-          </button>
-        </div>
+      {#each doc.children as h, _hi (h.id || _hi)}
+        {@render renderSectionHeading(h)}
       {/each}
     {/each}
   </div>

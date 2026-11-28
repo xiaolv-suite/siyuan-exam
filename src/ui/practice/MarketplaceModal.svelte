@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import Icon from "../shared/Icon.svelte";
   import {
@@ -54,27 +55,39 @@
   let newSourceUrl = $state("");
   let loadingCatalog = $state(false);
   let catalogError = $state<string | null>(null);
+  let wasOpen = false;
+  let catalogRequestSeq = 0;
 
   $effect(() => {
-    if (open) {
-      customSources = loadMarketplaceSources(readLocal);
-      void refreshCatalog(currentSourceUrl);
+    if (open && !wasOpen) {
+      wasOpen = true;
+      untrack(() => {
+        customSources = loadMarketplaceSources(readLocal);
+        void refreshCatalog(currentSourceUrl);
+      });
+    } else if (!open && wasOpen) {
+      wasOpen = false;
     }
   });
 
   async function refreshCatalog(url: string) {
+    const reqId = ++catalogRequestSeq;
     loadingCatalog = true;
     catalogError = null;
     try {
       const res = await fetchMarketplaceCatalog(url);
+      if (reqId !== catalogRequestSeq) return;
       catalog = res.catalog;
       if (res.error) {
         catalogError = res.error;
       }
     } catch (e) {
+      if (reqId !== catalogRequestSeq) return;
       catalogError = String(e instanceof Error ? e.message : e);
     } finally {
-      loadingCatalog = false;
+      if (reqId === catalogRequestSeq) {
+        loadingCatalog = false;
+      }
     }
   }
 
@@ -248,7 +261,7 @@
             class:acc={currentSourceUrl === "official"}
             onclick={() => { currentSourceUrl = "official"; void refreshCatalog("official"); }}
           >
-            🌐 官方精选公版源
+            内置精选（离线立即可用）
           </button>
           {#if customSources.length > 0}
             <select
@@ -257,9 +270,9 @@
               bind:value={currentSourceUrl}
               onchange={(e) => void refreshCatalog((e.target as HTMLSelectElement).value)}
             >
-              <option value="official">官方精选公版源</option>
+              <option value="official">内置精选（离线立即可用）</option>
               {#each customSources as cs (cs.id)}
-                <option value={cs.url}>{cs.name}</option>
+                <option value={cs.url}>网络订阅：{cs.name}（需联网）</option>
               {/each}
             </select>
           {/if}
@@ -310,6 +323,9 @@
                 <div class="lv-row" style="justify-content:space-between;align-items:flex-start;margin:0 0 6px">
                   <span class="lv-chip sm lv-chip--acc" style="font-weight:600;font-size:10px">
                     {item.kind === "both" ? "题卡两用" : item.kind === "exam_bank" ? "试题库" : "记忆卡"}
+                  </span>
+                  <span class="lv-chip sm" style="font-size:10px">
+                    {item.downloadUrl.startsWith("embedded:") ? "内置离线可用" : "需联网拉取"}
                   </span>
                   <span class="lv-muted num" style="font-size:11px;font-weight:600">
                     {item.itemCount} 题/卡

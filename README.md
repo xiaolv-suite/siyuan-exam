@@ -8,9 +8,9 @@
 
 笔记即题库 · 独立主动回忆 · 受助不冒充掌握 · 全真模考与 A4 双栏印卷 · FSRS 闪卡联动
 
-**当前版本：v0.15.7** ｜ [English Documentation](README.en-US.md) ｜ [更新日志](CHANGELOG.md)
+**当前版本：v0.15.8** ｜ [English Documentation](README.en-US.md) ｜ [更新日志](CHANGELOG.md)
 
-[![Release](https://img.shields.io/badge/release-v0.15.7-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
+[![Release](https://img.shields.io/badge/release-v0.15.8-blue.svg)](https://github.com/xiaolv-suite/siyuan-exam/releases)
 [![思源笔记](https://img.shields.io/badge/思源笔记-%3E%3D%203.8.4-brightgreen.svg)](https://b3log.org/siyuan)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -24,18 +24,16 @@
 
 ---
 
-## 🚀 本次更新要点（v0.15.7 · 2026-11-26 里程碑正式版）
+## 🚀 本次更新要点（v0.15.8 · 2026-11-27 稳定优化版）
 
-- **默认打开直达「今日」主页与双续做卡**：通过小驴罗盘主磁贴、顶栏图标、命令面板或刷新重开页签打开练习台时，始终稳健停留在「今日」主页面；若存在未完成的练习或背诵会话，在主页清晰展示续做/放弃卡片由用户主动触发，不再擅自直进做题界面；
-- **全链路 AI / OCR 设计态等待与真取消**：将 `/api/asset/ocr` 与 `/api/asset/upload` 纳入非阻塞传输，彻底清除图片右键、手工录题与整卷 OCR 触发的思源原生全屏 `Requesting...` 遮罩；苏格拉底导学、渐进提示、AI 出题、考点变式衍生、错因分析与报告解读/建议全面升级为 `.lv-ai-thinking` 动态等待卡，并贯通全链路 `AbortSignal` 真取消；
-- **三大共享中枢与四级折叠小驴日记区**：深度融合小驴罗盘、全生态 AI 路由、块助手 1–8 原生底座与自定义双击触发、活动流及联合灾备；每日练题战报与复盘记录全面接入思源默认日记探测与四级折叠区（`#### 🐴 小驴记录`），自动排除 `hpath` 冲突副本；
-- **零 `:has()` / 零高模糊 60fps 极速性能**：编译产物实现零 `:has()` 选择器与低耗能动效（0 `blur(>=15px)`），修复变式题弹窗题型标签、错题冲刺按钮折行、模考列表术语及手工录题提示重复等问题，深浅主题与 `390×844` 移动端零溢出；
-- **启动减负与运行时按需执行**：启动关键路径收敛至 1 项核心设置槽并移除闭库遍历循环，业务页签组件与表格解析器按需动态执行；
-- **设置页官方齿轮直达与微胶囊设计令牌**：实现 `openSetting()` 接口支持插件管理列表齿轮直达设置，分组徽章采用现代微胶囊风格。
+- **全页题库管理与 13→6 导航瘦身**：推出全新全页题库管理工作台，主导航精简收敛为 6 项核心模块并清晰界定功能边界；
+- **移动端模考修复与走查盲区清零**：修复 `390×844` 移动端模考白屏与自适应布局；修复苏格拉底 Esc/Enter 交互、题库菜单裁切、移动端返回与图标细节；完善 `pinAttributes` 持久化、录题失败草稿保留与错题本筛选重置；
+- **全生态底座合龙与 UI 专项清零**：完成 `ui-checker` P0/P1 视觉细节打磨，同步最新 `lv-kit` 零 Protyle DOM 残留治理与 Batch 1 A1–A4 规范，严守零 `:has()` 与 60fps 渲染。
 
 <details>
-<summary>展开查看历史版本更新记录（v0.15.6 及更早版本 · 完整记录见 CHANGELOG.md）</summary>
+<summary>展开查看历史版本更新记录（v0.15.7 及更早版本 · 完整记录见 CHANGELOG.md）</summary>
 
+- **v0.15.7**：全生态大重构里程碑正式版，默认落「今日」主页、全链路 `.lv-ai-thinking` 等待卡、`#### 🐴 小驴记录` 四级折叠日记区、Zero-Touch 块助手与 60fps 优化。
 - **v0.15.6**：主页默认落地与双续做卡、全链路 AI/OCR `.lv-ai-thinking` 等待卡、四级折叠日记区与启动减负。
 
 - **v0.15.5**：设置页官方齿轮直达、战报日记防冲突落盘强化、设置分组微胶囊设计令牌升级、公共定时器待机降负。

@@ -11,6 +11,10 @@
     summarizeEliminationLadder,
   } from "../../core/eliminationLadder";
   import VariantDrillModal from "./VariantDrillModal.svelte";
+  import {
+    createDefaultWrongbookFilterState,
+    hasActiveWrongbookFilters,
+  } from "./services/wrongbookDispositionService";
 
   interface Props {
     wrongList: any[];
@@ -81,6 +85,7 @@
     ontracebackBlock?: (blockId: string, rootId?: string) => void;
     ondiagnosePrereqs?: (q: Question) => void;
     oneditReflection?: (qid: string) => void;
+    onvariantPromoted?: (res: { seedQid: string; nextStage: string; streak: number; isMastered: boolean }) => void;
     reflections?: Record<string, { text: string; at: number }>;
     lastSavedWrongbookDoc?: { docId: string; title: string } | null;
   }
@@ -150,6 +155,7 @@
     ontracebackBlock,
     ondiagnosePrereqs,
     oneditReflection,
+    onvariantPromoted,
     reflections = {},
     lastSavedWrongbookDoc = null,
     activeBankId = "",
@@ -165,6 +171,24 @@
     cbmHighrisk.length > 0 ||
     cbmFragile.length > 0,
   );
+  const hasActiveWbFilters = $derived(
+    hasActiveWrongbookFilters({
+      reasonFilter: wbReasonFilter,
+      filterStubborn: wbFilterStubborn,
+      kpFilter: wbKpFilter,
+      tagFilter: wbTagFilter,
+      docFilter: wbDocFilter,
+    }),
+  );
+
+  function clearAllWbFilters() {
+    const defaults = createDefaultWrongbookFilterState();
+    wbReasonFilter = defaults.reasonFilter;
+    wbFilterStubborn = defaults.filterStubborn;
+    wbKpFilter = defaults.kpFilter;
+    wbTagFilter = defaults.tagFilter;
+    wbDocFilter = defaults.docFilter;
+  }
 
   // 错题消除阶梯统计
   const ladderSummary = $derived.by(() => {
@@ -488,6 +512,17 @@
                   {/each}
                 </select>
               {/if}
+              {#if hasActiveWbFilters}
+                <button
+                  type="button"
+                  class="lv-btn sm lv-btn--ghost"
+                  onclick={clearAllWbFilters}
+                  title="清空错因、顽固、考点、标签与来源文档全部筛选条件"
+                  aria-label="清空筛选"
+                >
+                  <Icon name="rotate" size={12} /> 清空筛选
+                </button>
+              {/if}
               <div class="lv-row" style="margin:0 0 0 auto;gap:6px;align-items:center">
                 <span class="lv-muted" style="font-size:11px">排序:</span>
                 <select
@@ -629,8 +664,23 @@
                 </div>
               </div>
             {:else}
-              <div class="lv-muted" style="padding:16px 0;text-align:center">
-                {wrongList.length === 0 ? "当前在册错题已全部清零！可切换上方分栏查看脆弱伪掌握、高危盲区、已消灭或已归档题目。" : t("wrongbook.noFiltered")}
+              <div class="lv-empty" style="margin:8px 0;padding:28px 16px" role="status">
+                <div class="lv-empty-icon">
+                  <Icon name={wrongList.length === 0 ? "check" : "search"} size={22} />
+                </div>
+                <b>{wrongList.length === 0 ? "当前在册错题已全部清零" : "当前筛选条件下暂无错题"}</b>
+                <p class="lv-muted" style="margin-bottom:0">
+                  {wrongList.length === 0
+                    ? "可切换上方分栏查看脆弱伪掌握、高危盲区、已消灭或已归档题目。"
+                    : t("wrongbook.noFiltered")}
+                </p>
+                {#if hasActiveWbFilters}
+                  <div class="lv-row" style="justify-content:center;margin-top:14px">
+                    <button type="button" class="lv-btn lv-btn--primary sm" onclick={clearAllWbFilters} aria-label="清空筛选">
+                      <Icon name="rotate" size={13} /> 清空筛选
+                    </button>
+                  </div>
+                {/if}
               </div>
             {/each}
             {#if wbQueueHasMore}
@@ -1056,6 +1106,7 @@
     {app}
     onclose={() => (variantModalOpen = false)}
     onpromoted={(res) => {
+      onvariantPromoted?.(res);
       showExamNotice(
         res.isMastered
           ? `🏆 变式连续攻坚通过！该错题已晋级【🟢 已掌握】，正式出库！`

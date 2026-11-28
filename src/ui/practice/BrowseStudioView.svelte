@@ -166,6 +166,7 @@
     onsaveCurrentView: () => void;
     onloadSmartViews: () => void;
     onbackToEntry: () => void;
+    onbackToBanks?: () => void;
     onstartFilteredFocusDrill: () => void;
     ontoggleSectionTree: () => void;
     ontoggleBatchMode: () => void;
@@ -406,6 +407,7 @@
     onsaveCurrentView,
     onloadSmartViews,
     onbackToEntry,
+    onbackToBanks,
     onstartFilteredFocusDrill,
     ontoggleSectionTree,
     ontoggleBatchMode,
@@ -522,7 +524,19 @@
 
 <div class="lv-pad">
   <div class="lv-screen-head">
-    <span class="lv-eyebrow">{t("head.browse.eyebrow")}</span>
+    <div class="lv-row" style="margin:0 0 6px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="lv-row" style="margin:0;gap:8px;align-items:center;flex-wrap:wrap">
+        {#if onbackToBanks}
+          <button type="button" class="lv-btn sm lv-btn--ghost" onclick={onbackToBanks} title="返回题库管理中心">
+            <Icon name="chev-left" size={13} /> <span>返回题库管理</span>
+          </button>
+        {/if}
+        <span class="lv-eyebrow" style="margin:0">{t("head.browse.eyebrow")}</span>
+        {#if bankName}
+          <span class="lv-chip sm lv-chip--acc">{bankName}</span>
+        {/if}
+      </div>
+    </div>
     <h1 class="lv-h1">{t("head.browse.title")}</h1>
     <p>{t("head.browse.desc")}</p>
   </div>
@@ -652,17 +666,23 @@
     </div>
   {/if}
   <div class="lv-row lv-browse-action-row" style="margin:0 0 10px;gap:var(--lv-space-2) 8px">
-    <button class="lv-btn lv-btn--ghost lv-mobile-back lv-browse-back-btn" onclick={onbackToEntry} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
+    {#if onbackToBanks}
+      <button type="button" class="lv-btn sm lv-btn--ghost lv-mobile-back lv-browse-back-btn" onclick={onbackToBanks} title="返回题库管理中心" style="display:inline-flex;align-items:center;gap:4px">
+        <Icon name="chev-left" size={13} /> <span>返回题库管理</span>
+      </button>
+    {:else}
+      <button class="lv-btn lv-btn--ghost lv-mobile-back lv-browse-back-btn" onclick={onbackToEntry} style="display:inline-flex;align-items:center;gap:4px"><Icon name="chev-left" size={13} /> {t("mode.practice")}</button>
+    {/if}
     <span class="lv-chip lv-chip--data num">{shownQuestions.length}/{questions.length} {t("browse.count")}</span>
     {#if shownQuestions.length > 0}
       <button class="lv-btn sm lv-btn--primary" onclick={onstartFilteredFocusDrill} title="将当前筛选出的这批题目直接发起专注特训">
         <Icon name="play" size={13} /> {t("browse.drillFiltered").replace("{n}", String(shownQuestions.length))}
       </button>
-      <button class="lv-btn sm lv-btn--ghost lv-browse-desktop-only" onclick={() => (presentationOpen = true)} title="进入试卷大屏放映模式，支持投屏演示与键盘翻页">
+      <button class="lv-btn sm lv-browse-desktop-only" onclick={() => (presentationOpen = true)} title="进入试卷大屏放映模式，支持投屏演示与键盘翻页">
         <Icon name="monitor" size={13} /> 投屏放映
       </button>
-      <button class="lv-btn sm lv-btn--ghost lv-browse-desktop-only" onclick={() => openAssembleStudio()} title="进入专业组卷排版工坊，自定义 A4 双栏/单栏、卷面大标题、密封线与答题留白并直接打印">
-        <Icon name="printer" size={13} /> 🖨️ 组卷排版打印
+      <button class="lv-btn sm lv-browse-desktop-only" onclick={() => openAssembleStudio()} title="进入专业组卷排版工坊，自定义 A4 双栏/单栏、卷面大标题、密封线与答题留白并直接打印">
+        <Icon name="printer" size={13} /> 组卷排版打印
       </button>
     {/if}
     <button class="lv-chip" class:acc={sectionOpen} aria-pressed={sectionOpen} onclick={ontoggleSectionTree}><Icon name="file-text" size={13} /> {t("browse.sectionTree")}</button>
@@ -1045,8 +1065,7 @@
       gap: 6px !important;
     }
     .lv-browse-desktop-selects,
-    .lv-browse-desktop-only,
-    .lv-browse-back-btn {
+    .lv-browse-desktop-only {
       display: none !important;
     }
     .lv-browse-filter-toggle {

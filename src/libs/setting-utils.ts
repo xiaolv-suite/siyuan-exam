@@ -9,6 +9,7 @@
 
 import { Plugin, Setting } from "siyuan";
 import { ensureLegacyAiKeyMigratedForSave } from "../ai/secrets";
+import { watchSiYuanTheme } from "./lv-theme";
 
 /**
  * The default function to get the value of the element
@@ -85,6 +86,8 @@ export class SettingUtils {
 
   settings: Map<string, ISettingUtilsItem> = new Map();
   elements: Map<string, HTMLElement> = new Map();
+  private markedDialogEl: HTMLElement | null = null;
+  private themeUnwatch: (() => void) | null = null;
 
   /** Validate settings at the boundary so malformed legacy values cannot
    * reach scheduling, date arithmetic or API requests. */
@@ -200,6 +203,7 @@ export class SettingUtils {
         args.callback?.(data);
       },
       destroyCallback: () => {
+        this.disposeThemeWatch();
         //Restore the original value
         for (const key of this.settings.keys()) {
           this.updateElementFromValue(key);
@@ -208,13 +212,26 @@ export class SettingUtils {
     });
   }
 
-  /** 为思源原生 Setting 弹窗根节点显式挂载作用域类，免除 CSS 父选择器查找 */
+  disposeThemeWatch(): void {
+    if (this.themeUnwatch) {
+      this.themeUnwatch();
+      this.themeUnwatch = null;
+    }
+    this.markedDialogEl = null;
+  }
+
+  /** 为思源原生 Setting 弹窗根节点显式挂载作用域类并绑定主题监听，免除 CSS 父选择器查找 */
   markSettingDialogHost(hintElement?: HTMLElement): void {
     const tryMark = (el: unknown): boolean => {
       if (!(el instanceof HTMLElement)) return false;
       const dialogEl = el.closest?.(".b3-dialog");
       if (dialogEl instanceof HTMLElement) {
         dialogEl.classList.add("lv-exam-dialog-host", "lv-exam-setting-dialog");
+        if (this.markedDialogEl !== dialogEl) {
+          this.themeUnwatch?.();
+          this.markedDialogEl = dialogEl;
+          this.themeUnwatch = watchSiYuanTheme(dialogEl);
+        }
         return true;
       }
       return false;

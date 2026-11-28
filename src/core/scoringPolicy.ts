@@ -72,16 +72,16 @@ export function calculateItemScore(
   const { scoreEach, verdict, factor, type } = input;
   if (verdict === "not_attempted") return 0;
 
-  if (verdict === "correct") {
-    return scoreEach;
-  }
-
   // 主观题考后采分自评（ECO-02 / TODO-09）：主观简答题按考生自评 factor 比例给分（0% 自评得 0 分，不走倒扣分）
   if (type === "short") {
-    if (typeof factor === "number" && factor > 0) {
-      return Math.round(scoreEach * Math.min(1, factor) * 100) / 100;
+    if (typeof factor === "number") {
+      return factor > 0 ? Math.round(scoreEach * Math.min(1, factor) * 100) / 100 : 0;
     }
-    return 0;
+    return verdict === "correct" ? scoreEach : 0;
+  }
+
+  if (verdict === "correct") {
+    return scoreEach;
   }
 
   // 答错情况判定

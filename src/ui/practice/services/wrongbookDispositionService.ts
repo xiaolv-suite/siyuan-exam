@@ -185,3 +185,38 @@ export function filterAndSortWrongQueue<T extends { qid: string; wrongCount?: nu
   return list;
 }
 
+export interface WrongbookFilterState {
+  reasonFilter: "all" | "careless" | "unknown" | "trap";
+  filterStubborn: boolean;
+  kpFilter: string;
+  tagFilter: string;
+  docFilter: string;
+}
+
+/**
+ * 判断错题本多维筛选是否处于激活状态（覆盖错因、顽固、考点、标签、来源文档全部 5 维条件）
+ */
+export function hasActiveWrongbookFilters(state: Partial<WrongbookFilterState>): boolean {
+  return (
+    (state.reasonFilter != null && state.reasonFilter !== "all") ||
+    Boolean(state.filterStubborn) ||
+    Boolean(state.kpFilter) ||
+    Boolean(state.tagFilter) ||
+    Boolean(state.docFilter)
+  );
+}
+
+/**
+ * 返回错题本 5 维筛选条件的默认重置值
+ */
+export function createDefaultWrongbookFilterState(): WrongbookFilterState {
+  return {
+    reasonFilter: "all",
+    filterStubborn: false,
+    kpFilter: "",
+    tagFilter: "",
+    docFilter: "",
+  };
+}
+
+

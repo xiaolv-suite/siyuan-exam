@@ -6,6 +6,7 @@
 
 import { parseOcrTextToForm } from "./manualStudioService";
 import type { ManualDraftType } from "./smartViewManagementService";
+import { recognizeImageBlobWithFallback } from "./pdfOcrService";
 
 export interface OcrFormResult {
   type: ManualDraftType;
@@ -46,35 +47,43 @@ export function parseOcrFormResult(ocrInputText: string): OcrFormResult | null {
   };
 }
 
-/** 执行图片上传与 OCR 试题解析 */
+/** 执行图片上传与 OCR 试题解析（复用已上传 assetPath 避免重复传图，并在思源 OCR 不可用时降级到用户配置的 Umi-OCR） */
 export async function processOcrImageUpload(
   app: any,
   file: File | Blob,
   t: (k: string) => string,
   signal?: AbortSignal,
+  options?: { assetPath?: string; ocrEndpoint?: string },
 ): Promise<OcrProcessResult> {
   if (!app || !file) {
     return { success: false, message: "参数错误", isError: true };
   }
 
-  try {
-    const fileName = (file as File).name || "pasted-question.png";
-    const q = signal
-      ? await app.uploadAndOcrQuestion(file, fileName, { signal })
-      : await app.uploadAndOcrQuestion(file, fileName);
+  const fileName = (file as File).name || "pasted-question.png";
+  const normalizeQuestionToForm = (q: any): OcrFormResult => ({
+    type: toManualDraftType(q.type),
+    stem: q.stem || "",
+    options: Array.isArray(q.options) && q.options.length >= 2 ? q.options : ["", ""],
+    answer: q.answer || "",
+    analysis: q.analysis || "",
+    kp: q.kp || "",
+  });
 
-    const form: OcrFormResult = {
-      type: toManualDraftType(q.type),
-      stem: q.stem || "",
-      options: Array.isArray(q.options) && q.options.length >= 2 ? q.options : ["", ""],
-      answer: q.answer || "",
-      analysis: q.analysis || "",
-      kp: q.kp || "",
-    };
+  try {
+    let q: any;
+    if (options?.assetPath && typeof app.ocrAndParseQuestion === "function") {
+      q = signal
+        ? await app.ocrAndParseQuestion(options.assetPath, { signal })
+        : await app.ocrAndParseQuestion(options.assetPath);
+    } else {
+      q = signal
+        ? await app.uploadAndOcrQuestion(file, fileName, { signal })
+        : await app.uploadAndOcrQuestion(file, fileName);
+    }
 
     return {
       success: true,
-      form,
+      form: normalizeQuestionToForm(q),
       message: t("manual.ocrDone"),
       isError: false,
     };
@@ -88,10 +97,86 @@ export async function processOcrImageUpload(
         cancelled: true,
       };
     }
+
+    const ocrEndpoint = String(options?.ocrEndpoint ?? "").trim();
+    if (ocrEndpoint) {
+      try {
+        const umiRes = await recognizeImageBlobWithFallback(app, file, {
+          fileName,
+          umiOcrEndpoint: ocrEndpoint,
+          signal,
+          skipSiyuanOcr: true,
+        });
+        if (umiRes.text.trim()) {
+          if (typeof app.parseOcrTextToQuestion === "function") {
+            const q = await app.parseOcrTextToQuestion(umiRes.text, {
+              fallbackSource: options?.assetPath || fileName,
+            });
+            return {
+              success: true,
+              form: normalizeQuestionToForm(q),
+              message: t("manual.ocrDone"),
+              isError: false,
+            };
+          }
+          const parsedForm = parseOcrFormResult(umiRes.text);
+          if (parsedForm) {
+            return {
+              success: true,
+              form: parsedForm,
+              message: t("manual.ocrDone"),
+              isError: false,
+            };
+          }
+        }
+      } catch (umiErr) {
+        if (signal?.aborted || (umiErr instanceof Error && umiErr.name === "AbortError")) {
+          return {
+            success: false,
+            message: "已取消图片 OCR 识别",
+            isError: false,
+            cancelled: true,
+          };
+        }
+      }
+    }
+
     return {
       success: false,
       message: `图片 OCR 识别失败：${errText}`,
       isError: true,
+    };
+  }
+}
+
+/** 上传图片资产并返回可直接嵌入题干/选项/解析的 Markdown 配图语法 */
+export async function uploadManualAssetImage(
+  app: any,
+  file: File | Blob,
+): Promise<{ success: boolean; assetPath?: string; markdown?: string; message: string }> {
+  if (!app || !file) {
+    return { success: false, message: "参数错误，无法上传配图" };
+  }
+  if (!app.kernelOnline || typeof app?.bridge?.uploadAsset !== "function") {
+    return { success: false, message: "思源内核未连接，暂无法上传配图资产" };
+  }
+  try {
+    const ext = (file.type && file.type.split("/")[1]?.replace("jpeg", "jpg")) || "png";
+    const fileName = (file as File).name && (file as File).name !== "image.png"
+      ? (file as File).name
+      : `manual-fig-${Date.now()}.${ext}`;
+    const assetPath = await app.bridge.uploadAsset(file, fileName);
+    const markdown = `![配图](${assetPath})`;
+    return {
+      success: true,
+      assetPath,
+      markdown,
+      message: `已直接插入配图 ${assetPath}`,
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: `配图上传失败：${String(e instanceof Error ? e.message : e)}`,
     };
   }
 }

@@ -10,6 +10,7 @@
   import { generateVariantQuestion } from "@/ai/variantService";
   import { ensureAiEndpointConsent, createBrowserConsentStorage } from "./services/aiStudioService";
   import { confirmDialogSync } from "@/libs/dialog";
+  import { emitExamEvent } from "@/core/bus";
   import { grade } from "@/core/answer";
   import {
     getEliminationStage,
@@ -84,6 +85,15 @@
   });
 
   const stageConfig = $derived(ELIMINATION_STAGES[currentStage]);
+  const stageChipStyle = $derived.by(() => {
+    if (currentStage === "mastered") {
+      return "background:var(--lv-green-soft);color:var(--lv-green-deep);font-weight:600";
+    }
+    if (currentStage === "strengthening") {
+      return "background:var(--lv-amber-soft);color:var(--lv-amber-deep);font-weight:600";
+    }
+    return "background:var(--lv-red-soft);color:var(--lv-red-deep);font-weight:600";
+  });
 
   const ladderProgress = $derived.by(() => {
     if (!wrongItem) return { streakCorrect: 0, threshold: eliminateThreshold, progressPct: 0, remainingToMaster: eliminateThreshold };
@@ -183,6 +193,10 @@
             isMastered,
           });
         }
+        emitExamEvent("wrongbook-changed", {
+          qid: seed.id,
+          status: isMastered ? "eliminated" : "active",
+        });
       } else {
         promotionNotice = t("variant.promotedReset", "⚠️ 变式测验失分！打破虚假自信，阶梯连对重置回【🔴 待攻克】(0/{threshold})，请深读下方变式解析！", {threshold: eliminateThreshold});
         if (onpromoted) {
@@ -193,6 +207,10 @@
             isMastered: false,
           });
         }
+        emitExamEvent("wrongbook-changed", {
+          qid: seed.id,
+          status: "active",
+        });
       }
     }
   }
@@ -223,7 +241,7 @@
         <div class="lv-row" style="margin:0;gap:8px;align-items:center">
           <span class="lv-variant-title-icon"><Icon name="zap" size={15} /></span>
           <span id="lv-variant-title" class="lv-variant-title">{t("variant.title", "AI 考点变式衍生题机")}</span>
-          <span class="lv-chip" style="background:{stageConfig.color}22;color:{stageConfig.color};font-weight:600">
+          <span class="lv-chip" style={stageChipStyle}>
             {stageConfig.badge} (连对 {ladderProgress.streakCorrect}/{ladderProgress.threshold})
           </span>
         </div>

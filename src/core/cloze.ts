@@ -39,15 +39,30 @@ export function parseSingleClozeSentence(
   const modes = opts?.modes ?? ["highlight", "curly"];
   const answers: string[] = [];
 
-  // 1. 匹配替换逻辑
+  // 1. 统一在入口保护代码块、LaTeX 公式（$$...$$ / \[...\] / $...$ / \(...\)）与 Markdown 图片，
+  // 供 curly / highlight / bracket 全模式共享，防止误切 $\frac{1}{{2}}$、代码 == 等结构
+  const spans: string[] = [];
+  const tokenOf = (raw: string) => {
+    const idx = spans.length;
+    spans.push(raw);
+    return `@@CLOZEMASK_${idx}@@`;
+  };
+  let masked = text;
+  masked = masked.replace(/```[\s\S]*?```/g, tokenOf);
+  masked = masked.replace(/`[^`\n\r]+?`/g, tokenOf);
+  masked = masked.replace(/\$\$[\s\S]*?\$\$/g, tokenOf);
+  masked = masked.replace(/\\\[[\s\S]*?\\\]/g, tokenOf);
+  masked = masked.replace(/!\[[^\]]*\]\([^)]*\)/g, tokenOf);
+  masked = masked.replace(/(?<!\\)\$[^$\n\r]+?\$/g, tokenOf);
+  masked = masked.replace(/\\\([^\n\r]+?\\\)/g, tokenOf);
+
+  // 2. 匹配替换逻辑
   // 模式 1: 双花括号 {{c1::答案::提示}} 或 {{答案}}
   // 模式 2: 思源高亮 ==答案==
   // 模式 3: 括号 （答案）
-  let processed = text;
-
   if (modes.includes("curly")) {
     const curlyRegex = /\{\{(?:c\d+::)?([^}:]+?)(?:::([^}]+?))?\}\}/g;
-    processed = processed.replace(curlyRegex, (_match, ans, hint) => {
+    masked = masked.replace(curlyRegex, (_match, ans, hint) => {
       const cleanAns = String(ans ?? "").trim();
       if (!cleanAns) return _match;
       answers.push(cleanAns);
@@ -57,7 +72,7 @@ export function parseSingleClozeSentence(
 
   if (modes.includes("highlight")) {
     const highlightRegex = /==([^=\n\r]+?)==/g;
-    processed = processed.replace(highlightRegex, (_match, ans) => {
+    masked = masked.replace(highlightRegex, (_match, ans) => {
       const cleanAns = String(ans ?? "").trim();
       if (!cleanAns) return _match;
       answers.push(cleanAns);
@@ -67,13 +82,15 @@ export function parseSingleClozeSentence(
 
   if (modes.includes("bracket")) {
     const bracketRegex = /[（(]([^）)\n\r]{1,40})[）)]/g;
-    processed = processed.replace(bracketRegex, (_match, ans) => {
+    masked = masked.replace(bracketRegex, (_match, ans) => {
       const cleanAns = String(ans ?? "").trim();
       if (!cleanAns) return _match;
       answers.push(cleanAns);
       return placeholder;
     });
   }
+
+  const processed = masked.replace(/@@CLOZEMASK_(\d+)@@/g, (_m, i: string) => spans[Number(i)] ?? _m);
 
   if (answers.length === 0) return null;
 

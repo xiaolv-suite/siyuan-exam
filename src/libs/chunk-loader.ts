@@ -4,7 +4,7 @@
  */
 const BASE = "/plugins/siyuan-exam";
 
-export type ChunkName = "sheetjs";
+export type ChunkName = "sheetjs" | "pdfjs";
 
 declare global {
   interface Window {
@@ -77,10 +77,16 @@ export async function loadChunk<T = any>(name: ChunkName): Promise<T> {
       const mod = await import("xlsx");
       return (mod.default || mod) as unknown as T;
     }
+    if (name === "pdfjs") {
+      const worker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+      (globalThis as Record<string, unknown>).pdfjsWorker = worker;
+      const mod = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      return mod as unknown as T;
+    }
     throw new Error(`unsupported chunk in headless environment: ${name}`);
   }
   return (pending[name] ??= (async () => {
-    const version = "0.15.7";
+    const version = "0.15.8";
     await injectScript(name, version);
     const reg = typeof window !== "undefined" ? window.__lvChunks : undefined;
     const mod = reg?.[name];

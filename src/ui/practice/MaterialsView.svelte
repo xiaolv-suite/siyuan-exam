@@ -35,7 +35,7 @@
     locatorLabel: (loc: any) => string;
     needsRelocate: (n: any, rev: number) => boolean;
     onback: () => void;
-    onchangeView: (view: "manual" | "materials" | "import" | "ai") => void;
+    onchangeView: (view: "manual" | "siyuan" | "materials" | "import" | "ai") => void;
     materialFileInput?: HTMLInputElement | null;
     onpickFile: () => void;
     onfileChange: (e: Event) => void;
@@ -44,7 +44,7 @@
     onopenMaterial: (m: MaterialDoc) => void;
     ontoggleNotes: (m: MaterialDoc) => void;
     onbridgeToManual: (m: MaterialDoc, noteText?: string) => void;
-    onbridgeToAi: (m: MaterialDoc) => void;
+    onbridgeToAi: (m: MaterialDoc, noteText?: string) => void;
     onremoveMaterial: (m: MaterialDoc) => void;
     onopenMaterialAt: (m: MaterialDoc, n: MaterialNote) => void;
     onstartEditNote: (n: MaterialNote) => void;
@@ -144,7 +144,7 @@
       noteQuote = txt;
       if (notesOpenId !== selectedMaterial.id) ontoggleNotes(selectedMaterial);
     } else if (num === 4) {
-      onbridgeToAi(selectedMaterial);
+      onbridgeToAi(selectedMaterial, txt);
     }
   }
 
@@ -184,7 +184,7 @@
   </div>
   <StudioSubNav currentView="materials" {t} {onchangeView} />
   <!-- 使用说明向导卡片 -->
-  <div class="lv-card" style="margin:8px 0 10px;padding:12px 16px;background:color-mix(in srgb, var(--lv-accent-soft) 30%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);display:flex;align-items:flex-start;gap:12px">
+  <div class="lv-card lv-studio-intro-card" style="margin:8px 0 10px;padding:12px 16px;background:color-mix(in srgb, var(--lv-accent-soft) 30%, var(--lv-surface));border-left:3.5px solid var(--lv-accent);border-radius:var(--lv-r-2);display:flex;align-items:flex-start;gap:12px">
     <Icon name="info" size={16} />
     <div style="font-size:12.5px;line-height:1.6;color:var(--lv-text-2)">
       <b style="color:var(--lv-text);display:block;margin-bottom:2px">💡 学习资料库如何使用？</b>
